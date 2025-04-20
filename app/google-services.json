@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "689592026061",
+    "project_id": "spomusic-457411",
+    "storage_bucket": "spomusic-457411.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689592026061:android:49f4c3284cfe100a023a84",
+        "android_client_info": {
+          "package_name": "com.example.spomusicapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "689592026061-r1v3p6rkv5g2solouuoh42r6ue2rr53u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.spomusicapp",
+            "certificate_hash": "d59ad90c9b6262204758b21d8e10b1a2041c31a0"
+          }
+        },
+        {
+          "client_id": "689592026061-n81vh8ts6cvpis77l9qsl965qduqplie.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVVDyMNG2YDKeDHK_YDfk3PNt0jNOyRPU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "689592026061-n81vh8ts6cvpis77l9qsl965qduqplie.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
