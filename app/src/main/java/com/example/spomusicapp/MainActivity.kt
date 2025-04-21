@@ -56,30 +56,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchCredentialManager() {
-        // [START create_credential_manager_request]
-        // Instantiate a Google sign-in request
         val googleIdOption = GetGoogleIdOption.Builder()
-            // Your server's client ID, not your Android client ID.
             .setServerClientId(getString(R.string.default_web_client_id))
-            // Only show accounts previously used to sign in.
             .setFilterByAuthorizedAccounts(false)
             .build()
 
-        // Create the Credential Manager request
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(googleIdOption)
             .build()
-        // [END create_credential_manager_request]
 
         lifecycleScope.launch {
             try {
-                // Launch Credential Manager UI
                 val result = credentialManager.getCredential(
                     context = baseContext,
                     request = request
                 )
-
-                // Extract credential from the result returned by Credential Manager
                 handleSignIn(result.credential)
             } catch (e: GetCredentialException) {
                 Log.e(TAG, "Couldn't retrieve user's credentials: ${e.localizedMessage}")
@@ -88,12 +79,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleSignIn(credential: Credential) {
-        // Check if credential is of type Google ID
         if (credential is CustomCredential && credential.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-            // Create Google ID Token
             val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-
-            // Sign in to Firebase with using the token
             firebaseAuthWithGoogle(googleIdTokenCredential.idToken)
         } else {
             Log.w(TAG, "Credential is not of type Google ID!")
