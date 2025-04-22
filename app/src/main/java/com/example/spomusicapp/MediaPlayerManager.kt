@@ -6,6 +6,7 @@ import android.media.MediaPlayer
 
 object MediaPlayerManager {
     private var mediaPlayer: MediaPlayer? = null
+    private var currentSongUrl: String? = null
 
     fun play(context: Context, url: String) {
         stop()
@@ -44,6 +45,10 @@ object MediaPlayerManager {
 
     fun resume() {
         mediaPlayer?.start()
+    }
+
+    fun isCurrentSong(url: String): Boolean {
+        return currentSongUrl == url
     }
 
 }

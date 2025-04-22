@@ -1,13 +1,23 @@
 package com.example.spomusicapp
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
@@ -26,15 +36,30 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
     inner class SongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameTextView: TextView = itemView.findViewById(R.id.song_name)
 
+        private val albumArtImageView: ImageView = itemView.findViewById(R.id.albumArtImage)
+
         fun bind(song: Song) {
             nameTextView.text = song.title
                 .removeSuffix(".mp3")
-                .replace(Regex("\\s*\\([^)]*\\)"), "") // quita paréntesis y su contenido
-                .replace("-", "–") // o reemplaza el guión con otro separador
+                .replace(Regex("\\s*\\([^)]*\\)"), "")
+                .replace("-", "–")
                 .trim()
+
+            CoroutineScope(Dispatchers.IO).launch {
+                val bitmap = getEmbeddedPictureFromUrl(itemView.context, song.url)
+                withContext(Dispatchers.Main) {
+                    if (bitmap != null) {
+                        albumArtImageView.setImageBitmap(bitmap)
+                    } else {
+                        albumArtImageView.setImageResource(R.drawable.album_cover)
+                    }
+                }
+            }
+
             itemView.setOnClickListener {
                 onItemClick?.invoke(song)
             }
+
         }
     }
 
@@ -46,6 +71,23 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         @SuppressLint("DiffUtilEquals")
         override fun areContentsTheSame(oldItem: Song, newItem: Song): Boolean {
             return oldItem == newItem
+        }
+    }
+
+    fun getEmbeddedPictureFromUrl(context: Context, url: String): Bitmap? {
+        return try {
+            val mediaMetadataRetriever = MediaMetadataRetriever()
+            mediaMetadataRetriever.setDataSource(url, HashMap())
+
+            val art = mediaMetadataRetriever.embeddedPicture
+            mediaMetadataRetriever.release()
+
+            art?.let {
+                BitmapFactory.decodeByteArray(it, 0, it.size)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 }
