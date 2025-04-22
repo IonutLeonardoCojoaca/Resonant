@@ -8,21 +8,11 @@ object MediaPlayerManager {
     private var mediaPlayer: MediaPlayer? = null
 
     fun play(context: Context, url: String) {
-        // Si ya está reproduciendo, lo paramos
-        mediaPlayer?.release()
-        mediaPlayer = null
-
+        stop()
         mediaPlayer = MediaPlayer().apply {
             setDataSource(url)
-            setAudioStreamType(AudioManager.STREAM_MUSIC)
-            setOnPreparedListener {
-                start()
-            }
-            setOnCompletionListener {
-                release()
-                mediaPlayer = null
-            }
-            prepareAsync()
+            prepare()
+            start()
         }
     }
 
@@ -31,4 +21,29 @@ object MediaPlayerManager {
         mediaPlayer?.release()
         mediaPlayer = null
     }
+
+    fun getCurrentPosition(): Int {
+        return mediaPlayer?.currentPosition ?: 0
+    }
+
+    fun getDuration(): Int {
+        return mediaPlayer?.duration ?: 0
+    }
+
+    fun seekTo(position: Int) {
+        mediaPlayer?.seekTo(position)
+    }
+
+    fun isPlaying(): Boolean {
+        return mediaPlayer?.isPlaying ?: false
+    }
+
+    fun pause() {
+        mediaPlayer?.pause()
+    }
+
+    fun resume() {
+        mediaPlayer?.start()
+    }
+
 }

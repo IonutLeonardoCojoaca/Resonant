@@ -68,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val result = credentialManager.getCredential(
-                    context = baseContext,
+                    context = this@MainActivity,
                     request = request
                 )
                 handleSignIn(result.credential)

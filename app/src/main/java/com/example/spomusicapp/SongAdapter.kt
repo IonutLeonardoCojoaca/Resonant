@@ -11,6 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
+    var onItemClick: ((Song) -> Unit)? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
         return SongViewHolder(view)
@@ -31,7 +33,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 .replace("-", "–") // o reemplaza el guión con otro separador
                 .trim()
             itemView.setOnClickListener {
-                MediaPlayerManager.play(itemView.context, song.url)
+                onItemClick?.invoke(song)
             }
         }
     }
