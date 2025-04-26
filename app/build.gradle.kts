@@ -10,13 +10,15 @@ android {
 
     defaultConfig {
         applicationId = "com.example.spomusicapp"
-        minSdk = 26
+        minSdk = 33
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+
 
     buildTypes {
         release {
@@ -60,5 +62,11 @@ dependencies {
 
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    implementation ("com.google.firebase:firebase-config-ktx:21.0.1")
+    implementation ("com.google.firebase:firebase-analytics")
+
+    implementation ("androidx.media:media:1.7.0")
+
 
 }

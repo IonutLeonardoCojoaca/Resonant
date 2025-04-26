@@ -7,14 +7,25 @@ import android.media.MediaPlayer
 object MediaPlayerManager {
     private var mediaPlayer: MediaPlayer? = null
     private var currentSongUrl: String? = null
+    private var currentSongIndex: Int = -1
 
-    fun play(context: Context, url: String) {
+    fun play(context: Context, url: String, index: Int) {
         stop()
         mediaPlayer = MediaPlayer().apply {
             setDataSource(url)
-            prepare()
-            start()
+            setOnPreparedListener {
+                it.start()
+
+                // 🚀 Actualizar SeekBar y tiempo total
+                if (context is ActivitySongList) {
+                    context.seekBar.max = it.duration
+                    context.totalTimeText.text = context.formatTime(it.duration)
+                }
+            }
+            prepareAsync()
         }
+        currentSongUrl = url
+        currentSongIndex = index
     }
 
     fun stop() {

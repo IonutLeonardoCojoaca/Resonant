@@ -5,7 +5,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 class SongRepository {
     private val service = Retrofit.Builder()
-        .baseUrl("https://listsongs-4ptxqjnupq-uc.a.run.app/") // ✅ baseUrl correcta
+        .baseUrl("https://listsongs-4ptxqjnupq-uc.a.run.app/")
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(FirebaseFunctionService::class.java)
@@ -15,7 +15,7 @@ class SongRepository {
             val response = service.getSongs()
             response.songs
         } catch (e: Exception) {
-            e.printStackTrace() // para ver el error real en logcat
+            e.printStackTrace()
             null
         }
     }
