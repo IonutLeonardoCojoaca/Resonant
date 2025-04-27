@@ -14,7 +14,7 @@
         android:layout_height="match_parent"
         android:scaleX="1.5"
         android:scaleY="1.5"
-        android:backgroundTint="@color/black"/>
+        android:background="@drawable/gradient_login"/>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -26,49 +26,125 @@
             android:layout_height="0dp"
             android:layout_weight="70">
 
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:layout_centerVertical="true">
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Bienvenido a SpoMusic"
+                    android:textSize="22sp"
+                    android:textColor="#CCCCCC"/>
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Escucha tu música sin límites ni anuncios invasivos"
+                    android:textColor="#CCCCCC"/>
+
+            </FrameLayout>
 
         </RelativeLayout>
 
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="30">
+            android:layout_weight="30"
+            android:padding="10dp">
 
             <RelativeLayout
-                android:layout_width="290dp"
-                android:layout_height="50dp"
-                android:background="@drawable/google_button_background"
+                android:id="@+id/containerButtonsLogIn"
+                android:layout_width="wrap_content"
+                android:layout_height="120dp"
                 android:layout_centerInParent="true">
 
                 <RelativeLayout
-                    android:id="@+id/googleLogInButton"
-                    android:layout_width="match_parent"
+                    android:id="@+id/entryInvitationButton"
+                    android:layout_width="290dp"
                     android:layout_height="50dp"
-                    android:layout_centerInParent="true"
-                    android:gravity="center">
+                    android:background="@drawable/no_login_button"
+                    android:layout_alignParentTop="true">
 
-                    <ImageView
-                        android:id="@+id/google_logo"
-                        android:layout_width="30dp"
-                        android:layout_height="30dp"
-                        android:scaleType="centerCrop"
-                        android:background="@drawable/google_icon"
-                        android:layout_centerVertical="true"/>
+                    <FrameLayout
+                        android:layout_width="210dp"
+                        android:layout_height="50dp"
+                        android:layout_centerInParent="true">
 
-                    <TextView
-                        android:id="@+id/google_login_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Iniciar sesión con Google"
-                        android:textColor="@color/white"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text="Entrar como invitado"
+                            android:textColor="@color/black"
+                            android:textSize="14sp"/>
+
+                    </FrameLayout>
+
+                </RelativeLayout>
+
+
+                <RelativeLayout
+                    android:id="@+id/googleLogInButtonContainer"
+                    android:layout_width="290dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/google_button_background"
+                    android:layout_alignParentBottom="true">
+
+                    <RelativeLayout
+                        android:id="@+id/googleLogInButton"
+                        android:layout_width="250dp"
+                        android:layout_height="50dp"
                         android:layout_centerInParent="true"
-                        android:paddingHorizontal="20dp"
-                        android:textSize="14sp"/>
+                        android:gravity="center">
+
+                        <ImageView
+                            android:id="@+id/google_logo"
+                            android:layout_width="30dp"
+                            android:layout_height="30dp"
+                            android:scaleType="centerCrop"
+                            android:background="@drawable/google_icon"
+                            android:layout_centerVertical="true"/>
+
+                        <TextView
+                            android:id="@+id/google_login_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Iniciar sesión con Google"
+                            android:textColor="@color/white"
+                            android:layout_centerInParent="true"
+                            android:textSize="14sp"/>
+
+                    </RelativeLayout>
 
                 </RelativeLayout>
 
             </RelativeLayout>
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/containerButtonsLogIn"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_version"
+                    android:textColor="#CCCCCC"/>
+
+            </FrameLayout>
 
         </RelativeLayout>
 

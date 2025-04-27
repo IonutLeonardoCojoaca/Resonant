@@ -15,12 +15,15 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
     var onItemClick: ((Song) -> Unit)? = null
+    private var currentJob: Job? = null
+    private val bitmapCache = mutableMapOf<String, Bitmap?>()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
@@ -33,24 +36,35 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
     }
 
     inner class SongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val nameTextView: TextView = itemView.findViewById(R.id.song_name)
 
+        private val nameTextView: TextView = itemView.findViewById(R.id.song_name)
+        private val artistTextView: TextView = itemView.findViewById(R.id.song_artist)
+        private val albumTextView: TextView = itemView.findViewById(R.id.song_album)
         private val albumArtImageView: ImageView = itemView.findViewById(R.id.albumArtImage)
 
         fun bind(song: Song) {
             nameTextView.text = song.title
+                .substringBefore("-")   // Obtiene el texto antes del primer guión
                 .removeSuffix(".mp3")
                 .replace(Regex("\\s*\\([^)]*\\)"), "")
                 .replace("-", "–")
                 .trim()
 
-            CoroutineScope(Dispatchers.IO).launch {
-                val bitmap = getEmbeddedPictureFromUrl(itemView.context, song.url)
-                withContext(Dispatchers.Main) {
-                    if (bitmap != null) {
-                        albumArtImageView.setImageBitmap(bitmap)
-                    } else {
-                        albumArtImageView.setImageResource(R.drawable.album_cover)
+            artistTextView.text = song.artist ?: "Desconocido"
+            albumTextView.text = song.album ?: "Desconocido"
+
+            bitmapCache[song.url]?.let {
+                albumArtImageView.setImageBitmap(it)
+            } ?: run {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val bitmap = getEmbeddedPictureFromUrl(itemView.context, song.url)
+                    withContext(Dispatchers.Main) {
+                        if (bitmap != null) {
+                            albumArtImageView.setImageBitmap(bitmap)
+                            bitmapCache[song.url] = bitmap
+                        } else {
+                            albumArtImageView.setImageResource(R.drawable.album_cover)
+                        }
                     }
                 }
             }
@@ -58,7 +72,6 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             itemView.setOnClickListener {
                 onItemClick?.invoke(song)
             }
-
         }
     }
 
@@ -76,7 +89,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
     fun getEmbeddedPictureFromUrl(context: Context, url: String): Bitmap? {
         return try {
             val mediaMetadataRetriever = MediaMetadataRetriever()
-            mediaMetadataRetriever.setDataSource(url, HashMap())
+            mediaMetadataRetriever.setDataSource(url, HashMap<String, String>())
 
             val art = mediaMetadataRetriever.embeddedPicture
             mediaMetadataRetriever.release()

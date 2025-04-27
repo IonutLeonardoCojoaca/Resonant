@@ -37,14 +37,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="10dp">
+        android:padding="10dp"
+        android:background="@drawable/music_player_background">
 
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:outlineSpotShadowColor="@color/white"
-            android:outlineAmbientShadowColor="@color/white"/>
+            android:layout_height="wrap_content"/>
 
         <RelativeLayout
             android:id="@+id/playerContainer"

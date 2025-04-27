@@ -68,5 +68,6 @@ dependencies {
 
     implementation ("androidx.media:media:1.7.0")
 
+    implementation ("androidx.paging:paging-runtime:3.1.1")
 
 }

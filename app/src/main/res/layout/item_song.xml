@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="85dp">
+    android:layout_height="80dp">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -10,29 +10,48 @@
 
         <ImageView
             android:id="@+id/albumArtImage"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="65dp"
+            android:layout_height="65dp"
             android:layout_marginLeft="8dp"
             android:scaleType="centerCrop"
             android:src="@drawable/album_cover" />
 
-
-        <TextView
-            android:id="@+id/song_name"
+        <RelativeLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Song Name"
-            android:textSize="16sp"
-            android:layout_centerVertical="true"
             android:layout_toRightOf="@id/albumArtImage"
-            android:layout_marginLeft="20dp"/>
+            android:layout_marginLeft="15dp">
+
+            <TextView
+                android:id="@+id/song_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Song Name"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/song_artist"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Artist"
+                android:layout_below="@id/song_name"/>
+
+            <TextView
+                android:id="@+id/song_album"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Album"
+                android:layout_below="@id/song_artist"/>
+
+        </RelativeLayout>
 
     </RelativeLayout>
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#C1C1C1"
+        android:background="#7E7E7E"
         android:layout_alignParentBottom="true"
         android:paddingHorizontal="20dp"/>
 

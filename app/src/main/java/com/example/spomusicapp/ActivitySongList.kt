@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.util.Log
 import android.widget.Button
 import androidx.credentials.ClearCredentialStateRequest
@@ -29,6 +30,8 @@ import androidx.credentials.exceptions.ClearCredentialException
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class ActivitySongList : AppCompatActivity() {
 
@@ -52,6 +55,8 @@ class ActivitySongList : AppCompatActivity() {
     private lateinit var signOutButton: Button
     private lateinit var auth: FirebaseAuth
     private lateinit var credentialManager: CredentialManager
+
+    private var shouldStopMusic = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -145,8 +150,9 @@ class ActivitySongList : AppCompatActivity() {
         lifecycleScope.launch {
             val songs = songRepository.fetchSongs()
             songs?.let {
-                songAdapter.submitList(it)
-                PlaybackManager.setSongs(it)
+                val enrichedSongs = it.mapNotNull { song -> enrichSong(song) }
+                songAdapter.submitList(enrichedSongs)
+                PlaybackManager.setSongs(enrichedSongs)
             } ?: run {
                 Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
@@ -157,6 +163,29 @@ class ActivitySongList : AppCompatActivity() {
         }
 
 
+    }
+
+    suspend fun enrichSong(song: Song): Song? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val retriever = MediaMetadataRetriever()
+                retriever.setDataSource(song.url, HashMap())
+                val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: song.title
+                val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Artista desconocido"
+                val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: "Álbum desconocido"
+                retriever.release()
+
+                Song(
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    url = song.url
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -225,7 +254,9 @@ class ActivitySongList : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         updateSeekBarRunnable?.let { handler.removeCallbacks(it) }
-        MediaPlayerManager.stop()
+        if (shouldStopMusic) {
+            MediaPlayerManager.stop() // ✅ Solo parar la música si es necesario
+        }
     }
 
     private fun signOut() {
@@ -241,6 +272,12 @@ class ActivitySongList : AppCompatActivity() {
                 Log.i("ErrorSingOut", "Couldn't clear user credentials: ${e.localizedMessage}")
             }
         }
+    }
+
+    override fun onBackPressed() {
+        super.onBackPressed()
+        shouldStopMusic = false
+        moveTaskToBack(true)
     }
 
 }
