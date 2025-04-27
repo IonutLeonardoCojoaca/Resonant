@@ -4,6 +4,7 @@ import android.content.ContentValues.TAG
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -12,8 +13,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import android.util.Log
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.widget.Button
+import android.widget.RelativeLayout
 import android.widget.Toast
+import android.widget.VideoView
 import androidx.appcompat.app.AlertDialog
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.Credential
@@ -37,7 +44,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var credentialManager: CredentialManager
-    private lateinit var signInGoogle : Button
+    private lateinit var signInGoogle : RelativeLayout
+    private lateinit var videoView: VideoView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,7 +64,7 @@ class MainActivity : AppCompatActivity() {
             finish()
         }
 
-        signInGoogle = findViewById<Button>(R.id.googleSignInButton)
+        signInGoogle = findViewById(R.id.googleLogInButton)
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
@@ -65,7 +73,35 @@ class MainActivity : AppCompatActivity() {
             launchCredentialManager()
         }
 
+        val insetsController = window.insetsController
+        insetsController?.hide(WindowInsetsController.BEHAVIOR_SHOW_BARS_BY_SWIPE)
+        insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        val windowInsetsController = window.insetsController
+        windowInsetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
 
+
+        videoView = findViewById<VideoView>(R.id.videoViewBackground1)
+
+        val uri = Uri.parse("android.resource://${packageName}/${R.raw.footage_login}")
+        videoView.setVideoURI(uri)
+
+        videoView.setOnPreparedListener { mediaPlayer ->
+            mediaPlayer.isLooping = true
+            mediaPlayer.setVolume(0f, 0f)
+        }
+
+        videoView.start()
+
+    }
+
+    override fun onResume() {
+        super.onResume()
+        videoView.start()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        videoView.pause()
     }
 
     private fun launchCredentialManager() {
@@ -115,17 +151,7 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    private fun signOut() {
-        auth.signOut()
-        lifecycleScope.launch {
-            try {
-                val clearRequest = ClearCredentialStateRequest()
-                credentialManager.clearCredentialState(clearRequest)
-            } catch (e: ClearCredentialException) {
-                Log.i("ErrorSingOut", "Couldn't clear user credentials: ${e.localizedMessage}")
-            }
-        }
-    }
+
 
 
 }

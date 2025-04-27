@@ -20,6 +20,15 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import android.Manifest
+import android.content.Intent
+import android.util.Log
+import android.widget.Button
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.exceptions.ClearCredentialException
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
 
 class ActivitySongList : AppCompatActivity() {
 
@@ -39,6 +48,10 @@ class ActivitySongList : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
 
     private val songRepository = SongRepository()
+
+    private lateinit var signOutButton: Button
+    private lateinit var auth: FirebaseAuth
+    private lateinit var credentialManager: CredentialManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +85,10 @@ class ActivitySongList : AppCompatActivity() {
         // Time
         currentTimeText = findViewById(R.id.currentTimeText)
         totalTimeText = findViewById(R.id.totalTimeText)
+
+        auth = Firebase.auth
+        credentialManager = CredentialManager.create(baseContext)
+        signOutButton = findViewById<Button>(R.id.signOutButton)
 
         playPauseButton.setOnClickListener {
             if (isPlaying) {
@@ -133,6 +150,10 @@ class ActivitySongList : AppCompatActivity() {
             } ?: run {
                 Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        signOutButton.setOnClickListener {
+            signOut()
         }
 
 
@@ -205,6 +226,21 @@ class ActivitySongList : AppCompatActivity() {
         super.onDestroy()
         updateSeekBarRunnable?.let { handler.removeCallbacks(it) }
         MediaPlayerManager.stop()
+    }
+
+    private fun signOut() {
+        auth.signOut()
+        lifecycleScope.launch {
+            try {
+                val clearRequest = ClearCredentialStateRequest()
+                credentialManager.clearCredentialState(clearRequest)
+                intent = Intent(applicationContext, MainActivity::class.java)
+                startActivity(intent)
+                finish()
+            } catch (e: ClearCredentialException) {
+                Log.i("ErrorSingOut", "Couldn't clear user credentials: ${e.localizedMessage}")
+            }
+        }
     }
 
 }
