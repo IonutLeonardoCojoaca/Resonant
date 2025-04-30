@@ -44,7 +44,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
         fun bind(song: Song) {
             nameTextView.text = song.title
-                .substringBefore("-")   // Obtiene el texto antes del primer guión
+                .substringBefore("-")
                 .removeSuffix(".mp3")
                 .replace(Regex("\\s*\\([^)]*\\)"), "")
                 .replace("-", "–")
@@ -77,7 +77,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
     class SongDiffCallback : DiffUtil.ItemCallback<Song>() {
         override fun areItemsTheSame(oldItem: Song, newItem: Song): Boolean {
-            return oldItem.url == newItem.url // Comparar por la URL o algún identificador único
+            return oldItem.url == newItem.url
         }
 
         @SuppressLint("DiffUtilEquals")

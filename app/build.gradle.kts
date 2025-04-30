@@ -70,4 +70,6 @@ dependencies {
 
     implementation ("androidx.paging:paging-runtime:3.1.1")
 
+    implementation ("com.airbnb.android:lottie:6.0.0")
+
 }

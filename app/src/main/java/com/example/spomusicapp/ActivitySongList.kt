@@ -21,9 +21,11 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.Intent
+import android.media.Image
 import android.media.MediaMetadataRetriever
 import android.util.Log
 import android.widget.Button
+import android.widget.ImageView
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -58,6 +60,14 @@ class ActivitySongList : AppCompatActivity() {
 
     private var shouldStopMusic = true
 
+    private var currentOffset = 0
+    private val pageSize = 10
+    private var isLoading = false
+    private var hasMoreItems = true
+    private val songList = mutableListOf<Song>()
+
+    private lateinit var loadingAnimation: ImageView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -69,10 +79,8 @@ class ActivitySongList : AppCompatActivity() {
             insets
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-            }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
 
         recyclerView = findViewById(R.id.main)
@@ -91,9 +99,14 @@ class ActivitySongList : AppCompatActivity() {
         currentTimeText = findViewById(R.id.currentTimeText)
         totalTimeText = findViewById(R.id.totalTimeText)
 
+        val layoutManager = LinearLayoutManager(this)
+        recyclerView.layoutManager = layoutManager
+
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
         signOutButton = findViewById<Button>(R.id.signOutButton)
+
+        //loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
 
         playPauseButton.setOnClickListener {
             if (isPlaying) {
@@ -147,23 +160,69 @@ class ActivitySongList : AppCompatActivity() {
             }
         }
 
-        lifecycleScope.launch {
-            val songs = songRepository.fetchSongs()
-            songs?.let {
-                val enrichedSongs = it.mapNotNull { song -> enrichSong(song) }
-                songAdapter.submitList(enrichedSongs)
-                PlaybackManager.setSongs(enrichedSongs)
-            } ?: run {
-                Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+
+                val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+                val lastVisibleItem = layoutManager.findLastVisibleItemPosition()
+                val totalItemCount = layoutManager.itemCount
+
+                if (lastVisibleItem >= totalItemCount - 2 && !isLoading) {
+                    loadSongs()
+                }
             }
-        }
+        })
 
         signOutButton.setOnClickListener {
             signOut()
         }
 
+        if (SongCache.cachedSongs.isNotEmpty()) {
+            songList.addAll(SongCache.cachedSongs)
+            currentOffset = SongCache.currentOffset
+            hasMoreItems = SongCache.hasMoreSongs
+            songAdapter.submitList(songList.toList())
+            PlaybackManager.setSongs(songList)
+        } else {
+            loadSongs(initialLoad = true)
+        }
 
     }
+
+    private fun loadSongs(initialLoad: Boolean = false) {
+        if (isLoading || !hasMoreItems) return
+
+        isLoading = true
+        //loadingAnimation.visibility = ImageView.VISIBLE // ⬅️ MOSTRAR animación
+
+        lifecycleScope.launch {
+            val songs = songRepository.fetchSongs(limit = pageSize, offset = currentOffset)
+            songs?.let {
+                val enrichedSongs = it.mapNotNull { song -> enrichSong(song) }
+                songList.addAll(enrichedSongs)
+                songAdapter.submitList(songList.toList()) // inmutable para DiffUtil
+                PlaybackManager.setSongs(songList)
+
+                // Actualiza la caché
+                SongCache.cachedSongs = songList.toList()
+                SongCache.currentOffset = currentOffset + enrichedSongs.size
+                SongCache.hasMoreSongs = enrichedSongs.size == pageSize
+
+                if (enrichedSongs.size < pageSize) {
+                    hasMoreItems = false
+                } else {
+                    currentOffset += pageSize
+                }
+            } ?: run {
+                Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
+            }
+
+            //loadingAnimation.visibility = ImageView.GONE // ⬅️ OCULTAR animación
+            isLoading = false
+        }
+    }
+
 
     suspend fun enrichSong(song: Song): Song? {
         return withContext(Dispatchers.IO) {
@@ -255,7 +314,7 @@ class ActivitySongList : AppCompatActivity() {
         super.onDestroy()
         updateSeekBarRunnable?.let { handler.removeCallbacks(it) }
         if (shouldStopMusic) {
-            MediaPlayerManager.stop() // ✅ Solo parar la música si es necesario
+            MediaPlayerManager.stop()
         }
     }
 

@@ -10,13 +10,14 @@ class SongRepository {
         .build()
         .create(FirebaseFunctionService::class.java)
 
-    suspend fun fetchSongs(): List<Song>? {
+    suspend fun fetchSongs(limit: Int, offset: Int): List<Song>? {
         return try {
-            val response = service.getSongs()
+            val response = service.getSongs(limit, offset)
             response.songs
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
+
 }
