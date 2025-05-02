@@ -1,7 +1,6 @@
 package com.example.spomusicapp
 
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -9,11 +8,9 @@ import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -22,18 +19,11 @@ import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.media.Image
 import android.media.MediaMetadataRetriever
-import android.text.Editable
-import android.text.TextWatcher
 import android.util.Log
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowManager
 import android.widget.Button
-import android.widget.EditText
 import android.widget.ImageView
+import androidx.activity.enableEdgeToEdge
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -43,11 +33,12 @@ import com.google.firebase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.core.content.edit
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 
 class ActivitySongList : AppCompatActivity() {
 
-    private lateinit var recyclerView: RecyclerView
+    lateinit var recyclerView: RecyclerView
     lateinit var songAdapter: SongAdapter
 
     lateinit var seekBar: SeekBar
@@ -64,7 +55,7 @@ class ActivitySongList : AppCompatActivity() {
 
     private val songRepository = SongRepository()
 
-    private lateinit var signOutButton: ImageButton
+    private lateinit var settingsButton: ImageButton
     private lateinit var auth: FirebaseAuth
     private lateinit var credentialManager: CredentialManager
 
@@ -77,10 +68,17 @@ class ActivitySongList : AppCompatActivity() {
     private val songList = mutableListOf<Song>()
 
     private lateinit var loadingAnimation: ImageView
+    private lateinit var searchSongsButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_song_list)
+        enableEdgeToEdge()
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -90,7 +88,7 @@ class ActivitySongList : AppCompatActivity() {
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
         insetsController.show(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
 
-        recyclerView = findViewById(R.id.main)
+        recyclerView = findViewById<RecyclerView>(R.id.allSongList)
         recyclerView.layoutManager = LinearLayoutManager(this)
         songAdapter = SongAdapter()
         recyclerView.adapter = songAdapter
@@ -106,14 +104,17 @@ class ActivitySongList : AppCompatActivity() {
         currentTimeText = findViewById(R.id.currentTimeText)
         totalTimeText = findViewById(R.id.totalTimeText)
 
-        val layoutManager = LinearLayoutManager(this)
-        recyclerView.layoutManager = layoutManager
-
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
-        signOutButton = findViewById(R.id.signOutButton)
+        settingsButton = findViewById(R.id.settingsButton)
 
         loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
+        searchSongsButton = findViewById(R.id.searchSongsButton)
+
+        searchSongsButton.setOnClickListener {
+            val intent = Intent(this, SearchSongsActivity::class.java)
+            startActivity(intent)
+        }
 
         playPauseButton.setOnClickListener {
             if (isPlaying) {
@@ -158,28 +159,12 @@ class ActivitySongList : AppCompatActivity() {
         songAdapter.setCurrentPlayingSong(savedUrl)
         startSeekBarUpdater()
 
-        if (isPlaying) {
-            MediaPlayerManager.pause()
-        } else {
-            MediaPlayerManager.resume()
-
-            // 🛠️ Solución asegurada:
-            val duration = MediaPlayerManager.getDuration()
-            if (duration > 0) {
-                seekBar.max = duration
-                totalTimeText.text = formatTime(duration)
-                startSeekBarUpdater()
-            } else {
-                // 🧠 Si todavía no ha devuelto duración, esperar un poco
-                handler.postDelayed({
-                    val newDuration = MediaPlayerManager.getDuration()
-                    seekBar.max = newDuration
-                    totalTimeText.text = formatTime(newDuration)
-                    startSeekBarUpdater()
-                }, 200) // esperar 200 ms
-            }
-        }
+        isPlaying = MediaPlayerManager.isPlaying()
         updatePlayPauseButton(isPlaying)
+
+        if (isPlaying) {
+            startSeekBarUpdater()
+        }
 
         songAdapter.onItemClick = { song ->
             val index = songAdapter.currentList.indexOf(song)
@@ -212,8 +197,8 @@ class ActivitySongList : AppCompatActivity() {
             }
         })
 
-        signOutButton.setOnClickListener {
-            signOut()
+        settingsButton.setOnClickListener {
+            goToSettingsActivity()
         }
 
         if (SongCache.cachedSongs.isNotEmpty()) {
@@ -226,36 +211,8 @@ class ActivitySongList : AppCompatActivity() {
             loadSongs(initialLoad = true)
         }
 
-        val searchEditText = findViewById<EditText>(R.id.searchEditText)
-
-        searchEditText.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                filterSongs(s.toString())
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
 
     }
-
-    private fun filterSongs(query: String) {
-        val filteredList = if (query.isEmpty()) {
-            songList
-        } else {
-            songList.filter {
-                it.title.contains(query, ignoreCase = true) == true
-            }
-        }
-
-        songAdapter.submitList(filteredList.toList())
-        PlaybackManager.setSongs(filteredList.toList()) // 🔥 AÑADE ESTA LÍNEA
-
-        if (query.isEmpty()) {
-            songAdapter.submitList(songList.toList())
-            PlaybackManager.setSongs(songList.toList()) // 👈 También aquí
-        }
-    }
-
 
     private fun loadSongs(initialLoad: Boolean = false) {
         if (isLoading || !hasMoreItems) return
@@ -285,11 +242,10 @@ class ActivitySongList : AppCompatActivity() {
                 Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
 
-            loadingAnimation.visibility = ImageView.INVISIBLE // ⬅️ OCULTAR animación
+            loadingAnimation.visibility = ImageView.GONE // ⬅️ OCULTAR animación
             isLoading = false
         }
     }
-
 
     suspend fun enrichSong(song: Song): Song? {
         return withContext(Dispatchers.IO) {
@@ -385,19 +341,9 @@ class ActivitySongList : AppCompatActivity() {
         }
     }
 
-    private fun signOut() {
-        auth.signOut()
-        lifecycleScope.launch {
-            try {
-                val clearRequest = ClearCredentialStateRequest()
-                credentialManager.clearCredentialState(clearRequest)
-                intent = Intent(applicationContext, MainActivity::class.java)
-                startActivity(intent)
-                finish()
-            } catch (e: ClearCredentialException) {
-                Log.i("ErrorSingOut", "Couldn't clear user credentials: ${e.localizedMessage}")
-            }
-        }
+    private fun goToSettingsActivity(){
+        val intent = Intent(this@ActivitySongList, SettingsActivity::class.java)
+        startActivity(intent)
     }
 
     override fun onBackPressed() {

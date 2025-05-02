@@ -1,83 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".ActivitySongList"
-    android:orientation="vertical"
-    android:background="#000000">
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="5">
-
-
-
-    </FrameLayout>
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="15"
-        android:padding="20dp">
-
-        <EditText
-            android:id="@+id/searchEditText"
-            android:layout_width="match_parent"
-            android:layout_height="45dp"
-            android:layout_gravity="center_vertical|left"
-            android:background="@drawable/search_bar_background"
-            android:hint="Buscar canción"
-            android:textColorHint="#6A6A6A"
-            android:paddingHorizontal="20dp"
-            android:gravity="center_vertical|left"
-            android:textColor="#B4B4B4"/>
-
-        <ImageButton
-            android:id="@+id/signOutButton"
-            android:layout_width="35dp"
-            android:layout_height="35dp"
-            android:layout_gravity="center_vertical|right"
-            android:background="@drawable/settings"
-            android:visibility="gone"/>
-
-    </FrameLayout>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/main"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="75"
-        android:scrollbars="vertical">
-
-
-
-    </androidx.recyclerview.widget.RecyclerView>
-
-    <com.airbnb.lottie.LottieAnimationView
-        android:id="@+id/loadingAnimation"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="5"
-        app:lottie_fileName="loading.json"
-        app:lottie_autoPlay="true"
-        app:lottie_loop="true"
-        android:layout_gravity="center"
-        android:visibility="invisible"/>
+    android:background="@color/appBackgroundTheme">
 
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="9"
+            android:paddingHorizontal="18dp">
+
+            <ImageButton
+                android:id="@+id/settingsButton"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:layout_gravity="center_vertical|right"
+                android:background="@drawable/settings"
+                android:visibility="visible"/>
+
+            <ImageButton
+                android:id="@+id/searchSongsButton"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:scaleType="fitCenter"
+                android:background="@drawable/search_icon"
+                android:layout_gravity="center_vertical|left"
+                android:text="ir a busqueda"/>
+
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="91"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="9"
+                android:paddingHorizontal="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Canciones más destacadas"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:layout_gravity="center_vertical|left"/>
+
+            </FrameLayout>
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="91"
+                android:background="@color/black">
+
+                <com.airbnb.lottie.LottieAnimationView
+                    android:id="@+id/loadingAnimation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:lottie_fileName="loading.json"
+                    app:lottie_autoPlay="true"
+                    app:lottie_loop="true"
+                    android:layout_centerInParent="true"
+                    android:visibility="visible"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/allSongList"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scrollbars="vertical">
+
+
+
+                </androidx.recyclerview.widget.RecyclerView>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:background="@drawable/song_list_gradient_top"
+                    android:layout_alignParentTop="true">
+
+                </View>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="140dp"
+                    android:background="@drawable/song_list_gradient_bottom"
+                    android:layout_alignParentBottom="true">
+
+                </View>
+
+            </RelativeLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="10dp">
+        android:layout_alignParentBottom="true"
+        android:padding="15dp">
 
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/music_player_background"
-            android:padding="10dp">
+            android:paddingVertical="10dp">
 
             <SeekBar
                 android:id="@+id/seekBar"
@@ -151,7 +192,7 @@
 
         </RelativeLayout>
 
-    </LinearLayout>
+    </FrameLayout>
 
-</LinearLayout>
+</RelativeLayout>
 

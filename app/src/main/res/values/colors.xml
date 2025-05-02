@@ -3,8 +3,12 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="appBackgroundTheme">#000000</color>
+
     <color name="primaryColorButton">#D1D1D1</color>
     <color name="selectedSongColorWhilePlaying">#121212</color>
     <color name="titleSongColorWhilePlaying">#F21010</color>
+
+    <color name="errorColorText">#B40909</color>
 
 </resources>

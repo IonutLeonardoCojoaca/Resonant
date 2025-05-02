@@ -46,7 +46,6 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
         fun bind(song: Song) {
             nameTextView.text = song.title
-                .substringBefore("-")
                 .removeSuffix(".mp3")
                 .replace(Regex("\\s*\\([^)]*\\)"), "")
                 .replace("-", "–")
@@ -112,6 +111,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         }
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     fun setCurrentPlayingSong(url: String?) {
         currentPlayingUrl = url
         notifyDataSetChanged()

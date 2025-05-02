@@ -6,7 +6,7 @@ data class Song(
     @SerializedName("name")
     val title: String,
     val url: String,
-    val artist: String? = null,
+    var artist: String? = null,
     val album: String? = null,
     var duration: String? = null
 )

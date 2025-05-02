@@ -15,6 +15,9 @@
         android:theme="@style/Theme.SpoMusicApp"
         tools:targetApi="31">
         <activity
+            android:name=".SearchSongsActivity"
+            android:exported="false" />
+        <activity
             android:name=".SettingsActivity"
             android:exported="false" />
 
@@ -30,7 +33,9 @@
 
         <activity
             android:name=".ActivitySongList"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
