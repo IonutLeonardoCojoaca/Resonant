@@ -6,110 +6,152 @@
     android:layout_height="match_parent"
     tools:context=".ActivitySongList"
     android:orientation="vertical"
-    android:padding="20dp"
-    android:background="@color/black">
+    android:background="#000000">
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="5">
 
-        <Button
-            android:id="@+id/signOutButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="cerrar sesion"
-            android:layout_gravity="right"/>
+
 
     </FrameLayout>
 
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="15"
+        android:padding="20dp">
 
+        <EditText
+            android:id="@+id/searchEditText"
+            android:layout_width="match_parent"
+            android:layout_height="45dp"
+            android:layout_gravity="center_vertical|left"
+            android:background="@drawable/search_bar_background"
+            android:hint="Buscar canción"
+            android:textColorHint="#6A6A6A"
+            android:paddingHorizontal="20dp"
+            android:gravity="center_vertical|left"
+            android:textColor="#B4B4B4"/>
+
+        <ImageButton
+            android:id="@+id/signOutButton"
+            android:layout_width="35dp"
+            android:layout_height="35dp"
+            android:layout_gravity="center_vertical|right"
+            android:background="@drawable/settings"
+            android:visibility="gone"/>
+
+    </FrameLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/main"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="70">
+        android:layout_weight="75"
+        android:scrollbars="vertical">
 
 
 
     </androidx.recyclerview.widget.RecyclerView>
 
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/loadingAnimation"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="5"
+        app:lottie_fileName="loading.json"
+        app:lottie_autoPlay="true"
+        app:lottie_loop="true"
+        android:layout_gravity="center"
+        android:visibility="invisible"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="10dp"
-        android:background="@drawable/music_player_background">
-
-        <SeekBar
-            android:id="@+id/seekBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        android:padding="10dp">
 
         <RelativeLayout
-            android:id="@+id/playerContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="10dp">
+            android:background="@drawable/music_player_background"
+            android:padding="10dp">
 
-            <TextView
-                android:id="@+id/currentTimeText"
-                android:layout_width="wrap_content"
-                android:text="00:00"
-                android:layout_height="20dp"/>
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:thumbTint="@color/white"
+                android:progressTint="@color/white"/>
 
             <RelativeLayout
-                android:id="@+id/playerActions"
-                android:layout_width="200dp"
+                android:id="@+id/playerContainer"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingHorizontal="18dp"
-                android:layout_centerInParent="true">
+                android:paddingHorizontal="10dp"
+                android:layout_below="@id/seekBar">
 
-                <ImageButton
-                    android:id="@+id/previousSongButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@drawable/ic_previous"
-                    android:scaleType="centerCrop"
-                    android:background="@android:color/transparent"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentLeft="true"/>
+                <TextView
+                    android:id="@+id/currentTimeText"
+                    android:layout_width="wrap_content"
+                    android:text="00:00"
+                    android:layout_height="20dp"
+                    android:textColor="@color/primaryColorButton"/>
 
-                <ImageButton
-                    android:id="@+id/playPauseButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/play"
-                    android:background="@android:color/transparent"
-                    android:layout_centerInParent="true"/>
+                <RelativeLayout
+                    android:id="@+id/playerActions"
+                    android:layout_width="200dp"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="18dp"
+                    android:layout_centerInParent="true">
 
-                <ImageButton
-                    android:id="@+id/nextSongButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@drawable/ic_next"
-                    android:scaleType="centerCrop"
-                    android:background="@android:color/transparent"
-                    android:layout_centerVertical="true"
+                    <ImageButton
+                        android:id="@+id/previousSongButton"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:src="@drawable/ic_previous"
+                        android:scaleType="centerCrop"
+                        android:background="@android:color/transparent"
+                        android:layout_centerVertical="true"
+                        android:layout_alignParentLeft="true"/>
+
+                    <ImageButton
+                        android:id="@+id/playPauseButton"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/play"
+                        android:background="@android:color/transparent"
+                        android:layout_centerInParent="true"/>
+
+                    <ImageButton
+                        android:id="@+id/nextSongButton"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:src="@drawable/ic_next"
+                        android:scaleType="centerCrop"
+                        android:background="@android:color/transparent"
+                        android:layout_centerVertical="true"
+                        android:layout_alignParentRight="true"/>
+
+                </RelativeLayout>
+
+                <TextView
+                    android:id="@+id/totalTimeText"
+                    android:layout_width="wrap_content"
+                    android:textColor="@color/primaryColorButton"
+                    android:text="00:00"
+                    android:layout_height="20dp"
                     android:layout_alignParentRight="true"/>
 
             </RelativeLayout>
 
-            <TextView
-                android:id="@+id/totalTimeText"
-                android:layout_width="wrap_content"
-                android:text="00:00"
-                android:layout_height="20dp"
-                android:layout_alignParentRight="true"/>
-
         </RelativeLayout>
 
     </LinearLayout>
-
 
 </LinearLayout>
 

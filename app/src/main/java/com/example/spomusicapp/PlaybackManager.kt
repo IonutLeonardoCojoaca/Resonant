@@ -1,6 +1,7 @@
 package com.example.spomusicapp
 
 import android.content.Context
+import androidx.core.content.edit
 
 object PlaybackManager {
     private var songs: List<Song> = emptyList() // Tu modelo de canción
@@ -14,7 +15,7 @@ object PlaybackManager {
         if (index in songs.indices) {
             currentIndex = index
             val song = songs[index]
-            MediaPlayerManager.play(context, song.url, index) // <- 🔥 le pasamos el index aquí
+            MediaPlayerManager.play(context, song.url, index)
         }
     }
 
@@ -23,6 +24,11 @@ object PlaybackManager {
             currentIndex = (currentIndex + 1) % songs.size
             val song = songs[currentIndex]
             MediaPlayerManager.play(context, song.url, currentIndex)
+
+            val sharedPref = context.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
+            sharedPref.edit() { putString("current_playing_url", song.url) }
+
+            (context as? ActivitySongList)?.songAdapter?.setCurrentPlayingSong(song.url)
         }
     }
 
@@ -31,6 +37,11 @@ object PlaybackManager {
             currentIndex = if (currentIndex - 1 < 0) songs.size - 1 else currentIndex - 1
             val song = songs[currentIndex]
             MediaPlayerManager.play(context, song.url, currentIndex)
+
+            val sharedPref = context.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
+            sharedPref.edit() { putString("current_playing_url", song.url) }
+
+            (context as? ActivitySongList)?.songAdapter?.setCurrentPlayingSong(song.url)
         }
     }
 

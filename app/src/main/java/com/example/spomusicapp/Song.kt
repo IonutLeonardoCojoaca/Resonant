@@ -7,6 +7,7 @@ data class Song(
     val title: String,
     val url: String,
     val artist: String? = null,
-    val album: String? = null
+    val album: String? = null,
+    var duration: String? = null
 )
 

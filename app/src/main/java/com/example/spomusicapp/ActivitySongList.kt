@@ -20,11 +20,19 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.media.Image
 import android.media.MediaMetadataRetriever
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -34,11 +42,13 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.core.content.edit
+import androidx.core.view.WindowCompat
 
 class ActivitySongList : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var songAdapter: SongAdapter
+    lateinit var songAdapter: SongAdapter
 
     lateinit var seekBar: SeekBar
     lateinit var currentTimeText: TextView
@@ -54,7 +64,7 @@ class ActivitySongList : AppCompatActivity() {
 
     private val songRepository = SongRepository()
 
-    private lateinit var signOutButton: Button
+    private lateinit var signOutButton: ImageButton
     private lateinit var auth: FirebaseAuth
     private lateinit var credentialManager: CredentialManager
 
@@ -70,18 +80,15 @@ class ActivitySongList : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContentView(R.layout.activity_song_list)
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
+
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.show(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
 
         recyclerView = findViewById(R.id.main)
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -104,9 +111,9 @@ class ActivitySongList : AppCompatActivity() {
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
-        signOutButton = findViewById<Button>(R.id.signOutButton)
+        signOutButton = findViewById(R.id.signOutButton)
 
-        //loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
+        loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
 
         playPauseButton.setOnClickListener {
             if (isPlaying) {
@@ -135,21 +142,52 @@ class ActivitySongList : AppCompatActivity() {
         }
 
         previousSongButton.setOnClickListener {
-            // Aquí no necesitas el callback, se maneja automáticamente dentro del MediaPlayerManager
             PlaybackManager.playPrevious(this@ActivitySongList)
             isPlaying = true
             updatePlayPauseButton(isPlaying)
         }
 
         nextSongButton.setOnClickListener {
-            // Aquí tampoco necesitas el callback
             PlaybackManager.playNext(this@ActivitySongList)
             isPlaying = true
             updatePlayPauseButton(isPlaying)
         }
 
+        val sharedPref = this@ActivitySongList.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
+        val savedUrl = sharedPref.getString("current_playing_url", null)
+        songAdapter.setCurrentPlayingSong(savedUrl)
+        startSeekBarUpdater()
+
+        if (isPlaying) {
+            MediaPlayerManager.pause()
+        } else {
+            MediaPlayerManager.resume()
+
+            // 🛠️ Solución asegurada:
+            val duration = MediaPlayerManager.getDuration()
+            if (duration > 0) {
+                seekBar.max = duration
+                totalTimeText.text = formatTime(duration)
+                startSeekBarUpdater()
+            } else {
+                // 🧠 Si todavía no ha devuelto duración, esperar un poco
+                handler.postDelayed({
+                    val newDuration = MediaPlayerManager.getDuration()
+                    seekBar.max = newDuration
+                    totalTimeText.text = formatTime(newDuration)
+                    startSeekBarUpdater()
+                }, 200) // esperar 200 ms
+            }
+        }
+        updatePlayPauseButton(isPlaying)
+
         songAdapter.onItemClick = { song ->
-            val index = songAdapter.currentList.indexOf(song) // 🔥 encontramos el índice en la lista
+            val index = songAdapter.currentList.indexOf(song)
+            songAdapter.setCurrentPlayingSong(song.url)
+
+            sharedPref.edit() { putString("current_playing_url", song.url) }
+            songAdapter.setCurrentPlayingSong(song.url)
+
             if (index != -1) {
                 startSeekBarUpdater()
                 PlaybackManager.playSongAt(this, index)
@@ -188,13 +226,42 @@ class ActivitySongList : AppCompatActivity() {
             loadSongs(initialLoad = true)
         }
 
+        val searchEditText = findViewById<EditText>(R.id.searchEditText)
+
+        searchEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                filterSongs(s.toString())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
     }
+
+    private fun filterSongs(query: String) {
+        val filteredList = if (query.isEmpty()) {
+            songList
+        } else {
+            songList.filter {
+                it.title.contains(query, ignoreCase = true) == true
+            }
+        }
+
+        songAdapter.submitList(filteredList.toList())
+        PlaybackManager.setSongs(filteredList.toList()) // 🔥 AÑADE ESTA LÍNEA
+
+        if (query.isEmpty()) {
+            songAdapter.submitList(songList.toList())
+            PlaybackManager.setSongs(songList.toList()) // 👈 También aquí
+        }
+    }
+
 
     private fun loadSongs(initialLoad: Boolean = false) {
         if (isLoading || !hasMoreItems) return
 
         isLoading = true
-        //loadingAnimation.visibility = ImageView.VISIBLE // ⬅️ MOSTRAR animación
+        loadingAnimation.visibility = ImageView.VISIBLE // ⬅️ MOSTRAR animación
 
         lifecycleScope.launch {
             val songs = songRepository.fetchSongs(limit = pageSize, offset = currentOffset)
@@ -218,7 +285,7 @@ class ActivitySongList : AppCompatActivity() {
                 Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
 
-            //loadingAnimation.visibility = ImageView.GONE // ⬅️ OCULTAR animación
+            loadingAnimation.visibility = ImageView.INVISIBLE // ⬅️ OCULTAR animación
             isLoading = false
         }
     }

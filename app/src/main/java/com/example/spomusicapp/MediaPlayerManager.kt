@@ -58,8 +58,4 @@ object MediaPlayerManager {
         mediaPlayer?.start()
     }
 
-    fun isCurrentSong(url: String): Boolean {
-        return currentSongUrl == url
-    }
-
 }

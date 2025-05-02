@@ -9,21 +9,22 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
     var onItemClick: ((Song) -> Unit)? = null
-    private var currentJob: Job? = null
     private val bitmapCache = mutableMapOf<String, Bitmap?>()
+    private var currentPlayingUrl: String? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
@@ -39,8 +40,9 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
         private val nameTextView: TextView = itemView.findViewById(R.id.song_name)
         private val artistTextView: TextView = itemView.findViewById(R.id.song_artist)
-        private val albumTextView: TextView = itemView.findViewById(R.id.song_album)
         private val albumArtImageView: ImageView = itemView.findViewById(R.id.albumArtImage)
+
+        private val backgroundItemSelected: RelativeLayout = itemView.findViewById(R.id.item_song_background)
 
         fun bind(song: Song) {
             nameTextView.text = song.title
@@ -51,7 +53,14 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 .trim()
 
             artistTextView.text = song.artist ?: "Desconocido"
-            albumTextView.text = song.album ?: "Desconocido"
+
+            if (song.url == currentPlayingUrl) {
+                nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.titleSongColorWhilePlaying))
+                backgroundItemSelected.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.selectedSongColorWhilePlaying))
+            } else {
+                nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.white))
+                backgroundItemSelected.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.black))
+            }
 
             bitmapCache[song.url]?.let {
                 albumArtImageView.setImageBitmap(it)
@@ -102,4 +111,10 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             null
         }
     }
+
+    fun setCurrentPlayingSong(url: String?) {
+        currentPlayingUrl = url
+        notifyDataSetChanged()
+    }
+
 }
