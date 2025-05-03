@@ -17,13 +17,18 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
+import androidx.core.app.NotificationCompat
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -35,6 +40,9 @@ import kotlinx.coroutines.withContext
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import com.google.firebase.BuildConfig
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 
 class ActivitySongList : AppCompatActivity() {
 
@@ -71,6 +79,7 @@ class ActivitySongList : AppCompatActivity() {
     private lateinit var searchSongsButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_song_list)
         enableEdgeToEdge()
@@ -79,6 +88,73 @@ class ActivitySongList : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+        Log.d("VERSION", BuildConfig.VERSION_NAME)
+
+        val channelId = "UPDATE_CHANNEL_ID"
+        val channelName = "Actualizaciones"
+        val notificationChannel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(notificationChannel)
+
+        val remoteConfig = FirebaseRemoteConfig.getInstance()
+
+        val configSettings = FirebaseRemoteConfigSettings.Builder()
+            .setMinimumFetchIntervalInSeconds(0) // ¡IMPORTANTE! para pruebas, siempre traer del servidor
+            .build()
+        remoteConfig.setConfigSettingsAsync(configSettings)
+
+// Puedes definir valores por defecto (opcional)
+        remoteConfig.setDefaultsAsync(
+            mapOf(
+                "latest_version" to "1.0",
+                "apk_url" to ""
+            )
+        )
+
+// Fetch y comparar versiones
+        remoteConfig.fetchAndActivate()
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val latestVersion = remoteConfig.getString("latest_version")
+                    val apkUrl = remoteConfig.getString("apk_url")
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    val versionName = packageInfo.versionName
+                    val currentVersion = versionName
+
+                    if (latestVersion != currentVersion) {
+                        AlertDialog.Builder(this)
+                            .setTitle("¡Nueva actualización disponible!")
+                            .setMessage("Hay una nueva versión ($latestVersion). ¿Deseas actualizar?")
+                            .setPositiveButton("Descargar") { _, _ ->
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl))
+                                startActivity(intent)
+                            }
+                            .setNegativeButton("Cancelar", null)
+                            .show()
+                    }
+                } else {
+                    Toast.makeText(this, "Error al buscar actualización", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -350,6 +426,21 @@ class ActivitySongList : AppCompatActivity() {
         super.onBackPressed()
         shouldStopMusic = false
         moveTaskToBack(true)
+    }
+
+
+    fun showUpdateNotification() {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val notification = NotificationCompat.Builder(this, "UPDATE_CHANNEL_ID")
+            .setContentTitle("¡Nueva actualización disponible!")
+            .setContentText("Actualiza a la versión más reciente para disfrutar de nuevas funciones.")
+            .setSmallIcon(R.drawable.resonant_icono)  // Asegúrate de tener un ícono de actualización
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)  // La notificación se eliminará al tocarla
+            .build()
+
+        notificationManager.notify(0, notification)
     }
 
 }

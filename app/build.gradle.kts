@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.spomusicapp"
         minSdk = 33
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.22"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -78,6 +78,8 @@ dependencies {
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation ("androidx.core:core-ktx:1.7.0")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    implementation ("com.google.firebase:firebase-messaging:23.0.5")
 
 
 }

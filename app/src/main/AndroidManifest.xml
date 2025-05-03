@@ -30,12 +30,20 @@
                 <action android:name="com.example.ACTION_NEXT" />
             </intent-filter>
         </receiver>
-
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <activity
             android:name=".ActivitySongList"
             android:exported="false"
             android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi" />
+            tools:ignore="DiscouragedApi">
+
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true">
