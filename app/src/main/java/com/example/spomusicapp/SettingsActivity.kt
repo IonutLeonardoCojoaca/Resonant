@@ -4,6 +4,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -20,8 +23,14 @@ import kotlinx.coroutines.launch
 private lateinit var auth: FirebaseAuth
 private lateinit var credentialManager: CredentialManager
 private lateinit var signOutButton: FrameLayout
+private lateinit var arrowGoBackButton: ImageButton
 
 class SettingsActivity : AppCompatActivity() {
+
+    private val backCallback = OnBackInvokedCallback {
+        finish()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -34,14 +43,21 @@ class SettingsActivity : AppCompatActivity() {
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
-
+        arrowGoBackButton = findViewById(R.id.arrowGoBackButton)
         signOutButton = findViewById(R.id.signOutButton)
 
         signOutButton.setOnClickListener {
             signOut()
         }
 
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(
+            OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            backCallback
+        )
 
+        arrowGoBackButton.setOnClickListener {
+            backCallback.onBackInvoked()
+        }
 
     }
 

@@ -17,21 +17,17 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.media.MediaMetadataRetriever
-import android.net.Uri
-import android.util.Log
+import android.view.View
+import android.view.animation.LinearInterpolator
+import android.view.animation.TranslateAnimation
 import android.widget.Button
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
-import androidx.core.app.NotificationCompat
-import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
-import androidx.credentials.exceptions.ClearCredentialException
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
@@ -40,18 +36,15 @@ import kotlinx.coroutines.withContext
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import com.google.firebase.BuildConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
+import androidx.core.net.toUri
+import com.google.gson.Gson
 
 class ActivitySongList : AppCompatActivity() {
 
     lateinit var recyclerView: RecyclerView
     lateinit var songAdapter: SongAdapter
-
-    lateinit var seekBar: SeekBar
-    lateinit var currentTimeText: TextView
-    lateinit var totalTimeText: TextView
 
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
@@ -70,13 +63,17 @@ class ActivitySongList : AppCompatActivity() {
     private var shouldStopMusic = true
 
     private var currentOffset = 0
-    private val pageSize = 10
     private var isLoading = false
     private var hasMoreItems = true
     private val songList = mutableListOf<Song>()
 
     private lateinit var loadingAnimation: ImageView
     private lateinit var searchSongsButton: ImageButton
+    private lateinit var updateSongListButton: Button
+
+    private lateinit var songImage: ImageView
+    private lateinit var songName: TextView
+    private lateinit var songArtist: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
@@ -89,96 +86,28 @@ class ActivitySongList : AppCompatActivity() {
             insets
         }
 
-        Log.d("VERSION", BuildConfig.VERSION_NAME)
-
-        val channelId = "UPDATE_CHANNEL_ID"
-        val channelName = "Actualizaciones"
-        val notificationChannel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH)
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(notificationChannel)
-
-        val remoteConfig = FirebaseRemoteConfig.getInstance()
-
-        val configSettings = FirebaseRemoteConfigSettings.Builder()
-            .setMinimumFetchIntervalInSeconds(0) // ¡IMPORTANTE! para pruebas, siempre traer del servidor
-            .build()
-        remoteConfig.setConfigSettingsAsync(configSettings)
-
-// Puedes definir valores por defecto (opcional)
-        remoteConfig.setDefaultsAsync(
-            mapOf(
-                "latest_version" to "1.0",
-                "apk_url" to ""
-            )
-        )
-
-// Fetch y comparar versiones
-        remoteConfig.fetchAndActivate()
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val latestVersion = remoteConfig.getString("latest_version")
-                    val apkUrl = remoteConfig.getString("apk_url")
-                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                    val versionName = packageInfo.versionName
-                    val currentVersion = versionName
-
-                    if (latestVersion != currentVersion) {
-                        AlertDialog.Builder(this)
-                            .setTitle("¡Nueva actualización disponible!")
-                            .setMessage("Hay una nueva versión ($latestVersion). ¿Deseas actualizar?")
-                            .setPositiveButton("Descargar") { _, _ ->
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl))
-                                startActivity(intent)
-                            }
-                            .setNegativeButton("Cancelar", null)
-                            .show()
-                    }
-                } else {
-                    Toast.makeText(this, "Error al buscar actualización", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.show(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
 
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        insetsController.show(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+        checkUpdate()
 
         recyclerView = findViewById<RecyclerView>(R.id.allSongList)
         recyclerView.layoutManager = LinearLayoutManager(this)
         songAdapter = SongAdapter()
         recyclerView.adapter = songAdapter
 
-        seekBar = findViewById(R.id.seekBar)
-
-        // Buttons
         playPauseButton = findViewById(R.id.playPauseButton)
         previousSongButton = findViewById(R.id.previousSongButton)
         nextSongButton = findViewById(R.id.nextSongButton)
 
-        // Time
-        currentTimeText = findViewById(R.id.currentTimeText)
-        totalTimeText = findViewById(R.id.totalTimeText)
+        songImage = findViewById(R.id.song_image)
+        songName = findViewById(R.id.song_title)
+        songArtist = findViewById(R.id.song_artist)
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
@@ -186,6 +115,7 @@ class ActivitySongList : AppCompatActivity() {
 
         loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
         searchSongsButton = findViewById(R.id.searchSongsButton)
+        updateSongListButton = findViewById(R.id.updateSongListButton)
 
         searchSongsButton.setOnClickListener {
             val intent = Intent(this, SearchSongsActivity::class.java)
@@ -199,7 +129,7 @@ class ActivitySongList : AppCompatActivity() {
                 MediaPlayerManager.resume()
 
                 // 🛠️ Solución asegurada:
-                val duration = MediaPlayerManager.getDuration()
+                /*val duration = MediaPlayerManager.getDuration()
                 if (duration > 0) {
                     seekBar.max = duration
                     totalTimeText.text = formatTime(duration)
@@ -212,10 +142,15 @@ class ActivitySongList : AppCompatActivity() {
                         totalTimeText.text = formatTime(newDuration)
                         startSeekBarUpdater()
                     }, 200) // esperar 200 ms
-                }
+                }*/
             }
             isPlaying = !isPlaying
             updatePlayPauseButton(isPlaying)
+        }
+
+        PlaybackManager.onSongChanged = { song ->
+            songAdapter.setCurrentPlayingSong(song.url)
+            updateDataPlayer(song)
         }
 
         previousSongButton.setOnClickListener {
@@ -232,25 +167,52 @@ class ActivitySongList : AppCompatActivity() {
 
         val sharedPref = this@ActivitySongList.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString("current_playing_url", null)
+
+        val sharedPreferences = getSharedPreferences("song_cache", Context.MODE_PRIVATE)
+        val cachedSongsJson = sharedPreferences.getString("cached_songs", "[]")
+        val cachedSongs = Gson().fromJson(cachedSongsJson, Array<Song>::class.java).toList()
+
+        val savedTitle = sharedPref.getString("current_playing_title", "")
+        val savedArtist = sharedPref.getString("current_playing_artist", "")
+        val savedAlbum = sharedPref.getString("current_playing_album", "")
+        val savedDuration = sharedPref.getString("current_playing_duration", "")
+
+        if (savedUrl != null) {
+            // Crear un objeto Song con los datos recuperados
+            val song = Song(
+                title = savedTitle ?: "",
+                url = savedUrl,
+                artist = savedArtist,
+                album = savedAlbum,
+                duration = savedDuration
+            )
+
+            // Actualizar la UI con la canción actual
+            updateDataPlayer(song)
+        }
+
         songAdapter.setCurrentPlayingSong(savedUrl)
-        startSeekBarUpdater()
 
         isPlaying = MediaPlayerManager.isPlaying()
         updatePlayPauseButton(isPlaying)
-
-        if (isPlaying) {
-            startSeekBarUpdater()
-        }
 
         songAdapter.onItemClick = { song ->
             val index = songAdapter.currentList.indexOf(song)
             songAdapter.setCurrentPlayingSong(song.url)
 
-            sharedPref.edit() { putString("current_playing_url", song.url) }
-            songAdapter.setCurrentPlayingSong(song.url)
+            sharedPref.edit().apply {
+                putString("current_playing_url", song.url)
+                putString("current_playing_title", song.title)
+                putString("current_playing_artist", song.artist)
+                putString("current_playing_album", song.album)
+                putString("current_playing_duration", song.duration)
+                apply()
+            }
 
             if (index != -1) {
-                startSeekBarUpdater()
+                updateDataPlayer(song)
+                songName.isSelected = true
+                songArtist.isSelected = true
                 PlaybackManager.playSongAt(this, index)
                 isPlaying = true
                 updatePlayPauseButton(isPlaying)
@@ -259,66 +221,68 @@ class ActivitySongList : AppCompatActivity() {
             }
         }
 
-        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                super.onScrolled(recyclerView, dx, dy)
+        if (cachedSongs.isNotEmpty()) {
+            songList.addAll(cachedSongs)
+            currentOffset = SongCache.currentOffset
+            hasMoreItems = SongCache.hasMoreSongs
+            songAdapter.submitList(songList.toList())
+            PlaybackManager.setSongs(songList)
 
-                val layoutManager = recyclerView.layoutManager as LinearLayoutManager
-                val lastVisibleItem = layoutManager.findLastVisibleItemPosition()
-                val totalItemCount = layoutManager.itemCount
+            loadingAnimation.visibility = View.GONE
+            isLoading = false
+        } else {
+            loadSongs()
+        }
 
-                if (lastVisibleItem >= totalItemCount - 2 && !isLoading) {
-                    loadSongs()
-                }
-            }
-        })
+        updateSongListButton.setOnClickListener {
+            reloadSongs()
+        }
 
         settingsButton.setOnClickListener {
             goToSettingsActivity()
         }
 
-        if (SongCache.cachedSongs.isNotEmpty()) {
-            songList.addAll(SongCache.cachedSongs)
-            currentOffset = SongCache.currentOffset
-            hasMoreItems = SongCache.hasMoreSongs
-            songAdapter.submitList(songList.toList())
-            PlaybackManager.setSongs(songList)
-        } else {
-            loadSongs(initialLoad = true)
-        }
-
-
     }
 
-    private fun loadSongs(initialLoad: Boolean = false) {
-        if (isLoading || !hasMoreItems) return
+    private fun reloadSongs() {
+        loadSongs(clearList = true)
+    }
+
+    private fun loadSongs(clearList: Boolean = true) {
+        if (isLoading) return
 
         isLoading = true
-        loadingAnimation.visibility = ImageView.VISIBLE // ⬅️ MOSTRAR animación
+        loadingAnimation.visibility = ImageView.VISIBLE
 
         lifecycleScope.launch {
-            val songs = songRepository.fetchSongs(limit = pageSize, offset = currentOffset)
+            val songs = songRepository.fetchSongs() // Ya no pasamos limit ni offset
             songs?.let {
                 val enrichedSongs = it.mapNotNull { song -> enrichSong(song) }
+
+                // Limpiamos la lista antes de agregar las nuevas canciones si clearList es verdadero
+                if (clearList) {
+                    songList.clear()
+                }
                 songList.addAll(enrichedSongs)
-                songAdapter.submitList(songList.toList()) // inmutable para DiffUtil
+
+                songAdapter.submitList(songList.toList())
                 PlaybackManager.setSongs(songList)
 
-                // Actualiza la caché
-                SongCache.cachedSongs = songList.toList()
-                SongCache.currentOffset = currentOffset + enrichedSongs.size
-                SongCache.hasMoreSongs = enrichedSongs.size == pageSize
-
-                if (enrichedSongs.size < pageSize) {
-                    hasMoreItems = false
-                } else {
-                    currentOffset += pageSize
+                // Guardamos en SharedPreferences para la próxima vez
+                val sharedPreferences = getSharedPreferences("song_cache", Context.MODE_PRIVATE)
+                sharedPreferences.edit() {
+                    val json = Gson().toJson(songList)
+                    putString("cached_songs", json)
                 }
+
+                // Ya no hay paginación
+                SongCache.cachedSongs = songList.toList()
+                hasMoreItems = false
             } ?: run {
                 Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
 
-            loadingAnimation.visibility = ImageView.GONE // ⬅️ OCULTAR animación
+            loadingAnimation.visibility = ImageView.GONE
             isLoading = false
         }
     }
@@ -368,10 +332,30 @@ class ActivitySongList : AppCompatActivity() {
         if (isPlaying) {
             playPauseButton.setImageResource(R.drawable.pause)
         } else {
-            playPauseButton.setImageResource(R.drawable.play)
+            playPauseButton.setImageResource(R.drawable.play_arrow_filled)
         }
     }
 
+    private fun updateDataPlayer(song: Song) {
+        songName.text = song.title
+            .removeSuffix(".mp3")
+            .replace(Regex("\\s*\\([^)]*\\)"), "")
+            .replace("-", "–")
+            .trim()
+
+        songArtist.text = song.artist ?: "Desconocido"
+
+        // Obtener imagen del caché o cargar si no está
+        songAdapter.getBitmapFromCacheOrLoad(this, song) { bitmap ->
+            if (bitmap != null) {
+                songImage.setImageBitmap(bitmap)
+            } else {
+                songImage.setImageResource(R.drawable.album_cover)
+            }
+        }
+    }
+
+    /*
     fun startSeekBarUpdater() {
         // Establecer la duración total de la canción en el SeekBar y en el TextView
         val duration = MediaPlayerManager.getDuration()  // Obtén la duración total de la canción
@@ -402,12 +386,7 @@ class ActivitySongList : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
     }
-
-    fun formatTime(millis: Int): String {
-        val seconds = (millis / 1000) % 60
-        val minutes = (millis / 1000) / 60
-        return String.format("%02d:%02d", minutes, seconds)
-    }
+*/
 
     override fun onDestroy() {
         super.onDestroy()
@@ -422,25 +401,52 @@ class ActivitySongList : AppCompatActivity() {
         startActivity(intent)
     }
 
+    fun checkUpdate(){
+        val remoteConfig = FirebaseRemoteConfig.getInstance()
+
+        val configSettings = FirebaseRemoteConfigSettings.Builder()
+            .setMinimumFetchIntervalInSeconds(0)
+            .build()
+        remoteConfig.setConfigSettingsAsync(configSettings)
+
+        remoteConfig.setDefaultsAsync(
+            mapOf(
+                "latest_version" to "1.0",
+                "apk_url" to ""
+            )
+        )
+
+        remoteConfig.fetchAndActivate()
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val latestVersion = remoteConfig.getString("latest_version")
+                    val apkUrl = remoteConfig.getString("apk_url")
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    val versionName = packageInfo.versionName
+                    val currentVersion = versionName
+
+                    if (latestVersion != currentVersion) {
+                        AlertDialog.Builder(this)
+                            .setTitle("¡Nueva actualización disponible!")
+                            .setMessage("Versión: $latestVersion. Se han introducido mejoras visuales y una optimización del rendimiento de la aplicación.")
+                            .setPositiveButton("Descargar") { _, _ ->
+                                val intent = Intent(Intent.ACTION_VIEW, apkUrl.toUri())
+                                startActivity(intent)
+                            }
+                            .setNegativeButton("Cancelar", null)
+                            .show()
+                    }
+                } else {
+                    Toast.makeText(this, "Error al buscar actualización", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+    }
+
     override fun onBackPressed() {
         super.onBackPressed()
         shouldStopMusic = false
         moveTaskToBack(true)
-    }
-
-
-    fun showUpdateNotification() {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        val notification = NotificationCompat.Builder(this, "UPDATE_CHANNEL_ID")
-            .setContentTitle("¡Nueva actualización disponible!")
-            .setContentText("Actualiza a la versión más reciente para disfrutar de nuevas funciones.")
-            .setSmallIcon(R.drawable.resonant_icono)  // Asegúrate de tener un ícono de actualización
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)  // La notificación se eliminará al tocarla
-            .build()
-
-        notificationManager.notify(0, notification)
     }
 
 }

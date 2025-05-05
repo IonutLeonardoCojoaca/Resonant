@@ -2,16 +2,18 @@ package com.example.spomusicapp
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -42,7 +44,8 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         private val artistTextView: TextView = itemView.findViewById(R.id.song_artist)
         private val albumArtImageView: ImageView = itemView.findViewById(R.id.albumArtImage)
 
-        private val backgroundItemSelected: RelativeLayout = itemView.findViewById(R.id.item_song_background)
+        private val backgroundItemSelected: FrameLayout = itemView.findViewById(R.id.item_background)
+        private val gradientText: View = itemView.findViewById(R.id.gradientBorder)
 
         fun bind(song: Song) {
             nameTextView.text = song.title
@@ -55,10 +58,22 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
             if (song.url == currentPlayingUrl) {
                 nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.titleSongColorWhilePlaying))
-                backgroundItemSelected.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.selectedSongColorWhilePlaying))
+
+                ViewCompat.setBackgroundTintList(
+                    backgroundItemSelected,
+                    ColorStateList.valueOf(ContextCompat.getColor(itemView.context, R.color.selectedSongColorWhilePlaying))
+                )
+
+                gradientText.setBackgroundResource(R.drawable.gradient_text_player_background_selected)
             } else {
                 nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.white))
-                backgroundItemSelected.setBackgroundColor(ContextCompat.getColor(itemView.context, R.color.black))
+
+                ViewCompat.setBackgroundTintList(
+                    backgroundItemSelected,
+                    ColorStateList.valueOf(ContextCompat.getColor(itemView.context, R.color.cardsTheme))
+                )
+
+                gradientText.setBackgroundResource(R.drawable.gradient_text_player_background)
             }
 
             bitmapCache[song.url]?.let {
@@ -108,6 +123,22 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        }
+    }
+
+    fun getBitmapFromCacheOrLoad(context: Context, song: Song, callback: (Bitmap?) -> Unit) {
+        bitmapCache[song.url]?.let {
+            callback(it)
+        } ?: run {
+            CoroutineScope(Dispatchers.IO).launch {
+                val bitmap = getEmbeddedPictureFromUrl(context, song.url)
+                withContext(Dispatchers.Main) {
+                    if (bitmap != null) {
+                        bitmapCache[song.url] = bitmap
+                    }
+                    callback(bitmap)
+                }
+            }
         }
     }
 

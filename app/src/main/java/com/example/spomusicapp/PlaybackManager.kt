@@ -7,6 +7,9 @@ object PlaybackManager {
     private var songs: List<Song> = emptyList() // Tu modelo de canción
     private var currentIndex = 0
 
+    // Callback para notificar cambios
+    var onSongChanged: ((Song) -> Unit)? = null
+
     fun setSongs(songList: List<Song>) {
         songs = songList
     }
@@ -26,9 +29,15 @@ object PlaybackManager {
             MediaPlayerManager.play(context, song.url, currentIndex)
 
             val sharedPref = context.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-            sharedPref.edit() { putString("current_playing_url", song.url) }
+            sharedPref.edit() {
+                putString("current_playing_url", song.url)
+                putString("current_playing_title", song.title)
+                putString("current_playing_artist", song.artist)
+                putString("current_playing_album", song.album)
+                putString("current_playing_duration", song.duration)
+            }
 
-            (context as? ActivitySongList)?.songAdapter?.setCurrentPlayingSong(song.url)
+            onSongChanged?.invoke(song)
         }
     }
 
@@ -39,10 +48,21 @@ object PlaybackManager {
             MediaPlayerManager.play(context, song.url, currentIndex)
 
             val sharedPref = context.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-            sharedPref.edit() { putString("current_playing_url", song.url) }
+            sharedPref.edit() {
+                putString("current_playing_url", song.url)
+                putString("current_playing_title", song.title)
+                putString("current_playing_artist", song.artist)
+                putString("current_playing_album", song.album)
+                putString("current_playing_duration", song.duration)
+            }
 
-            (context as? ActivitySongList)?.songAdapter?.setCurrentPlayingSong(song.url)
+            onSongChanged?.invoke(song)
         }
+    }
+
+
+    fun getCurrentSong(): Song? {
+        return if (currentIndex in songs.indices) songs[currentIndex] else null
     }
 
 }

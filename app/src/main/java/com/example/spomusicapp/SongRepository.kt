@@ -17,9 +17,9 @@ class SongRepository {
         .build()
         .create(FirebaseFunctionService::class.java)
 
-    suspend fun fetchSongs(limit: Int, offset: Int): List<Song>? {
+    suspend fun fetchSongs(): List<Song>? {
         return try {
-            val response = getAllSongsService.getSongs(limit, offset)
+            val response = getAllSongsService.getSongs()
             response.songs
         } catch (e: Exception) {
             e.printStackTrace()

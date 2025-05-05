@@ -7,8 +7,6 @@ interface FirebaseFunctionService {
 
     @GET(".")
     suspend fun getSongs(
-        @Query("limit") limit: Int,
-        @Query("offset") offset: Int
     ): SongResponse
 
     @GET("searchSongs")
@@ -17,7 +15,6 @@ interface FirebaseFunctionService {
         @Query("limit") limit: Int,
         @Query("offset") offset: Int
     ): SongResponse
-
 
 }
 

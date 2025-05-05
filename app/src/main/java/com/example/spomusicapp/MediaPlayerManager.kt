@@ -17,10 +17,10 @@ object MediaPlayerManager {
                 it.start()
 
                 // 🚀 Actualizar SeekBar y tiempo total
-                if (context is ActivitySongList) {
+                /*if (context is ActivitySongList) {
                     context.seekBar.max = it.duration
                     context.totalTimeText.text = context.formatTime(it.duration)
-                }
+                }*/
             }
             prepareAsync()
         }

@@ -16,6 +16,7 @@
         android:padding="15dp">
 
         <ImageButton
+            android:id="@+id/arrowGoBackButton"
             android:layout_width="35dp"
             android:layout_height="35dp"
             android:background="@drawable/arrow_back"
@@ -41,13 +42,13 @@
         <EditText
             android:id="@+id/editTextQuery"
             android:layout_width="match_parent"
-            android:layout_height="55dp"
+            android:layout_height="50dp"
             android:layout_gravity="center_vertical"
             android:layout_margin="8dp"
             android:paddingHorizontal="20dp"
             android:textColor="@color/white"
             android:textColorHint="#9B9B9B"
-            android:hint="Busca tus canciones"
+            android:hint="Título de la canción"
             android:background="@drawable/search_bar_background"/>
 
     </FrameLayout>
@@ -61,7 +62,9 @@
             android:id="@+id/filteredListSongs"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scrollbars="vertical">
+            android:scrollbars="vertical"
+            android:paddingHorizontal="10dp"
+            android:layout_centerHorizontal="true">
 
         </androidx.recyclerview.widget.RecyclerView>
 

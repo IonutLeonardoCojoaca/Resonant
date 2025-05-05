@@ -2,31 +2,32 @@ package com.example.spomusicapp
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.View
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SearchView
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.spomusicapp.ActivitySongList
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.collections.mapNotNull
 
 class SearchSongsActivity : AppCompatActivity() {
 
@@ -34,7 +35,13 @@ class SearchSongsActivity : AppCompatActivity() {
     private val originalSongList = mutableListOf<Song>()
     private val songRepository = SongRepository()
     private lateinit var noSongsFounded: TextView
+    private lateinit var arrowGoBackButton: ImageButton
 
+    private var searchJob: Job? = null
+
+    private val backCallback = OnBackInvokedCallback {
+        finish()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,11 +54,21 @@ class SearchSongsActivity : AppCompatActivity() {
         }
 
         noSongsFounded = findViewById(R.id.noSongsFounded)
+        arrowGoBackButton = findViewById(R.id.arrowGoBackButton)
 
         val recyclerView = findViewById<RecyclerView>(R.id.filteredListSongs)
         recyclerView.layoutManager = LinearLayoutManager(this)
         songAdapter = SongAdapter()
         recyclerView.adapter = songAdapter
+
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(
+            OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            backCallback
+        )
+
+        arrowGoBackButton.setOnClickListener {
+            backCallback.onBackInvoked()
+        }
 
         val sharedPref = this@SearchSongsActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
 
@@ -81,34 +98,66 @@ class SearchSongsActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
             override fun onTextChanged(newText: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = newText.toString().trim()
 
-                if(newText.toString().trim().isEmpty()){
-                    songAdapter.submitList(emptyList())
-                    noSongsFounded.visibility = View.VISIBLE
-                }else{
-                    lifecycleScope.launch(Dispatchers.Main) {
+                searchJob = lifecycleScope.launch {
+
+                    val songs = withContext(Dispatchers.IO) {
+                        songRepository.searchSongs(query)
+                    }
+
+                    if (songs != null && songs.isNotEmpty()) {
+                        // Enriquecer en paralelo los metadatos
+                        val enrichedSongs = songs.map { song ->
+                            async(Dispatchers.IO) {
+                                enrichSong(song)
+                                    ?: song
+                            }
+                        }.awaitAll()
 
                         originalSongList.clear()
-                        val songs = songRepository.searchSongs(newText.toString())
+                        originalSongList.addAll(enrichedSongs)
 
-                        if (songs != null && songs.isNotEmpty()) {
-                            noSongsFounded.visibility = View.INVISIBLE
-                            originalSongList.addAll(songs)
-                            songAdapter.submitList(songs)
-                        } else {
-                            songAdapter.submitList(emptyList())
-                            noSongsFounded.visibility = View.VISIBLE
-                        }
+                        noSongsFounded.visibility = View.INVISIBLE
+                        songAdapter.submitList(enrichedSongs)
+                    } else {
+                        songAdapter.submitList(emptyList())
+                        noSongsFounded.visibility = View.VISIBLE
                     }
                 }
-
             }
+
 
         })
 
+
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        onBackInvokedDispatcher.unregisterOnBackInvokedCallback(backCallback)
+    }
 
+    suspend fun enrichSong(song: Song): Song? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val retriever = MediaMetadataRetriever()
+                retriever.setDataSource(song.url, HashMap())
+                val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: song.title
+                val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Artista desconocido"
+                retriever.release()
 
+                Song(
+                    title = title,
+                    artist = artist,
+                    album = "",
+                    url = song.url
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
 
 }
