@@ -3,6 +3,8 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="transparent">#00000000</color>
+
     <color name="primaryColorButton">#D1D1D1</color>
     <color name="selectedSongColorWhilePlaying">#2C2C2C</color>
     <color name="titleSongColorWhilePlaying">#F21010</color>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/transparent">
+
+    <RelativeLayout
+        android:layout_width="270dp"
+        android:layout_height="240dp"
+        android:layout_centerInParent="true"
+        android:padding="10dp"
+        android:background="@drawable/dialog_fragment_advise_background">
+
+        <TextView
+            android:id="@+id/adviseTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Resonant"
+            android:textColor="@color/primaryColorButton"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:fontFamily="@font/unageo_bold"
+            android:textSize="15sp"
+            android:padding="10dp"/>
+
+        <FrameLayout
+            android:id="@+id/adviseContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:layout_gravity="center_horizontal|top"
+            android:layout_below="@id/adviseTitle">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/adviseUser"
+                android:textColor="@color/primaryColorButton"
+                android:textSize="13sp"
+                android:fontFamily="@font/unageo_medium"/>
+
+        </FrameLayout>
+
+        <Button
+            android:id="@+id/dismissButton"
+            android:layout_width="110dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_horizontal|bottom"
+            android:backgroundTint="@color/secondaryColorTheme"
+            android:layout_centerHorizontal="true"
+            android:layout_alignParentBottom="true"
+            android:text="Aceptar"
+            android:textColor="@color/primaryColorButton"
+            android:fontFamily="@font/unageo_medium"
+            android:textSize="13sp"/>
+
+    </RelativeLayout>
+
+</RelativeLayout>

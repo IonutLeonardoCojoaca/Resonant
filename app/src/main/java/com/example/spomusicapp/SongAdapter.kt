@@ -6,6 +6,8 @@ import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,20 +15,26 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.example.spomusicapp.ActivitySongList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
-    var onItemClick: ((Song) -> Unit)? = null
-    private val bitmapCache = mutableMapOf<String, Bitmap?>()
+    var onItemClick: ((Pair<Song, Uri?>) -> Unit)? = null
+    val bitmapCache = mutableMapOf<String, Bitmap?>()
     private var currentPlayingUrl: String? = null
+    val imageUriCache = mutableMapOf<String, Uri>()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
@@ -76,25 +84,14 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 gradientText.setBackgroundResource(R.drawable.gradient_text_player_background)
             }
 
-            bitmapCache[song.url]?.let {
-                albumArtImageView.setImageBitmap(it)
-            } ?: run {
-                CoroutineScope(Dispatchers.IO).launch {
-                    val bitmap = getEmbeddedPictureFromUrl(itemView.context, song.url)
-                    withContext(Dispatchers.Main) {
-                        if (bitmap != null) {
-                            albumArtImageView.setImageBitmap(bitmap)
-                            bitmapCache[song.url] = bitmap
-                        } else {
-                            albumArtImageView.setImageResource(R.drawable.album_cover)
-                        }
-                    }
-                }
-            }
+            Utils.getImageSongFromCache(song, itemView.context, albumArtImageView, song.localCoverPath.toString())
 
             itemView.setOnClickListener {
-                onItemClick?.invoke(song)
+                val bitmap = bitmapCache[song.url]
+                val imageUri = bitmap?.let { saveBitmapToCache(itemView.context, it, "album_${song.title}.png") }
+                onItemClick?.invoke(song to imageUri)
             }
+
         }
     }
 
@@ -113,7 +110,6 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         return try {
             val mediaMetadataRetriever = MediaMetadataRetriever()
             mediaMetadataRetriever.setDataSource(url, HashMap<String, String>())
-
             val art = mediaMetadataRetriever.embeddedPicture
             mediaMetadataRetriever.release()
 
@@ -121,24 +117,22 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 BitmapFactory.decodeByteArray(it, 0, it.size)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("SongViewHolder", "Error al obtener la imagen incrustada desde la URL: $url", e)
             null
         }
     }
 
-    fun getBitmapFromCacheOrLoad(context: Context, song: Song, callback: (Bitmap?) -> Unit) {
-        bitmapCache[song.url]?.let {
-            callback(it)
-        } ?: run {
-            CoroutineScope(Dispatchers.IO).launch {
-                val bitmap = getEmbeddedPictureFromUrl(context, song.url)
-                withContext(Dispatchers.Main) {
-                    if (bitmap != null) {
-                        bitmapCache[song.url] = bitmap
-                    }
-                    callback(bitmap)
-                }
-            }
+    fun saveBitmapToCache(context: Context, bitmap: Bitmap, fileName: String): Uri? {
+        return try {
+            val file = File(context.cacheDir, fileName)
+            val fos = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+            fos.flush()
+            fos.close()
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
         }
     }
 

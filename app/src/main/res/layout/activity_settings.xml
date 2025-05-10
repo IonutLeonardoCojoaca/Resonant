@@ -29,6 +29,7 @@
             android:text="Ajustes"
             android:textColor="@color/white"
             android:layout_centerInParent="true"
+            android:fontFamily="@font/unageo_medium"
             android:textSize="20sp"/>
 
     </RelativeLayout>
@@ -54,6 +55,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Cerrar Sesión"
+                    android:fontFamily="@font/unageo_medium"
                     android:textSize="16sp"
                     android:textColor="@color/errorColorText"
                     android:textStyle="bold"/>
@@ -69,6 +71,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/errorColorText"
+                    android:fontFamily="@font/unageo_medium"
                     android:text="Tendrás que volver a iniciar sesión para poder escuchar tus canciones guardadas"
                     />
             </FrameLayout>
@@ -104,6 +107,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Limpiar memoria"
+                    android:fontFamily="@font/unageo_medium"
                     android:textSize="16sp"
                     android:textColor="@color/white"
                     android:textStyle="bold"/>
@@ -119,6 +123,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/white"
+                    android:fontFamily="@font/unageo_medium"
                     android:text="Libera la caché de la aplicación"/>
 
             </FrameLayout>
@@ -162,9 +167,10 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/discTheme"
+                android:textColor="@color/numberTime"
                 android:text="resonant.app.service@gmail.com"
                 android:layout_gravity="center_horizontal|bottom"
+                android:fontFamily="@font/unageo_medium"
                 android:textAlignment="center"/>
 
         </FrameLayout>

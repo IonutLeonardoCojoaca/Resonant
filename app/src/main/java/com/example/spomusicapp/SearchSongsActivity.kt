@@ -72,15 +72,14 @@ class SearchSongsActivity : AppCompatActivity() {
 
         val sharedPref = this@SearchSongsActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
 
-        songAdapter.onItemClick = { song ->
+        songAdapter.onItemClick = { (song, _) ->
             val index = songAdapter.currentList.indexOf(song)
             songAdapter.setCurrentPlayingSong(song.url)
 
             sharedPref.edit() { putString("current_playing_url", song.url) }
             songAdapter.setCurrentPlayingSong(song.url)
-            Log.i("Musica reproduciendose", song.toString())
             if (index != -1) {
-                PlaybackManager.setSongs(songAdapter.currentList)
+                PlaybackManager.updateSongs(songAdapter.currentList)
                 PlaybackManager.playSongAt(this@SearchSongsActivity, index)
             }
         }

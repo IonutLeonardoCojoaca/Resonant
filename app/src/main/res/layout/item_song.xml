@@ -43,6 +43,7 @@
                     android:textColor="@color/white"
                     android:text="Song Name"
                     android:textSize="15sp"
+                    android:fontFamily="@font/unageo_medium"
                     android:textStyle="bold"/>
 
                 <TextView
@@ -51,8 +52,8 @@
                     android:layout_height="18dp"
                     android:textColor="#BDBDBD"
                     android:text="Artist"
-                    android:textStyle="italic"
                     android:textSize="12sp"
+                    android:fontFamily="@font/unageo_medium"
                     android:layout_gravity="left|bottom"/>
 
                 <View

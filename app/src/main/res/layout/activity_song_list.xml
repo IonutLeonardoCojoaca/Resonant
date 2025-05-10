@@ -53,6 +53,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_medium"
                     android:text="Explora nuevas canciones"
                     android:textColor="@color/white"
                     android:textSize="20sp"
@@ -111,6 +112,7 @@
                     android:layout_centerHorizontal="true"
                     android:layout_alignParentBottom="true"
                     android:layout_marginBottom="90dp"
+                    android:fontFamily="@font/unageo_medium"
                     android:backgroundTint="@color/secondaryColorTheme"/>
 
             </RelativeLayout>
@@ -137,7 +139,7 @@
                 android:layout_height="50dp"
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
-                android:layout_marginLeft="10dp"
+                android:layout_marginStart="10dp"
                 android:background="@drawable/album_cover"
                 app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
@@ -145,21 +147,22 @@
                 android:id="@+id/songDataPlayer"
                 android:layout_width="130dp"
                 android:layout_height="40dp"
-                android:layout_toRightOf="@id/song_image"
+                android:layout_toEndOf="@id/song_image"
                 android:layout_centerVertical="true"
-                android:layout_marginLeft="12dp">
+                android:layout_marginStart="12dp">
 
                 <TextView
                     android:id="@+id/song_title"
-                    android:layout_width="match_parent"
+                    android:layout_width="120dp"
                     android:layout_height="20dp"
-                    android:text="sfdsfdfsdfsdfsdfsfdfsdfs"
+                    android:text=""
                     android:textColor="@color/secondaryColorTheme"
                     android:textSize="15sp"
                     android:layout_gravity="top"
                     android:textStyle="bold"
                     android:singleLine="true"
                     android:ellipsize="marquee"
+                    android:fontFamily="@font/unageo_medium"
                     android:marqueeRepeatLimit="marquee_forever"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
@@ -167,14 +170,15 @@
 
                 <TextView
                     android:id="@+id/song_artist"
-                    android:layout_width="wrap_content"
+                    android:layout_width="120dp"
                     android:layout_height="wrap_content"
-                    android:text="sfsdfsdfdsfsdfsdfsdfsdf"
+                    android:text=""
                     android:textSize="13sp"
                     android:textColor="@color/textTheme"
                     android:layout_gravity="bottom"
                     android:singleLine="true"
                     android:ellipsize="marquee"
+                    android:fontFamily="@font/unageo_medium"
                     android:marqueeRepeatLimit="marquee_forever"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
@@ -194,7 +198,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:paddingHorizontal="5dp"
-                android:layout_alignParentRight="true"
+                android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true">
 
                 <ImageButton

@@ -12,12 +12,12 @@
         android:id="@+id/blurrySongImageBackground"
         android:layout_width="300dp"
         android:layout_height="300dp"
-        android:scaleY="2"
-        android:scaleX="2"
+        android:scaleY="3"
+        android:scaleX="3"
         android:translationY="200dp"
         android:translationX="50dp"
         android:scaleType="fitCenter"
-        android:alpha="0.25"
+        android:alpha="0.20"
         android:background="@drawable/album_cover"/>
 
     <LinearLayout
@@ -48,16 +48,17 @@
             android:gravity="center">
 
             <RelativeLayout
-                android:layout_width="330dp"
+                android:layout_width="320dp"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true">
 
                 <com.google.android.material.imageview.ShapeableImageView
                     android:id="@+id/song_image"
                     android:layout_width="match_parent"
-                    android:layout_height="330dp"
+                    android:layout_height="320dp"
                     android:layout_centerHorizontal="true"
                     android:background="@drawable/album_cover"
+                    android:elevation="@dimen/cardview_compat_inset_shadow"
                     app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
                 <RelativeLayout
@@ -68,21 +69,23 @@
 
                     <TextView
                         android:id="@+id/song_title"
-                        android:layout_width="wrap_content"
+                        android:layout_width="240dp"
                         android:layout_height="wrap_content"
                         android:text="Song Title"
                         android:textSize="20sp"
                         android:textColor="@color/white"
+                        android:fontFamily="@font/unageo_medium"
                         android:textStyle="bold"/>
 
                     <TextView
                         android:id="@+id/song_artist"
-                        android:layout_width="wrap_content"
+                        android:layout_width="230dp"
                         android:layout_height="wrap_content"
                         android:text="Artist Name"
                         android:textSize="14sp"
                         android:textColor="@color/white"
-                        android:layout_below="@id/song_title"/>
+                        android:layout_below="@id/song_title"
+                        android:fontFamily="@font/unageo_medium"/>
 
                     <ImageView
                         android:id="@+id/likeButton"
@@ -148,7 +151,8 @@
                         android:textColor="@color/numberTime"
                         android:layout_alignParentStart="true"
                         android:layout_alignParentBottom="true"
-                        android:layout_marginStart="15dp"/>
+                        android:layout_marginStart="15dp"
+                        android:fontFamily="@font/unageo_medium"/>
 
                     <SeekBar
                         android:id="@+id/seekBar"
@@ -167,7 +171,8 @@
                         android:textColor="@color/numberTime"
                         android:layout_alignParentEnd="true"
                         android:layout_alignParentBottom="true"
-                        android:layout_marginEnd="15dp"/>
+                        android:layout_marginEnd="15dp"
+                        android:fontFamily="@font/unageo_medium"/>
 
                 </RelativeLayout>
 
