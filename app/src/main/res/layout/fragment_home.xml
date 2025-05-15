@@ -143,6 +143,13 @@
                         android:textSize="20sp"
                         android:layout_gravity="center_vertical|left"/>
 
+                    <ImageButton
+                        android:id="@+id/rechargeSongs"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/recharge"
+                        android:layout_gravity="center_vertical|end"/>
+
                 </FrameLayout>
 
                 <RelativeLayout

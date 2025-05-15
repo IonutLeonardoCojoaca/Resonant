@@ -422,7 +422,7 @@ class ActivitySongList : AppCompatActivity() {
         val intent = Intent(this@ActivitySongList, SettingsActivity::class.java)
         startActivity(intent)
     }
-
+    /*
     override fun onResume() {
         super.onResume()
 
@@ -462,5 +462,5 @@ class ActivitySongList : AppCompatActivity() {
         shouldStopMusic = false
         moveTaskToBack(true)
     }
-
+º   */
 }

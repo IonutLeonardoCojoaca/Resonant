@@ -11,6 +11,7 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -37,7 +38,7 @@ class HomeFragment : Fragment(), PlaybackUIListener {
     private lateinit var prefs: SharedPreferences
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
-    private var artistsList: MutableList<Artist> = mutableListOf() // Lista de artistas
+    private var artistsList: MutableList<Artist> = mutableListOf()
 
     lateinit var recyclerViewSongs: RecyclerView
     lateinit var songAdapter: SongAdapter
@@ -45,10 +46,11 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
     private var isPlaying = false
 
-    private var currentOffset = 0
     private var isLoading = false
     private var hasMoreItems = true
     private val songList = mutableListOf<Song>()
+
+    private lateinit var rechargeSongs: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +87,8 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
         songAdapter = SongAdapter()
         recyclerViewSongs.adapter = songAdapter
+
+        rechargeSongs = view.findViewById<ImageButton>(R.id.rechargeSongs)
 
         PlaybackManager.addUIListener(this)
 
@@ -134,21 +138,14 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             songAdapter.notifyItemChanged(index)
         }
 
-        if (cachedSongs.isNotEmpty()) {
-            songList.clear()
-            songList.addAll(cachedSongs)
-            currentOffset = SongCache.currentOffset
-            hasMoreItems = SongCache.hasMoreSongs
-            songAdapter.submitList(songList.toList())
-            PlaybackManager.updateSongs(songList)
-
-            //loadingAnimation.visibility = View.GONE
-            isLoading = false
-        } else {
-            loadSongs()
+        rechargeSongs.setOnClickListener {
+            reloadSongs()
         }
 
+        getSongsFromCache(cachedSongs)
+
         getProfileImage()
+
         loadArtists()
 
         return view
@@ -228,6 +225,14 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             //loadingAnimation.visibility = ImageView.GONE
             isLoading = false
         }
+    }
+
+    private fun getSongsFromCache(cachedSongs: List<Song>){
+        songList.clear()
+        songList.addAll(cachedSongs)
+        songAdapter.submitList(songList.toList())
+        PlaybackManager.updateSongs(songList)
+        isLoading = false
     }
 
     suspend fun downloadAndCacheSong(context: Context, song: Song) {

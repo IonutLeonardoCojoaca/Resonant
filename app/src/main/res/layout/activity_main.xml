@@ -152,7 +152,8 @@
                     android:layout_alignParentBottom="true"
                     android:progressDrawable="@drawable/seekbar_tracking"
                     android:progressTint="@color/white"
-                    android:enabled="false"/>
+                    android:enabled="false"
+                    android:thumb="@null"/>
 
             </RelativeLayout>
 
@@ -162,7 +163,7 @@
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"
             android:layout_width="0dp"
-            android:layout_height="60dp"
+            android:layout_height="75dp"
             android:background="@drawable/gradient_bottom_navigation"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -173,7 +174,6 @@
             style="@style/BottomNavigationViewStyle" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-
 
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/navigationView"

@@ -10,6 +10,7 @@ data class Song(
     val album: String? = null,
     var duration: String? = null,
     val localCoverPath: String? = null,
-    var streams: Int = 0
+    var streams: Int = 0// posición por defecto
+
 )
 

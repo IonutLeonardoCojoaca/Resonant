@@ -150,11 +150,14 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             val position = MediaPlayerManager.getCurrentPosition()
 
             if (duration > 0) {
-                val progress = (position.toFloat() / duration * 100).toInt()
-                seekBar.progress = progress
+                if (seekBar.max != duration) {
+                    seekBar.max = duration
+                }
+
+                seekBar.progress = position
             }
 
-            handler.postDelayed(this, 500)
+            handler.postDelayed(this, 50)
         }
     }
 
