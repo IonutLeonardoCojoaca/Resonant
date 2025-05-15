@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
@@ -8,15 +8,15 @@
     tools:context=".ActivitySongList"
     android:background="@color/appBackgroundTheme">
 
-    <LinearLayout
+    <RelativeLayout
+        android:id="@+id/mainPrincipalContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="match_parent">
 
         <FrameLayout
+            android:id="@+id/containerActions"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="9"
+            android:layout_height="80dp"
             android:paddingHorizontal="20dp">
 
             <ImageButton
@@ -24,7 +24,7 @@
                 android:layout_width="35dp"
                 android:layout_height="35dp"
                 android:layout_gravity="center_vertical|right"
-                android:background="@drawable/settings"
+                android:background="@drawable/settings_selected"
                 android:visibility="visible"/>
 
             <ImageButton
@@ -32,25 +32,99 @@
                 android:layout_width="35dp"
                 android:layout_height="35dp"
                 android:scaleType="fitCenter"
-                android:background="@drawable/search_icon"
+                android:background="@drawable/search"
                 android:layout_gravity="center_vertical|left"
                 android:text="ir a busqueda"/>
 
         </FrameLayout>
 
         <LinearLayout
+            android:id="@+id/artistPrincipalContainer"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="91"
+            android:layout_height="400dp"
+            android:layout_below="@id/containerActions"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/artistTextContainer"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="15"
+                android:paddingHorizontal="20dp"
+                android:layout_alignParentTop="true">
+
+                <TextView
+                    android:id="@+id/artistFeatured"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="Artistas más destacados"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:layout_gravity="center_vertical|left"/>
+
+            </FrameLayout>
+
+            <GridLayout
+                android:id="@+id/listArtistsGrid"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="85">
+
+            </GridLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/albumsPrincipalContainer"
+            android:layout_width="match_parent"
+            android:layout_height="400dp"
+            android:layout_below="@id/artistPrincipalContainer"
             android:orientation="vertical">
 
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="9"
+                android:layout_weight="15"
                 android:paddingHorizontal="20dp">
 
                 <TextView
+                    android:id="@+id/albumsFeatured"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="Descubre álbumes"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:layout_gravity="center_vertical|left"/>
+
+            </FrameLayout>
+
+            <GridLayout
+                android:id="@+id/listAlbumsGrid"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="85">
+
+            </GridLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/songsPrincipalContainer"
+            android:layout_width="match_parent"
+            android:layout_height="600dp"
+            android:layout_below="@id/albumsPrincipalContainer"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="15"
+                android:paddingHorizontal="20dp">
+
+                <TextView
+                    android:id="@+id/songsFeatured"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="@font/unageo_medium"
@@ -62,187 +136,32 @@
             </FrameLayout>
 
             <RelativeLayout
+                android:id="@+id/listSongs"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="91"
-                android:background="@color/black">
-
-                <com.airbnb.lottie.LottieAnimationView
-                    android:id="@+id/loadingAnimation"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:lottie_fileName="loading.json"
-                    app:lottie_autoPlay="true"
-                    app:lottie_loop="true"
-                    android:layout_centerInParent="true"
-                    android:visibility="visible"/>
+                android:layout_weight="85">
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/allSongList"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="85"
                     android:scrollbars="vertical">
-
-
 
                 </androidx.recyclerview.widget.RecyclerView>
 
                 <View
+                    android:id="@+id/gradientBorderBottom"
                     android:layout_width="match_parent"
-                    android:layout_height="20dp"
-                    android:background="@drawable/song_list_gradient_top"
-                    android:layout_alignParentTop="true">
-
-                </View>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="190dp"
-                    android:background="@drawable/song_list_gradient_bottom"
-                    android:layout_alignParentBottom="true">
-
-                </View>
-
-                <Button
-                    android:id="@+id/updateSongListButton"
-                    android:layout_width="140dp"
                     android:layout_height="50dp"
-                    android:text="Actualizar"
-                    android:textColor="@color/white"
-                    android:layout_centerHorizontal="true"
                     android:layout_alignParentBottom="true"
-                    android:layout_marginBottom="90dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:backgroundTint="@color/secondaryColorTheme"/>
+                    android:background="@drawable/song_list_gradient_bottom"/>
 
             </RelativeLayout>
 
         </LinearLayout>
 
-    </LinearLayout>
+    </RelativeLayout>
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:padding="15dp">
-
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/music_player_background"
-            android:paddingVertical="10dp">
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/song_image"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_alignParentStart="true"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="10dp"
-                android:background="@drawable/album_cover"
-                app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
-
-            <FrameLayout
-                android:id="@+id/songDataPlayer"
-                android:layout_width="130dp"
-                android:layout_height="40dp"
-                android:layout_toEndOf="@id/song_image"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="12dp">
-
-                <TextView
-                    android:id="@+id/song_title"
-                    android:layout_width="120dp"
-                    android:layout_height="20dp"
-                    android:text=""
-                    android:textColor="@color/secondaryColorTheme"
-                    android:textSize="15sp"
-                    android:layout_gravity="top"
-                    android:textStyle="bold"
-                    android:singleLine="true"
-                    android:ellipsize="marquee"
-                    android:fontFamily="@font/unageo_medium"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:focusable="true"
-                    android:focusableInTouchMode="true"
-                    android:scrollHorizontally="true" />
-
-                <TextView
-                    android:id="@+id/song_artist"
-                    android:layout_width="120dp"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textSize="13sp"
-                    android:textColor="@color/textTheme"
-                    android:layout_gravity="bottom"
-                    android:singleLine="true"
-                    android:ellipsize="marquee"
-                    android:fontFamily="@font/unageo_medium"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:focusable="true"
-                    android:focusableInTouchMode="true"
-                    android:scrollHorizontally="true"/>
-
-                <View
-                    android:layout_width="50dp"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/gradient_text_player_background"
-                    android:layout_gravity="right"/>
-
-            </FrameLayout>
-
-            <RelativeLayout
-                android:id="@+id/playerActions"
-                android:layout_width="155dp"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingHorizontal="5dp"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true">
-
-                <ImageButton
-                    android:id="@+id/previousSongButton"
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
-                    android:src="@drawable/skip_previous_filled"
-                    android:scaleType="centerCrop"
-                    android:background="@android:color/transparent"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentLeft="true"/>
-
-                <FrameLayout
-                    android:layout_width="45dp"
-                    android:layout_height="45dp"
-                    android:layout_centerInParent="true"
-                    android:background="@drawable/play_button_background">
-
-                    <ImageButton
-                        android:id="@+id/playPauseButton"
-                        android:layout_width="35dp"
-                        android:layout_height="35dp"
-                        android:scaleType="centerCrop"
-                        android:src="@drawable/play_arrow_filled"
-                        android:background="@android:color/transparent"
-                        android:layout_gravity="center"/>
-
-                </FrameLayout>
-
-                <ImageButton
-                    android:id="@+id/nextSongButton"
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
-                    android:src="@drawable/skip_next_filled"
-                    android:scaleType="centerCrop"
-                    android:background="@android:color/transparent"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentRight="true"/>
-
-            </RelativeLayout>
-
-        </RelativeLayout>
-
-    </FrameLayout>
-
-</RelativeLayout>
+</ScrollView>
 

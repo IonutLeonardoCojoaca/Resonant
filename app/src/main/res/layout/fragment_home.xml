@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".HomeFragment"
+    android:background="@color/appBackgroundTheme">
+
+    <FrameLayout
+        android:id="@+id/superiorToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingEnd="20dp"
+        android:paddingLeft="10dp">
+
+        <ImageView
+            android:id="@+id/dark_logo"
+            android:layout_width="180dp"
+            android:layout_height="75dp"
+            android:layout_gravity="center_vertical|left"
+            android:scaleX="1.2"
+            android:scaleY="1.2"
+            android:scaleType="centerCrop"
+            android:src="@drawable/resonant_tema_oscuro"/>
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/userProfile"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:translationY="-2dp"
+            android:src="@drawable/user"
+            android:layout_gravity="center_vertical|right"
+            app:shapeAppearanceOverlay="@style/CircularUserImage">
+
+        </com.google.android.material.imageview.ShapeableImageView>
+
+    </FrameLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/appBackgroundTheme"
+        android:layout_below="@id/superiorToolbar">
+
+        <RelativeLayout
+            android:id="@+id/mainPrincipalContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:id="@+id/artistPrincipalContainer"
+                android:layout_width="match_parent"
+                android:layout_height="440dp"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:id="@+id/artistTextContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="10"
+                    android:paddingHorizontal="20dp">
+
+                    <TextView
+                        android:id="@+id/artistFeatured"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Artistas más destacados"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:layout_gravity="start"/>
+
+                </FrameLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/listArtistsRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="90"
+                    android:paddingHorizontal="16dp"
+                    android:clipToPadding="false"
+                    android:scrollbars="vertical">
+
+                </androidx.recyclerview.widget.RecyclerView>
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/albumsPrincipalContainer"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                android:layout_below="@id/artistPrincipalContainer"
+                android:orientation="vertical">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="15"
+                    android:paddingHorizontal="20dp">
+
+                    <TextView
+                        android:id="@+id/albumsFeatured"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Descubre álbumes"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:layout_gravity="center_vertical|left"/>
+
+                </FrameLayout>
+
+                <GridLayout
+                    android:id="@+id/listAlbumsGrid"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="85">
+
+                </GridLayout>
+
+            </LinearLayout>
+
+            <RelativeLayout
+                android:id="@+id/songsPrincipalContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/albumsPrincipalContainer">
+
+                <FrameLayout
+                    android:id="@+id/titleSongsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="65dp"
+                    android:paddingHorizontal="20dp">
+
+                    <TextView
+                        android:id="@+id/songsFeatured"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Explora nuevas canciones"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:layout_gravity="center_vertical|left"/>
+
+                </FrameLayout>
+
+                <RelativeLayout
+                    android:id="@+id/listSongs"
+                    android:layout_width="match_parent"
+                    android:layout_height="650dp"
+                    android:layout_below="@id/titleSongsContainer">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/allSongList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="vertical">
+
+                    </androidx.recyclerview.widget.RecyclerView>
+
+                </RelativeLayout>
+
+            </RelativeLayout>
+
+        </RelativeLayout>
+
+    </ScrollView>
+
+</RelativeLayout>

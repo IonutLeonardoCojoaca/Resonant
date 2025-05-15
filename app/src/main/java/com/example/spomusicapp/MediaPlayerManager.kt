@@ -13,7 +13,7 @@ object MediaPlayerManager {
     private var currentSongUrl: String? = null
     var currentSongIndex: Int = -1
 
-    fun play(context: Context, url: String, index: Int, onPrepared: (() -> Unit)? = null) {
+    fun play(context: Context,url: String,index: Int,autoStart: Boolean = true,onPrepared: (() -> Unit)? = null) {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val file = Utils.cacheSongIfNeeded(context, url)
@@ -26,8 +26,13 @@ object MediaPlayerManager {
                     setAudioStreamType(AudioManager.STREAM_MUSIC)
                     setDataSource(file.absolutePath)
                     setOnPreparedListener {
-                        it.start()
+                        if (autoStart) {
+                            it.start() // ✅ Solo empieza si autoStart = true
+                        }
                         onPrepared?.invoke()
+                    }
+                    setOnCompletionListener {
+                        PlaybackManager.playNext(context)
                     }
                     prepareAsync()
                 }

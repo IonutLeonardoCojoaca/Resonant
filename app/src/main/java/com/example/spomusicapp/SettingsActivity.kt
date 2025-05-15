@@ -67,7 +67,7 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val clearRequest = ClearCredentialStateRequest()
                 credentialManager.clearCredentialState(clearRequest)
-                intent = Intent(applicationContext, MainActivity::class.java)
+                intent = Intent(applicationContext, LoginActivity::class.java)
                 startActivity(intent)
                 finish()
             } catch (e: ClearCredentialException) {

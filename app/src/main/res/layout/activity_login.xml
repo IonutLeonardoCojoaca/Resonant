@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".LoginActivity"
+    android:backgroundTint="@color/black">
+
+    <VideoView
+        android:id="@+id/videoViewBackground1"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleX="1.5"
+        android:scaleY="1.5"
+        android:background="@drawable/gradient_login"
+        android:backgroundTint="@color/black"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="60">
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:layout_centerVertical="true">
+
+                <TextView
+                    android:layout_width="240dp"
+                    android:layout_height="wrap_content"
+                    android:text="Bienvenido a Resonant"
+                    android:textAlignment="center"
+                    android:textSize="40sp"
+                    android:textColor="#CCCCCC"
+                    android:fontFamily="@font/unageo_medium"/>
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Escucha tu música sin límites ni anuncios invasivos."
+                    android:textColor="#CCCCCC"
+                    android:textSize="12sp"
+                    android:fontFamily="@font/unageo_medium"/>
+
+            </FrameLayout>
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="40"
+            android:padding="10dp">
+
+            <RelativeLayout
+                android:id="@+id/containerButtonsLogIn"
+                android:layout_width="wrap_content"
+                android:layout_height="120dp"
+                android:layout_centerInParent="true">
+
+                <RelativeLayout
+                    android:id="@+id/entryInvitationButton"
+                    android:layout_width="290dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/no_login_button"
+                    android:layout_alignParentTop="true">
+
+                    <FrameLayout
+                        android:layout_width="210dp"
+                        android:layout_height="50dp"
+                        android:layout_centerInParent="true">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text="Entrar como invitado"
+                            android:textColor="@color/white"
+                            android:fontFamily="@font/unageo_medium"
+                            android:textSize="14sp"/>
+
+                    </FrameLayout>
+
+                </RelativeLayout>
+
+
+                <RelativeLayout
+                    android:id="@+id/googleLogInButtonContainer"
+                    android:layout_width="290dp"
+                    android:layout_height="50dp"
+                    android:background="@drawable/google_button_background"
+                    android:layout_alignParentBottom="true">
+
+                    <RelativeLayout
+                        android:id="@+id/googleLogInButton"
+                        android:layout_width="250dp"
+                        android:layout_height="50dp"
+                        android:layout_centerInParent="true"
+                        android:gravity="center">
+
+                        <ImageView
+                            android:id="@+id/google_logo"
+                            android:layout_width="30dp"
+                            android:layout_height="30dp"
+                            android:scaleType="centerCrop"
+                            android:background="@drawable/google_icon"
+                            android:layout_centerVertical="true"/>
+
+                        <TextView
+                            android:id="@+id/google_login_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Iniciar sesión con Google"
+                            android:textColor="@color/white"
+                            android:layout_centerInParent="true"
+                            android:fontFamily="@font/unageo_medium"
+                            android:textSize="14sp"/>
+
+                    </RelativeLayout>
+
+                </RelativeLayout>
+
+            </RelativeLayout>
+
+        </RelativeLayout>
+
+    </LinearLayout>
+
+</RelativeLayout>

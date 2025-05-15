@@ -49,13 +49,13 @@ class ActivitySongList : AppCompatActivity() {
     lateinit var recyclerView: RecyclerView
     lateinit var songAdapter: SongAdapter
 
-    private lateinit var playPauseButton: ImageButton
-    private lateinit var previousSongButton: ImageButton
-    private lateinit var nextSongButton: ImageButton
+    //private lateinit var playPauseButton: ImageButton
+    //private lateinit var previousSongButton: ImageButton
+    //private lateinit var nextSongButton: ImageButton
 
-    private var isPlaying = false
-    private var updateSeekBarRunnable: Runnable? = null
-    private val handler = Handler(Looper.getMainLooper())
+    //private var isPlaying = false
+    //private var updateSeekBarRunnable: Runnable? = null
+    //private val handler = Handler(Looper.getMainLooper())
 
     private val songRepository = SongRepository()
 
@@ -70,13 +70,13 @@ class ActivitySongList : AppCompatActivity() {
     private var hasMoreItems = true
     private val songList = mutableListOf<Song>()
 
-    private lateinit var loadingAnimation: ImageView
+    //private lateinit var loadingAnimation: ImageView
     private lateinit var searchSongsButton: ImageButton
-    private lateinit var updateSongListButton: Button
+    //private lateinit var updateSongListButton: Button
 
-    private lateinit var songImage: ImageView
-    private lateinit var songName: TextView
-    private lateinit var songArtist: TextView
+    //private lateinit var songImage: ImageView
+    //private lateinit var songName: TextView
+    //private lateinit var songArtist: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,22 +101,23 @@ class ActivitySongList : AppCompatActivity() {
         songAdapter = SongAdapter()
         recyclerView.adapter = songAdapter
 
-        playPauseButton = findViewById(R.id.playPauseButton)
-        previousSongButton = findViewById(R.id.previousSongButton)
-        nextSongButton = findViewById(R.id.nextSongButton)
+        //playPauseButton = findViewById(R.id.playPauseButton)
+        //previousSongButton = findViewById(R.id.previousSongButton)
+        //nextSongButton = findViewById(R.id.nextSongButton)
 
-        songImage = findViewById(R.id.song_image)
-        songName = findViewById(R.id.song_title)
-        songArtist = findViewById(R.id.song_artist)
+        //songImage = findViewById(R.id.song_image)
+        //songName = findViewById(R.id.song_title)
+        //songArtist = findViewById(R.id.song_artist)
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
         settingsButton = findViewById(R.id.settingsButton)
 
-        loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
+        //loadingAnimation = findViewById<ImageView>(R.id.loadingAnimation)
         searchSongsButton = findViewById(R.id.searchSongsButton)
-        updateSongListButton = findViewById(R.id.updateSongListButton)
+        //updateSongListButton = findViewById(R.id.updateSongListButton)
 
+        /*
         playPauseButton.setOnClickListener {
             if (isPlaying) {
                 MediaPlayerManager.pause()
@@ -126,12 +127,8 @@ class ActivitySongList : AppCompatActivity() {
             isPlaying = !isPlaying
             updatePlayPauseButton(isPlaying)
         }
-
-        PlaybackManager.onSongChanged = { song ->
-            songAdapter.setCurrentPlayingSong(song.url)
-            updateDataPlayer(song)
-        }
-
+        */
+        /*
         previousSongButton.setOnClickListener {
             PlaybackManager.playPrevious(this@ActivitySongList)
             isPlaying = true
@@ -143,7 +140,7 @@ class ActivitySongList : AppCompatActivity() {
             isPlaying = true
             updatePlayPauseButton(isPlaying)
         }
-
+        */
         val sharedPref = this@ActivitySongList.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString("current_playing_url", null)
 
@@ -169,13 +166,13 @@ class ActivitySongList : AppCompatActivity() {
             )
 
             // Actualizar la UI con la canción actual
-            updateDataPlayer(song)
+            //updateDataPlayer(song)
         }
 
         songAdapter.setCurrentPlayingSong(savedUrl)
 
-        isPlaying = MediaPlayerManager.isPlaying()
-        updatePlayPauseButton(isPlaying)
+        //isPlaying = MediaPlayerManager.isPlaying()
+        //updatePlayPauseButton(isPlaying)
 
         songAdapter.onItemClick = { (song, imageUri) ->
             val index = songAdapter.currentList.indexOf(song)
@@ -197,12 +194,12 @@ class ActivitySongList : AppCompatActivity() {
             }
 
             if (index != -1) {
-                updateDataPlayer(song)
-                songName.isSelected = true
-                songArtist.isSelected = true
+                //updateDataPlayer(song)
+                //songName.isSelected = true
+                //songArtist.isSelected = true
                 PlaybackManager.playSongAt(this, index)
-                isPlaying = true
-                updatePlayPauseButton(isPlaying)
+                //isPlaying = true
+                //updatePlayPauseButton(isPlaying)
                 NotificationManagerHelper.createNotificationChannel(this)
                 NotificationManagerHelper.updateNotification(this)
             }
@@ -211,8 +208,8 @@ class ActivitySongList : AppCompatActivity() {
 
         }
 
-        val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
-
+        //val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
+        /*
         songDataPlayer.setOnClickListener {
             val currentSong = PlaybackManager.getCurrentSong()
             if (currentSong != null) {
@@ -228,6 +225,7 @@ class ActivitySongList : AppCompatActivity() {
                 startActivity(intent)
             }
         }
+        */
 
         if (cachedSongs.isNotEmpty()) {
             songList.addAll(cachedSongs)
@@ -236,20 +234,17 @@ class ActivitySongList : AppCompatActivity() {
             songAdapter.submitList(songList.toList())
             PlaybackManager.updateSongs(songList)
 
-            loadingAnimation.visibility = View.GONE
+            //loadingAnimation.visibility = View.GONE
             isLoading = false
         } else {
             loadSongs()
         }
 
-        searchSongsButton.setOnClickListener {
-            goToSearchSongsActivity()
-        }
-
+        /*
         updateSongListButton.setOnClickListener {
             reloadSongs()
         }
-
+        */
         settingsButton.setOnClickListener {
             goToSettingsActivity()
         }
@@ -264,7 +259,7 @@ class ActivitySongList : AppCompatActivity() {
         if (isLoading) return
 
         isLoading = true
-        loadingAnimation.visibility = ImageView.VISIBLE
+        //loadingAnimation.visibility = ImageView.VISIBLE
 
         lifecycleScope.launch {
             val songs = songRepository.fetchSongs()
@@ -297,7 +292,7 @@ class ActivitySongList : AppCompatActivity() {
                 Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
 
-            loadingAnimation.visibility = ImageView.GONE
+            //loadingAnimation.visibility = ImageView.GONE
             isLoading = false
         }
     }
@@ -351,6 +346,7 @@ class ActivitySongList : AppCompatActivity() {
         }
     }
 
+    /*
     private fun updatePlayPauseButton(isPlaying: Boolean) {
         if (isPlaying) {
             playPauseButton.setImageResource(R.drawable.pause)
@@ -358,7 +354,8 @@ class ActivitySongList : AppCompatActivity() {
             playPauseButton.setImageResource(R.drawable.play_arrow_filled)
         }
     }
-
+    */
+    /*
     private fun updateDataPlayer(song: Song) {
         songName.text = song.title
             .removeSuffix(".mp3")
@@ -366,10 +363,10 @@ class ActivitySongList : AppCompatActivity() {
             .replace("-", "–")
             .trim()
 
-        songArtist.text = song.artist ?: "Desconocido"
-        Utils.getImageSongFromCache(song, this@ActivitySongList, songImage, song.localCoverPath.toString())
+        //songArtist.text = song.artist ?: "Desconocido"
+        //Utils.getImageSongFromCache(song, this@ActivitySongList, songImage, song.localCoverPath.toString())
     }
-
+    */
     fun checkUpdate(){
         val remoteConfig = FirebaseRemoteConfig.getInstance()
 
@@ -426,11 +423,6 @@ class ActivitySongList : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun goToSearchSongsActivity(){
-        val intent = Intent(this, SearchSongsActivity::class.java)
-        startActivity(intent)
-    }
-
     override fun onResume() {
         super.onResume()
 
@@ -439,9 +431,9 @@ class ActivitySongList : AppCompatActivity() {
 
         if (savedIndex != -1 && savedIndex in PlaybackManager.songs.indices) {
             val currentSong = PlaybackManager.songs[savedIndex]
-            isPlaying = MediaPlayerManager.isPlaying()
-            updateDataPlayer(currentSong)
-
+            //isPlaying = MediaPlayerManager.isPlaying()
+            //updateDataPlayer(currentSong)
+            /*
             playPauseButton.setOnClickListener {
                 if (isPlaying) {
                     MediaPlayerManager.pause()
@@ -449,12 +441,14 @@ class ActivitySongList : AppCompatActivity() {
                     PlaybackManager.playSongAt(this@ActivitySongList, savedIndex)
                 }
                 isPlaying = !isPlaying
-                updatePlayPauseButton(isPlaying)
+                //updatePlayPauseButton(isPlaying)
             }
+            */
+
         }
     }
 
-
+    /*
     override fun onDestroy() {
         super.onDestroy()
         updateSeekBarRunnable?.let { handler.removeCallbacks(it) }
@@ -462,7 +456,7 @@ class ActivitySongList : AppCompatActivity() {
             MediaPlayerManager.stop()
         }
     }
-
+    */
     override fun onBackPressed() {
         super.onBackPressed()
         shouldStopMusic = false

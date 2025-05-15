@@ -57,16 +57,16 @@ object NotificationManagerHelper {
 
         // Crear notificación con la información actualizada
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.play)
+            .setSmallIcon(R.drawable.play_arrow_filled)
             .setContentTitle("Reproduciendo música")
             .setContentText("Tu canción aquí") // Aquí puedes poner el nombre de la canción
-            .addAction(NotificationCompat.Action(R.drawable.ic_previous, "Anterior", previousPendingIntent))
+            .addAction(NotificationCompat.Action(R.drawable.skip_previous_filled, "Anterior", previousPendingIntent))
             .addAction(NotificationCompat.Action(
-                if (MediaPlayerManager.isPlaying()) R.drawable.pause else R.drawable.play,
+                if (MediaPlayerManager.isPlaying()) R.drawable.pause else R.drawable.play_arrow_filled,
                 "Play/Pause",
                 playPausePendingIntent
             ))
-            .addAction(NotificationCompat.Action(R.drawable.ic_next, "Siguiente", nextPendingIntent))
+            .addAction(NotificationCompat.Action(R.drawable.skip_next_filled, "Siguiente", nextPendingIntent))
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle())
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setProgress(currentDuration, currentPosition, false) // Aquí actualizas el progreso de la canción

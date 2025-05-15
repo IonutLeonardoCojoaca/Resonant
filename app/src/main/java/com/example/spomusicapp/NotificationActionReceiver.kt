@@ -17,7 +17,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     MediaPlayerManager.resume()
                     
                 }
-                NotificationManagerHelper.updateNotification(context) // La actualizamos
+                NotificationManagerHelper.updateNotification(context)
             }
             "ACTION_NEXT" -> {
                 PlaybackManager.playNext(context)

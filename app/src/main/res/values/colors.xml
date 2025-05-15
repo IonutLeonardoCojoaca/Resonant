@@ -20,4 +20,9 @@
 
     <color name="numberTime">#626262</color>
 
+    <color name="nav_text_icon_color">#E9E9E9</color>
+    <color name="nav_text_icon_color_selected">#E9E9E9</color>
+
+    <color name="no_selected_color_icon">#6F6F6F</color>
+
 </resources>

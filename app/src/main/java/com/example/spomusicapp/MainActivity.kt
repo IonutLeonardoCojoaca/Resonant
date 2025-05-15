@@ -1,167 +1,261 @@
 package com.example.spomusicapp
 
-import android.Manifest
-import android.content.ContentValues.TAG
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.SeekBar
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import android.util.Log
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.view.WindowManager
-import android.widget.Button
-import android.widget.RelativeLayout
-import android.widget.Toast
-import android.widget.VideoView
-import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.Credential
-import androidx.credentials.CredentialManager
-import androidx.credentials.exceptions.ClearCredentialException
-import com.google.firebase.Firebase
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.auth
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.setupWithNavController
+import androidx.recyclerview.widget.RecyclerView
+import com.example.spomusicapp.databinding.ActivityMainBinding
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
+import java.io.File
 
+class MainActivity : AppCompatActivity(), PlaybackUIListener {
 
-class MainActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMainBinding
 
-    private lateinit var auth: FirebaseAuth
-    private lateinit var credentialManager: CredentialManager
-    private lateinit var signInGoogle : RelativeLayout
-    private lateinit var entryInvitationButton : RelativeLayout
-    private lateinit var videoView: VideoView
+    private lateinit var seekBar: SeekBar
+    private val handler = Handler(Looper.getMainLooper())
+
+    private var isPlaying = false
+    private lateinit var playPauseButton: ImageButton
+    private lateinit var previousSongButton: ImageButton
+    private lateinit var nextSongButton: ImageButton
+    private lateinit var songImage: ImageView
+    private lateinit var songName: TextView
+    private lateinit var songArtist: TextView
+
+    private var shouldStopMusic: Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
             insets
         }
 
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        if (currentUser != null) {
-            val intent = Intent(this, ActivitySongList::class.java)
-            startActivity(intent)
-            finish()
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        val navController = navHostFragment.navController
+        val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNavigationView.setupWithNavController(navController)
+        bottomNavigationView.setItemIconTintList(null)
+
+        val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
+        val savedUrl = sharedPref.getString("current_playing_url", null)
+        val savedTitle = sharedPref.getString("current_playing_title", "")
+        val savedArtist = sharedPref.getString("current_playing_artist", "")
+        val savedAlbum = sharedPref.getString("current_playing_album", "")
+        val savedDuration = sharedPref.getString("current_playing_duration", "")
+        val savedImage = sharedPref.getString("current_playing_image", null)
+        val savedIndex = sharedPref.getInt("current_index", -1)
+
+        playPauseButton = binding.playPauseButton
+        previousSongButton = binding.previousSongButton
+        nextSongButton = binding.nextSongButton
+
+        songImage = binding.songImage
+        songName = binding.songTitle
+        songArtist = binding.songArtist
+
+        seekBar = findViewById(R.id.seekbarPlayer)
+        seekBar.max = 100
+        handler.post(updateSeekBarRunnable)
+
+        songName.isSelected = true
+        songArtist.isSelected = true
+
+        PlaybackManager.addUIListener(this)
+
+        if (savedUrl != null && savedIndex != -1) {
+            // Crear un objeto Song con los datos recuperados
+            val song = Song(
+                title = savedTitle ?: "",
+                url = savedUrl,
+                artist = savedArtist,
+                album = savedAlbum,
+                duration = savedDuration,
+                localCoverPath = savedImage // Asigna la imagen
+            )
+
+            val safeTitle = song.title.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val cachedFile = File(cacheDir, "cached_${safeTitle}.mp3")
+            val dataSource = if (cachedFile.exists()) cachedFile.absolutePath else song.url
+
+            // 🧠 Esto prepara el MediaPlayer (aunque no empieza a sonar)
+            MediaPlayerManager.play(this, dataSource, savedIndex, autoStart = false)
+
+            val savedPosition = sharedPref.getInt("current_position", 0)
+            val wasPlaying = sharedPref.getBoolean("is_playing", false)
+
+            MediaPlayerManager.seekTo(savedPosition)
+            if (wasPlaying) {
+                MediaPlayerManager.resume()
+            }
+
+            updatePlayerUI(song, wasPlaying)
         }
 
-        signInGoogle = findViewById(R.id.googleLogInButton)
-        entryInvitationButton = findViewById(R.id.entryInvitationButton)
-
-        auth = Firebase.auth
-        credentialManager = CredentialManager.create(baseContext)
-
-        signInGoogle.setOnClickListener {
-            launchCredentialManager()
+        playPauseButton.setOnClickListener {
+            val currentlyPlaying = MediaPlayerManager.isPlaying()
+            if (currentlyPlaying) {
+                MediaPlayerManager.pause()
+            } else {
+                MediaPlayerManager.resume()
+            }
+            updatePlayPauseButton(!currentlyPlaying)
         }
 
-        entryInvitationButton.setOnClickListener {
-            intent = Intent(applicationContext, ActivitySongList::class.java)
-            startActivity(intent)
+        previousSongButton.setOnClickListener {
+            PlaybackManager.playPrevious(this@MainActivity)
+            isPlaying = true
+            updatePlayPauseButton(isPlaying)
         }
 
-        val insetsController = window.insetsController
-        insetsController?.hide(WindowInsetsController.BEHAVIOR_SHOW_BARS_BY_SWIPE)
-        insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        val windowInsetsController = window.insetsController
-        windowInsetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-
-
-        videoView = findViewById<VideoView>(R.id.videoViewBackground1)
-
-        val uri = Uri.parse("android.resource://${packageName}/${R.raw.footage_login}")
-        videoView.setVideoURI(uri)
-
-        videoView.setOnPreparedListener { mediaPlayer ->
-            mediaPlayer.isLooping = true
-            mediaPlayer.setVolume(0f, 0f)
+        nextSongButton.setOnClickListener {
+            PlaybackManager.playNext(this@MainActivity)
+            isPlaying = true
+            updatePlayPauseButton(isPlaying)
         }
 
-        videoView.start()
+        isPlaying = MediaPlayerManager.isPlaying()
+        updatePlayPauseButton(isPlaying)
 
+
+    }
+
+    private val updateSeekBarRunnable = object : Runnable {
+        override fun run() {
+            val duration = MediaPlayerManager.getDuration()
+            val position = MediaPlayerManager.getCurrentPosition()
+
+            if (duration > 0) {
+                val progress = (position.toFloat() / duration * 100).toInt()
+                seekBar.progress = progress
+            }
+
+            handler.postDelayed(this, 500)
+        }
+    }
+
+    fun updatePlayerUI(song: Song, isPlaying: Boolean) {
+        updateDataPlayer(song)
+        updatePlayPauseButton(isPlaying)
+    }
+
+    private fun updatePlayPauseButton(isPlaying: Boolean) {
+        if (isPlaying) {
+            playPauseButton.setImageResource(R.drawable.pause)
+        } else {
+            playPauseButton.setImageResource(R.drawable.play_arrow_filled)
+        }
+    }
+
+    private fun updateDataPlayer(song: Song) {
+        songName.text = song.title
+            .removeSuffix(".mp3")
+            .replace(Regex("\\s*\\([^)]*\\)"), "")
+            .replace("-", "–")
+            .trim()
+
+        songArtist.text = song.artist ?: "Desconocido"
+        Utils.getImageSongFromCache(song, this@MainActivity, songImage, song.localCoverPath.toString())
     }
 
     override fun onResume() {
         super.onResume()
-        videoView.start()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        videoView.pause()
-    }
-
-    private fun launchCredentialManager() {
-        val googleIdOption = GetGoogleIdOption.Builder()
-            .setServerClientId(getString(R.string.default_web_client_id))
-            .setFilterByAuthorizedAccounts(false)
-            .build()
-
-        val request = GetCredentialRequest.Builder()
-            .addCredentialOption(googleIdOption)
-            .build()
-
-        lifecycleScope.launch {
-            try {
-                val result = credentialManager.getCredential(
-                    context = this@MainActivity,
-                    request = request
-                )
-                handleSignIn(result.credential)
-            } catch (e: GetCredentialException) {
-                Log.e(TAG, "Couldn't retrieve user's credentials: ${e.localizedMessage}")
-            }
+        PlaybackManager.addUIListener(this)
+        val sharedPref = getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
+        val savedIndex = sharedPref.getInt("current_playing_index", -1)
+        if (savedIndex != -1 && savedIndex in PlaybackManager.songs.indices) {
+            val currentSong = PlaybackManager.songs[savedIndex]
+            isPlaying = MediaPlayerManager.isPlaying()
+            updateDataPlayer(currentSong)
         }
     }
 
-    private fun handleSignIn(credential: Credential) {
-        if (credential is CustomCredential && credential.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-            firebaseAuthWithGoogle(googleIdTokenCredential.idToken)
-        } else {
-            Log.w(TAG, "Credential is not of type Google ID!")
+    override fun onDestroy() {
+        super.onDestroy()
+        updateSeekBarRunnable.let { handler.removeCallbacks(it) }
+        if (shouldStopMusic) {
+            MediaPlayerManager.stop()
+            PlaybackManager.clearUIListener()
         }
     }
 
-    private fun firebaseAuthWithGoogle(idToken: String) {
-        val credential = GoogleAuthProvider.getCredential(idToken, null)
-        auth.signInWithCredential(credential)
-            .addOnCompleteListener(this) { task ->
+    @SuppressLint("MissingSuperCall")
+    override fun onBackPressed() {
+        shouldStopMusic = false
+        moveTaskToBack(true)
+    }
+
+    override fun onSongChanged(song: Song, isPlaying: Boolean) {
+        updateDataPlayer(song)
+        updatePlayPauseButton(isPlaying)
+        this.isPlaying = isPlaying
+    }
+
+    fun checkUpdate(){
+        val remoteConfig = FirebaseRemoteConfig.getInstance()
+
+        val configSettings = FirebaseRemoteConfigSettings.Builder()
+            .setMinimumFetchIntervalInSeconds(0)
+            .build()
+        remoteConfig.setConfigSettingsAsync(configSettings)
+
+        remoteConfig.setDefaultsAsync(
+            mapOf(
+                "latest_version" to "1.0",
+                "apk_url" to ""
+            )
+        )
+
+        remoteConfig.fetchAndActivate()
+            .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    val user = auth.currentUser
-                    Toast.makeText(this, user?.email.toString(), Toast.LENGTH_SHORT).show()
-                    val intent = Intent(this, ActivitySongList::class.java)
-                    startActivity(intent)
+                    val latestVersion = remoteConfig.getString("latest_version")
+                    val apkUrl = remoteConfig.getString("apk_url")
+                    val updateMessageToUser = remoteConfig.getString("update_message")
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    val versionName = packageInfo.versionName
+                    val currentVersion = versionName
+
+                    if (latestVersion != currentVersion) {
+                        AlertDialog.Builder(this)
+                            .setTitle("¡Nueva actualización disponible!")
+                            .setMessage("Versión: $latestVersion. $updateMessageToUser")
+                            .setPositiveButton("Descargar") { _, _ ->
+                                val intent = Intent(Intent.ACTION_VIEW, apkUrl.toUri())
+                                startActivity(intent)
+                            }
+                            .setNegativeButton("Cancelar", null)
+                            .show()
+                    }
                 } else {
-                    Toast.makeText(this, "Error con el login", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Error al buscar actualización", Toast.LENGTH_SHORT).show()
                 }
             }
+
     }
-
-
-
 
 }

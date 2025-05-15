@@ -9,6 +9,7 @@ data class Song(
     var artist: String? = null,
     val album: String? = null,
     var duration: String? = null,
-    val localCoverPath: String? = null
+    val localCoverPath: String? = null,
+    var streams: Int = 0
 )
 

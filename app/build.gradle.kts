@@ -13,12 +13,14 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 3
-        versionName = "1.28"
+        versionName = "1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-
+    viewBinding {
+        enable = true
+    }
 
     buildTypes {
         release {
@@ -53,6 +55,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-firestore-ktx")
 
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
@@ -81,5 +85,10 @@ dependencies {
 
     implementation ("com.google.firebase:firebase-messaging:23.0.5")
 
+    implementation ("androidx.navigation:navigation-fragment:2.9.0")
+    implementation ("androidx.navigation:navigation-ui:2.9.0")
+    implementation ("com.google.android.material:material:1.12.0")
+
+    implementation (libs.picasso)
 
 }
