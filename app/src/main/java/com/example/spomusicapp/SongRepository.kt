@@ -1,5 +1,8 @@
 package com.example.spomusicapp
 
+import android.util.Log
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
@@ -17,6 +20,8 @@ class SongRepository {
         .build()
         .create(FirebaseFunctionService::class.java)
 
+    /*
+
     suspend fun fetchSongs(): List<Song>? {
         return try {
             val response = getAllSongsService.getSongs()
@@ -26,6 +31,8 @@ class SongRepository {
             null
         }
     }
+
+    */
 
     suspend fun searchSongs(query: String = "", limit: Int = 10, offset: Int = 0): List<Song>? {
         return try {

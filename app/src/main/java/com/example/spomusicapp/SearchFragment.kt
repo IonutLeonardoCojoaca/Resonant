@@ -21,11 +21,14 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.spomusicapp.ActivitySongList
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlin.collections.isNotEmpty
 import kotlin.collections.map
@@ -76,31 +79,39 @@ class SearchFragment : Fragment() {
             if (index != -1) {
                 PlaybackManager.updateSongs(songAdapter.currentList)
                 PlaybackManager.playSongAt(requireContext(), index)
+                var isPlaying = true
+                (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
             }
+
         }
 
         editTextQuery.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
-                if(s.toString().isEmpty() || s.toString().isBlank()){
+                if (s.isNullOrBlank()) {
                     noSongsFounded.visibility = View.VISIBLE
                     songAdapter.submitList(emptyList())
                 }
             }
+
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
             override fun onTextChanged(newText: CharSequence?, start: Int, before: Int, count: Int) {
                 val query = newText.toString().trim()
-
+                searchJob?.cancel()
                 searchJob = lifecycleScope.launch {
-
-                    val songs = withContext(Dispatchers.IO) {
-                        songRepository.searchSongs(query)
+                    delay(200)
+                    if (query.isEmpty()) {
+                        noSongsFounded.visibility = View.VISIBLE
+                        songAdapter.submitList(emptyList())
+                        return@launch
                     }
-
-                    if (songs != null && songs.isNotEmpty()) {
+                    val songs = withContext(Dispatchers.IO) {
+                        searchSongs(query)
+                    }
+                    if (songs.isNotEmpty()) {
                         val enrichedSongs = songs.map { song ->
                             async(Dispatchers.IO) {
-                                Utils.enrichSong(requireContext(), song)
-                                    ?: song
+                                Utils.enrichSong(requireContext(), song) ?: song
                             }
                         }.awaitAll()
 
@@ -118,13 +129,24 @@ class SearchFragment : Fragment() {
         })
 
 
-
-
-
         return view
     }
 
+    suspend fun searchSongs(query: String): List<Song> {
+        return try {
+            val firestore = FirebaseFirestore.getInstance()
 
+            val snapshot = firestore.collection("songs")
+                .whereArrayContains("searchKeywords", query.lowercase())  // Busca coincidencia exacta en el array
+                .get()
+                .await()
+
+            snapshot.documents.mapNotNull { it.toObject(Song::class.java) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
 
 
 }

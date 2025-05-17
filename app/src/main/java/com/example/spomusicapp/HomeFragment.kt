@@ -1,5 +1,6 @@
 package com.example.spomusicapp
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
@@ -20,7 +21,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.spomusicapp.ActivitySongList
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
@@ -93,18 +93,14 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         PlaybackManager.addUIListener(this)
 
         if (savedUrl != null) {
-            // Crear un objeto Song con los datos recuperados
             val song = Song(
                 title = savedTitle ?: "",
                 url = savedUrl,
-                artist = savedArtist,
-                album = savedAlbum,
+                artistName = savedArtist,
+                albumName = savedAlbum,
                 duration = savedDuration,
-                localCoverPath = savedImage // Asigna la imagen
+                localCoverPath = savedImage
             )
-
-            // Actualizar la UI con la canción actual
-            //updateDataPlayer(song)
         }
 
         songAdapter.setCurrentPlayingSong(savedUrl)
@@ -121,8 +117,8 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             sharedPref.edit().apply {
                 putString("current_playing_url", song.url)
                 putString("current_playing_title", song.title)
-                putString("current_playing_artist", song.artist)
-                putString("current_playing_album", song.album)
+                putString("current_playing_artist", song.artistName)
+                putString("current_playing_album", song.albumName)
                 putString("current_playing_duration", song.duration)
                 putString("current_playing_image", song.localCoverPath)
                 apply()
@@ -142,7 +138,11 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             reloadSongs()
         }
 
-        getSongsFromCache(cachedSongs)
+        if(cachedSongs.isNotEmpty()){
+            reloadSongs()
+        }
+
+        initSongs()
 
         getProfileImage()
 
@@ -151,8 +151,8 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         return view
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     private fun loadArtists() {
-
         val firestore = FirebaseFirestore.getInstance()
         val artistRef = firestore.collection("artist")
 
@@ -167,7 +167,6 @@ class HomeFragment : Fragment(), PlaybackUIListener {
                     artistsList.clear()
                     artistsList.addAll(randomSixArtists)
 
-                    // Log para ver los datos
                     Log.d("HomeFragment", "Artistas cargados: ${artistsList.size}")
                     artistsList.forEach { artist ->
                         Log.d("HomeFragment", "Nombre del artista: ${artist.name}")
@@ -182,48 +181,72 @@ class HomeFragment : Fragment(), PlaybackUIListener {
     }
 
     private fun reloadSongs() {
-        loadSongs(clearList = true)
-    }
+        loadSongs { randomSongs ->
+            if (randomSongs.isNotEmpty()) {
+                val enrichedSongsDeferred = randomSongs.map { song ->
+                    lifecycleScope.async(Dispatchers.IO) {
+                        Utils.enrichSong(requireContext(), song)
+                    }
+                }
+                lifecycleScope.launch {
+                    val enrichedSongs = enrichedSongsDeferred.awaitAll().filterNotNull()
 
-    private fun loadSongs(clearList: Boolean = true) {
-        if (isLoading) return
-
-        isLoading = true
-        //loadingAnimation.visibility = ImageView.VISIBLE
-
-        lifecycleScope.launch {
-            val songs = songRepository.fetchSongs()
-
-            songs?.let {
-                val enrichedSongs = it.map { song ->
-                    async(Dispatchers.IO) { Utils.enrichSong(requireContext(), song) }
-                }.awaitAll().filterNotNull()
-
-                if (clearList) {
                     songList.clear()
+                    songList.addAll(enrichedSongs)
+
+                    preloadSongsInBackground(requireContext(), songList)
+
+                    songAdapter.submitList(songList.toList())
+                    PlaybackManager.updateSongs(songList)
+
+                    val sharedPreferences = requireContext().getSharedPreferences("song_cache", MODE_PRIVATE)
+                    sharedPreferences.edit {
+                        val json = Gson().toJson(songList)
+                        putString("cached_songs", json)
+                    }
+
+                    SongCache.cachedSongs = songList.toList()
+                    hasMoreItems = false
                 }
-                songList.addAll(enrichedSongs)
-
-                preloadSongsInBackground(requireContext(), songList)
-
-                songAdapter.submitList(songList.toList())
-                PlaybackManager.updateSongs(songList)
-
-                val sharedPreferences = requireContext().getSharedPreferences("song_cache", MODE_PRIVATE)
-                sharedPreferences.edit() {
-                    val json = Gson().toJson(songList)
-                    putString("cached_songs", json)
-                }
-
-                SongCache.cachedSongs = songList.toList()
-                hasMoreItems = false
-
-            } ?: run {
+            } else {
                 Toast.makeText(requireContext(), "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
 
-            //loadingAnimation.visibility = ImageView.GONE
-            isLoading = false
+    private fun loadSongs(callback: (List<Song>) -> Unit) {
+        val firestore = FirebaseFirestore.getInstance()
+        val songRef = firestore.collection("songs")
+
+        songRef.get()
+            .addOnSuccessListener { result ->
+                val allSongs = result.documents.mapNotNull { it.toObject(Song::class.java) }
+                val randomSongs = allSongs.shuffled().take(7)
+
+                Log.d("SongRepository", "Canciones aleatorias cargadas: ${randomSongs.size}")
+                randomSongs.forEach { song ->
+                    Log.d("SongRepository", "Título: ${song.title}")
+                }
+
+                callback(randomSongs)
+            }
+            .addOnFailureListener { exception ->
+                Log.e("SongRepository", "Error fetching random songs: ${exception.message}")
+                callback(emptyList())
+            }
+    }
+
+    private fun initSongs() {
+        val sharedPreferences = requireContext().getSharedPreferences("song_cache", MODE_PRIVATE)
+        val json = sharedPreferences.getString("cached_songs", null)
+        val cachedSongs = json?.let {
+            Gson().fromJson(it, Array<Song>::class.java).toList()
+        }
+
+        if (cachedSongs.isNullOrEmpty()) {
+            reloadSongs()
+        } else {
+            getSongsFromCache(cachedSongs)
         }
     }
 
@@ -266,6 +289,10 @@ class HomeFragment : Fragment(), PlaybackUIListener {
                 }
             }
         }
+    }
+
+    private fun saveCurrentSong (){
+
     }
 
     override fun onRequestPermissionsResult(

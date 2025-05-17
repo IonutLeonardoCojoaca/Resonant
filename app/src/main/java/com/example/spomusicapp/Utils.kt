@@ -1,6 +1,5 @@
 package com.example.spomusicapp
 
-import android.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -13,7 +12,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
 import androidx.core.content.edit
-import com.example.spomusicapp.ActivitySongList
 
 object Utils {
 
@@ -69,15 +67,11 @@ object Utils {
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(song.url, HashMap())
 
-            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: song.title
-            val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Artista desconocido"
-            val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: "Álbum desconocido"
             val art = retriever.embeddedPicture
-
             var localCoverPath: String? = null
 
             if (art != null) {
-                val safeTitle = title
+                val safeTitle = song.title
                     .replace(Regex("[^a-zA-Z0-9._-]"), "_")
                     .lowercase()
                 val fileName = "${safeTitle}_cover.jpg"
@@ -90,13 +84,8 @@ object Utils {
 
             retriever.release()
 
-            Song(
-                title = title,
-                artist = artist,
-                album = album,
-                url = song.url,
-                localCoverPath = localCoverPath // <-- NUEVO CAMPO (debes agregarlo a tu modelo Song)
-            )
+            song.copy(localCoverPath = localCoverPath)
+
         } catch (e: Exception) {
             e.printStackTrace()
             null

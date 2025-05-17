@@ -65,8 +65,8 @@ object PlaybackManager {
             putInt("current_playing_index", currentIndex)
             putString("current_playing_url", song.url)
             putString("current_playing_title", song.title)
-            putString("current_playing_artist", song.artist)
-            putString("current_playing_album", song.album)
+            putString("current_playing_artist", song.artistName)
+            putString("current_playing_album", song.albumName)
             putString("current_playing_duration", song.duration)
             putInt("current_index", index) // <-- Guarda el índice
         }

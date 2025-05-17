@@ -61,7 +61,6 @@ object MediaPlayerManager {
         }
     }
 
-
     fun stop() {
         // Deshabilitamos el listener para que no se ejecute al parar el reproductor
         isCompletionListenerEnabled = false

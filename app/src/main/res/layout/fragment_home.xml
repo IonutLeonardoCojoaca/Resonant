@@ -66,7 +66,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_medium"
-                        android:text="Artistas más destacados"
+                        android:text="Descubre artistas"
                         android:textColor="@color/white"
                         android:textSize="20sp"
                         android:layout_gravity="start"/>

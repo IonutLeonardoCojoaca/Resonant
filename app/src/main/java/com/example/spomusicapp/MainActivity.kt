@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
@@ -17,10 +18,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
-import androidx.recyclerview.widget.RecyclerView
 import com.example.spomusicapp.databinding.ActivityMainBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -51,7 +50,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         setContentView(binding.root)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom) // ← aplicar bottom
             insets
         }
 
@@ -88,21 +87,19 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         PlaybackManager.addUIListener(this)
 
         if (savedUrl != null && savedIndex != -1) {
-            // Crear un objeto Song con los datos recuperados
             val song = Song(
                 title = savedTitle ?: "",
                 url = savedUrl,
-                artist = savedArtist,
-                album = savedAlbum,
+                artistName = savedArtist,
+                albumName = savedAlbum,
                 duration = savedDuration,
-                localCoverPath = savedImage // Asigna la imagen
+                localCoverPath = savedImage
             )
 
             val safeTitle = song.title.replace(Regex("[^a-zA-Z0-9._-]"), "_")
             val cachedFile = File(cacheDir, "cached_${safeTitle}.mp3")
             val dataSource = if (cachedFile.exists()) cachedFile.absolutePath else song.url
 
-            // 🧠 Esto prepara el MediaPlayer (aunque no empieza a sonar)
             MediaPlayerManager.play(this, dataSource, savedIndex, autoStart = false)
 
             val savedPosition = sharedPref.getInt("current_position", 0)
@@ -138,9 +135,28 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             updatePlayPauseButton(isPlaying)
         }
 
+        val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
+
+        songDataPlayer.setOnClickListener {
+            val currentSong = PlaybackManager.getCurrentSong()
+            if (currentSong != null) {
+
+                val intent = Intent(this@MainActivity, SongActivity::class.java).apply {
+                    putExtra("title", currentSong.title)
+                    putExtra("artist", currentSong.artistName)
+                    putExtra("album", currentSong.albumName)
+                    putExtra("duration", currentSong.duration)
+                    putExtra("url", currentSong.url)
+                    putExtra("coverFileName", currentSong.localCoverPath)
+                }
+                startActivity(intent)
+            }
+        }
+
         isPlaying = MediaPlayerManager.isPlaying()
         updatePlayPauseButton(isPlaying)
 
+        checkUpdate()
 
     }
 
@@ -153,10 +169,8 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
                 if (seekBar.max != duration) {
                     seekBar.max = duration
                 }
-
                 seekBar.progress = position
             }
-
             handler.postDelayed(this, 50)
         }
     }
@@ -181,7 +195,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             .replace("-", "–")
             .trim()
 
-        songArtist.text = song.artist ?: "Desconocido"
+        songArtist.text = song.artistName ?: "Desconocido"
         Utils.getImageSongFromCache(song, this@MainActivity, songImage, song.localCoverPath.toString())
     }
 

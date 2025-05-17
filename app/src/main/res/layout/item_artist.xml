@@ -29,6 +29,6 @@
         android:textAlignment="center"
         android:textColor="@color/white"
         android:fontFamily="@font/unageo_medium"
-        android:textSize="12sp" />
+        android:textSize="12sp"/>
 
 </RelativeLayout>

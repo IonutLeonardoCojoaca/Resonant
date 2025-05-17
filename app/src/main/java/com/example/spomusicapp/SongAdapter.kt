@@ -20,11 +20,6 @@ import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.spomusicapp.ActivitySongList
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -56,13 +51,10 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         private val gradientText: View = itemView.findViewById(R.id.gradientBorder)
 
         fun bind(song: Song) {
-            nameTextView.text = song.title
-                .removeSuffix(".mp3")
-                .replace(Regex("\\s*\\([^)]*\\)"), "")
-                .replace("-", "–")
-                .trim()
 
-            artistTextView.text = song.artist ?: "Desconocido"
+            nameTextView.text = song.title
+
+            artistTextView.text = song.artistName ?: "Desconocido"
 
             if (song.url == currentPlayingUrl) {
                 nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.titleSongColorWhilePlaying))

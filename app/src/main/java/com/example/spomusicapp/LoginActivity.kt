@@ -36,7 +36,6 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var credentialManager: CredentialManager
     private lateinit var signInGoogle : RelativeLayout
-    private lateinit var entryInvitationButton : RelativeLayout
     private lateinit var videoView: VideoView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,18 +56,12 @@ class LoginActivity : AppCompatActivity() {
         }
 
         signInGoogle = findViewById(R.id.googleLogInButton)
-        entryInvitationButton = findViewById(R.id.entryInvitationButton)
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
 
         signInGoogle.setOnClickListener {
             launchCredentialManager()
-        }
-
-        entryInvitationButton.setOnClickListener {
-            intent = Intent(applicationContext, ActivitySongList::class.java)
-            startActivity(intent)
         }
 
         val insetsController = window.insetsController

@@ -2,10 +2,7 @@ package com.example.spomusicapp
 
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.widget.ImageButton
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -18,13 +15,7 @@ import kotlinx.coroutines.launch
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Log
-import android.view.View
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.credentials.CredentialManager
@@ -38,9 +29,6 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import androidx.core.net.toUri
 import com.google.gson.Gson
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import java.io.File
 
 
@@ -159,8 +147,8 @@ class ActivitySongList : AppCompatActivity() {
             val song = Song(
                 title = savedTitle ?: "",
                 url = savedUrl,
-                artist = savedArtist,
-                album = savedAlbum,
+                artistName = savedArtist,
+                albumName = savedAlbum,
                 duration = savedDuration,
                 localCoverPath = savedImage // Asigna la imagen
             )
@@ -186,8 +174,8 @@ class ActivitySongList : AppCompatActivity() {
             sharedPref.edit().apply {
                 putString("current_playing_url", song.url)
                 putString("current_playing_title", song.title)
-                putString("current_playing_artist", song.artist)
-                putString("current_playing_album", song.album)
+                putString("current_playing_artist", song.artistName)
+                putString("current_playing_album", song.albumName)
                 putString("current_playing_duration", song.duration)
                 putString("current_playing_image", song.localCoverPath)  // Aquí guardas la imagen también
                 apply()
@@ -226,7 +214,7 @@ class ActivitySongList : AppCompatActivity() {
             }
         }
         */
-
+        /*
         if (cachedSongs.isNotEmpty()) {
             songList.addAll(cachedSongs)
             currentOffset = SongCache.currentOffset
@@ -239,7 +227,7 @@ class ActivitySongList : AppCompatActivity() {
         } else {
             loadSongs()
         }
-
+        */
         /*
         updateSongListButton.setOnClickListener {
             reloadSongs()
@@ -250,53 +238,53 @@ class ActivitySongList : AppCompatActivity() {
         }
 
     }
-
-    private fun reloadSongs() {
-        loadSongs(clearList = true)
-    }
-
-    private fun loadSongs(clearList: Boolean = true) {
-        if (isLoading) return
-
-        isLoading = true
-        //loadingAnimation.visibility = ImageView.VISIBLE
-
-        lifecycleScope.launch {
-            val songs = songRepository.fetchSongs()
-
-            songs?.let {
-                val enrichedSongs = it.map { song ->
-                    async(Dispatchers.IO) { Utils.enrichSong(this@ActivitySongList, song) }
-                }.awaitAll().filterNotNull()
-
-                if (clearList) {
-                    songList.clear()
-                }
-                songList.addAll(enrichedSongs)
-
-                preloadSongsInBackground(this@ActivitySongList, songList)
-
-                songAdapter.submitList(songList.toList())
-                PlaybackManager.updateSongs(songList)
-
-                val sharedPreferences = getSharedPreferences("song_cache", MODE_PRIVATE)
-                sharedPreferences.edit() {
-                    val json = Gson().toJson(songList)
-                    putString("cached_songs", json)
-                }
-
-                SongCache.cachedSongs = songList.toList()
-                hasMoreItems = false
-
-            } ?: run {
-                Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
-            }
-
-            //loadingAnimation.visibility = ImageView.GONE
-            isLoading = false
+    /*
+        private fun reloadSongs() {
+            loadSongs(clearList = true)
         }
-    }
 
+        private fun loadSongs(clearList: Boolean = true) {
+            if (isLoading) return
+
+            isLoading = true
+            //loadingAnimation.visibility = ImageView.VISIBLE
+
+            lifecycleScope.launch {
+                val songs = songRepository.fetchSongs()
+
+                songs?.let {
+                    val enrichedSongs = it.map { song ->
+                        async(Dispatchers.IO) { Utils.enrichSong(this@ActivitySongList, song) }
+                    }.awaitAll().filterNotNull()
+
+                    if (clearList) {
+                        songList.clear()
+                    }
+                    songList.addAll(enrichedSongs)
+
+                    preloadSongsInBackground(this@ActivitySongList, songList)
+
+                    songAdapter.submitList(songList.toList())
+                    PlaybackManager.updateSongs(songList)
+
+                    val sharedPreferences = getSharedPreferences("song_cache", MODE_PRIVATE)
+                    sharedPreferences.edit() {
+                        val json = Gson().toJson(songList)
+                        putString("cached_songs", json)
+                    }
+
+                    SongCache.cachedSongs = songList.toList()
+                    hasMoreItems = false
+
+                } ?: run {
+                    Toast.makeText(this@ActivitySongList, "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
+                }
+
+                //loadingAnimation.visibility = ImageView.GONE
+                isLoading = false
+            }
+        }
+        */
     suspend fun downloadAndCacheSong(context: Context, song: Song) {
         try {
             val file = Utils.cacheSongIfNeeded(context, song.url)
@@ -463,4 +451,50 @@ class ActivitySongList : AppCompatActivity() {
         moveTaskToBack(true)
     }
 º   */
+
+
+    /*
+    private fun loadSongs(clearList: Boolean = true) {
+        if (isLoading) return
+
+        isLoading = true
+        //loadingAnimation.visibility = ImageView.VISIBLE
+
+        lifecycleScope.launch {
+            val songs = songRepository.fetchSongs()
+
+            songs?.let {
+                val enrichedSongs = it.map { song ->
+                    async(Dispatchers.IO) { Utils.enrichSong(requireContext(), song) }
+                }.awaitAll().filterNotNull()
+
+                if (clearList) {
+                    songList.clear()
+                }
+                songList.addAll(enrichedSongs)
+
+                preloadSongsInBackground(requireContext(), songList)
+
+                songAdapter.submitList(songList.toList())
+                PlaybackManager.updateSongs(songList)
+
+                val sharedPreferences = requireContext().getSharedPreferences("song_cache", MODE_PRIVATE)
+                sharedPreferences.edit() {
+                    val json = Gson().toJson(songList)
+                    putString("cached_songs", json)
+                }
+
+                SongCache.cachedSongs = songList.toList()
+                hasMoreItems = false
+
+            } ?: run {
+                Toast.makeText(requireContext(), "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
+            }
+
+            //loadingAnimation.visibility = ImageView.GONE
+            isLoading = false
+        }
+    }
+    */
+
 }
