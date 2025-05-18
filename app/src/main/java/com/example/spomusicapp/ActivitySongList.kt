@@ -141,7 +141,7 @@ class ActivitySongList : AppCompatActivity() {
         val savedAlbum = sharedPref.getString("current_playing_album", "")
         val savedDuration = sharedPref.getString("current_playing_duration", "")
         val savedImage = sharedPref.getString("current_playing_image", null)  // Recupera la imagen
-
+        /*
         if (savedUrl != null) {
             // Crear un objeto Song con los datos recuperados
             val song = Song(
@@ -156,7 +156,7 @@ class ActivitySongList : AppCompatActivity() {
             // Actualizar la UI con la canción actual
             //updateDataPlayer(song)
         }
-
+        */
         songAdapter.setCurrentPlayingSong(savedUrl)
 
         //isPlaying = MediaPlayerManager.isPlaying()

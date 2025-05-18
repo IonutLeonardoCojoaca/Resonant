@@ -4,7 +4,8 @@
     android:id="@+id/item_song_background"
     android:layout_width="match_parent"
     android:layout_height="70dp"
-    android:layout_marginVertical="4dp">
+    android:layout_marginVertical="4dp"
+    android:background="@color/black">
 
     <FrameLayout
         android:id="@+id/item_background"
@@ -29,9 +30,9 @@
                 android:layout_centerVertical="true"
                 app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
-            <FrameLayout
+            <RelativeLayout
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
+                android:layout_height="55dp"
                 android:layout_toEndOf="@id/albumArtImage"
                 android:layout_centerVertical="true"
                 android:layout_marginHorizontal="8dp">
@@ -40,6 +41,8 @@
                     android:id="@+id/song_name"
                     android:layout_width="match_parent"
                     android:layout_height="20dp"
+                    android:layout_alignParentTop="true"
+                    android:layout_alignParentStart="true"
                     android:textColor="@color/white"
                     android:text="Song Name"
                     android:textSize="15sp"
@@ -54,16 +57,26 @@
                     android:text="Artist"
                     android:textSize="12sp"
                     android:fontFamily="@font/unageo_medium"
-                    android:layout_gravity="left|bottom"/>
+                    android:layout_below="@id/song_name"/>
+
+                <TextView
+                    android:id="@+id/song_streams"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="#737373"
+                    android:layout_below="@id/song_artist"
+                    android:textSize="12sp"
+                    android:textStyle="italic"/>
 
                 <View
                     android:id="@+id/gradientBorder"
                     android:layout_width="50dp"
                     android:layout_height="match_parent"
                     android:background="@drawable/gradient_text_player_background"
-                    android:layout_gravity="right"/>
+                    android:layout_alignParentEnd="true"/>
 
-            </FrameLayout>
+            </RelativeLayout>
 
         </RelativeLayout>
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import com.example.spomusicapp.MediaPlayerManager.isPlaying
+import com.google.firebase.firestore.FirebaseFirestore
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -26,6 +27,8 @@ object PlaybackManager {
             }
             notifySongChanged(song, isPlaying())
             MediaPlayerManager.play(context, dataSource, index, autoStart)
+            Log.i("id stream", song.id)
+            incrementSongStreams(song.id)
         }
         Log.i("PlaybackManager", "Índice actual después: $currentIndex")
     }
@@ -54,6 +57,21 @@ object PlaybackManager {
         }
     }
 
+    fun incrementSongStreams(songId: String) {
+        val db = FirebaseFirestore.getInstance()
+        val songRef = db.collection("songs").document(songId)
+
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(songRef)
+            val currentStreams = snapshot.getLong("streams") ?: 0
+            transaction.update(songRef, "streams", currentStreams + 1)
+        }.addOnSuccessListener {
+            Log.d("Firestore", "Reproducciones incrementadas correctamente.")
+        }.addOnFailureListener { e ->
+            Log.w("Firestore", "Error al incrementar reproducciones", e)
+        }
+    }
+
     fun updateSongs(songList: List<Song>) {
         songs = emptyList()
         songs = songList
@@ -70,6 +88,12 @@ object PlaybackManager {
             putString("current_playing_duration", song.duration)
             putInt("current_index", index) // <-- Guarda el índice
         }
+    }
+
+    fun notifyPlaybackStateChanged() {
+        val isPlaying = isPlaying()
+        uiListeners.forEach { it.get()?.onPlaybackStateChanged(isPlaying) }
+        uiListeners.removeAll { it.get() == null }
     }
 
     fun addUIListener(listener: PlaybackUIListener) {

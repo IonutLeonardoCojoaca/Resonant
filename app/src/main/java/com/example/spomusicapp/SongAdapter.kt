@@ -23,13 +23,15 @@ import androidx.recyclerview.widget.RecyclerView
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.Collections
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
     var onItemClick: ((Pair<Song, Uri?>) -> Unit)? = null
-    val bitmapCache = mutableMapOf<String, Bitmap?>()
     private var currentPlayingUrl: String? = null
-    val imageUriCache = mutableMapOf<String, Uri>()
+
+    val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
+    val imageUriCache: MutableMap<String, Uri> = Collections.synchronizedMap(mutableMapOf())
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
@@ -45,6 +47,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
         private val nameTextView: TextView = itemView.findViewById(R.id.song_name)
         private val artistTextView: TextView = itemView.findViewById(R.id.song_artist)
+        private val streamsTextView: TextView = itemView.findViewById(R.id.song_streams)
         private val albumArtImageView: ImageView = itemView.findViewById(R.id.albumArtImage)
 
         private val backgroundItemSelected: FrameLayout = itemView.findViewById(R.id.item_background)
@@ -53,8 +56,8 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         fun bind(song: Song) {
 
             nameTextView.text = song.title
-
             artistTextView.text = song.artistName ?: "Desconocido"
+            streamsTextView.text = formatStreams(song.streams)
 
             if (song.url == currentPlayingUrl) {
                 nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.titleSongColorWhilePlaying))
@@ -125,6 +128,14 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         } catch (e: IOException) {
             e.printStackTrace()
             null
+        }
+    }
+
+    fun formatStreams(streams: Int): String{
+        return if(streams == 0){
+            "Sin reproducciones"
+        }else{
+            ("$streams reproducciones")
         }
     }
 

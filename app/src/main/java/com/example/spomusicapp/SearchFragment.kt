@@ -137,7 +137,8 @@ class SearchFragment : Fragment() {
             val firestore = FirebaseFirestore.getInstance()
 
             val snapshot = firestore.collection("songs")
-                .whereArrayContains("searchKeywords", query.lowercase())  // Busca coincidencia exacta en el array
+                .whereArrayContains("searchKeywords", query.lowercase())
+                .limit(10)
                 .get()
                 .await()
 

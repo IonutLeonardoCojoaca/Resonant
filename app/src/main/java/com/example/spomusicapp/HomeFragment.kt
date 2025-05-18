@@ -42,7 +42,6 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
     lateinit var recyclerViewSongs: RecyclerView
     lateinit var songAdapter: SongAdapter
-    private val songRepository = SongRepository()
 
     private var isPlaying = false
 
@@ -52,8 +51,13 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
     private lateinit var rechargeSongs: ImageButton
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        if (songList.isEmpty()) {
+            initSongs()
+        } else {
+            songAdapter.submitList(songList.toList())
+        }
     }
 
     override fun onCreateView(
@@ -65,16 +69,6 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         val sharedPref = requireActivity().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString("current_playing_url", null)
 
-        val sharedPreferences = requireContext().getSharedPreferences("song_cache", Context.MODE_PRIVATE)
-        val cachedSongsJson = sharedPreferences.getString("cached_songs", "[]")
-        val cachedSongs = Gson().fromJson(cachedSongsJson, Array<Song>::class.java).toList()
-
-        val savedTitle = sharedPref.getString("current_playing_title", "")
-        val savedArtist = sharedPref.getString("current_playing_artist", "")
-        val savedAlbum = sharedPref.getString("current_playing_album", "")
-        val savedDuration = sharedPref.getString("current_playing_duration", "")
-        val savedImage = sharedPref.getString("current_playing_image", null)  // Recupera la imagen
-
         userPhotoImage = view.findViewById(R.id.userProfile)
         prefs = requireContext().getSharedPreferences("user_data", AppCompatActivity.MODE_PRIVATE)
 
@@ -83,38 +77,28 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         artistAdapter = ArtistAdapter(artistsList)
         recyclerViewArtists.adapter = artistAdapter
 
-        recyclerViewSongs = view.findViewById<RecyclerView>(R.id.allSongList)
+        recyclerViewSongs = view.findViewById(R.id.allSongList)
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
         songAdapter = SongAdapter()
         recyclerViewSongs.adapter = songAdapter
 
-        rechargeSongs = view.findViewById<ImageButton>(R.id.rechargeSongs)
+        rechargeSongs = view.findViewById(R.id.rechargeSongs)
 
         PlaybackManager.addUIListener(this)
-
-        if (savedUrl != null) {
-            val song = Song(
-                title = savedTitle ?: "",
-                url = savedUrl,
-                artistName = savedArtist,
-                albumName = savedAlbum,
-                duration = savedDuration,
-                localCoverPath = savedImage
-            )
-        }
 
         songAdapter.setCurrentPlayingSong(savedUrl)
 
         songAdapter.onItemClick = { (song, imageUri) ->
             val index = songAdapter.currentList.indexOf(song)
             songAdapter.setCurrentPlayingSong(song.url)
-
+            Log.i("id", song.id)
             if (imageUri != null) {
                 songAdapter.imageUriCache[song.url] = imageUri
                 sharedPref.edit() { putString("current_playing_image_uri", imageUri.toString()) }
             }
 
             sharedPref.edit().apply {
+                putString("current_playing_id", song.id)
                 putString("current_playing_url", song.url)
                 putString("current_playing_title", song.title)
                 putString("current_playing_artist", song.artistName)
@@ -135,14 +119,9 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         }
 
         rechargeSongs.setOnClickListener {
+            songList.clear()
             reloadSongs()
         }
-
-        if(cachedSongs.isNotEmpty()){
-            reloadSongs()
-        }
-
-        initSongs()
 
         getProfileImage()
 
@@ -151,36 +130,8 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         return view
     }
 
-    @SuppressLint("NotifyDataSetChanged")
-    private fun loadArtists() {
-        val firestore = FirebaseFirestore.getInstance()
-        val artistRef = firestore.collection("artist")
-
-        if (artistsList.isEmpty()) {
-            artistRef.get()
-                .addOnSuccessListener { result ->
-                    val allArtists = result.documents.mapNotNull { document ->
-                        document.toObject(Artist::class.java)
-                    }
-
-                    val randomSixArtists = allArtists.shuffled().take(9)
-                    artistsList.clear()
-                    artistsList.addAll(randomSixArtists)
-
-                    Log.d("HomeFragment", "Artistas cargados: ${artistsList.size}")
-                    artistsList.forEach { artist ->
-                        Log.d("HomeFragment", "Nombre del artista: ${artist.name}")
-                    }
-
-                    artistAdapter.notifyDataSetChanged()
-                }
-                .addOnFailureListener { exception ->
-                    println("Error al obtener artistas: ${exception.message}")
-                }
-        }
-    }
-
     private fun reloadSongs() {
+
         loadSongs { randomSongs ->
             if (randomSongs.isNotEmpty()) {
                 val enrichedSongsDeferred = randomSongs.map { song ->
@@ -194,7 +145,8 @@ class HomeFragment : Fragment(), PlaybackUIListener {
                     songList.clear()
                     songList.addAll(enrichedSongs)
 
-                    preloadSongsInBackground(requireContext(), songList)
+                    val safeCopy = songList.toList()
+                    preloadSongsInBackground(requireContext(), safeCopy)
 
                     songAdapter.submitList(songList.toList())
                     PlaybackManager.updateSongs(songList)
@@ -220,12 +172,18 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
         songRef.get()
             .addOnSuccessListener { result ->
-                val allSongs = result.documents.mapNotNull { it.toObject(Song::class.java) }
+                val allSongs = result.documents.mapNotNull {
+                    it.toObject(Song::class.java)
+                }
                 val randomSongs = allSongs.shuffled().take(7)
+
+                randomSongs.forEach { song ->
+                    Log.d("SongRepository", "Id: ${song.id}")
+                }
 
                 Log.d("SongRepository", "Canciones aleatorias cargadas: ${randomSongs.size}")
                 randomSongs.forEach { song ->
-                    Log.d("SongRepository", "Título: ${song.title}")
+                    Log.d("SongRepository", "Id: ${song.id}")
                 }
 
                 callback(randomSongs)
@@ -242,10 +200,11 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         val cachedSongs = json?.let {
             Gson().fromJson(it, Array<Song>::class.java).toList()
         }
-
+        Log.i("canciones", cachedSongs.toString())
         if (cachedSongs.isNullOrEmpty()) {
             reloadSongs()
         } else {
+            Log.i("pasa aqui", cachedSongs.toString())
             getSongsFromCache(cachedSongs)
         }
     }
@@ -277,13 +236,18 @@ class HomeFragment : Fragment(), PlaybackUIListener {
                     downloadAndCacheSong(context, song)
                 }
 
-                if (!songAdapter.bitmapCache.containsKey(song.url)) {
-                    val bitmap = songAdapter.getEmbeddedPictureFromUrl(context, song.url)
-                    bitmap?.let {
-                        songAdapter.bitmapCache[song.url] = it
-                        val uri = songAdapter.saveBitmapToCache(context, it, "album_${song.title}.png")
-                        if (uri != null) {
-                            songAdapter.imageUriCache[song.url] = uri
+                synchronized(songAdapter.bitmapCache) {
+                    if (!songAdapter.bitmapCache.containsKey(song.url)) {
+                        val bitmap = songAdapter.getEmbeddedPictureFromUrl(context, song.url)
+                        bitmap?.let {
+                            songAdapter.bitmapCache[song.url] = it
+
+                            synchronized(songAdapter.imageUriCache) {
+                                val uri = songAdapter.saveBitmapToCache(context, it, "album_${song.title}.png")
+                                if (uri != null) {
+                                    songAdapter.imageUriCache[song.url] = uri
+                                }
+                            }
                         }
                     }
                 }
@@ -291,8 +255,33 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         }
     }
 
-    private fun saveCurrentSong (){
+    @SuppressLint("NotifyDataSetChanged")
+    private fun loadArtists() {
+        val firestore = FirebaseFirestore.getInstance()
+        val artistRef = firestore.collection("artist")
 
+        if (artistsList.isEmpty()) {
+            artistRef.get()
+                .addOnSuccessListener { result ->
+                    val allArtists = result.documents.mapNotNull { document ->
+                        document.toObject(Artist::class.java)
+                    }
+
+                    val randomSixArtists = allArtists.shuffled().take(9)
+                    artistsList.clear()
+                    artistsList.addAll(randomSixArtists)
+
+                    Log.d("HomeFragment", "Artistas cargados: ${artistsList.size}")
+                    artistsList.forEach { artist ->
+                        Log.d("HomeFragment", "Nombre del artista: ${artist.name}")
+                    }
+
+                    artistAdapter.notifyDataSetChanged()
+                }
+                .addOnFailureListener { exception ->
+                    println("Error al obtener artistas: ${exception.message}")
+                }
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -345,6 +334,10 @@ class HomeFragment : Fragment(), PlaybackUIListener {
                 }
             }
         }
+    }
+
+    override fun onPlaybackStateChanged(isPlaying: Boolean) {
+        this.isPlaying = isPlaying
     }
 
     override fun onSongChanged(song: Song, isPlaying: Boolean) {

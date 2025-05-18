@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -33,7 +34,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
     private lateinit var seekBar: SeekBar
     private val handler = Handler(Looper.getMainLooper())
 
-    private var isPlaying = false
+    var isPlaying = false
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
@@ -62,6 +63,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
 
         val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString("current_playing_url", null)
+        val savedId = sharedPref.getString("current_playing_id", "")
         val savedTitle = sharedPref.getString("current_playing_title", "")
         val savedArtist = sharedPref.getString("current_playing_artist", "")
         val savedAlbum = sharedPref.getString("current_playing_album", "")
@@ -88,6 +90,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
 
         if (savedUrl != null && savedIndex != -1) {
             val song = Song(
+                id = savedId.toString(),
                 title = savedTitle ?: "",
                 url = savedUrl,
                 artistName = savedArtist,
@@ -154,6 +157,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         }
 
         isPlaying = MediaPlayerManager.isPlaying()
+        Log.i("sonando", isPlaying.toString())
         updatePlayPauseButton(isPlaying)
 
         checkUpdate()
@@ -180,7 +184,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         updatePlayPauseButton(isPlaying)
     }
 
-    private fun updatePlayPauseButton(isPlaying: Boolean) {
+    fun updatePlayPauseButton(isPlaying: Boolean) {
         if (isPlaying) {
             playPauseButton.setImageResource(R.drawable.pause)
         } else {
@@ -230,6 +234,11 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         updateDataPlayer(song)
         updatePlayPauseButton(isPlaying)
         this.isPlaying = isPlaying
+    }
+
+    override fun onPlaybackStateChanged(isPlaying: Boolean) {
+        this.isPlaying = isPlaying
+        updatePlayPauseButton(isPlaying)
     }
 
     fun checkUpdate(){

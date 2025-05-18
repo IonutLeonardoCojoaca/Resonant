@@ -92,10 +92,12 @@ object MediaPlayerManager {
 
     fun pause() {
         mediaPlayer?.pause()
+        PlaybackManager.notifyPlaybackStateChanged()
     }
 
     fun resume() {
         mediaPlayer?.start()
+        PlaybackManager.notifyPlaybackStateChanged()
     }
 
     fun getCurrentSongUrl(): String? {

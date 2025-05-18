@@ -25,12 +25,15 @@
                 android:layout_height="50dp"
                 android:layout_gravity="center_vertical"
                 android:layout_margin="8dp"
+                android:inputType="text"
                 android:paddingHorizontal="20dp"
                 android:textColor="@color/white"
                 android:textColorHint="#9B9B9B"
                 android:fontFamily="@font/unageo_medium"
                 android:hint="Busca tu canción"
-                android:background="@drawable/search_bar_background"/>
+                android:background="@drawable/search_bar_background"
+                android:maxLines="1"
+                android:imeOptions="actionSearch"/>
 
         </FrameLayout>
 

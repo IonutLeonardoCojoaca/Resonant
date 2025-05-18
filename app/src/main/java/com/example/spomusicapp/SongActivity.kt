@@ -91,22 +91,30 @@ class SongActivity : AppCompatActivity() {
         totalTimeText = findViewById(R.id.totalTimeText)
         playPauseButton = findViewById(R.id.playPauseButton)
 
-        if (MediaPlayerManager.isPlaying()) {
-            startSeekBarUpdater()
-            isPlaying = true
-        } else {
-            MediaPlayerManager.play(this, url, 0) {
-                startSeekBarUpdater() // Reproduce nueva canción si no hay ninguna
-            }
-        }
         val currentUrl = MediaPlayerManager.getCurrentSongUrl()
+        val isCurrentlyPlaying = MediaPlayerManager.isPlaying()
+        val currentPosition = MediaPlayerManager.getCurrentPosition()
+        val duration = MediaPlayerManager.getDuration()
 
-        if (currentUrl == url && MediaPlayerManager.isPlaying()) {
-            startSeekBarUpdater()
+        if (currentUrl == url) {
+            seekBar.max = duration
+            seekBar.progress = currentPosition
+            currentTimeText.text = Utils.formatTime(currentPosition)
+            totalTimeText.text = Utils.formatTime(duration)
+
+            if (isCurrentlyPlaying) {
+                startSeekBarUpdater()
+                isPlaying = true
+            } else {
+                // No está sonando, pero mostramos el progreso actual
+                isPlaying = false
+            }
         } else {
+            // Es otra canción, la reproducimos
             MediaPlayerManager.play(this, url, 0) {
                 startSeekBarUpdater()
             }
+            isPlaying = true
         }
 
         updatePlayPauseButton(isPlaying)
@@ -131,22 +139,6 @@ class SongActivity : AppCompatActivity() {
                 MediaPlayerManager.pause()
             } else {
                 MediaPlayerManager.resume()
-
-                // 🛠️ Solución asegurada:
-                /*val duration = MediaPlayerManager.getDuration()
-                if (duration > 0) {
-                    seekBar.max = duration
-                    totalTimeText.text = formatTime(duration)
-                    startSeekBarUpdater()
-                } else {
-                    // 🧠 Si todavía no ha devuelto duración, esperar un poco
-                    handler.postDelayed({
-                        val newDuration = MediaPlayerManager.getDuration()
-                        seekBar.max = newDuration
-                        totalTimeText.text = formatTime(newDuration)
-                        startSeekBarUpdater()
-                    }, 200) // esperar 200 ms
-                }*/
             }
             isPlaying = !isPlaying
             updatePlayPauseButton(isPlaying)
