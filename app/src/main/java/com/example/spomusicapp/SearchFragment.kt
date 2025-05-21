@@ -33,11 +33,10 @@ import kotlinx.coroutines.withContext
 import kotlin.collections.isNotEmpty
 import kotlin.collections.map
 
-class SearchFragment : Fragment() {
+class SearchFragment : Fragment(), PlaybackUIListener {
 
     private lateinit var songAdapter: SongAdapter
     private val originalSongList = mutableListOf<Song>()
-    private val songRepository = SongRepository()
     private lateinit var noSongsFounded: TextView
     private lateinit var recyclerView: RecyclerView
     private lateinit var editTextQuery: EditText
@@ -45,6 +44,8 @@ class SearchFragment : Fragment() {
     private lateinit var sharedPref: SharedPreferences
 
     private var searchJob: Job? = null
+
+    private var isPlaying = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,12 +71,13 @@ class SearchFragment : Fragment() {
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
 
+        PlaybackManager.addUIListener(this)
+
         songAdapter.onItemClick = { (song, _) ->
             val index = songAdapter.currentList.indexOf(song)
-            songAdapter.setCurrentPlayingSong(song.url)
-
             sharedPref.edit() { putString("current_playing_url", song.url) }
             songAdapter.setCurrentPlayingSong(song.url)
+
             if (index != -1) {
                 PlaybackManager.updateSongs(songAdapter.currentList)
                 PlaybackManager.playSongAt(requireContext(), index)
@@ -149,5 +151,33 @@ class SearchFragment : Fragment() {
         }
     }
 
+    override fun onSongChanged(song: Song, isPlaying: Boolean) {
+        songAdapter.setCurrentPlayingSong(song.url)
+        this.isPlaying = isPlaying
+        val index = songAdapter.currentList.indexOfFirst { it.url == song.url }
+        if (index != -1) {
+            songAdapter.notifyItemChanged(index)
+        }
+        (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
+    }
+
+    override fun onPlaybackStateChanged(isPlaying: Boolean) {
+        this.isPlaying = isPlaying
+    }
+
+    override fun onResume() {
+        super.onResume()
+        PlaybackManager.addUIListener(this)
+    }
+
+    override fun onPause() {
+        PlaybackManager.clearUIListener()
+        super.onPause()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        PlaybackManager.clearUIListener()
+    }
 
 }

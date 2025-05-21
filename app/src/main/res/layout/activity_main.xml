@@ -108,7 +108,7 @@
 
                 <RelativeLayout
                     android:id="@+id/playerActions"
-                    android:layout_width="155dp"
+                    android:layout_width="145dp"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:paddingHorizontal="5dp"

@@ -29,6 +29,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
     var onItemClick: ((Pair<Song, Uri?>) -> Unit)? = null
     private var currentPlayingUrl: String? = null
+    private var previousPlayingUrl: String? = null
 
     val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
     val imageUriCache: MutableMap<String, Uri> = Collections.synchronizedMap(mutableMapOf())
@@ -92,7 +93,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
     class SongDiffCallback : DiffUtil.ItemCallback<Song>() {
         override fun areItemsTheSame(oldItem: Song, newItem: Song): Boolean {
-            return oldItem.url == newItem.url
+            return oldItem.id == newItem.id
         }
 
         @SuppressLint("DiffUtilEquals")
@@ -141,8 +142,21 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
     @SuppressLint("NotifyDataSetChanged")
     fun setCurrentPlayingSong(url: String?) {
+        if (currentPlayingUrl == url) return // si es la misma, no hacer nada
+
+        previousPlayingUrl = currentPlayingUrl
         currentPlayingUrl = url
-        notifyDataSetChanged()
+
+        // Notificar cambios en la anterior y en la nueva
+        previousPlayingUrl?.let { prevUrl ->
+            val prevIndex = currentList.indexOfFirst { it.url == prevUrl }
+            if (prevIndex != -1) notifyItemChanged(prevIndex)
+        }
+
+        currentPlayingUrl?.let { currUrl ->
+            val currIndex = currentList.indexOfFirst { it.url == currUrl }
+            if (currIndex != -1) notifyItemChanged(currIndex)
+        }
     }
 
 }

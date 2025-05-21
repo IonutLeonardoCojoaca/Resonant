@@ -17,7 +17,7 @@ object MediaPlayerManager {
     private var currentSongUrl: String? = null
     var currentSongIndex: Int = -1
 
-    fun play(context: Context, url: String, index: Int, autoStart: Boolean = true, onPrepared: (() -> Unit)? = null) {
+    fun play(context: Context, url: String, index: Int, autoStart: Boolean = true, onPrepared: (() -> Unit)? = null, onStreamStart: (() -> Unit)? = null) {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val file = Utils.cacheSongIfNeeded(context, url)
@@ -36,18 +36,16 @@ object MediaPlayerManager {
                     setAudioStreamType(AudioManager.STREAM_MUSIC)
                     setDataSource(file.absolutePath)
                     setOnPreparedListener {
-                        isCompletionListenerEnabled = true // Sólo aquí activamos el listener
+                        isCompletionListenerEnabled = true
                         if (autoStart) {
                             it.start()
                         }
                         onPrepared?.invoke()
+                        onStreamStart?.invoke()
                     }
                     setOnCompletionListener {
-                        Log.i("MediaPlayerManager", "onCompletionListener triggered for $url")
                         if (isCompletionListenerEnabled) {
                             PlaybackManager.playNext(context)
-                        } else {
-                            Log.i("MediaPlayerManager", "onCompletionListener ignored due to flag")
                         }
                     }
                     prepareAsync()

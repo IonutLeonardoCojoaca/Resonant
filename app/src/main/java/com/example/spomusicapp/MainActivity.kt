@@ -71,6 +71,8 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         val savedImage = sharedPref.getString("current_playing_image", null)
         val savedIndex = sharedPref.getInt("current_index", -1)
 
+        val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
+
         playPauseButton = binding.playPauseButton
         previousSongButton = binding.previousSongButton
         nextSongButton = binding.nextSongButton
@@ -138,7 +140,6 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             updatePlayPauseButton(isPlaying)
         }
 
-        val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
 
         songDataPlayer.setOnClickListener {
             val currentSong = PlaybackManager.getCurrentSong()

@@ -51,7 +51,7 @@
             <LinearLayout
                 android:id="@+id/artistPrincipalContainer"
                 android:layout_width="match_parent"
-                android:layout_height="440dp"
+                android:layout_height="500dp"
                 android:orientation="vertical">
 
                 <FrameLayout
@@ -166,7 +166,36 @@
 
                     </androidx.recyclerview.widget.RecyclerView>
 
+                    <com.facebook.shimmer.ShimmerFrameLayout
+                        android:id="@+id/shimmerLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <include layout="@layout/item_shimmer_placeholder" />
+                            <include layout="@layout/item_shimmer_placeholder" />
+                            <include layout="@layout/item_shimmer_placeholder" />
+                            <include layout="@layout/item_shimmer_placeholder" />
+                            <include layout="@layout/item_shimmer_placeholder" />
+                            <include layout="@layout/item_shimmer_placeholder" />
+                            <include layout="@layout/item_shimmer_placeholder" />
+
+                        </LinearLayout>
+
+                    </com.facebook.shimmer.ShimmerFrameLayout>
+
                 </RelativeLayout>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="30dp"
+                    android:layout_below="@id/listSongs">
+
+                </FrameLayout>
 
             </RelativeLayout>
 

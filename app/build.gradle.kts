@@ -13,7 +13,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 3
-        versionName = "1.31.5"
+        versionName = "1.31.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -90,5 +90,8 @@ dependencies {
     implementation ("com.google.android.material:material:1.12.0")
 
     implementation (libs.picasso)
+
+    implementation ("com.facebook.shimmer:shimmer:0.5.0")
+
 
 }

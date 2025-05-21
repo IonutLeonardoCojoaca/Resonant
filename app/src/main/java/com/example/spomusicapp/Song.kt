@@ -8,7 +8,7 @@ data class Song(
     val title: String,
     @DocumentId
     val id: String = "",
-    val url: String,
+    val url: String = "",
     var artistName: String? = null,
     val albumName: String? = null,
     var duration: String? = null,
