@@ -180,7 +180,7 @@ class ActivitySongList : AppCompatActivity() {
                 putString("current_playing_image", song.localCoverPath)  // Aquí guardas la imagen también
                 apply()
             }
-
+            /*
             if (index != -1) {
                 //updateDataPlayer(song)
                 //songName.isSelected = true
@@ -191,7 +191,7 @@ class ActivitySongList : AppCompatActivity() {
                 NotificationManagerHelper.createNotificationChannel(this)
                 NotificationManagerHelper.updateNotification(this)
             }
-
+            */
             songAdapter.notifyItemChanged(index)
 
         }

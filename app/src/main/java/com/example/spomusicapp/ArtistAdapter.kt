@@ -24,7 +24,8 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
 
     override fun getItemCount(): Int = artists.size
 
-    class ArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    inner class ArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+
         private val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
 
@@ -34,12 +35,22 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
             if (!artist.urlPhoto.isNullOrEmpty()) {
                 Picasso.get().load(artist.urlPhoto).into(artistImage)
             } else {
-                Picasso.get().load(R.drawable.user).into(artistImage) // Imagen por defecto
+                Picasso.get().load(R.drawable.user).into(artistImage)
             }
 
+            itemView.setOnClickListener {
+                val intent = Intent(itemView.context, ArtistActivity::class.java).apply {
+                    putExtra(PreferenceKeys.CURRENT_ARTIST_ID, artist.id)
+                }
+                itemView.context.startActivity(intent)
+            }
+
+
+
+
+
+
+
         }
-
-
-
     }
 }

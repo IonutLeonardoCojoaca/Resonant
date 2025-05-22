@@ -105,13 +105,13 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             }
 
             sharedPref.edit().apply {
-                putString("current_song_id", song.id)
+                putString(PreferenceKeys.CURRENT_SONG_ID, song.id)
                 putString("current_song_url", song.url)
                 putString("current_song_title", song.title)
                 putString("current_song_artist", song.artistName)
                 putString("current_song_album", song.albumName)
-                song.duration?.let { putInt("current_song_duration", it.toInt()) }
-                putString("current_song_cover_path", song.localCoverPath)
+                putString("current_song_duration", song.duration)
+                putString("current_playing_image", song.localCoverPath)
                 putBoolean("is_playing", true)
                 putInt("current_song_index", index)
                 apply()
@@ -119,7 +119,7 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
             if (index != -1) {
                 PlaybackManager.updateSongs(songAdapter.currentList)
-                PlaybackManager.playSongAt(requireContext(), index)
+                PlaybackManager.playSong(requireContext(), song)
                 isPlaying = true
                 (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
                 NotificationManagerHelper.createNotificationChannel(requireContext())
@@ -299,7 +299,7 @@ class HomeFragment : Fragment(), PlaybackUIListener {
                         document.toObject(Artist::class.java)
                     }
 
-                    val randomSixArtists = allArtists.shuffled().take(9)
+                    val randomSixArtists = allArtists.shuffled().take(6)
                     artistsList.clear()
                     artistsList.addAll(randomSixArtists)
 

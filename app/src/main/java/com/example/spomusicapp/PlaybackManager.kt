@@ -15,40 +15,46 @@ object PlaybackManager {
     private var uiListeners = mutableListOf<WeakReference<PlaybackUIListener>>()
     var songs: List<Song> = emptyList()
     private var currentIndex = 0
-    var currentSong: Song? = null
+    private var currentSong: Song? = null
 
-    fun playSongAt(context: Context, index: Int, autoStart: Boolean = true) {
-        if (index in songs.indices) {
-            currentIndex = index
-            val song = songs[index]
-            saveCurrentSongMetadata(context, song, currentIndex)
-            currentSong = song
-            val cachedFile = File(context.cacheDir, "cached_${song.title}.mp3")
-            val dataSource = if (cachedFile.exists()) {
-                cachedFile.absolutePath
-            } else {
-                song.url
-            }
-            notifySongChanged(song, isPlaying())
-            MediaPlayerManager.play(
-                context, dataSource, index, autoStart,
-                onStreamStart = {
-                    incrementSongStreams(song.id)
-                }
-            )
+    fun playSong(context: Context, song: Song, autoStart: Boolean = true) {
+
+        if (currentSong?.url == song.url) {
+            return
         }
+        val newIndex = songs.indexOfFirst { it.url == song.url }
+        if (newIndex != -1) {
+            currentIndex = newIndex
+        } else {
+            songs = songs + song
+            currentIndex = songs.size - 1
+        }
+
+        currentSong = song
+        saveCurrentSongMetadata(context, song, currentIndex)
+
+        val cachedFile = File(context.cacheDir, "cached_${song.title}.mp3")
+        val dataSource = if (cachedFile.exists()) cachedFile.absolutePath else song.url
+
+        notifySongChanged(song, isPlaying())
+
+        MediaPlayerManager.play(
+            context, dataSource, currentIndex, autoStart,
+            onStreamStart = {
+                incrementSongStreams(song.id)
+            }
+        )
     }
 
     fun playNext(context: Context) {
         if (songs.isNotEmpty()) {
             currentIndex = (currentIndex + 1) % songs.size
             val song = songs[currentIndex]
-            saveCurrentSongMetadata(context, song, currentIndex)
-            notifySongChanged(song, isPlaying())
+            saveCurrentSongMetadata(context, song, currentIndex)  // Aquí guardas en SharedPreferences
             MediaPlayerManager.play(
                 context, song.url, currentIndex, autoStart = true,
                 onPrepared = {
-                    saveCurrentSongMetadata(context, song, currentIndex)
+                    notifySongChanged(song, isPlaying())
                 },
                 onStreamStart = {
                     incrementSongStreams(song.id)
@@ -61,12 +67,10 @@ object PlaybackManager {
         if (songs.isNotEmpty()) {
             currentIndex = if (currentIndex - 1 < 0) songs.size - 1 else currentIndex - 1
             val song = songs[currentIndex]
-            saveCurrentSongMetadata(context, song, currentIndex)
-            notifySongChanged(song, isPlaying())
+            saveCurrentSongMetadata(context, song, currentIndex)  // Aquí guardas en SharedPreferences
             MediaPlayerManager.play(
                 context, song.url, currentIndex, autoStart = true,
                 onPrepared = {
-                    saveCurrentSongMetadata(context, song, currentIndex)
                     notifySongChanged(song, isPlaying())
                 },
                 onStreamStart = {
@@ -91,16 +95,22 @@ object PlaybackManager {
         }
     }
 
-    private fun saveCurrentSongMetadata(context: Context, song: Song, index: Int) {
-        val sharedPref = context.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        sharedPref.edit {
-            putInt("current_playing_index", currentIndex)
-            putString("current_playing_url", song.url)
-            putString("current_playing_title", song.title)
-            putString("current_playing_artist", song.artistName)
-            putString("current_playing_album", song.albumName)
-            putString("current_playing_duration", song.duration)
-            putInt("current_index", index) // <-- Guarda el índice
+    fun saveCurrentSongMetadata(context: Context, song: Song, index: Int) {
+        currentSong = song
+        currentIndex = index
+
+        val sharedPref = context.getSharedPreferences(PreferenceKeys.MUSIC_PREFERENCES, Context.MODE_PRIVATE)
+        sharedPref.edit().apply {
+            putString(PreferenceKeys.CURRENT_SONG_ID, song.id)
+            putString(PreferenceKeys.CURRENT_SONG_URL, song.url)
+            putString(PreferenceKeys.CURRENT_SONG_TITLE, song.title)
+            putString(PreferenceKeys.CURRENT_SONG_ARTIST, song.artistName)
+            putString(PreferenceKeys.CURRENT_SONG_ALBUM, song.albumName)
+            putString(PreferenceKeys.CURRENT_SONG_DURATION, song.duration)
+            putString(PreferenceKeys.CURRENT_SONG_COVER, song.localCoverPath)
+            putBoolean(PreferenceKeys.CURRENT_ISPLAYING, true)
+            putInt(PreferenceKeys.CURRENT_SONG_INDEX, index)
+            apply()
         }
     }
 
@@ -129,7 +139,13 @@ object PlaybackManager {
     }
 
     fun getCurrentSong(): Song? {
-        return if (currentIndex in songs.indices) songs[currentIndex] else null
+        return currentSong
     }
+
+    fun setCurrentSong(song: Song) {
+        currentSong = song
+    }
+
+
 
 }

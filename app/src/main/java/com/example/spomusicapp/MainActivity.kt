@@ -59,17 +59,17 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         val navController = navHostFragment.navController
         val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
         bottomNavigationView.setupWithNavController(navController)
-        bottomNavigationView.setItemIconTintList(null)
+        bottomNavigationView.itemIconTintList = null
 
         val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        val savedUrl = sharedPref.getString("current_playing_url", null)
-        val savedId = sharedPref.getString("current_playing_id", "")
-        val savedTitle = sharedPref.getString("current_playing_title", "")
-        val savedArtist = sharedPref.getString("current_playing_artist", "")
-        val savedAlbum = sharedPref.getString("current_playing_album", "")
-        val savedDuration = sharedPref.getString("current_playing_duration", "")
-        val savedImage = sharedPref.getString("current_playing_image", null)
-        val savedIndex = sharedPref.getInt("current_index", -1)
+        val savedUrl = sharedPref.getString("current_song_url", null)
+        val savedId = sharedPref.getString("current_song_id", "")
+        val savedTitle = sharedPref.getString("current_song_title", "")
+        val savedArtist = sharedPref.getString("current_song_artist", "")
+        val savedAlbum = sharedPref.getString("current_song_album", "")
+        val savedDuration = sharedPref.getString("current_song_duration", "")
+        val savedImage = sharedPref.getString("current_playing_image", null)  // OK
+        val savedIndex = sharedPref.getInt("current_song_index", -1)
 
         val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
 
@@ -105,6 +105,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             val cachedFile = File(cacheDir, "cached_${safeTitle}.mp3")
             val dataSource = if (cachedFile.exists()) cachedFile.absolutePath else song.url
 
+            PlaybackManager.setCurrentSong(song)
             MediaPlayerManager.play(this, dataSource, savedIndex, autoStart = false)
 
             val savedPosition = sharedPref.getInt("current_position", 0)
@@ -139,7 +140,6 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             isPlaying = true
             updatePlayPauseButton(isPlaying)
         }
-
 
         songDataPlayer.setOnClickListener {
             val currentSong = PlaybackManager.getCurrentSong()
@@ -207,12 +207,11 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
     override fun onResume() {
         super.onResume()
         PlaybackManager.addUIListener(this)
-        val sharedPref = getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        val savedIndex = sharedPref.getInt("current_playing_index", -1)
-        if (savedIndex != -1 && savedIndex in PlaybackManager.songs.indices) {
-            val currentSong = PlaybackManager.songs[savedIndex]
+        val currentSong = PlaybackManager.getCurrentSong()
+        if (currentSong != null) {
             isPlaying = MediaPlayerManager.isPlaying()
             updateDataPlayer(currentSong)
+            updatePlayPauseButton(isPlaying)
         }
     }
 

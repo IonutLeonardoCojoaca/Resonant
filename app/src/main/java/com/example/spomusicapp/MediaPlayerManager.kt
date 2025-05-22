@@ -44,7 +44,7 @@ object MediaPlayerManager {
                         onStreamStart?.invoke()
                     }
                     setOnCompletionListener {
-                        if (isCompletionListenerEnabled) {
+                        if (isCompletionListenerEnabled && mediaPlayer?.isLooping == false) {
                             PlaybackManager.playNext(context)
                         }
                     }
@@ -70,6 +70,10 @@ object MediaPlayerManager {
 
         // Volvemos a habilitar el listener para la próxima canción que se reproduzca normalmente
         isCompletionListenerEnabled = true
+    }
+
+    fun setLooping(loop: Boolean) {
+        mediaPlayer?.isLooping = loop
     }
 
     fun getCurrentPosition(): Int {

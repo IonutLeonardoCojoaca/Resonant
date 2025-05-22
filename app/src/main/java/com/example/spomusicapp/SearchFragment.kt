@@ -58,9 +58,11 @@ class SearchFragment : Fragment(), PlaybackUIListener {
     ): View? {
         var view = inflater.inflate(R.layout.fragment_search, container, false)
 
+        /*
         if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
+        */
 
         noSongsFounded = view.findViewById(R.id.noSongsFounded)
         recyclerView = view.findViewById(R.id.filteredListSongs)
@@ -80,7 +82,7 @@ class SearchFragment : Fragment(), PlaybackUIListener {
 
             if (index != -1) {
                 PlaybackManager.updateSongs(songAdapter.currentList)
-                PlaybackManager.playSongAt(requireContext(), index)
+                PlaybackManager.playSong(requireContext(), song)
                 var isPlaying = true
                 (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
             }

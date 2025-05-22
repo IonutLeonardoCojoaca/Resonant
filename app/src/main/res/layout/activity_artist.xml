@@ -5,6 +5,107 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ArtistActivity">
+    tools:context=".ArtistActivity"
+    android:background="@color/transparent">
+
+    <ImageView
+        android:id="@+id/backgroundImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:src="@drawable/user"
+        android:alpha="0"/>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:paddingHorizontal="20dp">
+
+        <ImageButton
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/arrow_back"
+            android:layout_gravity="center_vertical"/>
+
+    </FrameLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/nested_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/transparent">
+
+            <RelativeLayout
+                android:id="@+id/artist_banner"
+                android:layout_width="match_parent"
+                android:layout_height="900dp">
+
+                <View
+                    android:id="@+id/gradientOverlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="700dp"
+                    android:background="@drawable/gradient_artist"
+                    android:layout_alignParentBottom="true"/>
+
+                <LinearLayout
+
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:background="@color/transparent"
+                    android:padding="25dp">
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="50">
+
+
+                    </FrameLayout>
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="50">
+
+                        <TextView
+                            android:id="@+id/artistName"
+                            android:layout_width="400dp"
+                            android:layout_height="wrap_content"
+                            android:breakStrategy="simple"
+                            android:fontFamily="@font/unageo_bold"
+                            android:maxLines="2"
+                            android:ellipsize="end"
+                            android:layout_gravity="start"
+                            android:hyphenationFrequency="normalFast"
+                            android:text="..."
+                            android:textColor="@android:color/white"
+                            android:textSize="45sp"
+                            android:textStyle="bold" />
+
+                    </FrameLayout>
+
+                </LinearLayout>
+
+            </RelativeLayout>
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="800dp"
+                android:background="@color/black"
+                android:layout_below="@id/artist_banner">
+
+
+
+            </RelativeLayout>
+
+        </RelativeLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
 
 </RelativeLayout>

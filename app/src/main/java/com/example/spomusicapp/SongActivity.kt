@@ -32,6 +32,8 @@ class SongActivity : AppCompatActivity() {
     private lateinit var currentTimeText: TextView
     private lateinit var totalTimeText: TextView
 
+    private lateinit var replayButton: ImageButton
+
     private val handler = Handler(Looper.getMainLooper())
     private var updateSeekBarRunnable: Runnable? = null
 
@@ -142,6 +144,19 @@ class SongActivity : AppCompatActivity() {
             }
             isPlaying = !isPlaying
             updatePlayPauseButton(isPlaying)
+        }
+
+        replayButton = findViewById(R.id.replay_button)
+        var isLooping = false
+
+        replayButton.setOnClickListener {
+            isLooping = !isLooping
+            MediaPlayerManager.setLooping(isLooping)
+            if(isLooping){
+                replayButton.setImageResource(R.drawable.replay_activated)
+            }else{
+                replayButton.setImageResource(R.drawable.replay)
+            }
         }
 
 

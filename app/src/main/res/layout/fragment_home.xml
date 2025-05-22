@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     tools:context=".HomeFragment"
-    android:background="@color/appBackgroundTheme">
+    android:background="@color/black">
 
     <FrameLayout
         android:id="@+id/superiorToolbar"
@@ -37,7 +37,7 @@
 
     </FrameLayout>
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/appBackgroundTheme"
@@ -51,7 +51,7 @@
             <LinearLayout
                 android:id="@+id/artistPrincipalContainer"
                 android:layout_width="match_parent"
-                android:layout_height="500dp"
+                android:layout_height="300dp"
                 android:orientation="vertical">
 
                 <FrameLayout
@@ -201,6 +201,6 @@
 
         </RelativeLayout>
 
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </RelativeLayout>
