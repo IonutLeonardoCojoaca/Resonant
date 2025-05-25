@@ -1,9 +1,7 @@
 package com.example.spomusicapp
 
-import android.Manifest
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -12,17 +10,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.ImageView
+import android.widget.RelativeLayout
 import android.widget.TextView
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airbnb.lottie.LottieAnimationView
-import com.example.spomusicapp.ActivitySongList
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,24 +30,19 @@ import kotlin.collections.map
 
 class SearchFragment : Fragment(), PlaybackUIListener {
 
+    private lateinit var sharedPref: SharedPreferences
+    private var searchJob: Job? = null
+
+    private lateinit var noSongsFounded: TextView
+    private lateinit var songListContainer: RelativeLayout
     private lateinit var songAdapter: SongAdapter
     private val originalSongList = mutableListOf<Song>()
-    private lateinit var noSongsFounded: TextView
     private lateinit var recyclerView: RecyclerView
     private lateinit var editTextQuery: EditText
-
-    private lateinit var sharedPref: SharedPreferences
-
-    private var searchJob: Job? = null
 
     private var isPlaying = false
 
     //private lateinit var loadingAnimation: LottieAnimationView
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -68,12 +56,14 @@ class SearchFragment : Fragment(), PlaybackUIListener {
         }
         */
 
-        noSongsFounded = view.findViewById(R.id.noSongsFounded)
+        noSongsFounded = view.findViewById(R.id.noSongFoundedText)
+        songListContainer = view.findViewById(R.id.listSongsContainer)
         recyclerView = view.findViewById(R.id.filteredListSongs)
         recyclerView.layoutManager = LinearLayoutManager(context)
         songAdapter = SongAdapter()
         recyclerView.adapter = songAdapter
         editTextQuery = view.findViewById(R.id.editTextQuery)
+
         //loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
@@ -125,25 +115,16 @@ class SearchFragment : Fragment(), PlaybackUIListener {
             override fun onTextChanged(newText: CharSequence?, start: Int, before: Int, count: Int) {
                 val query = newText.toString().trim()
                 searchJob?.cancel()
-
-
                 searchJob = lifecycleScope.launch {
-                    //loadingAnimation.visibility = View.VISIBLE
-                    //loadingAnimation.playAnimation()
                     delay(200)
                     if (query.isEmpty()) {
-                        //loadingAnimation.visibility = View.INVISIBLE
-                        //loadingAnimation.cancelAnimation()
-
                         noSongsFounded.visibility = View.VISIBLE
                         songAdapter.submitList(emptyList())
                         return@launch
                     }
-
                     val songs = withContext(Dispatchers.IO) {
                         searchSongs(query)
                     }
-
                     if (songs.isNotEmpty()) {
                         val enrichedSongs = songs.map { song ->
                             async(Dispatchers.IO) {
@@ -151,18 +132,12 @@ class SearchFragment : Fragment(), PlaybackUIListener {
                             }
                         }.awaitAll()
 
-                        //loadingAnimation.visibility = View.INVISIBLE
-                        //loadingAnimation.cancelAnimation()
-
                         originalSongList.clear()
                         originalSongList.addAll(enrichedSongs)
 
                         noSongsFounded.visibility = View.INVISIBLE
                         songAdapter.submitList(enrichedSongs)
                     } else {
-                        //loadingAnimation.visibility = View.INVISIBLE
-                        //loadingAnimation.cancelAnimation()
-
                         songAdapter.submitList(emptyList())
                         noSongsFounded.visibility = View.VISIBLE
                     }
@@ -179,7 +154,7 @@ class SearchFragment : Fragment(), PlaybackUIListener {
 
             val snapshot = firestore.collection("songs")
                 .whereArrayContains("searchKeywords", query.lowercase())
-                .limit(10)
+                .limit(7)
                 .get()
                 .await()
 

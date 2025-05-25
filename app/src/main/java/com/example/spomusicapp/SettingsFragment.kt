@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.RelativeLayout
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.exceptions.ClearCredentialException
@@ -21,7 +22,7 @@ class SettingsFragment : Fragment() {
 
     lateinit var auth: FirebaseAuth
     lateinit var credentialManager: CredentialManager
-    private lateinit var signOutButton: FrameLayout
+    private lateinit var signOutButton: RelativeLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

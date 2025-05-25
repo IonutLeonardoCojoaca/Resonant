@@ -20,6 +20,19 @@
         android:alpha="0.20"
         android:background="@drawable/album_cover"/>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_alignParentBottom="true"
+        android:background="@drawable/gradient_bottom_navigation"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_alignParentTop="true"
+        android:rotation="180"
+        android:background="@drawable/gradient_bottom_navigation"/>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"

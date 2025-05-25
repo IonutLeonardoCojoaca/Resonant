@@ -22,11 +22,15 @@
         android:theme="@style/Theme.SpoMusicApp"
         tools:targetApi="31">
         <activity
+            android:name=".AlbumActivity"
+            android:exported="false" />
+        <activity
             android:name=".ArtistActivity"
             android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="false"
+            android:windowSoftInputMode="adjustPan"
             android:screenOrientation="portrait" />
 
         <provider
@@ -43,10 +47,6 @@
             android:name=".SongActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
 
         <receiver
             android:name=".NotificationActionReceiver"
@@ -58,11 +58,6 @@
             </intent-filter>
         </receiver>
 
-        <activity
-            android:name=".ActivitySongList"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi" />
         <activity
             android:name=".LoginActivity"
             android:exported="true"

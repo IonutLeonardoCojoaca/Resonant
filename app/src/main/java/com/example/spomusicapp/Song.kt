@@ -5,7 +5,7 @@ import com.google.gson.annotations.SerializedName
 
 data class Song(
     @SerializedName("name")
-    val title: String,
+    val title: String = "",
     @DocumentId
     val id: String = "",
     val url: String = "",

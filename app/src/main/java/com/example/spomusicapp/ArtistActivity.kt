@@ -3,9 +3,12 @@ package com.example.spomusicapp
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -14,9 +17,12 @@ import androidx.core.widget.NestedScrollView
 import com.google.firebase.firestore.FirebaseFirestore
 import com.squareup.picasso.Picasso
 
-private lateinit var backgroundImage: ImageView
-
 class ArtistActivity : AppCompatActivity() {
+
+    private lateinit var backgroundImage: ImageView
+    private lateinit var arrowGoBackButton: ImageButton
+    private lateinit var nestedScroll: NestedScrollView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -28,9 +34,8 @@ class ArtistActivity : AppCompatActivity() {
         }
 
         backgroundImage = findViewById(R.id.backgroundImage)
-
-        val gradientOverlay = findViewById<View>(R.id.gradientOverlay)
-        val nestedScroll = findViewById<NestedScrollView>(R.id.nested_scroll)
+        arrowGoBackButton = findViewById(R.id.arrowGoBackButton)
+        nestedScroll = findViewById(R.id.nested_scroll)
 
         val initialTranslationY = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
@@ -49,30 +54,26 @@ class ArtistActivity : AppCompatActivity() {
             .setDuration(1000)
             .start()
 
-        backgroundImage.translationY = initialTranslationY  // posición inicial
+        backgroundImage.translationY = initialTranslationY
 
         nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val parallaxFactor = 0.3f
-            // Movimiento relativo respecto a initialTranslationY
             val offset = -scrollY * parallaxFactor
             backgroundImage.translationY = initialTranslationY + offset
         }
-
 
         val artistId = intent.getStringExtra(PreferenceKeys.CURRENT_ARTIST_ID)
 
         if (artistId != null) {
             loadArtistById(artistId) { artist ->
                 if (artist != null) {
-                    // Mostrar datos en la UI
                     findViewById<TextView>(R.id.artistName).text = artist.name
                     Picasso.get()
                         .load(artist.urlPhoto)
-                        .placeholder(R.drawable.user) // imagen mientras carga
-                        .error(R.drawable.user)             // imagen en caso de error
+                        .placeholder(R.drawable.item_shimmer_background)
+                        .error(R.drawable.item_shimmer_background)
                         .into(backgroundImage)
 
-                    // etc.
                 } else {
                     Toast.makeText(this, "Artista no encontrado", Toast.LENGTH_SHORT).show()
                     finish()
@@ -83,6 +84,9 @@ class ArtistActivity : AppCompatActivity() {
             finish()
         }
 
+        arrowGoBackButton.setOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
 
     }
 

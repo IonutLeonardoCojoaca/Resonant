@@ -7,7 +7,7 @@
     tools:context=".SearchFragment"
     android:background="@color/black">
 
-    <LinearLayout
+    <RelativeLayout
         android:id="@+id/main"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -15,44 +15,90 @@
         android:background="@color/appBackgroundTheme">
 
         <FrameLayout
+            android:id="@+id/inputSearchContainer"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="10"
-            android:paddingHorizontal="15dp">
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="15dp"
+            android:paddingVertical="10dp">
 
-            <EditText
-                android:id="@+id/editTextQuery"
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_gravity="center_vertical"
                 android:layout_margin="8dp"
-                android:inputType="text"
-                android:paddingHorizontal="20dp"
-                android:textColor="@color/white"
-                android:textColorHint="#9B9B9B"
-                android:fontFamily="@font/unageo_medium"
-                android:hint="Busca tu canción"
                 android:background="@drawable/search_bar_background"
-                android:maxLines="1"
-                android:imeOptions="actionSearch"/>
+                app:startIconDrawable="@drawable/search"
+                app:startIconTint="@color/white"
+                app:boxBackgroundMode="none"
+                app:hintEnabled="false"
+                android:padding="0dp"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editTextQuery"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:hint="Busca tu canción"
+                    android:inputType="text"
+                    android:textColor="@color/white"
+                    android:textColorHint="#9B9B9B"
+                    android:fontFamily="@font/unageo_medium"
+                    android:maxLines="1"
+                    android:imeOptions="actionSearch"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+
+            </com.google.android.material.textfield.TextInputLayout>
 
         </FrameLayout>
 
         <RelativeLayout
+            android:id="@+id/listSongsContainer"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="80">
+            android:layout_height="wrap_content"
+            android:layout_below="@id/inputSearchContainer">
 
+            <FrameLayout
+                android:id="@+id/searchQueryTextContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp"
+                android:paddingVertical="5dp">
+
+                <TextView
+                    android:id="@+id/searchQueryResultText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="Resultados de tu búsqueda"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:layout_gravity="start"/>
+
+            </FrameLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/filteredListSongs"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/searchQueryTextContainer"
+                android:clipToPadding="false"
                 android:scrollbars="vertical"
-                android:paddingHorizontal="10dp"
-                android:layout_centerHorizontal="true">
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="14dp">
 
             </androidx.recyclerview.widget.RecyclerView>
+
+            <TextView
+                android:id="@+id/noSongFoundedText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No se han encontrado canciones"
+                android:textColor="@color/numberTime"
+                android:layout_centerInParent="true"
+                android:visibility="visible"/>
 
             <!--
             <com.airbnb.lottie.LottieAnimationView
@@ -64,28 +110,17 @@
                 app:lottie_loop="true"
                 android:layout_alignParentTop="true"
                 android:layout_centerHorizontal="true"
-                android:visibility="invisible"/> -->
-
-            <TextView
-                android:id="@+id/noSongsFounded"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="No se encontraron canciones"
-                android:layout_centerInParent="true"
-                android:fontFamily="@font/unageo_medium"
-                android:visibility="visible"/>
+                android:visibility="invisible"/>
+                -->
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="140dp"
                 android:background="@drawable/song_list_gradient_bottom"
-                android:layout_alignParentBottom="true">
-
-            </View>
+                android:layout_alignParentBottom="true"/>
 
         </RelativeLayout>
 
-
-    </LinearLayout>
+    </RelativeLayout>
 
 </FrameLayout>

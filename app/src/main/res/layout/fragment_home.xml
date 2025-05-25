@@ -12,15 +12,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingEnd="20dp"
-        android:paddingLeft="10dp">
+        android:paddingStart="10dp">
 
         <ImageView
             android:id="@+id/dark_logo"
             android:layout_width="180dp"
-            android:layout_height="75dp"
+            android:layout_height="65dp"
             android:layout_gravity="center_vertical|left"
-            android:scaleX="1.2"
-            android:scaleY="1.2"
+            android:scaleX="1.15"
+            android:scaleY="1.15"
             android:scaleType="centerCrop"
             android:src="@drawable/resonant_tema_oscuro"/>
 
@@ -48,18 +48,18 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <LinearLayout
+            <RelativeLayout
                 android:id="@+id/artistPrincipalContainer"
                 android:layout_width="match_parent"
-                android:layout_height="300dp"
+                android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <FrameLayout
                     android:id="@+id/artistTextContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="10"
-                    android:paddingHorizontal="20dp">
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="20dp"
+                    android:paddingVertical="15dp">
 
                     <TextView
                         android:id="@+id/artistFeatured"
@@ -76,28 +76,29 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/listArtistsRecycler"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="90"
-                    android:paddingHorizontal="16dp"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/artistTextContainer"
                     android:clipToPadding="false"
-                    android:scrollbars="vertical">
+                    android:nestedScrollingEnabled="false"
+                    android:scrollbars="none">
 
                 </androidx.recyclerview.widget.RecyclerView>
 
-            </LinearLayout>
+            </RelativeLayout>
 
-            <LinearLayout
+            <RelativeLayout
                 android:id="@+id/albumsPrincipalContainer"
                 android:layout_width="match_parent"
-                android:layout_height="400dp"
+                android:layout_height="wrap_content"
                 android:layout_below="@id/artistPrincipalContainer"
                 android:orientation="vertical">
 
                 <FrameLayout
+                    android:id="@+id/albumTextContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="15"
-                    android:paddingHorizontal="20dp">
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="20dp"
+                    android:paddingVertical="15dp">
 
                     <TextView
                         android:id="@+id/albumsFeatured"
@@ -111,15 +112,18 @@
 
                 </FrameLayout>
 
-                <GridLayout
-                    android:id="@+id/listAlbumsGrid"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/listAlbumsRecycler"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="85">
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/albumTextContainer"
+                    android:nestedScrollingEnabled="false"
+                    android:scrollbars="none"
+                    android:paddingHorizontal="5dp">
 
-                </GridLayout>
+                </androidx.recyclerview.widget.RecyclerView>
 
-            </LinearLayout>
+            </RelativeLayout>
 
             <RelativeLayout
                 android:id="@+id/songsPrincipalContainer"
@@ -130,8 +134,9 @@
                 <FrameLayout
                     android:id="@+id/titleSongsContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="65dp"
-                    android:paddingHorizontal="20dp">
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="20dp"
+                    android:paddingVertical="15dp">
 
                     <TextView
                         android:id="@+id/songsFeatured"
@@ -145,9 +150,9 @@
 
                     <ImageButton
                         android:id="@+id/rechargeSongs"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/recharge"
+                        android:layout_width="35dp"
+                        android:layout_height="35dp"
+                        android:background="@drawable/replay"
                         android:layout_gravity="center_vertical|end"/>
 
                 </FrameLayout>
@@ -155,21 +160,25 @@
                 <RelativeLayout
                     android:id="@+id/listSongs"
                     android:layout_width="match_parent"
-                    android:layout_height="650dp"
+                    android:layout_height="wrap_content"
                     android:layout_below="@id/titleSongsContainer">
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/allSongList"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:scrollbars="vertical">
+                        android:clipToPadding="false"
+                        android:scrollbars="none"
+                        android:nestedScrollingEnabled="false"
+                        android:paddingHorizontal="14dp">
 
                     </androidx.recyclerview.widget.RecyclerView>
 
                     <com.facebook.shimmer.ShimmerFrameLayout
                         android:id="@+id/shimmerLayout"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="14dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -190,10 +199,49 @@
 
                 </RelativeLayout>
 
+                <RelativeLayout
+                    android:id="@+id/mostStreamedSongsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/listSongs">
+
+                    <FrameLayout
+                        android:id="@+id/mostStreamedText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="15dp">
+
+                        <TextView
+                            android:id="@+id/songFeatured"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Lo más escuchado actualmente"
+                            android:textColor="@color/white"
+                            android:textSize="20sp"
+                            android:layout_gravity="start"/>
+
+                    </FrameLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/mostStreamedSongsList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/mostStreamedText"
+                        android:clipToPadding="false"
+                        android:scrollbars="none"
+                        android:nestedScrollingEnabled="false"
+                        android:paddingHorizontal="14dp">
+
+                    </androidx.recyclerview.widget.RecyclerView>
+
+                </RelativeLayout>
+
                 <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="30dp"
-                    android:layout_below="@id/listSongs">
+                    android:layout_height="170dp"
+                    android:layout_below="@id/mostStreamedSongsContainer">
 
                 </FrameLayout>
 

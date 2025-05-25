@@ -9,7 +9,7 @@
 
     <FrameLayout
         android:id="@+id/item_background"
-        android:layout_width="340dp"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/item_song_background"
         android:backgroundTint="#001D1B20"
@@ -63,11 +63,11 @@
                     android:id="@+id/song_streams"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_medium"
                     android:text=""
                     android:textColor="#737373"
                     android:layout_below="@id/song_artist"
-                    android:textSize="12sp"
-                    android:textStyle="italic"/>
+                    android:textSize="12sp"/>
 
                 <View
                     android:id="@+id/gradientBorder"

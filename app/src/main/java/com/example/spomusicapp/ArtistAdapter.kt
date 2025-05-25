@@ -14,6 +14,12 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ArtistViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_artist, parent, false)
+
+        val screenWidth = parent.measuredWidth
+        val layoutParams = view.layoutParams
+        layoutParams.width = screenWidth / 3
+        view.layoutParams = layoutParams
+
         return ArtistViewHolder(view)
     }
 

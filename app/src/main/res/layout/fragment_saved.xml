@@ -3,12 +3,40 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".SavedFragment">
+    tools:context=".SavedFragment"
+    android:background="@color/black">
 
-    <!-- TODO: Update blank fragment layout -->
-    <TextView
+    <RelativeLayout
+        android:id="@+id/savedContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:text="@string/hello_blank_fragment" />
+        android:layout_height="match_parent">
+
+        <FrameLayout
+            android:id="@+id/playlistTextContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="15dp">
+
+            <TextView
+                android:id="@+id/playlistText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_medium"
+                android:text="Playlists guardadas"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:layout_gravity="start"/>
+
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/noPlaylistFoundedText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="No hay playlists guardadas"
+            android:layout_centerInParent="true"/>
+
+    </RelativeLayout>
 
 </FrameLayout>
