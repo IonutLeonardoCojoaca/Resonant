@@ -74,7 +74,7 @@ class HomeFragment : Fragment(), PlaybackUIListener {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
 
         val sharedPref = requireActivity().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        val savedUrl = sharedPref.getString("current_playing_url", null)
+        val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)
 
         userPhotoImage = view.findViewById(R.id.userProfile)
         prefs = requireContext().getSharedPreferences("user_data", AppCompatActivity.MODE_PRIVATE)
@@ -101,19 +101,19 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             songAdapter.setCurrentPlayingSong(song.url)
             if (imageUri != null) {
                 songAdapter.imageUriCache[song.url] = imageUri
-                sharedPref.edit() { putString("current_playing_image_uri", imageUri.toString()) }
+                sharedPref.edit() { putString(PreferenceKeys.CURRENT_SONG_COVER, imageUri.toString()) }
             }
 
             sharedPref.edit().apply {
                 putString(PreferenceKeys.CURRENT_SONG_ID, song.id)
-                putString("current_song_url", song.url)
-                putString("current_song_title", song.title)
-                putString("current_song_artist", song.artistName)
-                putString("current_song_album", song.albumName)
-                putString("current_song_duration", song.duration)
-                putString("current_playing_image", song.localCoverPath)
-                putBoolean("is_playing", true)
-                putInt("current_song_index", index)
+                putString(PreferenceKeys.CURRENT_SONG_URL, song.url)
+                putString(PreferenceKeys.CURRENT_SONG_TITLE, song.title)
+                putString(PreferenceKeys.CURRENT_SONG_ARTIST, song.artistName)
+                putString(PreferenceKeys.CURRENT_SONG_ALBUM, song.albumName)
+                putString(PreferenceKeys.CURRENT_SONG_DURATION, song.duration)
+                putString(PreferenceKeys.CURRENT_SONG_COVER, song.localCoverPath)
+                putBoolean(PreferenceKeys.CURRENT_ISPLAYING, true)
+                putInt(PreferenceKeys.CURRENT_SONG_INDEX, index)
                 apply()
             }
 

@@ -62,14 +62,14 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         bottomNavigationView.itemIconTintList = null
 
         val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        val savedUrl = sharedPref.getString("current_song_url", null)
-        val savedId = sharedPref.getString("current_song_id", "")
-        val savedTitle = sharedPref.getString("current_song_title", "")
-        val savedArtist = sharedPref.getString("current_song_artist", "")
-        val savedAlbum = sharedPref.getString("current_song_album", "")
-        val savedDuration = sharedPref.getString("current_song_duration", "")
-        val savedImage = sharedPref.getString("current_playing_image", null)  // OK
-        val savedIndex = sharedPref.getInt("current_song_index", -1)
+        val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)
+        val savedId = sharedPref.getString(PreferenceKeys.CURRENT_SONG_ID, "")
+        val savedTitle = sharedPref.getString(PreferenceKeys.CURRENT_SONG_TITLE, "")
+        val savedArtist = sharedPref.getString(PreferenceKeys.CURRENT_SONG_ARTIST, "")
+        val savedAlbum = sharedPref.getString(PreferenceKeys.CURRENT_SONG_ALBUM, "")
+        val savedDuration = sharedPref.getString(PreferenceKeys.CURRENT_SONG_DURATION, "")
+        val savedImage = sharedPref.getString(PreferenceKeys.CURRENT_SONG_COVER, null)  // OK
+        val savedIndex = sharedPref.getInt(PreferenceKeys.CURRENT_SONG_INDEX, -1)
 
         val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
 
@@ -108,8 +108,8 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
             PlaybackManager.setCurrentSong(song)
             MediaPlayerManager.play(this, dataSource, savedIndex, autoStart = false)
 
-            val savedPosition = sharedPref.getInt("current_position", 0)
-            val wasPlaying = sharedPref.getBoolean("is_playing", false)
+            val savedPosition = sharedPref.getInt(PreferenceKeys.CURRENT_SONG_INDEX, 0)
+            val wasPlaying = sharedPref.getBoolean(PreferenceKeys.CURRENT_ISPLAYING, false)
 
             MediaPlayerManager.seekTo(savedPosition)
             if (wasPlaying) {

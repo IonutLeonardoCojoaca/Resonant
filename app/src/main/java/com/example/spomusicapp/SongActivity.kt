@@ -1,5 +1,7 @@
 package com.example.spomusicapp
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RenderEffect
@@ -39,6 +41,8 @@ class SongActivity : AppCompatActivity() {
 
     private var isPlaying = false
     private lateinit var playPauseButton: ImageButton
+
+    private lateinit var sharedPref: SharedPreferences
 
     private val backCallback = OnBackInvokedCallback {
         finish()
@@ -147,10 +151,21 @@ class SongActivity : AppCompatActivity() {
         }
 
         replayButton = findViewById(R.id.replay_button)
-        var isLooping = false
+        sharedPref = this@SongActivity.getSharedPreferences("music_experience", Context.MODE_PRIVATE)
+        var isLooping = sharedPref.getBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, false)
+
+        if(isLooping){
+            replayButton.setImageResource(R.drawable.replay_activated)
+        }else{
+            replayButton.setImageResource(R.drawable.replay)
+        }
 
         replayButton.setOnClickListener {
             isLooping = !isLooping
+            sharedPref.edit().apply{
+                putBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, isLooping)
+                apply()
+            }
             MediaPlayerManager.setLooping(isLooping)
             if(isLooping){
                 replayButton.setImageResource(R.drawable.replay_activated)

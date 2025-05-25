@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -20,6 +21,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.airbnb.lottie.LottieAnimationView
 import com.example.spomusicapp.ActivitySongList
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +49,8 @@ class SearchFragment : Fragment(), PlaybackUIListener {
 
     private var isPlaying = false
 
+    //private lateinit var loadingAnimation: LottieAnimationView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -70,23 +74,42 @@ class SearchFragment : Fragment(), PlaybackUIListener {
         songAdapter = SongAdapter()
         recyclerView.adapter = songAdapter
         editTextQuery = view.findViewById(R.id.editTextQuery)
+        //loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
 
         PlaybackManager.addUIListener(this)
 
-        songAdapter.onItemClick = { (song, _) ->
+        songAdapter.onItemClick = { (song, imageUri) ->
             val index = songAdapter.currentList.indexOf(song)
-            sharedPref.edit() { putString("current_playing_url", song.url) }
             songAdapter.setCurrentPlayingSong(song.url)
+            if (imageUri != null) {
+                songAdapter.imageUriCache[song.url] = imageUri
+                sharedPref.edit() { putString(PreferenceKeys.CURRENT_SONG_COVER, imageUri.toString()) }
+            }
+
+            sharedPref.edit().apply {
+                putString(PreferenceKeys.CURRENT_SONG_ID, song.id)
+                putString(PreferenceKeys.CURRENT_SONG_URL, song.url)
+                putString(PreferenceKeys.CURRENT_SONG_TITLE, song.title)
+                putString(PreferenceKeys.CURRENT_SONG_ARTIST, song.artistName)
+                putString(PreferenceKeys.CURRENT_SONG_ALBUM, song.albumName)
+                putString(PreferenceKeys.CURRENT_SONG_DURATION, song.duration)
+                putString(PreferenceKeys.CURRENT_SONG_COVER, song.localCoverPath)
+                putBoolean(PreferenceKeys.CURRENT_ISPLAYING, true)
+                putInt(PreferenceKeys.CURRENT_SONG_INDEX, index)
+                apply()
+            }
 
             if (index != -1) {
                 PlaybackManager.updateSongs(songAdapter.currentList)
                 PlaybackManager.playSong(requireContext(), song)
-                var isPlaying = true
+                isPlaying = true
                 (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
+                NotificationManagerHelper.createNotificationChannel(requireContext())
             }
 
+            songAdapter.notifyItemChanged(index)
         }
 
         editTextQuery.addTextChangedListener(object : TextWatcher {
@@ -102,16 +125,25 @@ class SearchFragment : Fragment(), PlaybackUIListener {
             override fun onTextChanged(newText: CharSequence?, start: Int, before: Int, count: Int) {
                 val query = newText.toString().trim()
                 searchJob?.cancel()
+
+
                 searchJob = lifecycleScope.launch {
+                    //loadingAnimation.visibility = View.VISIBLE
+                    //loadingAnimation.playAnimation()
                     delay(200)
                     if (query.isEmpty()) {
+                        //loadingAnimation.visibility = View.INVISIBLE
+                        //loadingAnimation.cancelAnimation()
+
                         noSongsFounded.visibility = View.VISIBLE
                         songAdapter.submitList(emptyList())
                         return@launch
                     }
+
                     val songs = withContext(Dispatchers.IO) {
                         searchSongs(query)
                     }
+
                     if (songs.isNotEmpty()) {
                         val enrichedSongs = songs.map { song ->
                             async(Dispatchers.IO) {
@@ -119,19 +151,24 @@ class SearchFragment : Fragment(), PlaybackUIListener {
                             }
                         }.awaitAll()
 
+                        //loadingAnimation.visibility = View.INVISIBLE
+                        //loadingAnimation.cancelAnimation()
+
                         originalSongList.clear()
                         originalSongList.addAll(enrichedSongs)
 
                         noSongsFounded.visibility = View.INVISIBLE
                         songAdapter.submitList(enrichedSongs)
                     } else {
+                        //loadingAnimation.visibility = View.INVISIBLE
+                        //loadingAnimation.cancelAnimation()
+
                         songAdapter.submitList(emptyList())
                         noSongsFounded.visibility = View.VISIBLE
                     }
                 }
             }
         })
-
 
         return view
     }

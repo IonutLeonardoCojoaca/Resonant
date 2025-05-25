@@ -11,7 +11,7 @@ object PreferenceKeys {
     // Song data
     const val CURRENT_SONG_TITLE = "current_song_title"
     const val CURRENT_SONG_ARTIST = "current_song_artist"
-    const val CURRENT_SONG_ALBUM = "current_song_artist"
+    const val CURRENT_SONG_ALBUM = "current_song_album"
     const val CURRENT_SONG_URL = "current_song_url"
     const val CURRENT_SONG_DURATION = "current_song_duration"
     const val CURRENT_SONG_COVER = "current_song_cover"
@@ -22,6 +22,9 @@ object PreferenceKeys {
     const val CURRENT_ARTIST_NAME = "current_artist_name"
     const val CURRENT_ARTIST_ID = "current_artist_id"
     const val CURRENT_ARTIST_COVER = "current_artist_cover"
+
+    // Player
+    const val IS_LOOP_ACTIVATED = "current_loop"
 
 
 
