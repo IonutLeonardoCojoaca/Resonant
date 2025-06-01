@@ -12,6 +12,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -20,6 +21,9 @@ import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -28,6 +32,8 @@ import java.util.Collections
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
     var onItemClick: ((Pair<Song, Uri?>) -> Unit)? = null
+    var onLikeClick: ((Song, Int) -> Unit)? = null
+
     private var currentPlayingUrl: String? = null
     private var previousPlayingUrl: String? = null
 
@@ -53,6 +59,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
         private val backgroundItemSelected: FrameLayout = itemView.findViewById(R.id.item_background)
         private val gradientText: View = itemView.findViewById(R.id.gradientBorder)
+        private val likeButton: ImageButton = itemView.findViewById(R.id.like_button)
 
         fun bind(song: Song) {
 
@@ -60,25 +67,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             artistTextView.text = song.artistName ?: "Desconocido"
             streamsTextView.text = formatStreams(song.streams)
 
-            if (song.url == currentPlayingUrl) {
-                nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.titleSongColorWhilePlaying))
-
-                ViewCompat.setBackgroundTintList(
-                    backgroundItemSelected,
-                    ColorStateList.valueOf(ContextCompat.getColor(itemView.context, R.color.selectedSongColorWhilePlaying))
-                )
-
-                gradientText.setBackgroundResource(R.drawable.gradient_text_player_background_selected)
-            } else {
-                nameTextView.setTextColor(ContextCompat.getColor(itemView.context, R.color.white))
-
-                ViewCompat.setBackgroundTintList(
-                    backgroundItemSelected,
-                    ColorStateList.valueOf(ContextCompat.getColor(itemView.context, R.color.cardsTheme))
-                )
-
-                gradientText.setBackgroundResource(R.drawable.gradient_text_player_background)
-            }
+            showPlayingSong(song.url, currentPlayingUrl, itemView, nameTextView, backgroundItemSelected, gradientText)
 
             Utils.getImageSongFromCache(song, itemView.context, albumArtImageView, song.localCoverPath.toString())
 
@@ -86,6 +75,14 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 val bitmap = bitmapCache[song.url]
                 val imageUri = bitmap?.let { saveBitmapToCache(itemView.context, it, "album_${song.title}.png") }
                 onItemClick?.invoke(song to imageUri)
+            }
+
+            likeButton.setImageResource(
+                if (song.isLiked) R.drawable.favorite else R.drawable.favorite_border
+            )
+
+            likeButton.setOnClickListener {
+                onLikeClick?.invoke(song, adapterPosition)
             }
 
         }
@@ -137,6 +134,33 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             "Sin reproducciones"
         }else{
             ("$streams reproducciones")
+        }
+    }
+
+    fun updateLikeStatus(position: Int, isLiked: Boolean) {
+        currentList[position].isLiked = isLiked
+        notifyItemChanged(position)
+    }
+
+    fun showPlayingSong(urlSong: String, currentUrlSong: String?, itemView: View, textView: TextView, backgroundItemSelected: FrameLayout, gradientText: View){
+        if (urlSong == currentUrlSong) {
+            textView.setTextColor(ContextCompat.getColor(itemView.context, R.color.titleSongColorWhilePlaying))
+
+            ViewCompat.setBackgroundTintList(
+                backgroundItemSelected,
+                ColorStateList.valueOf(ContextCompat.getColor(itemView.context, R.color.selectedSongColorWhilePlaying))
+            )
+
+            gradientText.setBackgroundResource(R.drawable.gradient_text_player_background_selected)
+        } else {
+            textView.setTextColor(ContextCompat.getColor(itemView.context, R.color.white))
+
+            ViewCompat.setBackgroundTintList(
+                backgroundItemSelected,
+                ColorStateList.valueOf(ContextCompat.getColor(itemView.context, R.color.cardsTheme))
+            )
+
+            gradientText.setBackgroundResource(R.drawable.gradient_text_player_background)
         }
     }
 

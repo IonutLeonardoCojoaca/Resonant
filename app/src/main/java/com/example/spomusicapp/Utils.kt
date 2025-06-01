@@ -11,7 +11,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
-import androidx.core.content.edit
 
 object Utils {
 
@@ -108,16 +107,6 @@ object Utils {
         } else {
             songImage.setImageResource(com.example.spomusicapp.R.drawable.album_cover)
         }
-    }
-
-    fun hasShownDialog(context: Context): Boolean {
-        val sharedPreferences = context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
-        return sharedPreferences.getBoolean("dialog_shown", false)
-    }
-
-    fun setDialogShown(context: Context) {
-        val sharedPreferences = context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
-        sharedPreferences.edit() { putBoolean("dialog_shown", true) }
     }
 
 }

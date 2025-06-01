@@ -26,6 +26,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.facebook.shimmer.Shimmer
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.gson.Gson
@@ -132,6 +133,12 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
         songAdapter.setCurrentPlayingSong(savedUrl)
 
+        songAdapter.onLikeClick = { song, position ->
+            FirebaseUtils.toggleLike(song) { isLiked ->
+                songAdapter.updateLikeStatus(position, isLiked)
+            }
+        }
+
         songAdapter.onItemClick = { (song, imageUri) ->
             val index = songAdapter.currentList.indexOf(song)
             songAdapter.setCurrentPlayingSong(song.url)
@@ -164,12 +171,18 @@ class HomeFragment : Fragment(), PlaybackUIListener {
             songAdapter.notifyItemChanged(index)
         }
 
+        mostStreamedSongAdapter.onLikeClick = { song, position ->
+            FirebaseUtils.toggleLike(song) { isLiked ->
+                mostStreamedSongAdapter.updateLikeStatus(position, isLiked)
+            }
+        }
+
         mostStreamedSongAdapter.onItemClick = { (song, imageUri) ->
 
             mostStreamedSongAdapter.setCurrentPlayingSong(song.url)
 
             if (imageUri != null) {
-                songAdapter.imageUriCache[song.url] = imageUri
+                mostStreamedSongAdapter.imageUriCache[song.url] = imageUri
                 sharedPref.edit { putString(PreferenceKeys.CURRENT_SONG_COVER, imageUri.toString()) }
             }
 
@@ -195,6 +208,14 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
         rechargeSongs.setOnClickListener {
             reloadSongs()
+        }
+
+        FirebaseUtils.loadUserLikes { likedIds ->
+            val updatedSongs = songList.map { song ->
+                song.copy(isLiked = likedIds.contains(song.id))
+            }
+
+            songAdapter.submitList(updatedSongs)
         }
 
         getProfileImage()
@@ -459,39 +480,48 @@ class HomeFragment : Fragment(), PlaybackUIListener {
     }
 
     fun updateMostStreamedSong() {
-        val cachedSong = loadMostStreamedSongFromCache()
-        cachedSong?.let {
-            mostStreamedSongList.clear()
-            mostStreamedSongList.add(it)
-            mostStreamedSongAdapter.submitList(listOf(it))
-        }
+        FirebaseUtils.loadUserLikes { likedIds ->
+            val cachedSong = loadMostStreamedSongFromCache()
 
-        lifecycleScope.launch {
-            val fetchedSong = withContext(Dispatchers.IO) {
-                suspendCancellableCoroutine { cont ->
-                    val firestore = FirebaseFirestore.getInstance()
-                    firestore.collection("songs")
-                        .orderBy("streams", Query.Direction.DESCENDING)
-                        .limit(1)
-                        .get()
-                        .addOnSuccessListener { result ->
-                            val song = result.documents.firstOrNull()?.toObject(Song::class.java)
-                            cont.resume(song, null)
-                        }
-                        .addOnFailureListener {
-                            cont.resume(null, null)
-                        }
-                }
+            cachedSong?.let {
+                val updatedCached = it.copy(isLiked = likedIds.contains(it.id))
+                mostStreamedSongList.clear()
+                mostStreamedSongList.add(updatedCached)
+                mostStreamedSongAdapter.submitList(listOf(updatedCached))
             }
 
-            fetchedSong?.let { song ->
-                val enrichedSong = withContext(Dispatchers.IO) {
-                    Utils.enrichSong(requireContext(), song) ?: song
+            lifecycleScope.launch {
+                val fetchedSong = withContext(Dispatchers.IO) {
+                    suspendCancellableCoroutine { cont ->
+                        val firestore = FirebaseFirestore.getInstance()
+                        firestore.collection("songs")
+                            .orderBy("streams", Query.Direction.DESCENDING)
+                            .limit(1)
+                            .get()
+                            .addOnSuccessListener { result ->
+                                val song = result.documents.firstOrNull()?.toObject(Song::class.java)
+                                cont.resume(song, null)
+                            }
+                            .addOnFailureListener {
+                                cont.resume(null, null)
+                            }
+                    }
                 }
-                saveMostStreamedSongToCache(enrichedSong)
-                mostStreamedSongList.clear()
-                mostStreamedSongList.add(enrichedSong)
-                mostStreamedSongAdapter.submitList(listOf(enrichedSong))
+
+                fetchedSong?.let { song ->
+                    val enrichedSong = withContext(Dispatchers.IO) {
+                        Utils.enrichSong(requireContext(), song) ?: song
+                    }
+
+                    if (cachedSong == null || cachedSong.id != enrichedSong.id || cachedSong.streams != enrichedSong.streams) {
+                        saveMostStreamedSongToCache(enrichedSong)
+
+                        val updatedFetched = enrichedSong.copy(isLiked = likedIds.contains(enrichedSong.id))
+                        mostStreamedSongList.clear()
+                        mostStreamedSongList.add(updatedFetched)
+                        mostStreamedSongAdapter.submitList(listOf(updatedFetched))
+                    }
+                }
             }
         }
     }

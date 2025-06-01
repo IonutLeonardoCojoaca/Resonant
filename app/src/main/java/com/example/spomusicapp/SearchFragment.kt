@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
@@ -16,6 +17,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.airbnb.lottie.LottieAnimationView
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,7 +44,7 @@ class SearchFragment : Fragment(), PlaybackUIListener {
 
     private var isPlaying = false
 
-    //private lateinit var loadingAnimation: LottieAnimationView
+    private lateinit var loadingAnimation: LottieAnimationView
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -64,11 +66,17 @@ class SearchFragment : Fragment(), PlaybackUIListener {
         recyclerView.adapter = songAdapter
         editTextQuery = view.findViewById(R.id.editTextQuery)
 
-        //loadingAnimation = view.findViewById(R.id.loadingAnimation)
+        loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
 
         PlaybackManager.addUIListener(this)
+
+        songAdapter.onLikeClick = { song, position ->
+            FirebaseUtils.toggleLike(song) { isLiked ->
+                songAdapter.updateLikeStatus(position, isLiked)
+            }
+        }
 
         songAdapter.onItemClick = { (song, imageUri) ->
             val index = songAdapter.currentList.indexOf(song)
@@ -107,6 +115,8 @@ class SearchFragment : Fragment(), PlaybackUIListener {
                 if (s.isNullOrBlank()) {
                     noSongsFounded.visibility = View.VISIBLE
                     songAdapter.submitList(emptyList())
+                    originalSongList.clear()
+                    loadingAnimation.visibility = View.INVISIBLE
                 }
             }
 
@@ -115,16 +125,22 @@ class SearchFragment : Fragment(), PlaybackUIListener {
             override fun onTextChanged(newText: CharSequence?, start: Int, before: Int, count: Int) {
                 val query = newText.toString().trim()
                 searchJob?.cancel()
+
+                if(originalSongList.isEmpty()){
+                    loadingAnimation.visibility = View.VISIBLE
+                    noSongsFounded.visibility = View.VISIBLE
+                }
+
                 searchJob = lifecycleScope.launch {
                     delay(200)
                     if (query.isEmpty()) {
-                        noSongsFounded.visibility = View.VISIBLE
                         songAdapter.submitList(emptyList())
                         return@launch
                     }
                     val songs = withContext(Dispatchers.IO) {
                         searchSongs(query)
                     }
+
                     if (songs.isNotEmpty()) {
                         val enrichedSongs = songs.map { song ->
                             async(Dispatchers.IO) {
@@ -132,14 +148,24 @@ class SearchFragment : Fragment(), PlaybackUIListener {
                             }
                         }.awaitAll()
 
+                        loadingAnimation.visibility = View.INVISIBLE
+
                         originalSongList.clear()
                         originalSongList.addAll(enrichedSongs)
+
+                        FirebaseUtils.loadUserLikes { likedIds ->
+                            val updatedSongs = originalSongList.map { song ->
+                                song.copy(isLiked = likedIds.contains(song.id))
+                            }
+
+                            songAdapter.submitList(updatedSongs)
+                        }
 
                         noSongsFounded.visibility = View.INVISIBLE
                         songAdapter.submitList(enrichedSongs)
                     } else {
+                        loadingAnimation.visibility = View.INVISIBLE
                         songAdapter.submitList(emptyList())
-                        noSongsFounded.visibility = View.VISIBLE
                     }
                 }
             }

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@color/black"
+    android:id="@+id/drawer">
+
+    <RelativeLayout
+        android:id="@+id/headerDrawer"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="@drawable/gradient_top_drawer_background"
+        android:paddingHorizontal="20dp">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/header_user_photo"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:src="@drawable/user"
+            android:scaleType="centerCrop"
+            android:layout_centerVertical="true"
+            app:shapeAppearanceOverlay="@style/CircularUserImage"
+            android:padding="2dp"/>
+
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="45dp"
+            android:layout_toRightOf="@id/header_user_photo"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="10dp">
+
+            <TextView
+                android:id="@+id/header_user_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nombre de usuario"
+                android:textColor="#fff"
+                android:textStyle="bold"
+                android:fontFamily="@font/unageo_medium"
+                android:layout_gravity="top"/>
+
+            <TextView
+                android:id="@+id/header_user_role"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Privilegios"
+                android:textColor="#fff"
+                android:textStyle="bold"
+                android:fontFamily="@font/unageo_light"
+                android:layout_gravity="bottom"/>
+
+        </FrameLayout>
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/headerContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/headerDrawer">
+
+        <RelativeLayout
+            android:id="@+id/firstSectionDrawer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="20dp">
+
+            <FrameLayout
+                android:id="@+id/fastAccessContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingVertical="15dp">
+
+                <TextView
+                    android:id="@+id/fastAccessText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Acceso rápido"
+                    android:textColor="@color/white"
+                    android:fontFamily="@font/unageo_medium"
+                    android:textSize="16sp"/>
+
+            </FrameLayout>
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_below="@id/fastAccessContainer"
+                android:background="@drawable/gradient_to_right_button"
+                app:shapeAppearanceOverlay="@style/RoundedCornersFavorites"/>
+
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/secondSectionDrawer"
+            android:layout_below="@id/firstSectionDrawer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="20dp">
+
+            <FrameLayout
+                android:id="@+id/playlistsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingVertical="15dp">
+
+                <TextView
+                    android:id="@+id/playlistsText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Playlists"
+                    android:textColor="@color/white"
+                    android:fontFamily="@font/unageo_medium"
+                    android:textSize="16sp"/>
+
+            </FrameLayout>
+
+        </RelativeLayout>
+
+    </RelativeLayout>
+
+</RelativeLayout>

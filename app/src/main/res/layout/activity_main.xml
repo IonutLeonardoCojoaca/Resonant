@@ -186,13 +186,16 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <com.google.android.material.navigation.NavigationView
+    <LinearLayout
         android:id="@+id/navigationView"
-        android:layout_width="wrap_content"
+        android:layout_width="300dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        app:menu="@menu/drawer_menu"
-        app:headerLayout="@layout/drawer_header"
-        android:background="#111"/>
+        android:orientation="vertical"
+        android:background="#111">
+
+        <include layout="@layout/drawer_index"/>
+
+    </LinearLayout>
 
 </androidx.drawerlayout.widget.DrawerLayout>

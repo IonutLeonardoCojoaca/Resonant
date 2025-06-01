@@ -3,10 +3,12 @@ package com.example.spomusicapp
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -51,7 +53,7 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         setContentView(binding.root)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom) // ← aplicar bottom
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
@@ -60,6 +62,15 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
         bottomNavigationView.setupWithNavController(navController)
         bottomNavigationView.itemIconTintList = null
+
+        val displayMetrics = Resources.getSystem().displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val drawerWidth = (screenWidth * 0.75).toInt() // 75%
+
+        val drawer: View = findViewById(R.id.navigationView)
+        val params = drawer.layoutParams
+        params.width = drawerWidth
+        drawer.layoutParams = params
 
         val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)

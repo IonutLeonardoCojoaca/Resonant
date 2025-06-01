@@ -13,7 +13,8 @@ data class Song(
     val albumName: String? = null,
     var duration: String? = null,
     val localCoverPath: String? = null,
-    var streams: Int = 0// posición por defecto
+    var streams: Int = 0,
+    var isLiked: Boolean = false
 ){
     constructor() : this("", "", "")
 }
