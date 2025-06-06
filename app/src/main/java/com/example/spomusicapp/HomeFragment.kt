@@ -231,7 +231,7 @@ class HomeFragment : Fragment(), PlaybackUIListener {
 
     private fun reloadSongs() {
         showShimmer(true)
-        recyclerViewSongs.visibility = View.GONE   // Ocultar el listado viejo
+        recyclerViewSongs.visibility = View.GONE
 
         loadSongs { randomSongs ->
             if (randomSongs.isNotEmpty()) {
@@ -566,6 +566,11 @@ class HomeFragment : Fragment(), PlaybackUIListener {
     override fun onResume() {
         super.onResume()
         PlaybackManager.addUIListener(this)
+        val currentSong = PlaybackManager.getCurrentSong()
+        if (currentSong != null) {
+            songAdapter.setCurrentPlayingSong(currentSong.url)
+            songAdapter.notifyDataSetChanged()
+        }
     }
 
     override fun onPause() {

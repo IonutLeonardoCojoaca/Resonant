@@ -19,6 +19,11 @@ object PlaybackManager {
 
     fun playSong(context: Context, song: Song, autoStart: Boolean = true) {
 
+        if (songs.isEmpty()) {
+            MediaPlayerManager.stop()
+            return
+        }
+
         if (currentSong?.url == song.url) {
             return
         }

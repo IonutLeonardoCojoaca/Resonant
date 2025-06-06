@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
     app:startDestination="@id/homeFragment">
 
@@ -25,15 +26,26 @@
     <fragment
         android:id="@+id/savedFragment"
         android:name="com.example.spomusicapp.SavedFragment"
-        android:label="Biblioteca" >
+        android:label="Guardados" >
+
         <action
-            android:id="@+id/action_savedFragment_to_settingsFragment"
-            app:destination="@id/settingsFragment" />
+            android:id="@+id/action_savedFragment_to_favoriteSongsFragment"
+            app:destination="@id/favoriteSongsFragment" />
     </fragment>
 
     <fragment
         android:id="@+id/settingsFragment"
         android:name="com.example.spomusicapp.SettingsFragment"
         android:label="Perfil" />
+
+    <fragment
+        android:id="@+id/favoriteSongsFragment"
+        android:name="com.example.spomusicapp.FavoriteSongsFragment"
+        android:label="Canciones favoritas"
+        tools:layout="@layout/fragment_favorite_songs" >
+        <action
+            android:id="@+id/action_favoriteSongsFragment_to_savedFragment"
+            app:destination="@id/savedFragment" />
+    </fragment>
 
 </navigation>

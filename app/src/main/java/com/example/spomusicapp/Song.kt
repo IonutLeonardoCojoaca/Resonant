@@ -9,6 +9,7 @@ data class Song(
     @DocumentId
     val id: String = "",
     val url: String = "",
+    var localPath: String? = null,
     var artistName: String? = null,
     val albumName: String? = null,
     var duration: String? = null,

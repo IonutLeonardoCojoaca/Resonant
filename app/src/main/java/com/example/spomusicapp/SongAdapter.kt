@@ -138,9 +138,20 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
     }
 
     fun updateLikeStatus(position: Int, isLiked: Boolean) {
-        currentList[position].isLiked = isLiked
-        notifyItemChanged(position)
+        val newList = currentList.toMutableList()
+        val song = newList[position]
+        newList[position] = song.copy(isLiked = isLiked)
+        submitList(newList)
     }
+
+    fun removeSongAt(position: Int) {
+        val newList = currentList.toMutableList()
+        if (position in newList.indices) {
+            newList.removeAt(position)
+            submitList(newList)
+        }
+    }
+
 
     fun showPlayingSong(urlSong: String, currentUrlSong: String?, itemView: View, textView: TextView, backgroundItemSelected: FrameLayout, gradientText: View){
         if (urlSong == currentUrlSong) {
@@ -166,12 +177,11 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
     @SuppressLint("NotifyDataSetChanged")
     fun setCurrentPlayingSong(url: String?) {
-        if (currentPlayingUrl == url) return // si es la misma, no hacer nada
+        if (currentPlayingUrl == url) return
 
         previousPlayingUrl = currentPlayingUrl
         currentPlayingUrl = url
 
-        // Notificar cambios en la anterior y en la nueva
         previousPlayingUrl?.let { prevUrl ->
             val prevIndex = currentList.indexOfFirst { it.url == prevUrl }
             if (prevIndex != -1) notifyItemChanged(prevIndex)

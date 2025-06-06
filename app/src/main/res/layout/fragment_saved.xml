@@ -73,7 +73,7 @@
                         android:id="@+id/totalLikedSongsText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Tienes guardadas un total de... canciones"
+                        android:text="Tienes 9999 canciones favoritas"
                         android:textColor="@color/white"
                         android:layout_below="@id/favoriteSongsText"
                         android:fontFamily="@font/unageo_light"
