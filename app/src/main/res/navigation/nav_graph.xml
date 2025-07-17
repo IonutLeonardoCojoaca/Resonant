@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/homeFragment"
-        android:name="com.example.spomusicapp.HomeFragment"
+        android:name="com.example.resonant.HomeFragment"
         android:label="Inicio" >
         <action
             android:id="@+id/action_homeFragment_to_searchFragment"
@@ -16,7 +16,7 @@
 
     <fragment
         android:id="@+id/searchFragment"
-        android:name="com.example.spomusicapp.SearchFragment"
+        android:name="com.example.resonant.SearchFragment"
         android:label="Buscar" >
         <action
             android:id="@+id/action_searchFragment_to_savedFragment"
@@ -25,7 +25,7 @@
 
     <fragment
         android:id="@+id/savedFragment"
-        android:name="com.example.spomusicapp.SavedFragment"
+        android:name="com.example.resonant.SavedFragment"
         android:label="Guardados" >
 
         <action
@@ -35,12 +35,12 @@
 
     <fragment
         android:id="@+id/settingsFragment"
-        android:name="com.example.spomusicapp.SettingsFragment"
+        android:name="com.example.resonant.SettingsFragment"
         android:label="Perfil" />
 
     <fragment
         android:id="@+id/favoriteSongsFragment"
-        android:name="com.example.spomusicapp.FavoriteSongsFragment"
+        android:name="com.example.resonant.FavoriteSongsFragment"
         android:label="Canciones favoritas"
         tools:layout="@layout/fragment_favorite_songs" >
         <action

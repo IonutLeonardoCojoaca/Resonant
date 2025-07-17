@@ -6,15 +6,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.spomusicapp"
+    namespace = "com.example.resonant"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.spomusicapp"
+        applicationId = "com.example.resonant"
         minSdk = 33
         targetSdk = 35
         versionCode = 3
-        versionName = "1.32.0"
+        versionName = "1.33.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -93,6 +93,11 @@ dependencies {
     implementation (libs.picasso)
 
     implementation ("com.facebook.shimmer:shimmer:0.5.0")
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    implementation ("com.github.bumptech.glide:glide:4.16.0")
+
 
 
 }

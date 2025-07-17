@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SpoMusicApp"
+rootProject.name = "Resonant"
 include(":app")

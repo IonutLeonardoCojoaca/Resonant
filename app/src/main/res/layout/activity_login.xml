@@ -12,8 +12,8 @@
         android:id="@+id/videoViewBackground1"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleX="1.5"
-        android:scaleY="1.5"
+        android:scaleY="1.1"
+        android:scaleX="1.1"
         android:background="@drawable/gradient_login"
         android:backgroundTint="@color/black"/>
 
@@ -25,24 +25,33 @@
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="60">
+            android:layout_weight="75">
 
-            <FrameLayout
+            <RelativeLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerHorizontal="true"
                 android:layout_centerVertical="true">
 
-                <TextView
-                    android:layout_width="240dp"
-                    android:layout_height="wrap_content"
-                    android:text="Bienvenido a Resonant"
-                    android:textAlignment="center"
-                    android:textSize="40sp"
-                    android:textColor="#CCCCCC"
-                    android:fontFamily="@font/unageo_medium"/>
+                <ImageView
+                    android:id="@+id/resonantLogo"
+                    android:layout_width="250dp"
+                    android:layout_height="50dp"
+                    android:src="@drawable/resonant"/>
 
-            </FrameLayout>
+                <TextView
+                    android:id="@+id/textResonantLogo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/resonantLogo"
+                    android:fontFamily="@font/unageo_regular"
+                    android:textColor="@color/primaryColorButton"
+                    android:text="Don't just listen, Resonate."
+                    android:layout_centerHorizontal="true"
+                    android:textSize="16sp"
+                    android:layout_marginTop="5dp"/>
+
+            </RelativeLayout>
 
             <FrameLayout
                 android:layout_width="wrap_content"
@@ -53,7 +62,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Escucha tu música sin límites ni anuncios invasivos."
+                    android:text=""
                     android:textColor="#CCCCCC"
                     android:textSize="12sp"
                     android:fontFamily="@font/unageo_medium"/>
@@ -63,54 +72,21 @@
         </RelativeLayout>
 
         <RelativeLayout
+            android:id="@+id/containerButtonsLogIn"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="40"
+            android:layout_weight="25"
             android:padding="10dp">
 
-            <RelativeLayout
-                android:id="@+id/containerButtonsLogIn"
+            <Button
+                android:id="@+id/loginButton"
                 android:layout_width="wrap_content"
-                android:layout_height="120dp"
-                android:layout_centerInParent="true">
-
-                <RelativeLayout
-                    android:id="@+id/googleLogInButtonContainer"
-                    android:layout_width="290dp"
-                    android:layout_height="50dp"
-                    android:background="@drawable/google_button_background"
-                    android:layout_alignParentBottom="true">
-
-                    <RelativeLayout
-                        android:id="@+id/googleLogInButton"
-                        android:layout_width="250dp"
-                        android:layout_height="50dp"
-                        android:layout_centerInParent="true"
-                        android:gravity="center">
-
-                        <ImageView
-                            android:id="@+id/google_logo"
-                            android:layout_width="30dp"
-                            android:layout_height="30dp"
-                            android:scaleType="centerCrop"
-                            android:background="@drawable/google_icon"
-                            android:layout_centerVertical="true"/>
-
-                        <TextView
-                            android:id="@+id/google_login_text"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Iniciar sesión con Google"
-                            android:textColor="@color/white"
-                            android:layout_centerInParent="true"
-                            android:fontFamily="@font/unageo_medium"
-                            android:textSize="14sp"/>
-
-                    </RelativeLayout>
-
-                </RelativeLayout>
-
-            </RelativeLayout>
+                android:layout_height="55dp"
+                android:text="Iniciar sesión con Google"
+                android:layout_centerInParent="true"
+                android:fontFamily="@font/unageo_medium"
+                android:backgroundTint="@color/secondaryColorTheme"
+                android:textColor="@color/primaryColorButton"/>
 
         </RelativeLayout>
 

@@ -1,9 +1,5 @@
 <resources>
     <string name="app_name">Resonant</string>
-    <string name="app_version">0.5.0 Alpha - Release 270425.1</string>
 
-    <string name="adviseUser">Estás usando una versión inicial de Resonant por lo que puedes experimentar parones, cierres inesperados, bloqueo de pantalla y un excesivo consumo de datos Wifi. Recomendamos actualizar a la última versión estable.</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
-
+    <string name="default_web_client_id">961497830766-d6vri0eo9hh4rfjdf42m1lgrovh04lni.apps.googleusercontent.com</string>
 </resources>
