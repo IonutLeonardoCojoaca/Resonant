@@ -47,7 +47,6 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        checkSessionAndNavigate(this)
         setContentView(R.layout.activity_login)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -73,6 +72,8 @@ class LoginActivity : AppCompatActivity() {
             launchCredentialManager()
         }
 
+        checkSessionAndNavigate(this)
+
     }
 
     fun checkSessionAndNavigate(context: Context) {
@@ -86,9 +87,13 @@ class LoginActivity : AppCompatActivity() {
         } else if (refreshToken != null && email != null) {
             refreshAccessToken(refreshToken, email, context)
         } else {
-            goToLogin(context)
+            // 👇 Evita recargar LoginActivity si ya estamos en ella
+            if (context !is LoginActivity) {
+                goToLogin(context)
+            }
         }
     }
+
 
     fun isTokenValid(token: String): Boolean {
         return try {

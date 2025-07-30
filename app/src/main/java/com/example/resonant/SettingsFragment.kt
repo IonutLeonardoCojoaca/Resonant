@@ -52,7 +52,7 @@ class SettingsFragment : Fragment() {
                 val clearRequest = ClearCredentialStateRequest()
                 credentialManager.clearCredentialState(clearRequest)
                 val intent = Intent(requireContext(), LoginActivity::class.java)
-                MediaPlayerManager.stop()
+                //MediaPlayerManager.stop()
                 startActivity(intent)
                 requireActivity().finish()
             } catch (e: ClearCredentialException) {

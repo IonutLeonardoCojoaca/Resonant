@@ -24,8 +24,6 @@ interface ApiResonantService {
     @GET("Resonant/Album/GetAllIds")
     suspend fun getAllAlbumIds(): List<String>
 
-    @POST("Resonant/Minio/GetMultipleAlbumUrls")
-    suspend fun getMultipleAlbumUrls(@Body fileNames: List<String>): List<AlbumUrlDTO>
 
 
 
@@ -36,8 +34,13 @@ interface ApiResonantService {
     @GET("Resonant/Artist/GetAllIds")
     suspend fun getAllArtistIds(): List<String>
 
-    @POST("Resonant/Minio/GetMultipleArtistUrls")
-    suspend fun getMultipleArtistUrls(@Body fileNames: List<String>): List<ArtistUrlDTO>
+    @GET("Resonant/Artist/GetBySongId")
+    suspend fun getArtistsBySongId(@Query("id") songId: String): List<Artist>
+
+    @GET("Resonant/Artist/GetByAlbumId")
+    suspend fun getArtistsByAlbumId(@Query("id") songId: String): List<Artist>
+
+
 
 
 
@@ -48,10 +51,26 @@ interface ApiResonantService {
     @GET("Resonant/Song/GetAllIds")
     suspend fun getAllSongIds(): List<String>
 
-    @GET("Resonant/Artist/GetBySongId")
-    suspend fun getArtistsBySongId(@Query("id") songId: String): List<Artist>
+    @GET("Resonant/Song/SearchByQuery")
+    suspend fun searchByQuery(@Query("query") query: String): List<Song>
+
+    @GET("Resonant/Song/GetByAlbumId")
+    suspend fun getSongsByAlbumId(@Query("albumId") albumId: String): List<Song>
+
+
+
+
+    // Minio
+    @POST("Resonant/Minio/GetMultipleAlbumUrls")
+    suspend fun getMultipleAlbumUrls(@Body fileNames: List<String>): List<AlbumUrlDTO>
+
+    @POST("Resonant/Minio/GetMultipleArtistUrls")
+    suspend fun getMultipleArtistUrls(@Body fileNames: List<String>): List<ArtistUrlDTO>
 
     @POST("Resonant/Minio/GetMultipleSongUrls")
     suspend fun getMultipleSongUrls(@Body fileNames: List<String>): List<SongUrlDTO>
+
+    @POST("Resonant/Minio/GetAlbumUrl")
+    suspend fun getAlbumUrl(@Query("fileName") fileName: String): AlbumUrlDTO
 
 }

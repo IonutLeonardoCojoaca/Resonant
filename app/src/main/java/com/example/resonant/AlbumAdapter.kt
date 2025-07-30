@@ -31,18 +31,20 @@ class AlbumAdapter(private val albums: List<Album>) : RecyclerView.Adapter<Album
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
 
         fun bind(album: Album) {
-            //artistName.text = album.artistName ?: "Próximamente"
-            albumName.text = album.title ?: "Próximamente"
+            artistName.text = album.artistName ?: "Null"
+            albumName.text = album.title ?: "Null"
 
-            if (!album.coverImageUrl.isNullOrEmpty()) {
-                Picasso.get().load(album.coverImageUrl).into(albumImage)
+            if (!album.url.isNullOrEmpty()) {
+                Picasso.get().load(album.url).into(albumImage)
             } else {
                 Picasso.get().load(R.drawable.album_stack).into(albumImage)
             }
 
             itemView.setOnClickListener {
                 val intent = Intent(itemView.context, AlbumActivity::class.java).apply {
-                    putExtra(PreferenceKeys.CURRENT_ARTIST_ID, album.id)
+                    putExtra("albumId", album.id)
+                    putExtra("albumFileName", album.fileName)
+                    putExtra("albumTitle", album.title)
                 }
                 itemView.context.startActivity(intent)
             }

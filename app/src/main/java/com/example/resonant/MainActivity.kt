@@ -1,11 +1,17 @@
 package com.example.resonant
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.res.Resources
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.view.View
@@ -14,28 +20,23 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.example.resonant.databinding.ActivityMainBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.firebase.remoteconfig.FirebaseRemoteConfig
-import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 
-class MainActivity : AppCompatActivity(), PlaybackUIListener {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
     private lateinit var seekBar: SeekBar
     private val handler = Handler(Looper.getMainLooper())
 
-    var isPlaying = false
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
@@ -44,6 +45,17 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
     private lateinit var songArtist: TextView
 
     private var shouldStopMusic: Boolean = true
+
+    private var currentSongBitmap: Bitmap? = null
+
+    private lateinit var playbackStateReceiver: BroadcastReceiver
+    private lateinit var songChangedReceiver: BroadcastReceiver
+    private lateinit var sharedViewModel: SharedViewModel
+
+    private lateinit var homeFragment: HomeFragment
+
+    private var musicService: MusicPlaybackService? = null
+    private var isBound = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +74,17 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         bottomNavigationView.setupWithNavController(navController)
         bottomNavigationView.itemIconTintList = null
 
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            if (destination.id == R.id.homeFragment) {
+                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+                val fragment = navHostFragment.childFragmentManager.primaryNavigationFragment
+                if (fragment is HomeFragment) {
+                    homeFragment = fragment
+                    setupObservers()
+                }
+            }
+        }
+
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val drawerWidth = (screenWidth * 0.75).toInt() // 75%
@@ -70,6 +93,9 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         val params = drawer.layoutParams
         params.width = drawerWidth
         drawer.layoutParams = params
+
+        val intent = Intent(this, MusicPlaybackService::class.java)
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
 
         val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)
@@ -98,90 +124,128 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         songName.isSelected = true
         songArtist.isSelected = true
 
-        PlaybackManager.addUIListener(this)
-        /*
-        if (savedUrl != null && savedIndex != -1) {
-            val song = Song(
-                id = savedId.toString(),
-                title = savedTitle ?: "",
-                url = savedUrl,
-                artistName = savedArtist,
-                albumName = savedAlbum,
-                duration = savedDuration,
-                localCoverPath = savedImage
-            )
-
-            val safeTitle = song.title.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-            val cachedFile = File(cacheDir, "cached_${safeTitle}.mp3")
-            val dataSource = if (cachedFile.exists()) cachedFile.absolutePath else song.url
-
-            PlaybackManager.setCurrentSong(song)
-            MediaPlayerManager.play(this, dataSource, savedIndex, autoStart = false)
-
-            val savedPosition = sharedPref.getInt(PreferenceKeys.CURRENT_SONG_INDEX, 0)
-            val wasPlaying = sharedPref.getBoolean(PreferenceKeys.CURRENT_ISPLAYING, false)
-
-            MediaPlayerManager.seekTo(savedPosition)
-            if (wasPlaying) {
-                MediaPlayerManager.resume()
-            }
-
-            updatePlayerUI(song, wasPlaying)
-        }
         playPauseButton.setOnClickListener {
-            val currentlyPlaying = MediaPlayerManager.isPlaying()
-            if (currentlyPlaying) {
-                MediaPlayerManager.pause()
+            val intent = Intent(this, MusicPlaybackService::class.java)
+            if (musicService?.isPlaying() == true) {
+                intent.action = MusicPlaybackService.ACTION_PAUSE
             } else {
-                MediaPlayerManager.resume()
+                intent.action = MusicPlaybackService.ACTION_RESUME
             }
-            updatePlayPauseButton(!currentlyPlaying)
+            startService(intent)
+        }
+
+        musicService?.isPlayingLiveData?.observe(this@MainActivity) { playing ->
+            updatePlayPauseButton(playing)
         }
 
         previousSongButton.setOnClickListener {
-            PlaybackManager.playPrevious(this@MainActivity)
-            isPlaying = true
-            updatePlayPauseButton(isPlaying)
+            val intent = Intent(this, MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_PREVIOUS
+            }
+            startService(intent)
         }
 
         nextSongButton.setOnClickListener {
-            PlaybackManager.playNext(this@MainActivity)
-            isPlaying = true
-            updatePlayPauseButton(isPlaying)
+            val intent = Intent(this, MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_NEXT
+            }
+            startService(intent)
+        }
+
+        SharedViewModelHolder.sharedViewModel.currentSongBitmapLiveData.observe(this) { bitmap ->
+            currentSongBitmap = bitmap
+            if (bitmap != null) {
+                songImage.setImageBitmap(bitmap)
+            } else {
+                songImage.setImageResource(R.drawable.album_cover)
+            }
         }
 
         songDataPlayer.setOnClickListener {
-            val currentSong = PlaybackManager.getCurrentSong()
-            if (currentSong != null) {
+            val currentSong = musicService?.currentSongLiveData?.value
+            val bitmap = currentSongBitmap
 
-                val intent = Intent(this@MainActivity, SongActivity::class.java).apply {
+            if (currentSong != null && bitmap != null) {
+                val fileName = "cover_${currentSong.id}.png"
+                val uri = ImageUtils.saveBitmapToCache(this@MainActivity, bitmap, fileName)
+
+                val intent = Intent(this, SongActivity::class.java).apply {
                     putExtra("title", currentSong.title)
                     putExtra("artist", currentSong.artistName)
-                    putExtra("album", currentSong.albumName)
+                    putExtra("albumId", currentSong.albumId)
                     putExtra("duration", currentSong.duration)
                     putExtra("url", currentSong.url)
-                    putExtra("coverFileName", currentSong.localCoverPath)
+                    putExtra("coverFileName", fileName)
+
                 }
+
                 startActivity(intent)
             }
-
-
         }
- */
-        isPlaying = MediaPlayerManager.isPlaying()
-        Log.i("sonando", isPlaying.toString())
-        //updatePlayPauseButton(isPlaying)
-
-
-
     }
 
+    private fun setupObservers() {
 
+        playbackStateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED) {
+                    val currentSong = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
+                    val isPlaying = intent.getBooleanExtra(MusicPlaybackService.EXTRA_IS_PLAYING, false)
+
+                    currentSong?.let {
+                        homeFragment.updateCurrentSong(it)
+                        updatePlayPauseButton(isPlaying)
+                    }
+                    updatePlayPauseButton(isPlaying)
+                }
+            }
+        }
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            playbackStateReceiver,
+            IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED)
+        )
+
+        songChangedReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
+                    val currentSong = intent?.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
+                    currentSong?.let {
+                        homeFragment.updateCurrentSong(it)
+                        it.url?.let { it1 -> homeFragment.setCurrentPlayingSong(it1) }  // Llamas al método del fragment
+                    }
+                }
+            }
+        }
+
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            songChangedReceiver,
+            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
+        )
+    }
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as MusicPlaybackService.MusicServiceBinder
+            musicService = binder.getService()
+            isBound = true
+
+            musicService?.currentSongLiveData?.observe(this@MainActivity) { song ->
+                song?.let {
+                    updateDataPlayer(it)
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isBound = false
+            musicService = null
+        }
+    }
 
     private val updateSeekBarRunnable = object : Runnable {
         override fun run() {
-            val duration = MediaPlayerManager.getDuration()
-            val position = MediaPlayerManager.getCurrentPosition()
+            val duration = musicService?.getDuration() ?: 0
+            val position = musicService?.getCurrentPosition() ?: 0
 
             if (duration > 0) {
                 if (seekBar.max != duration) {
@@ -189,13 +253,8 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
                 }
                 seekBar.progress = position
             }
-            handler.postDelayed(this, 50)
+            handler.postDelayed(this, 200)
         }
-    }
-
-    fun updatePlayerUI(song: Song, isPlaying: Boolean) {
-        updateDataPlayer(song)
-        updatePlayPauseButton(isPlaying)
     }
 
     fun updatePlayPauseButton(isPlaying: Boolean) {
@@ -206,95 +265,56 @@ class MainActivity : AppCompatActivity(), PlaybackUIListener {
         }
     }
 
-    private fun updateDataPlayer(song: Song) {
+    fun updateDataPlayer(song: Song) {
         songName.text = song.title
             .removeSuffix(".mp3")
             .replace(Regex("\\s*\\([^)]*\\)"), "")
             .replace("-", "–")
             .trim()
 
-        //songArtist.text = song.artistName ?: "Desconocido"
-        //Utils.getImageSongFromCache(song, this@MainActivity, songImage, song.localCoverPath.toString())
+        songArtist.text = song.artistName ?: "Desconocido"
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Intent(this, MusicPlaybackService::class.java).also { intent ->
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        PlaybackManager.addUIListener(this)
-        val currentSong = PlaybackManager.getCurrentSong()
-        if (currentSong != null) {
-            isPlaying = MediaPlayerManager.isPlaying()
-            updateDataPlayer(currentSong)
-            updatePlayPauseButton(isPlaying)
-        }
+
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            playbackStateReceiver,
+            IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED)
+        )
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            songChangedReceiver,
+            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
+        )
+        handler.post(updateSeekBarRunnable) // Arranca el Runnable
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        updateSeekBarRunnable.let { handler.removeCallbacks(it) }
-        if (shouldStopMusic) {
-            MediaPlayerManager.stop()
-            PlaybackManager.clearUIListener()
-        }
+    override fun onPause() {
+        super.onPause()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(playbackStateReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(songChangedReceiver)
+        handler.removeCallbacks(updateSeekBarRunnable) // Para el Runnable
     }
 
     @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         shouldStopMusic = false
         moveTaskToBack(true)
-    }
-
-    override fun onSongChanged(song: Song, isPlaying: Boolean) {
-        updateDataPlayer(song)
-        updatePlayPauseButton(isPlaying)
-        this.isPlaying = isPlaying
-    }
-
-    override fun onPlaybackStateChanged(isPlaying: Boolean) {
-        this.isPlaying = isPlaying
-        updatePlayPauseButton(isPlaying)
-    }
-
-    fun checkUpdate(){
-        val remoteConfig = FirebaseRemoteConfig.getInstance()
-
-        val configSettings = FirebaseRemoteConfigSettings.Builder()
-            .setMinimumFetchIntervalInSeconds(0)
-            .build()
-        remoteConfig.setConfigSettingsAsync(configSettings)
-
-        remoteConfig.setDefaultsAsync(
-            mapOf(
-                "latest_version" to "1.0",
-                "apk_url" to ""
-            )
-        )
-
-        remoteConfig.fetchAndActivate()
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val latestVersion = remoteConfig.getString("latest_version")
-                    val apkUrl = remoteConfig.getString("apk_url")
-                    val updateMessageToUser = remoteConfig.getString("update_message")
-                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                    val versionName = packageInfo.versionName
-                    val currentVersion = versionName
-
-                    if (latestVersion != currentVersion) {
-                        AlertDialog.Builder(this)
-                            .setTitle("¡Nueva actualización disponible!")
-                            .setMessage("Versión: $latestVersion. $updateMessageToUser")
-                            .setPositiveButton("Descargar") { _, _ ->
-                                val intent = Intent(Intent.ACTION_VIEW, apkUrl.toUri())
-                                startActivity(intent)
-                            }
-                            .setNegativeButton("Cancelar", null)
-                            .show()
-                    }
-                } else {
-                    Toast.makeText(this, "Error al buscar actualización", Toast.LENGTH_SHORT).show()
-                }
-            }
-
     }
 
 }

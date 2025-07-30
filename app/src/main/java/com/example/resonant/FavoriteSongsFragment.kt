@@ -152,7 +152,7 @@ class FavoriteSongsFragment : Fragment()
                     //likedSongList.addAll(enrichedSongs)
 
                     songAdapter.submitList(likedSongList.toList())
-                    PlaybackManager.updateSongs(likedSongList)
+                    //PlaybackManager.updateSongs(likedSongList)
 
                     loadingAnimation.visibility = View.INVISIBLE
 

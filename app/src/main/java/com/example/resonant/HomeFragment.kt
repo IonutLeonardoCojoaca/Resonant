@@ -1,94 +1,87 @@
 package com.example.resonant
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
-import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.view.animation.AnimationUtils
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.facebook.shimmer.ShimmerFrameLayout
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
+import kotlin.concurrent.thread
 
-class HomeFragment : Fragment()
-    //, PlaybackUIListener
-{
+class HomeFragment : Fragment(){
 
     private lateinit var userPhotoImage: ImageView
     private lateinit var prefs: SharedPreferences
 
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
+    private var artistasCargados: List<Artist>? = null
     private var artistsList: MutableList<Artist> = mutableListOf()
 
     private lateinit var recyclerViewAlbums: RecyclerView
     private lateinit var albumsAdapter: AlbumAdapter
+    private var albumsCargados: List<Album>? = null
     private var albumList: MutableList<Album> = mutableListOf()
-    private val artistMap = mutableMapOf<String, String>()
-
-    private lateinit var mostStreamedSongRecycler: RecyclerView
-    private lateinit var mostStreamedSongAdapter: SongAdapter
-    private var mostStreamedSongList = mutableListOf<Song>()
-
-    val PREFS_NAME = "most_streamed_cache"
-    val KEY_CACHED_SONG_TITLE = "cached_song_title"
-    val KEY_CACHED_SONG_URL = "cached_song_url"
-    val KEY_CACHED_SONG_ARTIST = "cached_song_artist"
-    val KEY_CACHED_SONG_ALBUM = "cached_song_album"
-    val KEY_CACHED_SONG_DURATION = "cached_song_duration"
-    val KEY_CACHED_SONG_LOCAL_COVER = "cached_song_local_cover"
-    val KEY_CACHED_SONG_ID = "cached_song_id"
-    val KEY_CACHED_SONG_STREAMS = "cached_song_streams"
 
     lateinit var recyclerViewSongs: RecyclerView
     lateinit var songAdapter: SongAdapter
-
-    private var isPlaying = false
-
-    private var isLoading = false
-    private var hasMoreItems = true
-    private val songList = mutableListOf<Song>()
+    private var songList: List<Song>? = null
 
     private lateinit var rechargeSongs: ImageButton
-    private var cancionesCargadas: List<Song>? = null
-
     private lateinit var shimmerLayout: ShimmerFrameLayout
-    private lateinit var refreshTokenButton: Button
+
+    private val _currentSongLiveData = MutableLiveData<Song>()
+    private lateinit var sharedViewModel: SharedViewModel
+
+    private val songChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
+                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
+                song?.let {
+                    setCurrentPlayingSong(it.url ?: "")
+                    updateCurrentSong(it)
+                }
+            }
+        }
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Si ya se cargaron antes, simplemente mostrar
-        if (cancionesCargadas != null) {
-            hideShimmer()
-            songAdapter.submitList(cancionesCargadas)
-            return
-        }
+        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
+            songChangedReceiver,
+            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
+        )
 
-        // Si no, cargar por primera vez
-        lifecycleScope.launch {
-            val canciones = getRandomSongs(requireContext())
-
-            if (canciones.isNotEmpty()) {
-                cancionesCargadas = canciones // Guardar resultado
-                hideShimmer()
-                songAdapter.submitList(canciones)
-            } else {
-                Toast.makeText(requireContext(), "No se encontraron canciones", Toast.LENGTH_SHORT).show()
-            }
-        }
+        checkSongs()
+        checkAlbums()
+        checkArtists()
     }
 
     override fun onCreateView(
@@ -96,121 +89,12 @@ class HomeFragment : Fragment()
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
-        /*
-        val sharedPref = requireActivity().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)
 
-        userPhotoImage = view.findViewById(R.id.userProfile)
         prefs = requireContext().getSharedPreferences("user_data", AppCompatActivity.MODE_PRIVATE)
-
-        mostStreamedSongRecycler = view.findViewById(R.id.mostStreamedSongsList)
-        mostStreamedSongRecycler.layoutManager = LinearLayoutManager(context)
-        mostStreamedSongAdapter = SongAdapter()
-        mostStreamedSongRecycler.adapter = mostStreamedSongAdapter
-
-
-        rechargeSongs = view.findViewById(R.id.rechargeSongs)
-
-        PlaybackManager.addUIListener(this)
-
-        songAdapter.setCurrentPlayingSong(savedUrl)
-
-        songAdapter.onLikeClick = { song, position ->
-            FirebaseUtils.toggleLike(song) { isLiked ->
-                songAdapter.updateLikeStatus(position, isLiked)
-            }
-        }
-
-        songAdapter.onItemClick = { (song, imageUri) ->
-            val index = songAdapter.currentList.indexOf(song)
-            songAdapter.setCurrentPlayingSong(song.url)
-            if (imageUri != null) {
-                songAdapter.imageUriCache[song.url] = imageUri
-                sharedPref.edit() { putString(PreferenceKeys.CURRENT_SONG_COVER, imageUri.toString()) }
-            }
-
-            sharedPref.edit().apply {
-                putString(PreferenceKeys.CURRENT_SONG_ID, song.id)
-                putString(PreferenceKeys.CURRENT_SONG_URL, song.url)
-                putString(PreferenceKeys.CURRENT_SONG_TITLE, song.title)
-                putString(PreferenceKeys.CURRENT_SONG_ARTIST, song.artistName)
-                putString(PreferenceKeys.CURRENT_SONG_ALBUM, song.albumName)
-                putString(PreferenceKeys.CURRENT_SONG_DURATION, song.duration)
-                putString(PreferenceKeys.CURRENT_SONG_COVER, song.localCoverPath)
-                putBoolean(PreferenceKeys.CURRENT_ISPLAYING, true)
-                putInt(PreferenceKeys.CURRENT_SONG_INDEX, index)
-                apply()
-            }
-
-            if (index != -1) {
-                PlaybackManager.updateSongs(songAdapter.currentList)
-                PlaybackManager.playSong(requireContext(), song)
-                isPlaying = true
-                (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
-                NotificationManagerHelper.createNotificationChannel(requireContext())
-            }
-
-            songAdapter.notifyItemChanged(index)
-        }
-
-        mostStreamedSongAdapter.onLikeClick = { song, position ->
-            FirebaseUtils.toggleLike(song) { isLiked ->
-                mostStreamedSongAdapter.updateLikeStatus(position, isLiked)
-            }
-        }
-
-        mostStreamedSongAdapter.onItemClick = { (song, imageUri) ->
-
-            mostStreamedSongAdapter.setCurrentPlayingSong(song.url)
-
-            if (imageUri != null) {
-                mostStreamedSongAdapter.imageUriCache[song.url] = imageUri
-                sharedPref.edit { putString(PreferenceKeys.CURRENT_SONG_COVER, imageUri.toString()) }
-            }
-
-            sharedPref.edit().apply {
-                putString(PreferenceKeys.CURRENT_SONG_ID, song.id)
-                putString(PreferenceKeys.CURRENT_SONG_URL, song.url)
-                putString(PreferenceKeys.CURRENT_SONG_TITLE, song.title)
-                putString(PreferenceKeys.CURRENT_SONG_ARTIST, song.artistName)
-                putString(PreferenceKeys.CURRENT_SONG_ALBUM, song.albumName)
-                putString(PreferenceKeys.CURRENT_SONG_DURATION, song.duration)
-                putString(PreferenceKeys.CURRENT_SONG_COVER, song.localCoverPath)
-                putBoolean(PreferenceKeys.CURRENT_ISPLAYING, true)
-                putInt(PreferenceKeys.CURRENT_SONG_INDEX, 0)
-                apply()
-            }
-
-            PlaybackManager.updateSongs(listOf(song))
-            PlaybackManager.playSong(requireContext(), song)
-            isPlaying = true
-            (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
-            NotificationManagerHelper.createNotificationChannel(requireContext())
-        }
-
-
-
-        FirebaseUtils.loadUserLikes { likedIds ->
-            val updatedSongs = songList.map { song ->
-                song.copy(isLiked = likedIds.contains(song.id))
-            }
-
-            songAdapter.submitList(updatedSongs)
-        }
-
-
-
-         */
-        //getProfileImage()
-
-        //loadArtists()
-
-        //loadAlbums()
-
-        //updateMostStreamedSong()
 
         shimmerLayout = view.findViewById(R.id.shimmerLayout)
         rechargeSongs = view.findViewById(R.id.rechargeSongs)
+        userPhotoImage = view.findViewById(R.id.userProfile)
 
         recyclerViewArtists = view.findViewById(R.id.listArtistsRecycler)
         recyclerViewArtists.layoutManager = GridLayoutManager(context, 3)
@@ -229,86 +113,80 @@ class HomeFragment : Fragment()
         songAdapter = SongAdapter()
         recyclerViewSongs.adapter = songAdapter
 
-        songAdapter.onItemClick = { (song, imageUri) ->
-            val index = songAdapter.currentList.indexOf(song)
-            songAdapter.setCurrentPlayingSong(song.url)
-            if (imageUri != null) {
-                songAdapter.imageUriCache[song.url!!] = imageUri
+        sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
+
+        songAdapter.onItemClick = { (song, bitmap) ->
+            val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
+
+            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+            val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_PLAY
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
             }
 
-            if (index != -1) {
-                PlaybackManager.updateSongs(songAdapter.currentList)
-                PlaybackManager.playSong(requireContext(), song)
-                isPlaying = true
-                (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
-                NotificationManagerHelper.createNotificationChannel(requireContext())
-            }
-
-            songAdapter.notifyItemChanged(index)
+            requireContext().startService(playIntent)
         }
 
         rechargeSongs.setOnClickListener {
             lifecycleScope.launch {
                 showShimmer(true)
-                val nuevas = getRandomSongs(requireContext(), cancionesAnteriores = cancionesCargadas)
+                recyclerViewSongs.visibility = View.GONE
+
+                val shimmerStart = System.currentTimeMillis()
+
+                val nuevas = getRandomSongs(requireContext(), cancionesAnteriores = songList)
+
                 if (nuevas.isNotEmpty()) {
-                    cancionesCargadas = nuevas
-                    hideShimmer()
-                    songAdapter.submitList(nuevas)
+                    songList = nuevas
+
+                    songAdapter.submitList(nuevas) {
+                        val elapsed = System.currentTimeMillis() - shimmerStart
+                        val remaining = (1200 - elapsed).coerceAtLeast(0)
+
+                        lifecycleScope.launch {
+                            delay(remaining)
+                            hideShimmer()
+
+                            val controller = AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_animation_fade_slide)
+                            recyclerViewSongs.layoutAnimation = controller
+                            recyclerViewSongs.scheduleLayoutAnimation()
+
+                            recyclerViewSongs.visibility = View.VISIBLE
+
+                        }
+                    }
+
+
                 } else {
                     hideShimmer()
+                    recyclerViewSongs.visibility = View.VISIBLE
                     Toast.makeText(requireContext(), "Error al recargar", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        val prefs = requireContext().getSharedPreferences("Auth", Context.MODE_PRIVATE)
-    /*
-        refreshTokenButton.setOnClickListener {
-
-            val refreshToken = prefs.getString("REFRESH_TOKEN", null)
-            val email = prefs.getString("EMAIL", null)
-
-            Log.d("ManualRefresh", "RefreshToken que se va a usar: $refreshToken")
-            Log.d("ManualRefresh", "Email usado: $email")
-
-            val service = ApiClient.getService(requireContext())
-
-            if (refreshToken != null && email != null) {
-                val call = service.refreshToken(RefreshTokenDTO(refreshToken, email))
-
-                call.enqueue(object : Callback<AuthResponse> {
-                    override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
-                        if (response.isSuccessful) {
-                            val auth = response.body()
-                            prefs.edit()
-                                .putString("ACCESS_TOKEN", auth?.accessToken)
-                                .putString("REFRESH_TOKEN", auth?.refreshToken)
-                                .apply()
-                            Log.d("ManualRefresh", "Nuevo token guardado correctamente")
-                        } else {
-                            Log.e("ManualRefresh", "Error al refrescar: ${response.code()} - ${response.errorBody()?.string()}")
-                        }
-                    }
-
-                    override fun onFailure(call: Call<AuthResponse>, t: Throwable) {
-                        Log.e("ManualRefresh", "Fallo al llamar al refresh: ${t.message}")
-                    }
-                })
-            } else {
-                Log.e("ManualRefresh", "No hay token o email para refrescar")
-            }
-        }
-*/
+        getProfileImage()
 
         return view
     }
 
-    suspend fun getRandomSongs(
-        context: Context,
-        count: Int = 7,
-        cancionesAnteriores: List<Song>? = null
-    ): List<Song> {
+    override fun onDestroyView() {
+        super.onDestroyView()
+        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
+    }
+
+    fun updateCurrentSong(song: Song) {
+        _currentSongLiveData.postValue(song)
+    }
+
+    fun setCurrentPlayingSong(url: String) {
+        songAdapter.setCurrentPlayingSong(url)
+    }
+
+    suspend fun getRandomSongs(context: Context, count: Int = 7, cancionesAnteriores: List<Song>? = null): List<Song> {
         return try {
             val service = ApiClient.getService(context)
             val allIds = service.getAllSongIds()
@@ -323,7 +201,6 @@ class HomeFragment : Fragment()
                 val artistList = service.getArtistsBySongId(id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
-                // Reutilizar URL si ya se había cargado antes
                 val songCache = cancionesAnteriores?.find { it.id == song.id }
                 if (songCache != null) {
                     song.url = songCache.url
@@ -332,7 +209,6 @@ class HomeFragment : Fragment()
                 cancionesNuevas.add(song)
             }
 
-            // Solo pedir URLs si no se tenían ya
             val cancionesSinUrl = cancionesNuevas.filter { it.url == null }
             if (cancionesSinUrl.isNotEmpty()) {
                 val fileNames = cancionesSinUrl.map { it.fileName }
@@ -344,6 +220,15 @@ class HomeFragment : Fragment()
                 }
             }
 
+            val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.UPDATE_SONGS
+                putParcelableArrayListExtra(
+                    MusicPlaybackService.SONG_LIST,
+                    ArrayList(cancionesNuevas)
+                )
+            }
+            requireContext().startService(updateIntent)
+
             cancionesNuevas
         } catch (e: Exception) {
             e.printStackTrace()
@@ -351,9 +236,151 @@ class HomeFragment : Fragment()
         }
     }
 
+    suspend fun getRandomArtists(context: Context, count: Int = 6): List<Artist> {
+        return try {
+            val service = ApiClient.getService(context)
+            val allIds = service.getAllArtistIds()
+
+            if (allIds.size < count) return emptyList()
+
+            val randomIds = allIds.shuffled().take(count)
+            val artistasNuevos = mutableListOf<Artist>()
+
+            for (id in randomIds) {
+                val artist = service.getArtistById(id)
+                artistasNuevos.add(artist)
+            }
+
+            val fileNames = artistasNuevos.map { it.imageUrl }
+            val urlList = service.getMultipleArtistUrls(fileNames)
+            val urlMap = urlList.associateBy { it.fileName }
+
+            artistasNuevos.forEach { artist ->
+                artist.imageUrl = urlMap[artist.imageUrl]?.url ?: ""
+            }
+
+            artistasNuevos
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun getRandomAlbums(
+        context: Context,
+        count: Int = 3,
+        albumsAnteriores: List<Album>? = null
+    ): List<Album> {
+        return try {
+            val service = ApiClient.getService(context)
+            val allIds = service.getAllAlbumIds()
+
+            if (allIds.size < count) return emptyList()
+
+            val randomIds = allIds.shuffled().take(count)
+            val albumsNuevos = mutableListOf<Album>()
+
+            for (id in randomIds) {
+                val album = service.getAlbumById(id)
+
+                // Obtener artista
+                val artistas = service.getArtistsByAlbumId(album.id)
+                album.artistName = artistas.firstOrNull()?.name ?: "Desconocido"
+
+                // Restaurar caché de imagen
+                val albumCache = albumsAnteriores?.find { it.id == album.id }
+                if (albumCache != null) {
+                    album.fileName = albumCache.fileName
+                    album.url = albumCache.url
+                }
+
+                albumsNuevos.add(album)
+            }
+
+            val albumsSinUrl = albumsNuevos.filter { it.url.isNullOrEmpty() }
+
+            if (albumsSinUrl.isNotEmpty()) {
+                val fileNames = albumsSinUrl.map {
+                    it.fileName.takeIf { name -> name.isNotBlank() } ?: "${it.id}.jpg"
+                }
+
+                val urlList = service.getMultipleAlbumUrls(fileNames)
+                val urlMap = urlList.associateBy { it.fileName }
+
+                albumsSinUrl.forEach { album ->
+                    val fileName = album.fileName.takeIf { it.isNotBlank() } ?: "${album.id}.jpg"
+                    album.fileName = fileName
+                    album.url = urlMap[fileName]?.url
+                }
+            }
+
+            albumsNuevos
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
 
 
+    fun checkSongs () {
+        if (songList != null) {
+            hideShimmer()
+            songAdapter.submitList(songList)
+        } else {
+            lifecycleScope.launch {
+                val canciones = getRandomSongs(requireContext())
+                if (canciones.isNotEmpty()) {
+                    songList = canciones
+                    hideShimmer()
+                    songAdapter.submitList(canciones)
+                } else {
+                    Toast.makeText(requireContext(), "No se encontraron canciones", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
+    fun checkAlbums () {
+        if (albumsCargados != null) {
+            albumList.clear()
+            albumList.addAll(albumsCargados!!)
+            albumsAdapter.notifyDataSetChanged()
+        } else {
+            lifecycleScope.launch {
+                val albums = getRandomAlbums(requireContext(), albumsAnteriores = albumList)
+                if (albums.isNotEmpty()) {
+                    albumsCargados = albums
+                    albumList.clear()
+                    albumList.addAll(albums)
+                    albumsAdapter.notifyDataSetChanged()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "No se encontraron álbumes",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    fun checkArtists () {
+        if (artistasCargados != null) {
+            artistsList.clear()
+            artistsList.addAll(artistasCargados!!)
+            artistAdapter.notifyDataSetChanged()
+        } else {
+            lifecycleScope.launch {
+                val artistas = getRandomArtists(requireContext())
+                if (artistas.isNotEmpty()) {
+                    artistasCargados = artistas
+                    artistsList.clear()
+                    artistsList.addAll(artistas)
+                    artistAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+    }
 
     fun showShimmer(show: Boolean) {
         if (show) {
@@ -369,350 +396,6 @@ class HomeFragment : Fragment()
         shimmerLayout.stopShimmer()
         shimmerLayout.visibility = View.GONE
         recyclerViewSongs.visibility = View.VISIBLE
-    }
-
-
-
-}
-
-
-
-
-
-
-
-    /*
-    private fun reloadSongs() {
-        showShimmer(true)
-        recyclerViewSongs.visibility = View.GONE
-
-        loadSongs { randomSongs ->
-            if (randomSongs.isNotEmpty()) {
-                val enrichedSongsDeferred = randomSongs.map { song ->
-                    lifecycleScope.async(Dispatchers.IO) {
-                        Utils.enrichSong(requireContext(), song)
-                    }
-                }
-                lifecycleScope.launch {
-                    val enrichedSongs = enrichedSongsDeferred.awaitAll().filterNotNull()
-
-                    songList.clear()
-                    songList.addAll(enrichedSongs)
-
-                    val safeCopy = songList.toList()
-                    preloadSongsInBackground(requireContext(), safeCopy)
-
-                    val shimmerStart = System.currentTimeMillis()
-
-                    songAdapter.submitList(songList.toList()) {
-                        val elapsed = System.currentTimeMillis() - shimmerStart
-                        val remaining = (1200 - elapsed).coerceAtLeast(0)
-
-                        recyclerViewSongs.visibility = View.INVISIBLE
-
-                        lifecycleScope.launch {
-                            delay(remaining)
-                            hideShimmer()
-                            val controller = AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_animation_fade_slide)
-                            recyclerViewSongs.layoutAnimation = controller
-                            recyclerViewSongs.scheduleLayoutAnimation()
-                            recyclerViewSongs.visibility = View.VISIBLE
-                        }
-                    }
-                    PlaybackManager.updateSongs(songList)
-
-                    val sharedPreferences = requireContext().getSharedPreferences("song_cache", MODE_PRIVATE)
-                    sharedPreferences.edit {
-                        val json = Gson().toJson(songList)
-                        putString("cached_songs", json)
-                    }
-
-                    SongCache.cachedSongs = songList.toList()
-                    hasMoreItems = false
-
-                }
-            } else {
-                Toast.makeText(requireContext(), "Error al obtener las canciones", Toast.LENGTH_SHORT).show()
-                hideShimmer()
-                recyclerViewSongs.visibility = View.VISIBLE
-            }
-        }
-    }
-
-    private fun initSongs() {
-        val sharedPreferences = requireContext().getSharedPreferences("song_cache", MODE_PRIVATE)
-        val json = sharedPreferences.getString("cached_songs", null)
-        val cachedSongs = json?.let {
-            Gson().fromJson(it, Array<Song>::class.java).toList()
-        }
-        if (cachedSongs.isNullOrEmpty()) {
-            reloadSongs()
-        } else {
-            getSongsFromCache(cachedSongs)
-            showShimmer(false)
-            recyclerViewSongs.visibility = View.VISIBLE
-        }
-    }
-
-    private fun getSongsFromCache(cachedSongs: List<Song>){
-        songList.clear()
-        songList.addAll(cachedSongs)
-        songAdapter.submitList(songList.toList())
-        PlaybackManager.updateSongs(songList)
-        isLoading = false
-        hideShimmer()
-    }
-
-    suspend fun downloadAndCacheSong(context: Context, song: Song) {
-        try {
-            val file = Utils.cacheSongIfNeeded(context, song.url)
-
-            Log.d("Cache", "Canción guardada en caché: ${song.title}")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.e("Cache", "Error al intentar descargar y guardar la canción ${song.title}", e)
-        }
-    }
-
-    private fun preloadSongsInBackground(context: Context, songs: List<Song>) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            songs.forEach { song ->
-                val cachedFile = File(context.cacheDir, "cached_${song.title}.mp3")
-                if (!cachedFile.exists()) {
-                    downloadAndCacheSong(context, song)
-                }
-
-                synchronized(songAdapter.bitmapCache) {
-                    if (!songAdapter.bitmapCache.containsKey(song.url)) {
-                        val bitmap = songAdapter.getEmbeddedPictureFromUrl(context, song.url)
-                        bitmap?.let {
-                            songAdapter.bitmapCache[song.url] = it
-
-                            synchronized(songAdapter.imageUriCache) {
-                                val uri = songAdapter.saveBitmapToCache(context, it, "album_${song.title}.png")
-                                if (uri != null) {
-                                    songAdapter.imageUriCache[song.url] = uri
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    private fun loadArtists() {
-        val firestore = FirebaseFirestore.getInstance()
-        val artistRef = firestore.collection("artist")
-
-        if (artistsList.isEmpty()) {
-            artistRef.get()
-                .addOnSuccessListener { result ->
-                    val allArtists = result.documents.mapNotNull { document ->
-                        document.toObject(Artist::class.java)
-                    }
-
-                    val randomSixArtists = allArtists.shuffled().take(6)
-                    artistsList.clear()
-                    artistsList.addAll(randomSixArtists)
-
-                    Log.d("HomeFragment", "Artistas cargados: ${artistsList.size}")
-                    artistsList.forEach { artist ->
-                        Log.d("HomeFragment", "Nombre del artista: ${artist.name}")
-                    }
-
-                    artistAdapter.notifyDataSetChanged()
-                }
-                .addOnFailureListener { exception ->
-                    println("Error al obtener artistas: ${exception.message}")
-                }
-        }
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    private fun loadAlbums() {
-        val firestore = FirebaseFirestore.getInstance()
-        val artistRef = firestore.collection("artist")
-        val albumRef = firestore.collection("album")
-
-        if (albumList.isEmpty()) {
-            artistRef.get()
-                .addOnSuccessListener { artistResult ->
-                    // Llenamos el mapa id -> nombre
-                    for (doc in artistResult) {
-                        val artist = doc.toObject(Artist::class.java)
-                        artistMap[artist.id] = artist.name
-                    }
-
-                    // Ahora cargamos los álbumes
-                    albumRef.get()
-                        .addOnSuccessListener { result ->
-                            val allAlbums = result.documents.mapNotNull { document ->
-                                val album = document.toObject(Album::class.java)
-                                album?.copy(
-                                    artistName = artistMap[album.id_artist] ?: "Desconocido"
-                                )
-                            }
-
-                            val randomThreeAlbums = allAlbums.shuffled().take(3)
-                            albumList.clear()
-                            albumList.addAll(randomThreeAlbums)
-
-                            albumsAdapter.notifyDataSetChanged()
-                        }
-                        .addOnFailureListener { exception ->
-                            println("Error al obtener álbumes: ${exception.message}")
-                        }
-
-                }
-                .addOnFailureListener { exception ->
-                    println("Error al obtener artistas: ${exception.message}")
-                }
-        }
-    }
-
-    private fun loadSongs(callback: (List<Song>) -> Unit) {
-        val firestore = FirebaseFirestore.getInstance()
-        val songRef = firestore.collection("songs")
-
-        songRef.get()
-            .addOnSuccessListener { result ->
-                val allSongs = result.documents.mapNotNull {
-                    it.toObject(Song::class.java)
-                }
-                val randomSongs = allSongs.shuffled().take(7)
-
-                randomSongs.forEach { song ->
-                    Log.d("SongRepository", "Id: ${song.id}")
-                }
-
-                Log.d("SongRepository", "Canciones aleatorias cargadas: ${randomSongs.size}")
-                randomSongs.forEach { song ->
-                    Log.d("SongRepository", "Id: ${song.id}")
-                }
-
-                callback(randomSongs)
-            }
-            .addOnFailureListener { exception ->
-                Log.e("SongRepository", "Error fetching random songs: ${exception.message}")
-                callback(emptyList())
-            }
-    }
-
-    fun loadMostStreamedSongFromCache(): Song? {
-        val sharedPrefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val cachedId = sharedPrefs.getString(KEY_CACHED_SONG_ID, null) ?: return null
-        val cachedStreams = sharedPrefs.getInt(KEY_CACHED_SONG_STREAMS, -1)
-        if (cachedStreams == -1) return null
-
-        return Song(
-            id = cachedId,
-            streams = cachedStreams,
-            title = sharedPrefs.getString(KEY_CACHED_SONG_TITLE, "") ?: "",
-            url = sharedPrefs.getString(KEY_CACHED_SONG_URL, "") ?: "",
-            artistName = sharedPrefs.getString(KEY_CACHED_SONG_ARTIST, null),
-            albumName = sharedPrefs.getString(KEY_CACHED_SONG_ALBUM, null),
-            duration = sharedPrefs.getString(KEY_CACHED_SONG_DURATION, null),
-            localCoverPath = sharedPrefs.getString(KEY_CACHED_SONG_LOCAL_COVER, null)
-        )
-    }
-
-    fun saveMostStreamedSongToCache(song: Song) {
-        val sharedPrefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        sharedPrefs.edit()
-            .putString(KEY_CACHED_SONG_ID, song.id)
-            .putInt(KEY_CACHED_SONG_STREAMS, song.streams)
-            .putString(KEY_CACHED_SONG_TITLE, song.title)
-            .putString(KEY_CACHED_SONG_URL, song.url)
-            .putString(KEY_CACHED_SONG_ARTIST, song.artistName)
-            .putString(KEY_CACHED_SONG_ALBUM, song.albumName)
-            .putString(KEY_CACHED_SONG_DURATION, song.duration)
-            .putString(KEY_CACHED_SONG_LOCAL_COVER, song.localCoverPath)
-            .apply()
-    }
-
-    fun updateMostStreamedSong() {
-        FirebaseUtils.loadUserLikes { likedIds ->
-            val cachedSong = loadMostStreamedSongFromCache()
-
-            cachedSong?.let {
-                val updatedCached = it.copy(isLiked = likedIds.contains(it.id))
-                mostStreamedSongList.clear()
-                mostStreamedSongList.add(updatedCached)
-                mostStreamedSongAdapter.submitList(listOf(updatedCached))
-            }
-
-            lifecycleScope.launch {
-                val fetchedSong = withContext(Dispatchers.IO) {
-                    suspendCancellableCoroutine { cont ->
-                        val firestore = FirebaseFirestore.getInstance()
-                        firestore.collection("songs")
-                            .orderBy("streams", Query.Direction.DESCENDING)
-                            .limit(1)
-                            .get()
-                            .addOnSuccessListener { result ->
-                                val song = result.documents.firstOrNull()?.toObject(Song::class.java)
-                                cont.resume(song, null)
-                            }
-                            .addOnFailureListener {
-                                cont.resume(null, null)
-                            }
-                    }
-                }
-
-                fetchedSong?.let { song ->
-                    val enrichedSong = withContext(Dispatchers.IO) {
-                        Utils.enrichSong(requireContext(), song) ?: song
-                    }
-
-                    if (cachedSong == null || cachedSong.id != enrichedSong.id || cachedSong.streams != enrichedSong.streams) {
-                        saveMostStreamedSongToCache(enrichedSong)
-
-                        val updatedFetched = enrichedSong.copy(isLiked = likedIds.contains(enrichedSong.id))
-                        mostStreamedSongList.clear()
-                        mostStreamedSongList.add(updatedFetched)
-                        mostStreamedSongAdapter.submitList(listOf(updatedFetched))
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == 1) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(requireContext(), "Permiso de notificaciones concedido", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(requireContext(), "No se podrán mostrar notificaciones", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        PlaybackManager.clearUIListener()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        PlaybackManager.addUIListener(this)
-        val currentSong = PlaybackManager.getCurrentSong()
-        if (currentSong != null) {
-            songAdapter.setCurrentPlayingSong(currentSong.url)
-            songAdapter.notifyDataSetChanged()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        PlaybackManager.clearUIListener()
     }
 
     private fun getProfileImage() {
@@ -745,20 +428,10 @@ class HomeFragment : Fragment()
             }
         }
     }
+}
 
-    override fun onPlaybackStateChanged(isPlaying: Boolean) {
-        this.isPlaying = isPlaying
-    }
 
-    override fun onSongChanged(song: Song, isPlaying: Boolean) {
-        songAdapter.setCurrentPlayingSong(song.url)
-        this.isPlaying = isPlaying
-        val index = songAdapter.currentList.indexOfFirst { it.url == song.url }
-        if (index != -1) {
-            songAdapter.notifyItemChanged(index)
-        }
-        (requireActivity() as? MainActivity)?.updatePlayerUI(song, isPlaying)
-    }
-    */
+
+
 
 

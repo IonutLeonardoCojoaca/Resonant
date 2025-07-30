@@ -1,6 +1,10 @@
 package com.example.resonant
 
+import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -8,6 +12,7 @@ import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.widget.ImageButton
@@ -45,6 +50,48 @@ class SongActivity : AppCompatActivity() {
         finish()
     }
 
+    private var musicService: MusicPlaybackService? = null
+    private var isBound = false
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as? MusicPlaybackService.MusicServiceBinder
+            musicService = binder?.getService()
+            isBound = true
+
+            // Ahora ya puedes acceder a métodos como:
+            val currentUrl = musicService?.getCurrentSongUrl()
+            var isPlaying = musicService?.isPlaying()
+            val currentPosition = musicService?.getCurrentPosition()
+            val duration = musicService?.getDuration()
+
+
+            // Ya está sonando esta canción: actualiza la UI
+            if (duration != null) {
+                seekBar.max = duration
+            }
+            if (currentPosition != null) {
+                seekBar.progress = currentPosition
+            }
+            currentTimeText.text = currentPosition?.let { Utils.formatTime(it) }
+            totalTimeText.text = duration?.let { Utils.formatTime(it) }
+
+            isPlaying = musicService?.isPlaying() == true
+            if (isPlaying) {
+                startSeekBarUpdater()
+            }
+
+
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isBound = false
+            musicService = null
+        }
+    }
+
+
+    @SuppressLint("CutPasteId")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -76,14 +123,12 @@ class SongActivity : AppCompatActivity() {
             if (bitmap != null) {
                 imageSong.setImageBitmap(bitmap)
                 imageBlurrySong.setImageBitmap(bitmap)
-                Log.e("FileFound", "El archivo de imagen existe: $coverFileName")
             } else {
                 val defaultBitmap = getDefaultBitmap()
                 imageSong.setImageBitmap(defaultBitmap)
                 imageBlurrySong.setImageBitmap(defaultBitmap)
             }
         } else {
-            Log.e("FileNotFound", "El archivo de imagen no existe: $coverFileName")
             val defaultBitmap = getDefaultBitmap()
             imageSong.setImageBitmap(defaultBitmap)
             imageBlurrySong.setImageBitmap(defaultBitmap)
@@ -93,32 +138,6 @@ class SongActivity : AppCompatActivity() {
         currentTimeText = findViewById(R.id.currentTimeText)
         totalTimeText = findViewById(R.id.totalTimeText)
         playPauseButton = findViewById(R.id.playPauseButton)
-
-        val currentUrl = MediaPlayerManager.getCurrentSongUrl()
-        val isCurrentlyPlaying = MediaPlayerManager.isPlaying()
-        val currentPosition = MediaPlayerManager.getCurrentPosition()
-        val duration = MediaPlayerManager.getDuration()
-
-        if (currentUrl == url) {
-            seekBar.max = duration
-            seekBar.progress = currentPosition
-            currentTimeText.text = Utils.formatTime(currentPosition)
-            totalTimeText.text = Utils.formatTime(duration)
-
-            if (isCurrentlyPlaying) {
-                startSeekBarUpdater()
-                isPlaying = true
-            } else {
-                // No está sonando, pero mostramos el progreso actual
-                isPlaying = false
-            }
-        } else {
-            // Es otra canción, la reproducimos
-            MediaPlayerManager.play(this, url, 0) {
-                startSeekBarUpdater()
-            }
-            isPlaying = true
-        }
 
         updatePlayPauseButton(isPlaying)
 
@@ -139,9 +158,9 @@ class SongActivity : AppCompatActivity() {
 
         playPauseButton.setOnClickListener {
             if (isPlaying) {
-                MediaPlayerManager.pause()
+                musicService?.pause()
             } else {
-                MediaPlayerManager.resume()
+                musicService?.resume()
             }
             isPlaying = !isPlaying
             updatePlayPauseButton(isPlaying)
@@ -159,29 +178,24 @@ class SongActivity : AppCompatActivity() {
 
         replayButton.setOnClickListener {
             isLooping = !isLooping
-            sharedPref.edit().apply{
-                putBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, isLooping)
-                apply()
-            }
-            MediaPlayerManager.setLooping(isLooping)
-            if(isLooping){
-                replayButton.setImageResource(R.drawable.replay_activated)
-            }else{
-                replayButton.setImageResource(R.drawable.replay)
-            }
+            sharedPref.edit().putBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, isLooping).apply()
+            musicService?.setLooping(isLooping)
+            replayButton.setImageResource(
+                if (isLooping) R.drawable.replay_activated else R.drawable.replay
+            )
         }
 
 
     }
 
     private fun startSeekBarUpdater() {
-        val duration = MediaPlayerManager.getDuration()
-        seekBar.max = duration
-        totalTimeText.text = Utils.formatTime(duration)
+        val duration = musicService?.getDuration()
+        seekBar.max = musicService?.getDuration()!!
+        totalTimeText.text = Utils.formatTime(musicService?.getDuration()!!)
 
         updateSeekBarRunnable = object : Runnable {
             override fun run() {
-                val currentPos = MediaPlayerManager.getCurrentPosition()
+                val currentPos = musicService!!.getCurrentPosition()
                 seekBar.progress = currentPos
                 currentTimeText.text = Utils.formatTime(currentPos)
                 handler.postDelayed(this, 1000)
@@ -192,7 +206,7 @@ class SongActivity : AppCompatActivity() {
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    MediaPlayerManager.seekTo(progress)
+                    musicService!!.seekTo(progress)
                     currentTimeText.text = Utils.formatTime(progress)
                 }
             }
@@ -210,8 +224,27 @@ class SongActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateUI (){
+
+    }
+
     fun getDefaultBitmap(): Bitmap {
         return BitmapFactory.decodeResource(resources, R.drawable.album_cover)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Intent(this, MusicPlaybackService::class.java).also { intent ->
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
     }
 
 }

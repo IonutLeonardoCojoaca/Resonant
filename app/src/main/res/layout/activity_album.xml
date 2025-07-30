@@ -29,7 +29,7 @@
             <RelativeLayout
                 android:id="@+id/artist_banner"
                 android:layout_width="match_parent"
-                android:layout_height="410dp">
+                android:layout_height="400dp">
 
                 <View
                     android:id="@+id/gradientOverlay"
@@ -41,12 +41,14 @@
             </RelativeLayout>
 
             <RelativeLayout
+                android:id="@+id/albumDataContainer"
                 android:layout_width="match_parent"
                 android:layout_height="1000dp"
                 android:background="@color/black"
                 android:layout_below="@id/artist_banner">
 
                 <RelativeLayout
+                    android:id="@+id/albumInfoContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="20dp"
@@ -61,7 +63,7 @@
                         android:maxLines="2"
                         android:ellipsize="end"
                         android:hyphenationFrequency="normalFast"
-                        android:text="HURRY UP TOMORROW"
+                        android:text="Album Name"
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
@@ -72,7 +74,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_below="@id/albumName"
-                        android:text="The Weeknd"
+                        android:text="Artist name"
                         android:fontFamily="@font/unageo_regular"
                         android:textColor="#8E8E8E"
                         android:textSize="12sp"/>
@@ -84,13 +86,15 @@
                         android:layout_below="@id/albumArtistName">
 
                         <TextView
+                            android:id="@+id/albumDuration"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="1h 54m"
+                            android:text="00:00"
                             android:textSize="12sp"
                             android:textColor="#8E8E8E"/>
 
                         <TextView
+                            android:id="@+id/divider"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="●"
@@ -99,15 +103,27 @@
                             android:textColor="#8E8E8E"/>
 
                         <TextView
+                            android:id="@+id/albumNumberOfTracks"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="25 canciones"
+                            android:text=""
                             android:textSize="12sp"
                             android:textColor="#8E8E8E"/>
 
                     </LinearLayout>
 
                 </RelativeLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/albumSongsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_below="@+id/albumInfoContainer"
+                    android:nestedScrollingEnabled="false"
+                    android:paddingHorizontal="14dp"
+                    android:clipToPadding="false">
+
+                </androidx.recyclerview.widget.RecyclerView>
 
             </RelativeLayout>
 
