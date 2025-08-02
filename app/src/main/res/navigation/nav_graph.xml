@@ -8,16 +8,26 @@
     <fragment
         android:id="@+id/homeFragment"
         android:name="com.example.resonant.HomeFragment"
-        android:label="Inicio" >
+        android:label="Inicio"
+        tools:layout="@layout/fragment_home">
+
         <action
             android:id="@+id/action_homeFragment_to_searchFragment"
             app:destination="@id/searchFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_albumFragment"
+            app:destination="@id/albumFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_artistFragment"
+            app:destination="@id/artistFragment" />
+
     </fragment>
 
     <fragment
         android:id="@+id/searchFragment"
         android:name="com.example.resonant.SearchFragment"
-        android:label="Buscar" >
+        android:label="Buscar"
+        tools:layout="@layout/fragment_search">
         <action
             android:id="@+id/action_searchFragment_to_savedFragment"
             app:destination="@id/savedFragment" />
@@ -26,7 +36,8 @@
     <fragment
         android:id="@+id/savedFragment"
         android:name="com.example.resonant.SavedFragment"
-        android:label="Guardados" >
+        android:label="Guardados"
+        tools:layout="@layout/fragment_saved">
 
         <action
             android:id="@+id/action_savedFragment_to_favoriteSongsFragment"
@@ -36,7 +47,8 @@
     <fragment
         android:id="@+id/settingsFragment"
         android:name="com.example.resonant.SettingsFragment"
-        android:label="Perfil" />
+        android:label="Perfil"
+        tools:layout="@layout/fragment_settings"/>
 
     <fragment
         android:id="@+id/favoriteSongsFragment"
@@ -47,5 +59,17 @@
             android:id="@+id/action_favoriteSongsFragment_to_savedFragment"
             app:destination="@id/savedFragment" />
     </fragment>
+
+    <fragment
+        android:id="@+id/albumFragment"
+        android:name="com.example.resonant.AlbumFragment"
+        android:label="Album"
+        tools:layout="@layout/fragment_album"/>
+
+    <fragment
+        android:id="@+id/artistFragment"
+        android:name="com.example.resonant.ArtistFragment"
+        android:label="Artista"
+        tools:layout="@layout/fragment_artist"/>
 
 </navigation>

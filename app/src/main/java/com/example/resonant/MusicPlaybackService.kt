@@ -7,7 +7,9 @@ import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Binder
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -24,6 +26,10 @@ class MusicPlaybackService : Service() {
         const val EXTRA_CURRENT_SONG = "com.resonant.EXTRA_CURRENT_SONG"
         const val EXTRA_CURRENT_INDEX = "com.resonant.EXTRA_CURRENT_INDEX"
         const val EXTRA_CURRENT_IMAGE_PATH = "com.resonant.EXTRA_CURRENT_IMAGE_PATH"
+        const val EXTRA_DURATION = "com.resonant.EXTRA_DURATION"
+        const val ACTION_SEEK_BAR_UPDATE = "com.resonant.ACTION_SEEK_BAR_UPDATE"
+        const val ACTION_SEEK_BAR_RESET = "com.resonant.ACTION_SEEK_BAR_RESET"
+        const val EXTRA_POSITION = "com.resonant.EXTRA_POSITION"
 
         const val ACTION_PLAY = "com.resonant.ACTION_PLAY"
         const val ACTION_PAUSE = "com.resonant.ACTION_PAUSE"
@@ -31,22 +37,21 @@ class MusicPlaybackService : Service() {
         const val ACTION_PREVIOUS = "com.resonant.ACTION_PREVIOUS"
         const val ACTION_NEXT = "com.resonant.ACTION_NEXT"
         const val UPDATE_SONGS = "com.resonant.UPDATE_SONGS"
-
         const val SONG_LIST = "com.resonant.SONG_LIST"
+
+        const val ACTION_PLAYER_READY = "ACTION_PLAYER_READY"
     }
 
-    // MediaPlayer interno
     private var mediaPlayer: MediaPlayer? = null
     private var isCompletionListenerEnabled = true
     private var isPrepared = false
     private var isPlaying = false
 
-    // Lista y estado
     var songs: MutableList<Song> = mutableListOf()
     private var currentIndex = 0
     private var currentSong: Song? = null
+    private val seekBarHandler = Handler(Looper.getMainLooper())
 
-    // LiveData para exponer al UI
     private val _currentSongLiveData = MutableLiveData<Song?>()
     val currentSongLiveData: LiveData<Song?> get() = _currentSongLiveData
 
@@ -70,9 +75,22 @@ class MusicPlaybackService : Service() {
                 val index = intent.getIntExtra(EXTRA_CURRENT_INDEX, -1)
                 val bitmapPath = intent.getStringExtra(EXTRA_CURRENT_IMAGE_PATH)
                 val bitmap = bitmapPath?.let { BitmapFactory.decodeFile(it) }
-                if (song != null) playSong(this, song, index)
-                if (bitmap != null) SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(bitmap)
+                val songList = intent.getParcelableArrayListExtra<Song>(SONG_LIST)
+
+                if (!songList.isNullOrEmpty()) {
+                    updateSongs(songList)
+                }
+
+                if (song != null) {
+                    playSong(this, song, index)
+                    SharedViewModelHolder.sharedViewModel.setCurrentSong(song) // <- Aquí
+                }
+
+                if (bitmap != null) {
+                    SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(bitmap)
+                }
             }
+
             ACTION_PAUSE -> {
                 pause()
                 notifyPlaybackStateChanged()
@@ -110,6 +128,7 @@ class MusicPlaybackService : Service() {
         }
 
         mediaPlayer?.setOnCompletionListener {
+            stopSeekBarUpdates() // 👈
             if (isCompletionListenerEnabled && songs.isNotEmpty()) {
                 if (currentIndex < songs.size - 1) {
                     playNext(context)
@@ -148,6 +167,17 @@ class MusicPlaybackService : Service() {
                 isPrepared = true
                 if (autoStart) it.start()
                 isPlaying = true
+
+                val resetIntent = Intent(ACTION_SEEK_BAR_RESET)
+                LocalBroadcastManager.getInstance(context).sendBroadcast(resetIntent)
+
+                val readyIntent = Intent(ACTION_PLAYER_READY).apply {
+                    putExtra(EXTRA_DURATION, it.duration)
+                }
+                LocalBroadcastManager.getInstance(context).sendBroadcast(readyIntent)
+
+                sendPlaybackReadyBroadcast()
+                startSeekBarUpdates()
                 _isPlayingLiveData.postValue(autoStart)
                 notifyPlaybackStateChanged()
             }
@@ -157,12 +187,12 @@ class MusicPlaybackService : Service() {
                     if (currentIndex < songs.size - 1) {
                         playNext(context)
                     } else {
-                        // Fin de la lista, quizá parar
                         _isPlayingLiveData.postValue(false)
                     }
                 }
             }
-
+            val resetIntent = Intent(ACTION_SEEK_BAR_RESET)
+            LocalBroadcastManager.getInstance(context).sendBroadcast(resetIntent)
             mediaPlayer?.prepareAsync()
 
         } catch (e: IOException) {
@@ -173,6 +203,7 @@ class MusicPlaybackService : Service() {
     }
 
     fun playSong(context: Context, song: Song, index: Int = -1) {
+        stopPlayer()
         currentSong = song
         if (index in songs.indices) {
             currentIndex = index
@@ -185,13 +216,12 @@ class MusicPlaybackService : Service() {
                 currentIndex = newIndex
             }
         }
-
         currentSong = songs[currentIndex]
         loadAndSetCurrentSongBitmap(context, currentSong!!)
+        isCompletionListenerEnabled = true
         prepareMediaPlayer(context, currentSong!!.url ?: return)
         notifySongChanged()
     }
-
 
     fun playNext(context: Context) {
         if (songs.isEmpty()) return
@@ -246,16 +276,55 @@ class MusicPlaybackService : Service() {
         mediaPlayer?.isLooping = looping
     }
 
-    fun getCurrentPosition(): Int {
-        return mediaPlayer?.currentPosition ?: 0
+    fun getDuration(): Int {
+        return if (mediaPlayer != null && isPrepared) mediaPlayer!!.duration else 0
     }
 
-    fun getDuration(): Int {
-        return if (isPrepared) mediaPlayer?.duration ?: 0 else 0
+    fun getCurrentPosition(): Int {
+        return if (mediaPlayer != null && isPrepared) mediaPlayer!!.currentPosition else 0
     }
 
     fun getCurrentSongUrl(): String? {
         return currentSong?.url
+    }
+
+    private val updateSeekBarRunnable = object : Runnable {
+        override fun run() {
+            if (isPrepared && mediaPlayer?.isPlaying == true) {
+                val position = mediaPlayer?.currentPosition ?: 0
+                val duration = mediaPlayer?.duration ?: 0
+
+                // ❌ No sigas si ya ha terminado
+                if (position >= duration) {
+                    return
+                }
+
+                val intent = Intent(ACTION_SEEK_BAR_UPDATE).apply {
+                    putExtra(EXTRA_POSITION, position)
+                    putExtra(EXTRA_DURATION, duration)
+                }
+                LocalBroadcastManager.getInstance(this@MusicPlaybackService).sendBroadcast(intent)
+
+                seekBarHandler.postDelayed(this, 200)
+            }
+        }
+    }
+
+
+    private fun startSeekBarUpdates() {
+        seekBarHandler.post(updateSeekBarRunnable)
+    }
+
+    private fun stopSeekBarUpdates() {
+        seekBarHandler.removeCallbacks(updateSeekBarRunnable)
+    }
+
+    private fun sendPlaybackReadyBroadcast() {
+        val intent = Intent(ACTION_PLAYER_READY).apply {
+            putExtra(EXTRA_CURRENT_SONG, currentSong)
+            putExtra(EXTRA_DURATION, mediaPlayer?.duration ?: 0)
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     private fun loadAndSetCurrentSongBitmap(context: Context, song: Song) {
@@ -295,5 +364,12 @@ class MusicPlaybackService : Service() {
         songs.addAll(newSongs)
         currentIndex = 0
     }
+
+    override fun onDestroy() {
+        stopSeekBarUpdates()
+        mediaPlayer?.release()
+        super.onDestroy()
+    }
+
 
 }

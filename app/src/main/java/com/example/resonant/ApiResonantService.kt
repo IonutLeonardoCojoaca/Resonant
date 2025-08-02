@@ -73,4 +73,7 @@ interface ApiResonantService {
     @POST("Resonant/Minio/GetAlbumUrl")
     suspend fun getAlbumUrl(@Query("fileName") fileName: String): AlbumUrlDTO
 
+    @POST("Resonant/Minio/GetArtistUrl")
+    suspend fun getArtistUrl(@Query("fileName") fileName: String): ArtistUrlDTO
+
 }

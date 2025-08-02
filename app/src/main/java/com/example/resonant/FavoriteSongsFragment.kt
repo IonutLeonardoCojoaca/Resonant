@@ -17,9 +17,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
-class FavoriteSongsFragment : Fragment()
-    //, PlaybackUIListener
-    {
+class FavoriteSongsFragment : Fragment(){
 
     private var likedSongList = mutableListOf<Song>()
     private lateinit var songAdapter: SongAdapter

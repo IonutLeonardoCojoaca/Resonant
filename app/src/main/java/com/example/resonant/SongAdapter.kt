@@ -29,8 +29,8 @@ import java.util.Collections
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
 
     var onItemClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
-    private var currentPlayingUrl: String? = null
-    private var previousPlayingUrl: String? = null
+    private var currentPlayingId: String? = null
+    private var previousPlayingId: String? = null
 
     val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
 
@@ -65,7 +65,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             nameTextView.setTextColor(
                 ContextCompat.getColor(
                     itemView.context,
-                    if (song.url == currentPlayingUrl) R.color.titleSongColorWhilePlaying else R.color.white
+                    if (song.id == currentPlayingId) R.color.titleSongColorWhilePlaying else R.color.white
                 )
             )
 
@@ -101,15 +101,15 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
 
             itemView.setOnClickListener {
-                val previousUrl = currentPlayingUrl
-                currentPlayingUrl = song.url
+                val previousId = currentPlayingId
+                currentPlayingId = song.id
 
-                previousUrl?.let { prev ->
-                    val prevIndex = currentList.indexOfFirst { it.url == prev }
+                previousId?.let { prev ->
+                    val prevIndex = currentList.indexOfFirst { it.id == prev }
                     if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
                 }
 
-                val currentIndex = currentList.indexOfFirst { it.url == currentPlayingUrl }
+                val currentIndex = currentList.indexOfFirst { it.id == currentPlayingId }
                 if (currentIndex != -1) notifyItemChanged(currentIndex, "silent")
 
                 val bitmap = bitmapCache[song.id]
@@ -123,19 +123,19 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         override fun areContentsTheSame(oldItem: Song, newItem: Song): Boolean = oldItem == newItem
     }
 
-    fun setCurrentPlayingSong(url: String?) {
-        if (currentPlayingUrl == url) return
+    fun setCurrentPlayingSong(songId: String?) {
+        if (currentPlayingId == songId) return
 
-        previousPlayingUrl = currentPlayingUrl
-        currentPlayingUrl = url
+        previousPlayingId = currentPlayingId
+        currentPlayingId = songId
 
-        previousPlayingUrl?.let { prev ->
-            val prevIndex = currentList.indexOfFirst { it.url == prev }
+        previousPlayingId?.let { prev ->
+            val prevIndex = currentList.indexOfFirst { it.id == prev }
             if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
         }
 
-        currentPlayingUrl?.let { curr ->
-            val currIndex = currentList.indexOfFirst { it.url == curr }
+        currentPlayingId?.let { curr ->
+            val currIndex = currentList.indexOfFirst { it.id == curr }
             if (currIndex != -1) notifyItemChanged(currIndex, "silent")
         }
     }

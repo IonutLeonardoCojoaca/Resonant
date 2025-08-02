@@ -1,6 +1,5 @@
 package com.example.resonant
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import java.io.File
@@ -8,7 +7,6 @@ import java.io.FileOutputStream
 
 object Utils {
 
-    @SuppressLint("DefaultLocale")
     fun formatTime(millis: Int): String {
         val seconds = (millis / 1000) % 60
         val minutes = (millis / 1000) / 60
@@ -22,6 +20,17 @@ object Utils {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
         return file.absolutePath
+    }
+
+    fun formatDuration(seconds: Int): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+
+        return when {
+            hours > 0 -> "${hours}h ${minutes}m"
+            minutes > 0 -> "${minutes}m"
+            else -> "0m"
+        }
     }
 
 }

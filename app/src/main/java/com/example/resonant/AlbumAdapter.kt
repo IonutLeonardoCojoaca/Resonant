@@ -1,11 +1,14 @@
 package com.example.resonant
 
 import android.content.Intent
+import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.navigation.findNavController
+import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.recyclerview.widget.RecyclerView
 import com.squareup.picasso.Picasso
 
@@ -33,28 +36,32 @@ class AlbumAdapter(private val albums: List<Album>) : RecyclerView.Adapter<Album
         fun bind(album: Album) {
             artistName.text = album.artistName ?: "Null"
             albumName.text = album.title ?: "Null"
+            albumImage.transitionName = "albumImage_${album.id}"
 
             if (!album.url.isNullOrEmpty()) {
                 Picasso.get().load(album.url).into(albumImage)
-            } else {
-                Picasso.get().load(R.drawable.album_stack).into(albumImage)
             }
 
             itemView.setOnClickListener {
-                val intent = Intent(itemView.context, AlbumActivity::class.java).apply {
-                    putExtra("albumId", album.id)
-                    putExtra("albumFileName", album.fileName)
-                    putExtra("albumTitle", album.title)
+                val bundle = Bundle().apply {
+                    putString("albumId", album.id)
+                    putString("albumFileName", album.fileName)
+                    putString("albumTitle", album.title)
+                    putString("albumImageTransitionName", "albumImage_${album.id}")
                 }
-                itemView.context.startActivity(intent)
+
+                val extras = FragmentNavigatorExtras(
+                    albumImage to "albumImage_${album.id}"
+                )
+
+                itemView.findNavController().navigate(
+                    R.id.action_homeFragment_to_albumFragment,
+                    bundle,
+                    null,
+                    extras
+                )
             }
-
-
-
-
-
-
-
         }
+
     }
 }

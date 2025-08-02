@@ -35,7 +35,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
     private lateinit var seekBar: SeekBar
-    private val handler = Handler(Looper.getMainLooper())
 
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
@@ -50,7 +49,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var playbackStateReceiver: BroadcastReceiver
     private lateinit var songChangedReceiver: BroadcastReceiver
-    private lateinit var sharedViewModel: SharedViewModel
+    private lateinit var seekBarUpdateReceiver: BroadcastReceiver
+    private lateinit var resetSeekBarReceiver: BroadcastReceiver
+
+    private var observersRegistered = false
 
     private lateinit var homeFragment: HomeFragment
 
@@ -87,7 +89,7 @@ class MainActivity : AppCompatActivity() {
 
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
-        val drawerWidth = (screenWidth * 0.75).toInt() // 75%
+        val drawerWidth = (screenWidth * 0.75).toInt()
 
         val drawer: View = findViewById(R.id.navigationView)
         val params = drawer.layoutParams
@@ -119,7 +121,6 @@ class MainActivity : AppCompatActivity() {
 
         seekBar = findViewById(R.id.seekbarPlayer)
         seekBar.max = 100
-        handler.post(updateSeekBarRunnable)
 
         songName.isSelected = true
         songArtist.isSelected = true
@@ -132,10 +133,6 @@ class MainActivity : AppCompatActivity() {
                 intent.action = MusicPlaybackService.ACTION_RESUME
             }
             startService(intent)
-        }
-
-        musicService?.isPlayingLiveData?.observe(this@MainActivity) { playing ->
-            updatePlayPauseButton(playing)
         }
 
         previousSongButton.setOnClickListener {
@@ -185,6 +182,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupObservers() {
+        if (observersRegistered) return
 
         playbackStateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -200,10 +198,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            playbackStateReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED)
-        )
 
         songChangedReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -211,16 +205,40 @@ class MainActivity : AppCompatActivity() {
                     val currentSong = intent?.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
                     currentSong?.let {
                         homeFragment.updateCurrentSong(it)
-                        it.url?.let { it1 -> homeFragment.setCurrentPlayingSong(it1) }  // Llamas al método del fragment
+                        it.url?.let { it1 -> homeFragment.setCurrentPlayingSong(it1) }
                     }
                 }
             }
         }
 
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
+        seekBarUpdateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == MusicPlaybackService.ACTION_SEEK_BAR_UPDATE) {
+                    val position = intent.getIntExtra(MusicPlaybackService.EXTRA_POSITION, 0)
+                    val duration = intent.getIntExtra(MusicPlaybackService.EXTRA_DURATION, 0)
+
+                    seekBar.max = duration
+                    seekBar.progress = position
+                }
+            }
+        }
+
+        resetSeekBarReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == MusicPlaybackService.ACTION_SEEK_BAR_RESET) {
+                    seekBar.progress = 0
+                }
+            }
+        }
+
+        LocalBroadcastManager.getInstance(this).apply {
+            registerReceiver(playbackStateReceiver, IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED))
+            registerReceiver(songChangedReceiver, IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED))
+            registerReceiver(seekBarUpdateReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_UPDATE))
+            registerReceiver(resetSeekBarReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_RESET))
+        }
+
+        observersRegistered = true
     }
 
     private val serviceConnection = object : ServiceConnection {
@@ -234,26 +252,15 @@ class MainActivity : AppCompatActivity() {
                     updateDataPlayer(it)
                 }
             }
+
+            musicService?.isPlayingLiveData?.observe(this@MainActivity) { playing ->
+                updatePlayPauseButton(playing)
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
             musicService = null
-        }
-    }
-
-    private val updateSeekBarRunnable = object : Runnable {
-        override fun run() {
-            val duration = musicService?.getDuration() ?: 0
-            val position = musicService?.getCurrentPosition() ?: 0
-
-            if (duration > 0) {
-                if (seekBar.max != duration) {
-                    seekBar.max = duration
-                }
-                seekBar.progress = position
-            }
-            handler.postDelayed(this, 200)
         }
     }
 
@@ -293,22 +300,20 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            playbackStateReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED)
-        )
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
-        handler.post(updateSeekBarRunnable) // Arranca el Runnable
+        LocalBroadcastManager.getInstance(this).apply {
+            registerReceiver(playbackStateReceiver, IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED))
+            registerReceiver(songChangedReceiver, IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED))
+            registerReceiver(seekBarUpdateReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_UPDATE))
+            registerReceiver(resetSeekBarReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_RESET))
+        }
     }
 
     override fun onPause() {
         super.onPause()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(playbackStateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(songChangedReceiver)
-        handler.removeCallbacks(updateSeekBarRunnable) // Para el Runnable
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(seekBarUpdateReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(resetSeekBarReceiver)
     }
 
     @SuppressLint("MissingSuperCall")

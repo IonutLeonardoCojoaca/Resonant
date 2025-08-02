@@ -1,11 +1,14 @@
 package com.example.resonant
 
 import android.content.Intent
+import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.navigation.findNavController
+import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.recyclerview.widget.RecyclerView
 import com.squareup.picasso.Picasso
 
@@ -36,6 +39,7 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
+            artistImage.transitionName = "artistImage_${artist.id}"
 
             if (!artist.imageUrl.isNullOrEmpty()) {
                 Picasso.get().load(artist.imageUrl).into(artistImage)
@@ -44,18 +48,24 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
             }
 
             itemView.setOnClickListener {
-                val intent = Intent(itemView.context, ArtistActivity::class.java).apply {
-                    putExtra(PreferenceKeys.CURRENT_ARTIST_ID, artist.id)
+                val bundle = Bundle().apply {
+                    putString("artistId", artist.id)
+                    putString("artistName", artist.name)
+                    putString("artistImageUrl", artist.imageUrl)
+                    putString("artistImageTransitionName", "artistImage_${artist.id}")
                 }
-                itemView.context.startActivity(intent)
+
+                val extras = FragmentNavigatorExtras(
+                    artistImage to "artistImage_${artist.id}"
+                )
+
+                itemView.findNavController().navigate(
+                    R.id.action_homeFragment_to_artistFragment,
+                    bundle,
+                    null,
+                    extras
+                )
             }
-
-
-
-
-
-
-
         }
     }
 }

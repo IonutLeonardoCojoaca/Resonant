@@ -2,24 +2,23 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".AlbumActivity"
+    tools:context=".AlbumFragment"
     android:background="@color/black">
 
     <ImageView
-        android:id="@+id/backgroundImage"
+        android:id="@+id/artistImage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitStart"
-        android:src="@drawable/album_stack"
         android:alpha="1"/>
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/nested_scroll"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:paddingBottom="120dp">
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -29,12 +28,12 @@
             <RelativeLayout
                 android:id="@+id/artist_banner"
                 android:layout_width="match_parent"
-                android:layout_height="400dp">
+                android:layout_height="360dp">
 
                 <View
                     android:id="@+id/gradientOverlay"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="150dp"
                     android:background="@drawable/gradient_artist"
                     android:layout_alignParentBottom="true" />
 
@@ -117,13 +116,18 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/albumSongsContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_below="@+id/albumInfoContainer"
                     android:nestedScrollingEnabled="false"
                     android:paddingHorizontal="14dp"
-                    android:clipToPadding="false">
+                    android:paddingBottom="100dp"
+                    android:clipToPadding="false"/>
 
-                </androidx.recyclerview.widget.RecyclerView>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="100dp"
+                    android:background="@android:color/transparent"
+                    android:layout_below="@id/albumSongsContainer"/>
 
             </RelativeLayout>
 

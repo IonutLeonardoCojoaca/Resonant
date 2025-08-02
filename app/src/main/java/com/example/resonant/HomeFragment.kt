@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.fragment.app.Fragment
@@ -17,7 +16,6 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -29,8 +27,6 @@ import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
 import java.net.URL
 import kotlin.concurrent.thread
 
@@ -64,8 +60,8 @@ class HomeFragment : Fragment(){
             if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
                 val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
                 song?.let {
-                    setCurrentPlayingSong(it.url ?: "")
-                    updateCurrentSong(it)
+                    songAdapter.setCurrentPlayingSong(it.id)
+                    sharedViewModel.setCurrentSong(it)
                 }
             }
         }
@@ -115,16 +111,23 @@ class HomeFragment : Fragment(){
 
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
 
+        sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
+            currentSong?.let {
+                songAdapter.setCurrentPlayingSong(it.id)
+            }
+        }
+
         songAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
-
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+            val songList = ArrayList(songAdapter.currentList)
 
             val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.ACTION_PLAY
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
             }
 
             requireContext().startService(playIntent)

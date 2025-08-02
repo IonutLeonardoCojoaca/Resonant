@@ -224,10 +224,6 @@ class SongActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateUI (){
-
-    }
-
     fun getDefaultBitmap(): Bitmap {
         return BitmapFactory.decodeResource(resources, R.drawable.album_cover)
     }
