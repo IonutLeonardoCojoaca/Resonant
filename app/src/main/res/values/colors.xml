@@ -7,9 +7,9 @@
 
     <color name="primaryColorButton">#D1D1D1</color>
     <color name="selectedSongColorWhilePlaying">#2C2C2C</color>
-    <color name="titleSongColorWhilePlaying">#F21010</color>
+    <color name="titleSongColorWhilePlaying">#E21616</color>
 
-    <color name="errorColorText">#B40909</color>
+    <color name="errorColorText">#E21616</color>
 
     <color name="appBackgroundTheme">#000000</color>
     <color name="cardsTheme">#171717</color>
@@ -24,5 +24,8 @@
     <color name="nav_text_icon_color_selected">#E9E9E9</color>
 
     <color name="no_selected_color_icon">#6F6F6F</color>
+
+    <color name="chip_selected_background">#E21616</color>
+    <color name="chip_unselected_background">#1F1F1F</color>
 
 </resources>

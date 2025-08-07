@@ -13,6 +13,7 @@ data class Song(
     var streams: Int = 0,
     var position: Int = 0,
     var fileName: String = "",
-    var url: String? = null
+    var url: String? = null,
+    var albumImageUrl: String? = null
 ) : Parcelable
 

@@ -31,6 +31,14 @@
         <action
             android:id="@+id/action_searchFragment_to_savedFragment"
             app:destination="@id/savedFragment" />
+
+        <action
+            android:id="@+id/action_searchFragment_to_albumFragment"
+            app:destination="@id/albumFragment" />
+
+        <action
+            android:id="@+id/action_searchFragment_to_artistFragment"
+            app:destination="@id/artistFragment" />
     </fragment>
 
     <fragment
@@ -70,6 +78,12 @@
         android:id="@+id/artistFragment"
         android:name="com.example.resonant.ArtistFragment"
         android:label="Artista"
-        tools:layout="@layout/fragment_artist"/>
+        tools:layout="@layout/fragment_artist">
+
+        <action
+            android:id="@+id/action_artistFragment_to_albumFragment"
+            app:destination="@id/albumFragment" />
+
+    </fragment>
 
 </navigation>

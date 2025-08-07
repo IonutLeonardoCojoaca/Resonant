@@ -14,11 +14,13 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.facebook.shimmer.ShimmerFrameLayout
 import com.squareup.picasso.Picasso
 import kotlinx.coroutines.launch
 
@@ -28,13 +30,17 @@ class AlbumFragment : Fragment() {
 
     private lateinit var albumName: TextView
     private lateinit var albumArtistName: TextView
-    private lateinit var backgroundImage: ImageView
+    private lateinit var albumImage: ImageView
     private lateinit var albumDuration: TextView
     private lateinit var albumNumberOfTracks: TextView
     private lateinit var recyclerViewSongs: RecyclerView
+    private lateinit var nestedScroll: NestedScrollView
+
     private lateinit var songAdapter: SongAdapter
     private var songList: List<Song>? = null
     private lateinit var sharedViewModel: SharedViewModel
+
+    private lateinit var shimmerLayout: ShimmerFrameLayout
 
     private lateinit var api: ApiResonantService
 
@@ -62,16 +68,36 @@ class AlbumFragment : Fragment() {
         songAdapter = SongAdapter()
         recyclerViewSongs.adapter = songAdapter
 
+        shimmerLayout = view.findViewById(R.id.shimmerLayout)
+
         albumName = view.findViewById(R.id.albumName)
         albumArtistName = view.findViewById(R.id.albumArtistName)
-        backgroundImage = view.findViewById(R.id.artistImage)
+        albumImage = view.findViewById(R.id.artistImage)
         albumDuration = view.findViewById(R.id.albumDuration)
         albumNumberOfTracks = view.findViewById(R.id.albumNumberOfTracks)
+        nestedScroll = view.findViewById(R.id.nested_scroll)
 
         val albumId = arguments?.getString("albumId") ?: return view
 
         api = ApiClient.getService(requireContext())
         loadAlbumDetails(albumId)
+
+        albumImage.scaleX = 1.1f
+        albumImage.scaleY = 1.1f
+        albumImage.alpha = 0f
+
+        albumImage.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(1000)
+            .start()
+
+        nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val parallaxFactor = 0.3f
+            val offset = -scrollY * parallaxFactor
+            albumImage.translationY = offset
+        }
 
         sharedViewModel = ViewModelProvider(requireActivity())[SharedViewModel::class.java]
 
@@ -112,6 +138,10 @@ class AlbumFragment : Fragment() {
     private fun loadAlbumDetails(albumId: String) {
         lifecycleScope.launch {
             try {
+                // 👉 Mostrar shimmer y ocultar el RecyclerView
+                shimmerLayout.visibility = View.VISIBLE
+                recyclerViewSongs.visibility = View.GONE
+
                 val album = api.getAlbumById(albumId)
                 val albumImageUrl = api.getAlbumUrl(album.fileName).url
                 val artistName = album.artistName ?: run {
@@ -121,19 +151,25 @@ class AlbumFragment : Fragment() {
 
                 albumName.text = album.title ?: "Sin título"
                 albumArtistName.text = artistName
-                Picasso.get().load(albumImageUrl).into(backgroundImage)
+                Picasso.get().load(albumImageUrl).into(albumImage)
                 albumDuration.text = Utils.formatDuration(album.duration)
                 albumNumberOfTracks.text = "${album.numberOfTracks} canciones"
 
                 val songs = getSongsFromAlbum(requireContext(), albumId)
-                songAdapter.submitList(songs)
+                songs.forEach { it.albumImageUrl = albumImageUrl }
 
+                songAdapter.submitList(songs)
+                shimmerLayout.visibility = View.GONE
+                recyclerViewSongs.visibility = View.VISIBLE
             } catch (e: Exception) {
-                Log.e("AlbumFragment", "Error al cargar los detalles del álbum", e)
                 Toast.makeText(requireContext(), "Error al cargar el álbum", Toast.LENGTH_SHORT).show()
+
+                shimmerLayout.visibility = View.GONE
+                recyclerViewSongs.visibility = View.VISIBLE
             }
         }
     }
+
 
     suspend fun getSongsFromAlbum(
         context: Context,
@@ -143,6 +179,7 @@ class AlbumFragment : Fragment() {
         return try {
             val service = ApiClient.getService(context)
             val cancionesDelAlbum = service.getSongsByAlbumId(albumId).toMutableList()
+            Log.d("AlbumFragment", "Canciones obtenidas del servidor: ${cancionesDelAlbum.size}")
 
             for (song in cancionesDelAlbum) {
                 val artistList = service.getArtistsBySongId(song.id)

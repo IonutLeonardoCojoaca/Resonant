@@ -26,7 +26,7 @@
             android:background="@color/transparent">
 
             <RelativeLayout
-                android:id="@+id/artist_banner"
+                android:id="@+id/artistBanner"
                 android:layout_width="match_parent"
                 android:layout_height="360dp">
 
@@ -42,9 +42,9 @@
             <RelativeLayout
                 android:id="@+id/albumDataContainer"
                 android:layout_width="match_parent"
-                android:layout_height="1000dp"
+                android:layout_height="wrap_content"
                 android:background="@color/black"
-                android:layout_below="@id/artist_banner">
+                android:layout_below="@id/artistBanner">
 
                 <RelativeLayout
                     android:id="@+id/albumInfoContainer"
@@ -113,7 +113,7 @@
 
                 </RelativeLayout>
 
-                <androidx.recyclerview.widget.RecyclerView
+                <com.example.resonant.ExpandedRecyclerView
                     android:id="@+id/albumSongsContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -123,9 +123,31 @@
                     android:paddingBottom="100dp"
                     android:clipToPadding="false"/>
 
+                <com.facebook.shimmer.ShimmerFrameLayout
+                    android:id="@+id/shimmerLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/albumInfoContainer"
+                    android:paddingHorizontal="14dp">
+
+                    <LinearLayout
+                        android:id="@+id/shimmerInclude"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <include layout="@layout/item_song_shimmer_placeholder" />
+                        <include layout="@layout/item_song_shimmer_placeholder" />
+                        <include layout="@layout/item_song_shimmer_placeholder" />
+                        <include layout="@layout/item_song_shimmer_placeholder" />
+
+                    </LinearLayout>
+
+                </com.facebook.shimmer.ShimmerFrameLayout>
+
                 <View
                     android:layout_width="match_parent"
-                    android:layout_height="100dp"
+                    android:layout_height="50dp"
                     android:background="@android:color/transparent"
                     android:layout_below="@id/albumSongsContainer"/>
 

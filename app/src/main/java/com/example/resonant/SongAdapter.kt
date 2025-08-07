@@ -1,29 +1,22 @@
 package com.example.resonant
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
-import android.net.Uri
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Collections
 
 class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
@@ -31,7 +24,6 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
     var onItemClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
-
     val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
@@ -54,9 +46,10 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
     inner class SongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
-        private val nameTextView: TextView = itemView.findViewById(R.id.song_name)
-        private val artistTextView: TextView = itemView.findViewById(R.id.song_artist)
-        private val albumArtImageView: ImageView = itemView.findViewById(R.id.albumArtImage)
+        private val nameTextView: TextView = itemView.findViewById(R.id.songTitle)
+        private val artistTextView: TextView = itemView.findViewById(R.id.songArtist)
+        private val albumArtImageView: ImageView = itemView.findViewById(R.id.songImage)
+        private val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(song: Song, partial: Boolean = false) {
             nameTextView.text = song.title
@@ -71,34 +64,52 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
             if (!partial) {
                 if (!bitmapCache.containsKey(song.id)) {
-                    albumArtImageView.setImageResource(R.drawable.album_cover)
 
-                    val songUrl = song.url
-                    if (!songUrl.isNullOrEmpty()) {
+                    val albumImageUrl = song.albumImageUrl
+                    if (!albumImageUrl.isNullOrEmpty()) {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            Glide.with(itemView)
+                                .asBitmap()
+                                .load(albumImageUrl)
+                                .into(albumArtImageView)
+
+                            CoroutineScope(Dispatchers.IO).launch {
+                                val bitmap = Glide.with(itemView)
+                                    .asBitmap()
+                                    .load(albumImageUrl)
+                                    .submit()
+                                    .get()
+
+                                bitmapCache[song.id] = bitmap
+                                Utils.saveBitmapToCache(itemView.context, bitmap, song.id)
+                            }
+                        }
+                    } else if (!song.url.isNullOrEmpty()) {
+                        loadingAnimation.visibility = View.VISIBLE
+                        albumArtImageView.visibility = View.INVISIBLE
                         val currentAdapterPosition = bindingAdapterPosition
                         CoroutineScope(Dispatchers.IO).launch {
-                            val bitmap = getEmbeddedPictureFromUrl(itemView.context, songUrl)
+                            val bitmap = withTimeoutOrNull(8000L) {
+                                Utils.getEmbeddedPictureFromUrl(itemView.context, song.url!!)
+                            }
                             if (bitmap != null) {
                                 bitmapCache[song.id] = bitmap
-
-                                // ⬇️ GUARDA EN DISCO usando el mismo formato que espera el Service
-                                saveBitmapToCache(itemView.context, bitmap, song.id)
+                                Utils.saveBitmapToCache(itemView.context, bitmap, song.id)
 
                                 withContext(Dispatchers.Main) {
                                     if (bindingAdapterPosition == currentAdapterPosition) {
                                         albumArtImageView.setImageBitmap(bitmap)
+                                        loadingAnimation.visibility = View.GONE
+                                        albumArtImageView.visibility = View.VISIBLE
                                     }
                                 }
                             }
-
                         }
-
                     }
                 } else {
                     albumArtImageView.setImageBitmap(bitmapCache[song.id])
                 }
             }
-
 
             itemView.setOnClickListener {
                 val previousId = currentPlayingId
@@ -137,31 +148,6 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         currentPlayingId?.let { curr ->
             val currIndex = currentList.indexOfFirst { it.id == curr }
             if (currIndex != -1) notifyItemChanged(currIndex, "silent")
-        }
-    }
-
-    fun saveBitmapToCache(context: Context, bitmap: Bitmap, songId: String): String {
-        val fileName = "cover_$songId.png"
-        val file = File(context.cacheDir, fileName)
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-        return file.absolutePath
-    }
-
-    fun getEmbeddedPictureFromUrl(context: Context, url: String): Bitmap? {
-        return try {
-            val mediaMetadataRetriever = MediaMetadataRetriever()
-            mediaMetadataRetriever.setDataSource(url, HashMap<String, String>())
-            val art = mediaMetadataRetriever.embeddedPicture
-            mediaMetadataRetriever.release()
-
-            art?.let {
-                BitmapFactory.decodeByteArray(it, 0, it.size)
-            }
-        } catch (e: Exception) {
-            Log.e("SongViewHolder", "Error al obtener la imagen incrustada desde la URL: $url", e)
-            null
         }
     }
 

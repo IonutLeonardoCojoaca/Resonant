@@ -12,17 +12,25 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.facebook.shimmer.ShimmerFrameLayout
 import com.squareup.picasso.Picasso
 import kotlinx.coroutines.launch
 
 class ArtistFragment : Fragment() {
+
+    private lateinit var api: ApiResonantService
 
     private lateinit var artistImage: ImageView
     private lateinit var artistNameTextView: TextView
     private lateinit var arrowGoBackButton: ImageButton
     private lateinit var nestedScroll: NestedScrollView
 
-    private lateinit var api: ApiResonantService
+    private lateinit var shimmerLayout: ShimmerFrameLayout
+    private lateinit var recyclerViewAlbums: RecyclerView
+    private lateinit var albumsAdapter: AlbumAdapter
+    private var albumList: MutableList<Album> = mutableListOf()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -34,6 +42,14 @@ class ArtistFragment : Fragment() {
         artistNameTextView = view.findViewById(R.id.artistName)
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackButton)
         nestedScroll = view.findViewById(R.id.nested_scroll)
+
+        recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
+        recyclerViewAlbums.layoutManager = LinearLayoutManager(requireContext())
+        albumsAdapter = AlbumAdapter(albumList, 1)
+        recyclerViewAlbums.adapter = albumsAdapter
+        shimmerLayout = view.findViewById(R.id.shimmerLayout)
+
+        shimmerLayout.bringToFront()
 
         api = ApiClient.getService(requireContext())
         val artistId = arguments?.getString("artistId") ?: return view
@@ -66,16 +82,18 @@ class ArtistFragment : Fragment() {
     private fun loadArtistDetails(artistId: String) {
         lifecycleScope.launch {
             try {
+                // Mostrar shimmer y ocultar RecyclerView
+                shimmerLayout.visibility = View.VISIBLE
+                shimmerLayout.startShimmer()
+                recyclerViewAlbums.visibility = View.GONE
+
+                // Obtener artista
                 val artist = api.getArtistById(artistId)
+                artistNameTextView.text = artist.name ?: "Artista desconocido"
 
-                val artistName = artist.name ?: "Artista desconocido"
-                artistNameTextView.text = artistName
-
-                val artistImageUrl = if (artist.imageUrl.isNotEmpty()) {
+                val artistImageUrl = if (!artist.imageUrl.isNullOrEmpty()) {
                     api.getArtistUrl(artist.imageUrl).url
-                } else {
-                    null
-                }
+                } else null
 
                 if (!artistImageUrl.isNullOrEmpty()) {
                     Picasso.get().load(artistImageUrl).into(artistImage)
@@ -83,16 +101,51 @@ class ArtistFragment : Fragment() {
                     Picasso.get().load(R.drawable.user).into(artistImage)
                 }
 
-                // Opcional: si quieres mostrar los álbumes del artista
-                // val albums = api.getAlbumsByArtistId(artistId)
-                // albumAdapter.submitList(albums)
+                // ✅ Obtener álbumes del artista
+                val albums = api.getByArtistId(artistId).toMutableList()
+
+                // ✅ Asignar nombre del artista a cada álbum
+                albums.forEach { it.artistName = artist.name ?: "Desconocido" }
+
+                // ✅ Resolver URLs de carátulas si faltan
+                val albumsSinUrl = albums.filter { it.url.isNullOrEmpty() }
+
+                if (albumsSinUrl.isNotEmpty()) {
+                    val fileNames = albumsSinUrl.map {
+                        it.fileName.takeIf { name -> name.isNotBlank() } ?: "${it.id}.jpg"
+                    }
+
+                    val urlList = api.getMultipleAlbumUrls(fileNames)
+                    val urlMap = urlList.associateBy { it.fileName }
+
+                    albumsSinUrl.forEach { album ->
+                        val fileName = album.fileName.takeIf { it.isNotBlank() } ?: "${album.id}.jpg"
+                        album.fileName = fileName
+                        album.url = urlMap[fileName]?.url
+                    }
+                }
+
+                // ✅ Mostrar los álbumes
+                albumsAdapter = AlbumAdapter(albums, 1)
+                recyclerViewAlbums.adapter = albumsAdapter
+
+                // Ocultar shimmer y mostrar lista
+                shimmerLayout.stopShimmer()
+                shimmerLayout.visibility = View.GONE
+                recyclerViewAlbums.visibility = View.VISIBLE
 
             } catch (e: Exception) {
-                Log.e("ArtistFragment", "Error al cargar los detalles del artista", e)
+                Log.e("ArtistFragment", "Error al cargar detalles del artista", e)
                 Toast.makeText(requireContext(), "Error al cargar el artista", Toast.LENGTH_SHORT).show()
+
+                shimmerLayout.stopShimmer()
+                shimmerLayout.visibility = View.GONE
             }
         }
     }
+
+
+
 
 
 

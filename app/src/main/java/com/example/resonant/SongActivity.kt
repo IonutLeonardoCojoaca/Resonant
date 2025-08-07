@@ -14,7 +14,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
@@ -107,7 +106,7 @@ class SongActivity : AppCompatActivity() {
         val url = intent.getStringExtra("url") ?: ""
 
         val titleView = findViewById<TextView>(R.id.song_title)
-        val artistView = findViewById<TextView>(R.id.song_artist)
+        val artistView = findViewById<TextView>(R.id.songArtist)
         val imageSong = findViewById<ImageView>(R.id.song_image)
         val imageBlurrySong = findViewById<ImageView>(R.id.blurrySongImageBackground)
 

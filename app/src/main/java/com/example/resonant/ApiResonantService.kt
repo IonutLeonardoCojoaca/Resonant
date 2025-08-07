@@ -24,6 +24,11 @@ interface ApiResonantService {
     @GET("Resonant/Album/GetAllIds")
     suspend fun getAllAlbumIds(): List<String>
 
+    @GET("Resonant/Album/GetByArtistId")
+    suspend fun getByArtistId(@Query("artistId") artistId: String): List<Album>
+
+    @GET("Resonant/Album/SearchByQuery")
+    suspend fun searchAlbumsByQuery(@Query("query") query: String): List<Album>
 
 
 
@@ -33,6 +38,9 @@ interface ApiResonantService {
 
     @GET("Resonant/Artist/GetAllIds")
     suspend fun getAllArtistIds(): List<String>
+
+    @GET("Resonant/Artist/SearchByQuery")
+    suspend fun searchArtistsByQuery(@Query("query") query: String): List<Artist>
 
     @GET("Resonant/Artist/GetBySongId")
     suspend fun getArtistsBySongId(@Query("id") songId: String): List<Artist>
@@ -52,7 +60,7 @@ interface ApiResonantService {
     suspend fun getAllSongIds(): List<String>
 
     @GET("Resonant/Song/SearchByQuery")
-    suspend fun searchByQuery(@Query("query") query: String): List<Song>
+    suspend fun searchSongsByQuery(@Query("query") query: String): List<Song>
 
     @GET("Resonant/Song/GetByAlbumId")
     suspend fun getSongsByAlbumId(@Query("albumId") albumId: String): List<Song>

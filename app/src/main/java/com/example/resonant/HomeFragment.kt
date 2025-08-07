@@ -99,7 +99,7 @@ class HomeFragment : Fragment(){
 
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
         recyclerViewAlbums.layoutManager = GridLayoutManager(context, 3)
-        albumsAdapter = AlbumAdapter(albumList)
+        albumsAdapter = AlbumAdapter(albumList, 0)
         recyclerViewAlbums.adapter = albumsAdapter
         val spacing = resources.getDimensionPixelSize(R.dimen.grid_spacing)
         recyclerViewAlbums.addItemDecoration(GridSpacingItemDecoration(3, spacing, true))
@@ -200,7 +200,7 @@ class HomeFragment : Fragment(){
             val cancionesNuevas = mutableListOf<Song>()
 
             for (id in randomIds) {
-                val song = service.getSongById(id)
+                var song = service.getSongById(id)
                 val artistList = service.getArtistsBySongId(id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 

@@ -23,14 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SpoMusicApp"
         tools:targetApi="31">
-        <activity
-            android:name=".AlbumActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"/>
-        <activity
-            android:name=".ArtistActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="false"

@@ -14,17 +14,28 @@
         android:orientation="vertical"
         android:background="@color/appBackgroundTheme">
 
-        <FrameLayout
+        <RelativeLayout
             android:id="@+id/inputSearchContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="15dp"
-            android:paddingVertical="10dp">
+            android:paddingTop="10dp"
+            android:paddingHorizontal="10dp">
+
+            <TextView
+                android:id="@+id/titleSearch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:text="Búsqueda"
+                android:fontFamily="@font/unageo_medium"
+                android:textColor="@color/white"
+                android:textSize="20sp"/>
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_margin="8dp"
+                android:layout_below="@id/titleSearch"
+                android:layout_margin="10dp"
                 android:background="@drawable/search_bar_background"
                 app:startIconDrawable="@drawable/search"
                 app:startIconTint="@color/white"
@@ -38,7 +49,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:gravity="center_vertical"
-                    android:hint="Busca tu canción"
+                    android:hint="Canción, artista, álbum . . ."
                     android:inputType="text"
                     android:textColor="@color/white"
                     android:textColorHint="#9B9B9B"
@@ -52,74 +63,115 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
-        </FrameLayout>
+        </RelativeLayout>
+
+        <LinearLayout
+            android:id="@+id/filterContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingVertical="10dp"
+            android:paddingHorizontal="20dp"
+            android:layout_below="@id/inputSearchContainer">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipSongs"
+                android:layout_width="wrap_content"
+                android:layout_height="55dp"
+                android:text="Canciones"
+                android:checkable="true"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:fontFamily="@font/unageo_medium"
+                app:chipStrokeColor="@color/transparent"
+                app:chipBackgroundColor="@color/chip_filter_background"
+                app:chipCornerRadius="35dp"
+                app:checkedIconVisible="true"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipAlbums"
+                android:layout_width="wrap_content"
+                android:layout_height="55dp"
+                android:layout_marginHorizontal="10dp"
+                android:text="Álbumes"
+                android:checkable="true"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:fontFamily="@font/unageo_medium"
+                app:chipStrokeColor="@color/transparent"
+                app:chipBackgroundColor="@color/chip_filter_background"
+                app:chipCornerRadius="35dp"
+                app:checkedIconVisible="true"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipArtists"
+                android:layout_width="wrap_content"
+                android:layout_height="55dp"
+                android:text="Artistas"
+                android:checkable="true"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:fontFamily="@font/unageo_medium"
+                app:chipStrokeColor="@color/transparent"
+                app:chipBackgroundColor="@color/chip_filter_background"
+                app:chipCornerRadius="35dp"
+                app:checkedIconVisible="true"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+        </LinearLayout>
 
         <RelativeLayout
             android:id="@+id/listSongsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/inputSearchContainer">
-
-            <FrameLayout
-                android:id="@+id/searchQueryTextContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="20dp"
-                android:paddingVertical="5dp">
-
-                <TextView
-                    android:id="@+id/searchQueryResultText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Resultados de tu búsqueda"
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    android:layout_gravity="start"/>
-
-            </FrameLayout>
+            android:layout_below="@id/filterContainer">
 
             <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/filteredListSongs"
+                android:id="@+id/filteredListResults"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_below="@id/searchQueryTextContainer"
                 android:clipToPadding="false"
                 android:scrollbars="vertical"
                 android:nestedScrollingEnabled="false"
-                android:paddingHorizontal="14dp">
+                android:paddingHorizontal="14dp"
+                android:paddingBottom="160dp">
 
             </androidx.recyclerview.widget.RecyclerView>
-
-            <com.airbnb.lottie.LottieAnimationView
-                android:id="@+id/loadingAnimation"
-                android:layout_width="180dp"
-                android:layout_height="180dp"
-                app:lottie_fileName="animation_s.json"
-                app:lottie_autoPlay="true"
-                app:lottie_loop="true"
-                android:layout_centerInParent="true"
-                android:visibility="invisible"/>
-
-            <TextView
-                android:id="@+id/noSongFoundedText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/searchQueryTextContainer"
-                android:text="No se han encontrado canciones"
-                android:textColor="@color/numberTime"
-                android:paddingHorizontal="20dp"
-                android:visibility="visible"/>
 
             <View
                 android:id="@+id/emptyPadding"
                 android:layout_width="match_parent"
-                android:layout_height="140dp"
+                android:layout_height="150dp"
                 android:background="@drawable/song_list_gradient_bottom"
                 android:layout_alignParentBottom="true"/>
 
         </RelativeLayout>
 
     </RelativeLayout>
+
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/loadingAnimation"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        app:lottie_fileName="loader.json"
+        app:lottie_autoPlay="true"
+        app:lottie_loop="true"
+        android:layout_gravity="center"
+        android:visibility="invisible"/>
+
+    <TextView
+        android:id="@+id/noSongFoundedText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="No se han encontrado canciones"
+        android:textColor="@color/numberTime"
+        android:paddingHorizontal="20dp"
+        android:visibility="invisible"/>
 
 </FrameLayout>

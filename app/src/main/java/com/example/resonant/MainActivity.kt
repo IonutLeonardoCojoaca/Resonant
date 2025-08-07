@@ -10,10 +10,7 @@ import android.content.ServiceConnection
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.os.Bundle
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
-import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -164,7 +161,7 @@ class MainActivity : AppCompatActivity() {
 
             if (currentSong != null && bitmap != null) {
                 val fileName = "cover_${currentSong.id}.png"
-                val uri = ImageUtils.saveBitmapToCache(this@MainActivity, bitmap, fileName)
+                val uri = Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
 
                 val intent = Intent(this, SongActivity::class.java).apply {
                     putExtra("title", currentSong.title)
