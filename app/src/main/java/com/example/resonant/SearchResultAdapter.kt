@@ -195,23 +195,30 @@ class SearchResultAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     inner class ArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val artistName = itemView.findViewById<TextView>(R.id.artistName)
         private val artistImage = itemView.findViewById<ImageView>(R.id.artistImage)
+        private val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
             artistImage.transitionName = "artistImage_${artist.id}"
 
+            loadingAnimation.visibility = View.VISIBLE
+            artistImage.visibility = View.INVISIBLE
+
             if (!artist.imageUrl.isNullOrEmpty()) {
                 Picasso.get()
                     .load(artist.imageUrl)
-                    .placeholder(R.drawable.user)
                     .error(R.drawable.user)
                     .into(artistImage, object : Callback {
                         override fun onSuccess() {
                             Log.d("Picasso", "Imagen cargada correctamente: ${artist.imageUrl}")
+                            loadingAnimation.visibility = View.GONE
+                            artistImage.visibility = View.VISIBLE
                         }
 
                         override fun onError(e: Exception?) {
                             Log.e("Picasso", "Error al cargar la imagen: ${artist.imageUrl}", e)
+                            loadingAnimation.visibility = View.GONE
+                            artistImage.visibility = View.VISIBLE
                         }
                     })
             } else {

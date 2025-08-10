@@ -4,8 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.SharedPreferences
-import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
@@ -13,9 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -24,16 +20,10 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.facebook.shimmer.ShimmerFrameLayout
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.net.URL
-import kotlin.concurrent.thread
 
 class HomeFragment : Fragment(){
-
-    private lateinit var userPhotoImage: ImageView
-    private lateinit var prefs: SharedPreferences
 
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
@@ -86,11 +76,8 @@ class HomeFragment : Fragment(){
     ): View? {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
 
-        prefs = requireContext().getSharedPreferences("user_data", AppCompatActivity.MODE_PRIVATE)
-
         shimmerLayout = view.findViewById(R.id.shimmerLayout)
         rechargeSongs = view.findViewById(R.id.rechargeSongs)
-        userPhotoImage = view.findViewById(R.id.userProfile)
 
         recyclerViewArtists = view.findViewById(R.id.listArtistsRecycler)
         recyclerViewArtists.layoutManager = GridLayoutManager(context, 3)
@@ -170,8 +157,6 @@ class HomeFragment : Fragment(){
                 }
             }
         }
-
-        getProfileImage()
 
         return view
     }
@@ -401,36 +386,6 @@ class HomeFragment : Fragment(){
         recyclerViewSongs.visibility = View.VISIBLE
     }
 
-    private fun getProfileImage() {
-        var name = prefs.getString("name", null)
-        var urlPhoto = prefs.getString("urlPhoto", null)
-
-        if (name == null || urlPhoto == null) {
-            val user = FirebaseAuth.getInstance().currentUser
-            if (user != null) {
-                name = user.displayName
-                urlPhoto = user.photoUrl?.toString()
-
-                prefs.edit()
-                    .putString("name", name)
-                    .putString("urlPhoto", urlPhoto)
-                    .apply()
-            }
-        }
-        if (urlPhoto != null) {
-            thread {
-                try {
-                    val inputStream = URL(urlPhoto).openStream()
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
-                    activity?.runOnUiThread {
-                        userPhotoImage.setImageBitmap(bitmap)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-    }
 }
 
 

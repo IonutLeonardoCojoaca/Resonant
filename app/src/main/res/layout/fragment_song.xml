@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".SongActivity"
+    tools:context=".SongFragment"
     android:background="@color/appBackgroundTheme">
 
     <ImageView
@@ -17,18 +17,18 @@
         android:translationY="200dp"
         android:translationX="50dp"
         android:scaleType="fitCenter"
-        android:alpha="0.20"
+        android:alpha="0.30"
         android:background="@drawable/album_cover"/>
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="180dp"
         android:layout_alignParentBottom="true"
         android:background="@drawable/gradient_bottom_navigation"/>
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="120dp"
+        android:layout_height="180dp"
         android:layout_alignParentTop="true"
         android:rotation="180"
         android:background="@drawable/gradient_bottom_navigation"/>
@@ -38,21 +38,31 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <RelativeLayout
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="10"
+            android:layout_height="80dp"
             android:paddingHorizontal="20dp">
 
-            <ImageButton
-                android:id="@+id/arrowGoBackButton"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
-                android:background="@drawable/arrow_back"
-                android:layout_centerVertical="true"
-                android:layout_alignParentLeft="true"/>
+            <FrameLayout
+                android:id="@+id/arrowGoBackBackground"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
 
-        </RelativeLayout>
+                <ImageView
+                    android:id="@+id/arrowGoBackButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:background="@drawable/arrow_back"
+                    android:clickable="false"
+                    android:focusable="false"/>
+
+            </FrameLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -71,7 +81,6 @@
                     android:layout_height="320dp"
                     android:layout_centerHorizontal="true"
                     android:background="@drawable/album_cover"
-                    android:elevation="@dimen/cardview_compat_inset_shadow"
                     app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
                 <RelativeLayout

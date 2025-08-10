@@ -6,6 +6,7 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -24,7 +25,7 @@ class ArtistFragment : Fragment() {
 
     private lateinit var artistImage: ImageView
     private lateinit var artistNameTextView: TextView
-    private lateinit var arrowGoBackButton: ImageButton
+    private lateinit var arrowGoBackButton: FrameLayout
     private lateinit var nestedScroll: NestedScrollView
 
     private lateinit var shimmerLayout: ShimmerFrameLayout
@@ -40,7 +41,7 @@ class ArtistFragment : Fragment() {
 
         artistImage = view.findViewById(R.id.artistImage)
         artistNameTextView = view.findViewById(R.id.artistName)
-        arrowGoBackButton = view.findViewById(R.id.arrowGoBackButton)
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
         nestedScroll = view.findViewById(R.id.nested_scroll)
 
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)

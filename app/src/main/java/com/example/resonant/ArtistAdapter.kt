@@ -1,6 +1,7 @@
 package com.example.resonant
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,6 +10,8 @@ import android.widget.TextView
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.recyclerview.widget.RecyclerView
+import com.airbnb.lottie.LottieAnimationView
+import com.squareup.picasso.Callback
 import com.squareup.picasso.Picasso
 
 class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<ArtistAdapter.ArtistViewHolder>() {
@@ -35,15 +38,34 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
 
         private val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
+        private val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
             artistImage.transitionName = "artistImage_${artist.id}"
 
+            loadingAnimation.visibility = View.VISIBLE
+            artistImage.visibility = View.INVISIBLE
+
             if (!artist.imageUrl.isNullOrEmpty()) {
-                Picasso.get().load(artist.imageUrl).into(artistImage)
+                Picasso.get()
+                    .load(artist.imageUrl)
+                    .error(R.drawable.user)
+                    .into(artistImage, object : Callback {
+                        override fun onSuccess() {
+                            Log.d("Picasso", "Imagen cargada correctamente: ${artist.imageUrl}")
+                            loadingAnimation.visibility = View.GONE
+                            artistImage.visibility = View.VISIBLE
+                        }
+
+                        override fun onError(e: Exception?) {
+                            Log.e("Picasso", "Error al cargar la imagen: ${artist.imageUrl}", e)
+                            loadingAnimation.visibility = View.GONE
+                            artistImage.visibility = View.VISIBLE
+                        }
+                    })
             } else {
-                Picasso.get().load(R.drawable.user).into(artistImage)
+                artistImage.setImageResource(R.drawable.user)
             }
 
             itemView.setOnClickListener {

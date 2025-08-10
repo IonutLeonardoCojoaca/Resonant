@@ -86,4 +86,10 @@
 
     </fragment>
 
+    <fragment
+        android:id="@+id/songFragment"
+        android:name="com.example.resonant.SongFragment"
+        android:label="Cancion"
+        tools:layout="@layout/fragment_song"/>
+
 </navigation>

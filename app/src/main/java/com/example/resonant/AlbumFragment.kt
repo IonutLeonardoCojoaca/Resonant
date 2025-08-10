@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -26,7 +27,7 @@ import kotlinx.coroutines.launch
 
 class AlbumFragment : Fragment() {
 
-    private lateinit var arrowGoBackButton: ImageButton
+    private lateinit var arrowGoBackButton: FrameLayout
 
     private lateinit var albumName: TextView
     private lateinit var albumArtistName: TextView
@@ -62,7 +63,7 @@ class AlbumFragment : Fragment() {
     ): View {
         val view = inflater.inflate(R.layout.fragment_album, container, false)
 
-        arrowGoBackButton = view.findViewById(R.id.arrowGoBackButton)
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
         recyclerViewSongs = view.findViewById(R.id.albumSongsContainer)
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
         songAdapter = SongAdapter()
@@ -138,7 +139,6 @@ class AlbumFragment : Fragment() {
     private fun loadAlbumDetails(albumId: String) {
         lifecycleScope.launch {
             try {
-                // 👉 Mostrar shimmer y ocultar el RecyclerView
                 shimmerLayout.visibility = View.VISIBLE
                 recyclerViewSongs.visibility = View.GONE
 

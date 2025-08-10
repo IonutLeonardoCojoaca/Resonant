@@ -7,23 +7,38 @@
     android:layout_marginVertical="10dp"
     android:background="@color/black">
 
-    <com.google.android.material.imageview.ShapeableImageView
-        android:id="@+id/artistImage"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:scaleType="centerCrop"
-        android:src="@drawable/user"
-        android:background="@drawable/user"
+    <FrameLayout
+        android:id="@+id/artistImageContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_centerHorizontal="true"
-        app:shapeAppearanceOverlay="@style/CircularUserImage"
-        android:gravity="top"
-        android:adjustViewBounds="true"/>
+        android:layout_alignParentTop="true">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/artistImage"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/CircularUserImage"
+            android:adjustViewBounds="true"/>
+
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/loadingAnimation"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_gravity="center"
+            app:lottie_fileName="loader.json"
+            app:lottie_autoPlay="true"
+            app:lottie_loop="true"
+            android:visibility="visible"/>
+
+    </FrameLayout>
 
     <TextView
         android:id="@+id/artistName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@id/artistImage"
+        android:layout_below="@id/artistImageContainer"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="8dp"
         android:text="Artist Name"

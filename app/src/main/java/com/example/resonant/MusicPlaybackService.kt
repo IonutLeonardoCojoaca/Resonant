@@ -29,7 +29,9 @@ class MusicPlaybackService : Service() {
         const val EXTRA_DURATION = "com.resonant.EXTRA_DURATION"
         const val ACTION_SEEK_BAR_UPDATE = "com.resonant.ACTION_SEEK_BAR_UPDATE"
         const val ACTION_SEEK_BAR_RESET = "com.resonant.ACTION_SEEK_BAR_RESET"
-        const val EXTRA_POSITION = "com.resonant.EXTRA_POSITION"
+        const val ACTION_SEEK_TO = "com.tuapp.ACTION_SEEK_TO"
+        const val EXTRA_SEEK_POSITION = "com.resonant.EXTRA_SEEK_POSITION"
+        const val ACTION_REQUEST_STATE = "com.example.app.ACTION_REQUEST_STATE"
 
         const val ACTION_PLAY = "com.resonant.ACTION_PLAY"
         const val ACTION_PAUSE = "com.resonant.ACTION_PAUSE"
@@ -112,6 +114,16 @@ class MusicPlaybackService : Service() {
             UPDATE_SONGS -> {
                 val newSongs = intent.getParcelableArrayListExtra(SONG_LIST, Song::class.java)
                 if (!newSongs.isNullOrEmpty()) updateSongs(newSongs)
+            }
+            ACTION_SEEK_TO -> {
+                val position = intent.getIntExtra(EXTRA_SEEK_POSITION, 0)
+                if (isPrepared) {
+                    mediaPlayer?.seekTo(position)
+                }
+            }
+            ACTION_REQUEST_STATE -> {
+                notifyPlaybackStateChanged()
+                notifySeekBarUpdate()
             }
         }
         return START_STICKY
@@ -254,6 +266,7 @@ class MusicPlaybackService : Service() {
         mediaPlayer?.start()
         isPlaying = true
         _isPlayingLiveData.postValue(true)
+        startSeekBarUpdates()
     }
 
     fun stopPlayer() {
@@ -300,7 +313,7 @@ class MusicPlaybackService : Service() {
                 }
 
                 val intent = Intent(ACTION_SEEK_BAR_UPDATE).apply {
-                    putExtra(EXTRA_POSITION, position)
+                    putExtra(EXTRA_SEEK_POSITION, position)
                     putExtra(EXTRA_DURATION, duration)
                 }
                 LocalBroadcastManager.getInstance(this@MusicPlaybackService).sendBroadcast(intent)
@@ -309,7 +322,6 @@ class MusicPlaybackService : Service() {
             }
         }
     }
-
 
     private fun startSeekBarUpdates() {
         seekBarHandler.post(updateSeekBarRunnable)
@@ -358,6 +370,18 @@ class MusicPlaybackService : Service() {
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
+
+    private fun notifySeekBarUpdate() {
+        val position = mediaPlayer?.currentPosition ?: 0
+        val duration = mediaPlayer?.duration ?: 0
+
+        val intent = Intent(ACTION_SEEK_BAR_UPDATE).apply {
+            putExtra(EXTRA_SEEK_POSITION, position)
+            putExtra(EXTRA_DURATION, duration)
+        }
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
 
     fun updateSongs(newSongs: List<Song>) {
         songs.clear()

@@ -7,41 +7,11 @@
     tools:context=".HomeFragment"
     android:background="@color/black">
 
-    <FrameLayout
-        android:id="@+id/superiorToolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingEnd="20dp"
-        android:paddingStart="10dp">
-
-        <ImageView
-            android:id="@+id/dark_logo"
-            android:layout_width="180dp"
-            android:layout_height="65dp"
-            android:layout_gravity="center_vertical|left"
-            android:scaleX="1.15"
-            android:scaleY="1.15"
-            android:scaleType="centerCrop"
-            android:src="@drawable/resonant_tema_oscuro"/>
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/userProfile"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:translationY="-2dp"
-            android:src="@drawable/user"
-            android:layout_gravity="center_vertical|right"
-            app:shapeAppearanceOverlay="@style/CircularUserImage">
-
-        </com.google.android.material.imageview.ShapeableImageView>
-
-    </FrameLayout>
-
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/appBackgroundTheme"
-        android:layout_below="@id/superiorToolbar">
+        android:layout_alignParentTop="true">
 
         <RelativeLayout
             android:id="@+id/mainPrincipalContainer"
@@ -59,7 +29,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="20dp"
-                    android:paddingVertical="15dp">
+                    android:paddingVertical="10dp">
 
                     <TextView
                         android:id="@+id/artistFeatured"
@@ -98,7 +68,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="20dp"
-                    android:paddingVertical="15dp">
+                    android:paddingVertical="10dp">
 
                     <TextView
                         android:id="@+id/albumsFeatured"
@@ -136,7 +106,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="20dp"
-                    android:paddingVertical="15dp">
+                    android:paddingVertical="10dp">
 
                     <TextView
                         android:id="@+id/songsFeatured"
@@ -185,7 +155,8 @@
                             android:id="@+id/shimmerInclude"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical">
+                            android:orientation="vertical"
+                            android:paddingBottom="160dp">
 
                             <include layout="@layout/item_song_shimmer_placeholder" />
                             <include layout="@layout/item_song_shimmer_placeholder" />

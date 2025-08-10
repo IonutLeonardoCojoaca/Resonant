@@ -7,8 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
+import android.content.SharedPreferences
 import android.content.res.Resources
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -19,19 +21,26 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.example.resonant.databinding.ActivityMainBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.imageview.ShapeableImageView
+import com.google.firebase.auth.FirebaseAuth
+import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
-
+    private lateinit var prefs: SharedPreferences
+    private lateinit var userPhotoImage: ImageView
     private lateinit var seekBar: SeekBar
+    private lateinit var songDataPlayer: FrameLayout
 
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
@@ -52,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     private var observersRegistered = false
 
     private lateinit var homeFragment: HomeFragment
+    private lateinit var drawerLayout: DrawerLayout
 
     private var musicService: MusicPlaybackService? = null
     private var isBound = false
@@ -59,8 +69,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -70,15 +79,59 @@ class MainActivity : AppCompatActivity() {
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHostFragment.navController
         val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+
         bottomNavigationView.setupWithNavController(navController)
         bottomNavigationView.itemIconTintList = null
 
+        val superiorToolbar = findViewById<View>(R.id.superiorToolbar)
+        val miniPlayer = findViewById<View>(R.id.mini_player)
+        val bottomNavigation = findViewById<View>(R.id.bottom_navigation)
+        val gradientBottom = findViewById<View>(R.id.gradientBottom)
+
+        val fragmentsConToolbar = setOf(
+            R.id.homeFragment,
+            R.id.searchFragment,
+            R.id.savedFragment,
+            R.id.settingsFragment
+        )
+
+        val fragmentsSinToolbar = setOf(
+            R.id.artistFragment,
+            R.id.albumFragment
+        )
+
         navController.addOnDestinationChangedListener { _, destination, _ ->
+
+            when (destination.id) {
+                in fragmentsConToolbar -> {
+                    superiorToolbar.visibility = View.VISIBLE
+                    miniPlayer.visibility = View.VISIBLE
+                    bottomNavigation.visibility = View.VISIBLE
+                    gradientBottom.visibility = View.VISIBLE
+                }
+                in fragmentsSinToolbar -> {
+                    superiorToolbar.visibility = View.GONE
+                    miniPlayer.visibility = View.VISIBLE
+                    bottomNavigation.visibility = View.VISIBLE
+                    gradientBottom.visibility = View.VISIBLE
+                }
+                R.id.songFragment -> {
+                    superiorToolbar.visibility = View.GONE
+                    miniPlayer.visibility = View.GONE
+                    bottomNavigation.visibility = View.GONE
+                    gradientBottom.visibility = View.GONE
+                }
+                else -> {
+                    superiorToolbar.visibility = View.GONE
+                    miniPlayer.visibility = View.GONE
+                    bottomNavigation.visibility = View.GONE
+                }
+            }
+
             if (destination.id == R.id.homeFragment) {
-                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-                val fragment = navHostFragment.childFragmentManager.primaryNavigationFragment
-                if (fragment is HomeFragment) {
-                    homeFragment = fragment
+                val currentFragment = navHostFragment.childFragmentManager.primaryNavigationFragment
+                if (currentFragment is HomeFragment) {
+                    homeFragment = currentFragment
                     setupObservers()
                 }
             }
@@ -86,7 +139,7 @@ class MainActivity : AppCompatActivity() {
 
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
-        val drawerWidth = (screenWidth * 0.75).toInt()
+        val drawerWidth = (screenWidth * 0.85).toInt()
 
         val drawer: View = findViewById(R.id.navigationView)
         val params = drawer.layoutParams
@@ -95,6 +148,8 @@ class MainActivity : AppCompatActivity() {
 
         val intent = Intent(this, MusicPlaybackService::class.java)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+
+        prefs = this@MainActivity.getSharedPreferences("user_data", AppCompatActivity.MODE_PRIVATE)
 
         val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)
@@ -106,16 +161,16 @@ class MainActivity : AppCompatActivity() {
         val savedImage = sharedPref.getString(PreferenceKeys.CURRENT_SONG_COVER, null)  // OK
         val savedIndex = sharedPref.getInt(PreferenceKeys.CURRENT_SONG_INDEX, -1)
 
-        val songDataPlayer = findViewById<FrameLayout>(R.id.songDataPlayer)
+        songDataPlayer = findViewById(R.id.songDataPlayer)
+        playPauseButton = findViewById(R.id.playPauseButton)
+        previousSongButton = findViewById(R.id.previousSongButton)
+        nextSongButton = findViewById(R.id.nextSongButton)
+        songImage = findViewById(R.id.songImage)
+        songName = findViewById(R.id.songTitle)
+        songArtist = findViewById(R.id.songArtist)
 
-        playPauseButton = binding.playPauseButton
-        previousSongButton = binding.previousSongButton
-        nextSongButton = binding.nextSongButton
-
-        songImage = binding.songImage
-        songName = binding.songTitle
-        songArtist = binding.songArtist
-
+        userPhotoImage = findViewById(R.id.userProfile)
+        drawerLayout = findViewById(R.id.drawerLayout)
         seekBar = findViewById(R.id.seekbarPlayer)
         seekBar.max = 100
 
@@ -155,6 +210,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        userPhotoImage.setOnClickListener {
+            drawerLayout.openDrawer(GravityCompat.START)
+        }
+
         songDataPlayer.setOnClickListener {
             val currentSong = musicService?.currentSongLiveData?.value
             val bitmap = currentSongBitmap
@@ -163,19 +222,20 @@ class MainActivity : AppCompatActivity() {
                 val fileName = "cover_${currentSong.id}.png"
                 val uri = Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
 
-                val intent = Intent(this, SongActivity::class.java).apply {
-                    putExtra("title", currentSong.title)
-                    putExtra("artist", currentSong.artistName)
-                    putExtra("albumId", currentSong.albumId)
-                    putExtra("duration", currentSong.duration)
-                    putExtra("url", currentSong.url)
-                    putExtra("coverFileName", fileName)
-
+                val bundle = Bundle().apply {
+                    putString("title", currentSong.title)
+                    putString("artist", currentSong.artistName)
+                    putString("url", currentSong.url)
+                    putString("coverFileName", fileName)
                 }
 
-                startActivity(intent)
+                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+                val navController = navHostFragment.navController
+                navController.navigate(R.id.songFragment, bundle)
             }
         }
+
+        getProfileImage()
     }
 
     private fun setupObservers() {
@@ -211,7 +271,7 @@ class MainActivity : AppCompatActivity() {
         seekBarUpdateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == MusicPlaybackService.ACTION_SEEK_BAR_UPDATE) {
-                    val position = intent.getIntExtra(MusicPlaybackService.EXTRA_POSITION, 0)
+                    val position = intent.getIntExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, 0)
                     val duration = intent.getIntExtra(MusicPlaybackService.EXTRA_DURATION, 0)
 
                     seekBar.max = duration
@@ -311,6 +371,47 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(songChangedReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(seekBarUpdateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(resetSeekBarReceiver)
+    }
+
+    private fun getProfileImage() {
+        val headerUserName = drawerLayout.findViewById<TextView>(R.id.headerUserName)
+        val headerUserPhoto = drawerLayout.findViewById<ShapeableImageView>(R.id.headerUserPhoto)
+
+        var name = prefs.getString("name", null)
+        var urlPhoto = prefs.getString("urlPhoto", null)
+
+        if (name == null || urlPhoto == null) {
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user != null) {
+                name = user.displayName
+                urlPhoto = user.photoUrl?.toString()
+
+                prefs.edit()
+                    .putString("name", name)
+                    .putString("urlPhoto", urlPhoto)
+                    .apply()
+            }
+        }
+
+        headerUserName.text = name ?: "Invitado"
+
+        if (!urlPhoto.isNullOrEmpty()) {
+            thread {
+                try {
+                    val inputStream = URL(urlPhoto).openStream()
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    runOnUiThread {
+                        userPhotoImage.setImageBitmap(bitmap)
+                        headerUserPhoto.setImageBitmap(bitmap)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        } else {
+            userPhotoImage.setImageResource(R.drawable.user)
+            headerUserPhoto.setImageResource(R.drawable.user)
+        }
     }
 
     @SuppressLint("MissingSuperCall")

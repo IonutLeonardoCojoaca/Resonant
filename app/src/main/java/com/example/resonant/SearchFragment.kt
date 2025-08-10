@@ -8,7 +8,6 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
@@ -118,7 +117,6 @@ class SearchFragment : Fragment() {
         if (!restoredQuery.isNullOrBlank() && !restoredResults.isNullOrEmpty()) {
             restoringState = true
             editTextQuery.setText(restoredQuery)
-            // ❌ OCULTA animación de carga si no estás cargando
             loadingAnimation.visibility = View.GONE
 
             lastResults = restoredResults
@@ -138,19 +136,25 @@ class SearchFragment : Fragment() {
             restoringState = false
         }
 
-        chipSongs.setOnCheckedChangeListener { _, isChecked ->
+        chipSongs.setOnCheckedChangeListener { chip, isChecked ->
             showSongs = isChecked
             updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked)
+            AnimationsUtils.animateChipColor(chip, isChecked)
         }
 
-        chipAlbums.setOnCheckedChangeListener { _, isChecked ->
+        chipAlbums.setOnCheckedChangeListener { chip, isChecked ->
             showAlbums = isChecked
             updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked)
+            AnimationsUtils.animateChipColor(chip, isChecked)
         }
 
-        chipArtists.setOnCheckedChangeListener { _, isChecked ->
+        chipArtists.setOnCheckedChangeListener { chip, isChecked ->
             showArtists = isChecked
             updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked)
+            AnimationsUtils.animateChipColor(chip, isChecked)
         }
 
         searchResultAdapter.onSongClick = { (song, bitmap) ->

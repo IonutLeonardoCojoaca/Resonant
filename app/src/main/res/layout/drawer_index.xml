@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -9,116 +10,120 @@
     <RelativeLayout
         android:id="@+id/headerDrawer"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:background="@drawable/gradient_top_drawer_background"
-        android:paddingHorizontal="20dp">
+        android:layout_height="100dp"
+        android:paddingHorizontal="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
         <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/header_user_photo"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:src="@drawable/user"
-            android:scaleType="centerCrop"
+            android:id="@+id/headerUserPhoto"
+            android:layout_width="74dp"
+            android:layout_height="74dp"
             android:layout_centerVertical="true"
-            app:shapeAppearanceOverlay="@style/CircularUserImage"
-            android:padding="2dp"/>
+            android:padding="2dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/user"
+            app:shapeAppearanceOverlay="@style/CircularUserImage" />
 
         <FrameLayout
             android:layout_width="wrap_content"
-            android:layout_height="45dp"
-            android:layout_toRightOf="@id/header_user_photo"
+            android:layout_height="20dp"
             android:layout_centerVertical="true"
-            android:layout_marginLeft="10dp">
+            android:layout_marginLeft="10dp"
+            android:layout_toRightOf="@id/headerUserPhoto">
 
             <TextView
-                android:id="@+id/header_user_name"
+                android:id="@+id/headerUserName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_gravity="top"
+                android:fontFamily="@font/unageo_medium"
                 android:text="Nombre de usuario"
                 android:textColor="#fff"
-                android:textStyle="bold"
-                android:fontFamily="@font/unageo_medium"
-                android:layout_gravity="top"/>
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/header_user_role"
+                android:id="@+id/headerUserRole"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:fontFamily="@font/unageo_light"
                 android:text="Privilegios"
                 android:textColor="#fff"
+                android:textSize="12sp"
                 android:textStyle="bold"
-                android:fontFamily="@font/unageo_light"
-                android:layout_gravity="bottom"/>
+                android:visibility="gone"/>
 
         </FrameLayout>
 
     </RelativeLayout>
 
     <RelativeLayout
-        android:id="@+id/headerContent"
+        android:id="@+id/firstSectionDrawer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/headerDrawer">
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="10dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/headerDrawer">
 
-        <RelativeLayout
-            android:id="@+id/firstSectionDrawer"
+        <TextView
+            android:id="@+id/fastAccessText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp">
+            android:fontFamily="@font/unageo_bold"
+            android:text="Acceso rápido"
+            android:textColor="@color/white"
+            android:textSize="18sp" />
 
-            <FrameLayout
-                android:id="@+id/fastAccessContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingVertical="15dp">
-
-                <TextView
-                    android:id="@+id/fastAccessText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Acceso rápido"
-                    android:textColor="@color/white"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textSize="16sp"/>
-
-            </FrameLayout>
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_below="@id/fastAccessContainer"
-                android:background="@drawable/gradient_to_right_button"
-                app:shapeAppearanceOverlay="@style/RoundedCornersFavorites"/>
-
-
-        </RelativeLayout>
-
-        <RelativeLayout
-            android:id="@+id/secondSectionDrawer"
-            android:layout_below="@id/firstSectionDrawer"
+        <Button
+            android:id="@+id/favoriteSongsButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp">
-
-            <FrameLayout
-                android:id="@+id/playlistsContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingVertical="15dp">
-
-                <TextView
-                    android:id="@+id/playlistsText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Playlists"
-                    android:textColor="@color/white"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textSize="16sp"/>
-
-            </FrameLayout>
-
-        </RelativeLayout>
+            android:layout_height="60dp"
+            android:layout_below="@id/fastAccessText"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="@color/cardsTheme"
+            android:fontFamily="@font/unageo_medium"
+            android:text="Mis canciones favoritas"
+            android:textAlignment="viewStart"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:icon="@drawable/favorite"
+            app:iconGravity="start"
+            app:iconSize="30dp"
+            app:iconTint="#FFFFFF" />
 
     </RelativeLayout>
 
-</RelativeLayout>
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/firstSectionDrawer">
+
+    </RelativeLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:background="@drawable/gradient_top_drawer_background"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:layout_width="wrap_content"
+        android:layout_height="70dp"
+        android:src="@drawable/resonant"
+        android:scaleX="0.3"
+        android:scaleY="0.3"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
