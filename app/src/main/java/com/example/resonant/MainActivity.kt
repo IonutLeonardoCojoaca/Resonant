@@ -8,9 +8,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -21,6 +23,8 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -33,9 +37,13 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
 import java.net.URL
+import android.Manifest
+import android.widget.Toast
 import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
+
+    private val REQUEST_NOTIFICATION_PERMISSION = 123
 
     private lateinit var prefs: SharedPreferences
     private lateinit var userPhotoImage: ImageView
@@ -236,6 +244,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         getProfileImage()
+
+        checkNotificationPermission()
     }
 
     private fun setupObservers() {
@@ -371,6 +381,46 @@ class MainActivity : AppCompatActivity() {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(songChangedReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(seekBarUpdateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(resetSeekBarReceiver)
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    REQUEST_NOTIFICATION_PERMISSION
+                )
+            } else {
+                // Permiso concedido, puedes iniciar el servicio aquí
+                startMusicService()
+            }
+        } else {
+            // Permiso no requerido para versiones anteriores
+            startMusicService()
+        }
+    }
+
+    private fun startMusicService() {
+        val intent = Intent(this, MusicPlaybackService::class.java)
+        startService(intent)  // o startForegroundService según sea necesario
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permiso concedido, iniciar el servicio
+                startMusicService()
+            } else {
+                // Permiso denegado, mostrar mensaje o manejar el caso
+                Toast.makeText(this, "Necesitas permitir notificaciones para usar la app", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun getProfileImage() {

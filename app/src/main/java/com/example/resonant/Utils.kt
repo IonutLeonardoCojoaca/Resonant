@@ -71,4 +71,14 @@ object Utils {
         }
     }
 
+    fun getCachedSongBitmap(songId: String, context: Context): Bitmap? {
+        val fileName = "cover_${songId}.png"
+        val file = File(context.cacheDir, fileName)
+        return if (file.exists()) {
+            BitmapFactory.decodeFile(file.absolutePath)
+        } else {
+            null
+        }
+    }
+
 }

@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -41,11 +43,6 @@
         </provider>
 
         <activity
-            android:name=".SongActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
             android:name=".LoginActivity"
             android:exported="true"
             android:screenOrientation="portrait">
@@ -56,7 +53,9 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".MusicPlaybackService" />
+        <service
+            android:name=".MusicPlaybackService"
+            android:foregroundServiceType="mediaPlayback"/>
 
     </application>
 

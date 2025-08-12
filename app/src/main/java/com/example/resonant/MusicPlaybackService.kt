@@ -1,5 +1,9 @@
 package com.example.resonant
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -7,10 +11,14 @@ import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Binder
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
+import android.widget.RemoteViews
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -56,11 +64,12 @@ class MusicPlaybackService : Service() {
 
     private val _currentSongLiveData = MutableLiveData<Song?>()
     val currentSongLiveData: LiveData<Song?> get() = _currentSongLiveData
-
     private val _isPlayingLiveData = MutableLiveData<Boolean>()
     val isPlayingLiveData: LiveData<Boolean> get() = _isPlayingLiveData
 
     private val binder = MusicServiceBinder()
+
+    private lateinit var mediaSession: MediaSessionCompat
 
     inner class MusicServiceBinder : Binder() {
         fun getService(): MusicPlaybackService = this@MusicPlaybackService
@@ -91,25 +100,30 @@ class MusicPlaybackService : Service() {
                 if (bitmap != null) {
                     SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(bitmap)
                 }
+                startForegroundNotification(song!!, true)
             }
 
             ACTION_PAUSE -> {
                 pause()
                 notifyPlaybackStateChanged()
+                updateNotification()
             }
             ACTION_RESUME -> {
                 resume()
                 notifyPlaybackStateChanged()
+                updateNotification()
             }
             ACTION_PREVIOUS -> {
                 playPrevious(this)
                 currentSong?.let { notifySongChangedBroadcast(it) }
                 notifyPlaybackStateChanged()
+                updateNotification()
             }
             ACTION_NEXT -> {
                 playNext(this)
                 currentSong?.let { notifySongChangedBroadcast(it) }
                 notifyPlaybackStateChanged()
+                updateNotification()
             }
             UPDATE_SONGS -> {
                 val newSongs = intent.getParcelableArrayListExtra(SONG_LIST, Song::class.java)
@@ -281,9 +295,7 @@ class MusicPlaybackService : Service() {
         mediaPlayer?.seekTo(position)
     }
 
-    fun isPlaying(): Boolean {
-        return mediaPlayer?.isPlaying ?: false
-    }
+    fun isPlaying() = isPlaying
 
     fun setLooping(looping: Boolean) {
         mediaPlayer?.isLooping = looping
@@ -307,7 +319,6 @@ class MusicPlaybackService : Service() {
                 val position = mediaPlayer?.currentPosition ?: 0
                 val duration = mediaPlayer?.duration ?: 0
 
-                // ❌ No sigas si ya ha terminado
                 if (position >= duration) {
                     return
                 }
@@ -382,6 +393,79 @@ class MusicPlaybackService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
+    private fun startForegroundNotification(song: Song, isPlaying: Boolean) {
+        val notification = createCustomNotification(song, isPlaying)
+        startForeground(1, notification)
+    }
+
+    private fun updateNotification() {
+        currentSong?.let {
+            val notification = createCustomNotification(it, isPlaying())
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(1, notification)
+        }
+    }
+
+    private fun createCustomNotification(song: Song, isPlaying: Boolean): Notification {
+        val largeIcon = Utils.getCachedSongBitmap(song.id ?: "", this)
+
+        val remoteViews = RemoteViews(packageName, R.layout.notification_custom)
+
+        // Set text y bitmap
+        remoteViews.setTextViewText(R.id.songTitle, song.title ?: "Canción")
+        remoteViews.setTextViewText(R.id.artistName, song.artistName ?: "Artista")
+        if (largeIcon != null) {
+            remoteViews.setImageViewBitmap(R.id.songImage, largeIcon)
+        } else {
+            remoteViews.setImageViewResource(R.id.songImage, R.drawable.album_cover)
+        }
+
+        // Cambiar icono play/pause según estado
+        val playPauseIcon = if (isPlaying) R.drawable.pause else R.drawable.play_arrow_filled
+        remoteViews.setImageViewResource(R.id.playPauseButton, playPauseIcon)
+
+        // Intent para las acciones (prev, play/pause, next)
+        val intentPrev = Intent(this, MusicPlaybackService::class.java).apply { action = ACTION_PREVIOUS }
+        val pendingPrev = PendingIntent.getService(this, 2, intentPrev, PendingIntent.FLAG_IMMUTABLE)
+        remoteViews.setOnClickPendingIntent(R.id.previousSongButton, pendingPrev)
+
+        val actionPlayPause = if (isPlaying) ACTION_PAUSE else ACTION_RESUME
+        val intentPlayPause = Intent(this, MusicPlaybackService::class.java).apply { action = actionPlayPause }
+        val pendingPlayPause = PendingIntent.getService(this, 1, intentPlayPause, PendingIntent.FLAG_IMMUTABLE)
+        remoteViews.setOnClickPendingIntent(R.id.playPauseButton, pendingPlayPause)
+
+        val intentNext = Intent(this, MusicPlaybackService::class.java).apply { action = ACTION_NEXT }
+        val pendingNext = PendingIntent.getService(this, 3, intentNext, PendingIntent.FLAG_IMMUTABLE)
+        remoteViews.setOnClickPendingIntent(R.id.nextSongButton, pendingNext)
+
+        // Construir la notificación
+        return NotificationCompat.Builder(this, "music_channel")
+            .setSmallIcon(R.drawable.s_resonant_white)
+            .setCustomContentView(remoteViews)  // CORRECTO para notificación personalizada
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .build()
+
+    }
+
+
+    override fun onCreate() {
+        super.onCreate()
+        mediaSession = MediaSessionCompat(this, "MusicPlaybackService").apply {
+            isActive = true
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "music_channel",
+                "Reproducción de música",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+
+    }
 
     fun updateSongs(newSongs: List<Song>) {
         songs.clear()
