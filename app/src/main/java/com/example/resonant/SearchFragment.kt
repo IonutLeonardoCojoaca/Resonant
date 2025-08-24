@@ -222,15 +222,15 @@ class SearchFragment : Fragment() {
 
 // Obtener URLs reales de imagen para artistas
                         val artistsPrepared = artists.toMutableList()
-                        val artistsWithoutUrl = artistsPrepared.filter { it.imageUrl.isNotBlank() } // Asumimos que imageUrl guarda el "fileName"
+                        val artistsWithoutUrl = artistsPrepared.filter { it.fileName.isNotBlank() } // Asumimos que imageUrl guarda el "fileName"
 
                         if (artistsWithoutUrl.isNotEmpty()) {
-                            val fileNames = artistsWithoutUrl.map { it.imageUrl } // imageUrl contiene el nombre del archivo
+                            val fileNames = artistsWithoutUrl.map { it.fileName } // imageUrl contiene el nombre del archivo
                             val urlList = service.getMultipleArtistUrls(fileNames)
                             val urlMap = urlList.associateBy { it.fileName }
 
                             artistsWithoutUrl.forEach { artist ->
-                                artist.imageUrl = urlMap[artist.imageUrl]?.url ?: ""
+                                artist.fileName = urlMap[artist.fileName]?.url ?: ""
                             }
                         }
 

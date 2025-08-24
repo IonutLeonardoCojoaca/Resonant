@@ -4,17 +4,19 @@ import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
-import android.app.Activity
+import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.view.MotionEvent
+import android.renderscript.Allocation
+import android.renderscript.RenderScript
+import android.renderscript.ScriptIntrinsicBlur
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.Animation
+import android.view.animation.AnimationUtils
 import android.view.animation.DecelerateInterpolator
-import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import com.google.android.material.chip.Chip
 
 object AnimationsUtils {
@@ -103,6 +105,26 @@ object AnimationsUtils {
             .setInterpolator(DecelerateInterpolator())
             .start()
     }
+
+    fun setMiniPlayerVisibility(show: Boolean, miniPlayer: View, context: Context) {
+        if (show && miniPlayer.visibility != View.VISIBLE) {
+            miniPlayer.startAnimation(AnimationUtils.loadAnimation(context, R.anim.fade_in_mini_player))
+            miniPlayer.visibility = View.VISIBLE
+        } else if (!show && miniPlayer.visibility == View.VISIBLE) {
+            val anim = AnimationUtils.loadAnimation(context, R.anim.fade_out_mini_player)
+            anim.setAnimationListener(object : Animation.AnimationListener {
+                override fun onAnimationStart(animation: Animation) {}
+
+                override fun onAnimationEnd(animation: Animation) {
+                    miniPlayer.visibility = View.INVISIBLE
+                }
+
+                override fun onAnimationRepeat(animation: Animation) {}
+            })
+            miniPlayer.startAnimation(anim)
+        }
+    }
+
 
 
 

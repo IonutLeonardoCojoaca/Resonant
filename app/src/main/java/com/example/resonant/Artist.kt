@@ -8,5 +8,5 @@ data class Artist(
     val id: String = "",
     val name: String = "",
     val description: String = "",
-    var imageUrl: String = ""
+    var fileName: String = ""
 ) : Parcelable

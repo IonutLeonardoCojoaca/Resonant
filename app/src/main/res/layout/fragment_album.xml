@@ -17,8 +17,7 @@
     <androidx.core.widget.NestedScrollView
         android:id="@+id/nested_scroll"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:paddingBottom="120dp">
+        android:layout_height="match_parent">
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -62,7 +61,7 @@
                         android:maxLines="2"
                         android:ellipsize="end"
                         android:hyphenationFrequency="normalFast"
-                        android:text="Album Name"
+                        android:text=""
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
@@ -73,7 +72,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_below="@id/albumName"
-                        android:text="Artist name"
+                        android:text=""
                         android:fontFamily="@font/unageo_regular"
                         android:textColor="#8E8E8E"
                         android:textSize="12sp"/>
@@ -88,7 +87,7 @@
                             android:id="@+id/albumDuration"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="00:00"
+                            android:text=""
                             android:textSize="12sp"
                             android:textColor="#8E8E8E"/>
 
@@ -147,7 +146,7 @@
 
                 <View
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
+                    android:layout_height="100dp"
                     android:background="@android:color/transparent"
                     android:layout_below="@id/albumSongsContainer"/>
 
@@ -159,13 +158,13 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="70dp"
         android:paddingHorizontal="20dp">
 
         <FrameLayout
             android:id="@+id/arrowGoBackBackground"
-            android:layout_width="55dp"
-            android:layout_height="55dp"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
             android:background="@drawable/arrow_back_background"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -175,8 +174,8 @@
                 android:id="@+id/arrowGoBackButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:scaleX="0.9"
-                android:scaleY="0.9"
+                android:scaleX="0.8"
+                android:scaleY="0.8"
                 android:layout_gravity="center"
                 android:background="@drawable/arrow_back"
                 android:clickable="false"

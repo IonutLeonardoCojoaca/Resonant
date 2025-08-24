@@ -239,12 +239,12 @@ class HomeFragment : Fragment(){
                 artistasNuevos.add(artist)
             }
 
-            val fileNames = artistasNuevos.map { it.imageUrl }
+            val fileNames = artistasNuevos.map { it.fileName }
             val urlList = service.getMultipleArtistUrls(fileNames)
             val urlMap = urlList.associateBy { it.fileName }
 
             artistasNuevos.forEach { artist ->
-                artist.imageUrl = urlMap[artist.imageUrl]?.url ?: ""
+                artist.fileName = urlMap[artist.fileName]?.url ?: ""
             }
 
             artistasNuevos

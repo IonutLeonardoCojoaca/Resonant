@@ -57,7 +57,7 @@
         <View
             android:id="@+id/gradientBottom"
             android:layout_width="match_parent"
-            android:layout_height="185dp"
+            android:layout_height="105dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -71,7 +71,8 @@
             android:paddingHorizontal="15dp"
             app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
+            app:layout_constraintEnd_toEndOf="parent"
+            android:visibility="gone">
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -214,7 +215,8 @@
             app:menu="@menu/bottom_navigation_menu"
             app:itemTextColor="@color/nav_text_icon_color"
             app:itemBackground="@android:color/transparent"
-            style="@style/BottomNavigationViewStyle" />
+            style="@style/BottomNavigationViewStyle"
+            app:labelVisibilityMode="selected"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

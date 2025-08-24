@@ -47,19 +47,19 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
             loadingAnimation.visibility = View.VISIBLE
             artistImage.visibility = View.INVISIBLE
 
-            if (!artist.imageUrl.isNullOrEmpty()) {
+            if (!artist.fileName.isNullOrEmpty()) {
                 Picasso.get()
-                    .load(artist.imageUrl)
+                    .load(artist.fileName)
                     .error(R.drawable.user)
                     .into(artistImage, object : Callback {
                         override fun onSuccess() {
-                            Log.d("Picasso", "Imagen cargada correctamente: ${artist.imageUrl}")
+                            Log.d("Picasso", "Imagen cargada correctamente: ${artist.fileName}")
                             loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
                         }
 
                         override fun onError(e: Exception?) {
-                            Log.e("Picasso", "Error al cargar la imagen: ${artist.imageUrl}", e)
+                            Log.e("Picasso", "Error al cargar la imagen: ${artist.fileName}", e)
                             loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
                         }
@@ -72,7 +72,7 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
                 val bundle = Bundle().apply {
                     putString("artistId", artist.id)
                     putString("artistName", artist.name)
-                    putString("artistImageUrl", artist.imageUrl)
+                    putString("artistImageUrl", artist.fileName)
                     putString("artistImageTransitionName", "artistImage_${artist.id}")
                 }
 

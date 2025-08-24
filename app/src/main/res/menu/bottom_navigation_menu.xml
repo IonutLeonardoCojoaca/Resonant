@@ -13,8 +13,4 @@
         android:id="@+id/savedFragment"
         android:icon="@drawable/icon_saved_selector"
         android:title="Guardado"/>
-    <item
-        android:id="@+id/settingsFragment"
-        android:icon="@drawable/icon_settings_selector"
-        android:title="Ajustes"/>
 </menu>

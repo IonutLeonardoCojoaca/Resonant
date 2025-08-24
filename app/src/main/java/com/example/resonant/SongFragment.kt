@@ -1,26 +1,27 @@
 package com.example.resonant
 
+import android.animation.ObjectAnimator
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Bundle
-import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -29,6 +30,7 @@ import java.io.File
 class SongFragment : Fragment() {
 
     private lateinit var blurrySongImageBackground: ImageView
+    private lateinit var parallaxRotatingImage : ImageView
     private lateinit var arrowGoBackButton: FrameLayout
 
     private lateinit var seekBar: SeekBar
@@ -120,7 +122,6 @@ class SongFragment : Fragment() {
         val titleView = view.findViewById<TextView>(R.id.song_title)
         val artistView = view.findViewById<TextView>(R.id.songArtist)
         val imageSong = view.findViewById<ImageView>(R.id.song_image)
-        val imageBlurrySong = view.findViewById<ImageView>(R.id.blurrySongImageBackground)
 
         seekBar = view.findViewById(R.id.seekBar)
         currentTimeText = view.findViewById(R.id.currentTimeText)
@@ -132,11 +133,12 @@ class SongFragment : Fragment() {
         songAdapter = SongAdapter()
         blurrySongImageBackground = view.findViewById(R.id.blurrySongImageBackground)
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
+        parallaxRotatingImage = view.findViewById(R.id.parallaxRotatingImage)
 
         arguments?.getString("coverFileName")?.let { fileName ->
             val file = File(requireContext().cacheDir, fileName)
             setSongImage(imageSong, file)
-            setSongImage(imageBlurrySong, file)
+            setSongImage(blurrySongImageBackground, file)
         }
 
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
@@ -152,11 +154,11 @@ class SongFragment : Fragment() {
 
                 if (view != null && bitmap != null) {
                     if (isFirstLoad) {
-                        imageBlurrySong?.setImageBitmap(bitmap)
+                        blurrySongImageBackground.setImageBitmap(bitmap)
                         imageSong?.setImageBitmap(bitmap)
                         isFirstLoad = false
                     } else {
-                        AnimationsUtils.animateBlurryBackground(imageBlurrySong!!, bitmap)
+                        AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, bitmap)
                         AnimationsUtils.animateSongImage(imageSong!!, bitmap, lastDirection)
                     }
                 }
@@ -167,6 +169,13 @@ class SongFragment : Fragment() {
         // Efecto blur
         val blurEffect = RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
         blurrySongImageBackground.setRenderEffect(blurEffect)
+
+        // Apply the rotation animation
+        val rotateAnimator = ObjectAnimator.ofFloat(parallaxRotatingImage, "rotation", 0f, 360f)
+        rotateAnimator.duration = 40000 // 40 seconds
+        rotateAnimator.interpolator = LinearInterpolator()
+        rotateAnimator.repeatCount = ObjectAnimator.INFINITE
+        rotateAnimator.start()
 
         // Botón de volver atrás
         arrowGoBackButton.setOnClickListener {
@@ -232,6 +241,9 @@ class SongFragment : Fragment() {
 
         return view
     }
+
+    // Función para aplicar el desenfoque a un Bitmap
+
 
     override fun onDestroyView() {
         super.onDestroyView()

@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -15,13 +16,20 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
-import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.media.session.MediaButtonReceiver
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
 
@@ -50,7 +58,12 @@ class MusicPlaybackService : Service() {
         const val SONG_LIST = "com.resonant.SONG_LIST"
 
         const val ACTION_PLAYER_READY = "ACTION_PLAYER_READY"
+
+        const val NOTIFICATION_ID = 1
+        private const val CHANNEL_ID = "music_channel"
     }
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var mediaPlayer: MediaPlayer? = null
     private var isCompletionListenerEnabled = true
@@ -61,6 +74,7 @@ class MusicPlaybackService : Service() {
     private var currentIndex = 0
     private var currentSong: Song? = null
     private val seekBarHandler = Handler(Looper.getMainLooper())
+    private var streamReported = false
 
     private val _currentSongLiveData = MutableLiveData<Song?>()
     val currentSongLiveData: LiveData<Song?> get() = _currentSongLiveData
@@ -80,6 +94,14 @@ class MusicPlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("MusicService", "Action received: ${intent?.action}")
+        intent?.let {
+            if (Intent.ACTION_MEDIA_BUTTON == it.action) {
+                MediaButtonReceiver.handleIntent(mediaSession, intent)
+                // Si es MEDIA_BUTTON, no continuar con el resto (opcional)
+                return START_STICKY
+            }
+        }
         when (intent?.action) {
             ACTION_PLAY -> {
                 val song = intent.getParcelableExtra<Song>(EXTRA_CURRENT_SONG)
@@ -94,12 +116,13 @@ class MusicPlaybackService : Service() {
 
                 if (song != null) {
                     playSong(this, song, index)
-                    SharedViewModelHolder.sharedViewModel.setCurrentSong(song) // <- Aquí
+                    SharedViewModelHolder.sharedViewModel.setCurrentSong(song)
                 }
 
                 if (bitmap != null) {
                     SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(bitmap)
                 }
+
                 startForegroundNotification(song!!, true)
             }
 
@@ -154,7 +177,13 @@ class MusicPlaybackService : Service() {
         }
 
         mediaPlayer?.setOnCompletionListener {
-            stopSeekBarUpdates() // 👈
+            stopSeekBarUpdates()
+            if (!streamReported) {
+                currentSong?.id?.let { id ->
+                    reportStream(id)
+                    streamReported = true
+                }
+            }
             if (isCompletionListenerEnabled && songs.isNotEmpty()) {
                 if (currentIndex < songs.size - 1) {
                     playNext(context)
@@ -206,19 +235,12 @@ class MusicPlaybackService : Service() {
                 startSeekBarUpdates()
                 _isPlayingLiveData.postValue(autoStart)
                 notifyPlaybackStateChanged()
+
+                updateMediaMetadata()
+                updatePlaybackState()
+                updateNotification()
             }
 
-            mediaPlayer?.setOnCompletionListener {
-                if (isCompletionListenerEnabled && songs.isNotEmpty()) {
-                    if (currentIndex < songs.size - 1) {
-                        playNext(context)
-                    } else {
-                        _isPlayingLiveData.postValue(false)
-                    }
-                }
-            }
-            val resetIntent = Intent(ACTION_SEEK_BAR_RESET)
-            LocalBroadcastManager.getInstance(context).sendBroadcast(resetIntent)
             mediaPlayer?.prepareAsync()
 
         } catch (e: IOException) {
@@ -247,24 +269,29 @@ class MusicPlaybackService : Service() {
         isCompletionListenerEnabled = true
         prepareMediaPlayer(context, currentSong!!.url ?: return)
         notifySongChanged()
+        updatePlaybackState()
     }
 
     fun playNext(context: Context) {
+        streamReported = false
         if (songs.isEmpty()) return
         currentIndex = (currentIndex + 1) % songs.size
         currentSong = songs[currentIndex]
         loadAndSetCurrentSongBitmap(context, currentSong!!)
         notifySongChanged()
         prepareMediaPlayer(context, currentSong!!.url ?: return)
+        updatePlaybackState()
     }
 
     fun playPrevious(context: Context) {
+        streamReported = false
         if (songs.isEmpty()) return
         currentIndex = if (currentIndex - 1 < 0) songs.size - 1 else currentIndex - 1
         currentSong = songs[currentIndex]
         loadAndSetCurrentSongBitmap(context, currentSong!!)
         notifySongChanged()
         prepareMediaPlayer(context, currentSong!!.url ?: return)
+        updatePlaybackState()
     }
 
     fun pause() {
@@ -274,6 +301,7 @@ class MusicPlaybackService : Service() {
         currentSong?.let {
             _currentSongLiveData.postValue(it)
         }
+        updatePlaybackState()
     }
 
     fun resume() {
@@ -281,6 +309,7 @@ class MusicPlaybackService : Service() {
         isPlaying = true
         _isPlayingLiveData.postValue(true)
         startSeekBarUpdates()
+        updatePlaybackState()
     }
 
     fun stopPlayer() {
@@ -318,6 +347,14 @@ class MusicPlaybackService : Service() {
             if (isPrepared && mediaPlayer?.isPlaying == true) {
                 val position = mediaPlayer?.currentPosition ?: 0
                 val duration = mediaPlayer?.duration ?: 0
+
+                // 🔥 Reportar stream al pasar 30 segundos
+                if (!streamReported && position > 30_000) {
+                    currentSong?.id?.let { id ->
+                        reportStream(id)
+                        streamReported = true
+                    }
+                }
 
                 if (position >= duration) {
                     return
@@ -364,7 +401,7 @@ class MusicPlaybackService : Service() {
     private fun notifySongChanged() {
         _currentSongLiveData.postValue(currentSong)
         _isPlayingLiveData.postValue(true)
-        currentSong?.let { notifySongChangedBroadcast(it) } // <--- aquí lo usas
+        currentSong?.let { notifySongChangedBroadcast(it) }
     }
 
     private fun notifyPlaybackStateChanged() {
@@ -393,78 +430,111 @@ class MusicPlaybackService : Service() {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
+    private fun reportStream(songId: String) {
+        serviceScope.launch {
+            try {
+                val api = ApiClient.getService(applicationContext)
+                api.incrementStream(songId)
+                Log.d("StreamAPI", "✅ Stream reportado para $songId")
+            } catch (e: Exception) {
+                Log.e("StreamAPI", "❌ Error al reportar stream", e)
+            }
+        }
+    }
+
     private fun startForegroundNotification(song: Song, isPlaying: Boolean) {
-        val notification = createCustomNotification(song, isPlaying)
-        startForeground(1, notification)
+        this.currentSong = song
+        this.isPlaying = isPlaying
+        val notification = createNotification(song, isPlaying)
+        Log.d("MusicService", "Starting foreground with notification")
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     private fun updateNotification() {
         currentSong?.let {
-            val notification = createCustomNotification(it, isPlaying())
+            val notification = createNotification(it, isPlaying())
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.notify(1, notification)
+            nm.notify(NOTIFICATION_ID, notification)
         }
     }
 
-    private fun createCustomNotification(song: Song, isPlaying: Boolean): Notification {
+    private fun createNotification(song: Song, isPlaying: Boolean): Notification {
         val largeIcon = Utils.getCachedSongBitmap(song.id ?: "", this)
 
-        val remoteViews = RemoteViews(packageName, R.layout.notification_custom)
+        val prevPI = MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+        val playPausePI = MediaButtonReceiver.buildMediaButtonPendingIntent(
+            this,
+            if (isPlaying) PlaybackStateCompat.ACTION_PAUSE else PlaybackStateCompat.ACTION_PLAY
+        )
+        val nextPI = MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_SKIP_TO_NEXT)
+        val stopPI = MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_STOP)
 
-        // Set text y bitmap
-        remoteViews.setTextViewText(R.id.songTitle, song.title ?: "Canción")
-        remoteViews.setTextViewText(R.id.artistName, song.artistName ?: "Artista")
-        if (largeIcon != null) {
-            remoteViews.setImageViewBitmap(R.id.songImage, largeIcon)
-        } else {
-            remoteViews.setImageViewResource(R.id.songImage, R.drawable.album_cover)
-        }
+        val prevAction = NotificationCompat.Action(R.drawable.skip_previous_filled, "Anterior", prevPI)
+        val playPauseAction = NotificationCompat.Action(
+            if (isPlaying) R.drawable.pause else R.drawable.play_arrow_filled,
+            if (isPlaying) "Pausar" else "Reproducir",
+            playPausePI
+        )
+        val nextAction = NotificationCompat.Action(R.drawable.skip_next_filled, "Siguiente", nextPI)
 
-        // Cambiar icono play/pause según estado
-        val playPauseIcon = if (isPlaying) R.drawable.pause else R.drawable.play_arrow_filled
-        remoteViews.setImageViewResource(R.id.playPauseButton, playPauseIcon)
-
-        // Intent para las acciones (prev, play/pause, next)
-        val intentPrev = Intent(this, MusicPlaybackService::class.java).apply { action = ACTION_PREVIOUS }
-        val pendingPrev = PendingIntent.getService(this, 2, intentPrev, PendingIntent.FLAG_IMMUTABLE)
-        remoteViews.setOnClickPendingIntent(R.id.previousSongButton, pendingPrev)
-
-        val actionPlayPause = if (isPlaying) ACTION_PAUSE else ACTION_RESUME
-        val intentPlayPause = Intent(this, MusicPlaybackService::class.java).apply { action = actionPlayPause }
-        val pendingPlayPause = PendingIntent.getService(this, 1, intentPlayPause, PendingIntent.FLAG_IMMUTABLE)
-        remoteViews.setOnClickPendingIntent(R.id.playPauseButton, pendingPlayPause)
-
-        val intentNext = Intent(this, MusicPlaybackService::class.java).apply { action = ACTION_NEXT }
-        val pendingNext = PendingIntent.getService(this, 3, intentNext, PendingIntent.FLAG_IMMUTABLE)
-        remoteViews.setOnClickPendingIntent(R.id.nextSongButton, pendingNext)
-
-        // Construir la notificación
-        return NotificationCompat.Builder(this, "music_channel")
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.s_resonant_white)
-            .setCustomContentView(remoteViews)  // CORRECTO para notificación personalizada
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentTitle(song.title ?: "Canción")
+            .setContentText(song.artistName ?: "Artista")
+            .setLargeIcon(largeIcon)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(prevAction)
+            .addAction(playPauseAction)
+            .addAction(nextAction)
+            .setStyle(
+                androidx.media.app.NotificationCompat.MediaStyle()
+                    .setMediaSession(mediaSession.sessionToken)
+                    .setShowActionsInCompactView(0, 1, 2)
+                    .setShowCancelButton(true)
+                    .setCancelButtonIntent(stopPI)
+            )
+            .setDeleteIntent(stopPI)
             .setOnlyAlertOnce(true)
-            .setOngoing(true)
             .build()
-
     }
 
+    private fun updatePlaybackState() {
+        val actions =
+            PlaybackStateCompat.ACTION_PLAY or
+                    PlaybackStateCompat.ACTION_PAUSE or
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                    PlaybackStateCompat.ACTION_STOP or
+                    PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                    PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+                    PlaybackStateCompat.ACTION_SEEK_TO
 
-    override fun onCreate() {
-        super.onCreate()
-        mediaSession = MediaSessionCompat(this, "MusicPlaybackService").apply {
-            isActive = true
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "music_channel",
-                "Reproducción de música",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
+        val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+        val pos = (mediaPlayer?.currentPosition ?: 0).toLong()
+
+        val pbState = PlaybackStateCompat.Builder()
+            .setActions(actions)
+            .setState(state, pos, 1.0f)
+            .build()
+
+        mediaSession.setPlaybackState(pbState)
+    }
+
+    private fun updateMediaMetadata() {
+        if (currentSong == null || mediaPlayer == null || !isPrepared) {
+            mediaSession.setMetadata(null)
+            return
         }
 
+        val metadataBuilder = MediaMetadataCompat.Builder()
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentSong?.title)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentSong?.artistName)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: 0L)
+
+        Utils.getCachedSongBitmap(currentSong!!.id ?: "", this)?.let {
+            metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, it)
+        }
+
+        mediaSession.setMetadata(metadataBuilder.build())
     }
 
     fun updateSongs(newSongs: List<Song>) {
@@ -473,11 +543,66 @@ class MusicPlaybackService : Service() {
         currentIndex = 0
     }
 
+    override fun onCreate() {
+        super.onCreate()
+
+        mediaSession = MediaSessionCompat(this, "MusicPlaybackService").apply {
+            setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() {
+                    resume()
+                    updatePlaybackState()
+                    updateNotification()
+                }
+                override fun onPause() {
+                    pause()
+                    updatePlaybackState()
+                    updateNotification()
+                }
+                override fun onSkipToNext() {
+                    playNext(this@MusicPlaybackService)
+                    updatePlaybackState()
+                    updateNotification()
+                }
+                override fun onSkipToPrevious() {
+                    playPrevious(this@MusicPlaybackService)
+                    updatePlaybackState()
+                    updateNotification()
+                }
+                override fun onStop() {
+                    stopPlayer()
+                    updatePlaybackState()
+                }
+                override fun onSeekTo(pos: Long) {
+                    seekTo(pos.toInt())
+                    updatePlaybackState()
+                    updateNotification()
+                }
+            })
+            isActive = true
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Reproducción de música",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopPlayer()
+        stopSelf()
+    }
+
     override fun onDestroy() {
         stopSeekBarUpdates()
         mediaPlayer?.release()
+        mediaPlayer = null
+        serviceScope.cancel() // 🔥 Cancela todas las corrutinas en curso
         super.onDestroy()
     }
-
-
 }

@@ -17,7 +17,16 @@
         android:translationY="200dp"
         android:translationX="50dp"
         android:scaleType="fitCenter"
-        android:alpha="0.30"
+        android:alpha="0.30"/>
+
+    <ImageView
+        android:id="@+id/parallaxRotatingImage"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:scaleY="2"
+        android:scaleX="2"
+        android:layout_centerInParent="true"
+        android:alpha="0.15"
         android:background="@drawable/album_cover"/>
 
     <View
@@ -40,13 +49,13 @@
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="80dp"
+            android:layout_height="70dp"
             android:paddingHorizontal="20dp">
 
             <FrameLayout
                 android:id="@+id/arrowGoBackBackground"
-                android:layout_width="45dp"
-                android:layout_height="45dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent">
@@ -56,6 +65,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
+                    android:scaleX="0.8"
+                    android:scaleY="0.8"
                     android:background="@drawable/arrow_back"
                     android:clickable="false"
                     android:focusable="false"/>

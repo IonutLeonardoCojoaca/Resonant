@@ -41,10 +41,12 @@
         android:layout_below="@id/artistImageContainer"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="8dp"
-        android:text="Artist Name"
+        android:text=""
         android:textAlignment="center"
         android:textColor="@color/white"
         android:fontFamily="@font/unageo_medium"
-        android:textSize="12sp"/>
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"/>
 
 </RelativeLayout>

@@ -7,7 +7,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -92,8 +91,8 @@ class ArtistFragment : Fragment() {
                 val artist = api.getArtistById(artistId)
                 artistNameTextView.text = artist.name ?: "Artista desconocido"
 
-                val artistImageUrl = if (!artist.imageUrl.isNullOrEmpty()) {
-                    api.getArtistUrl(artist.imageUrl).url
+                val artistImageUrl = if (!artist.fileName.isNullOrEmpty()) {
+                    api.getArtistUrl(artist.fileName).url
                 } else null
 
                 if (!artistImageUrl.isNullOrEmpty()) {

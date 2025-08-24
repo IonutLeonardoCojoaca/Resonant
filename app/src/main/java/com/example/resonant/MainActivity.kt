@@ -73,6 +73,10 @@ class MainActivity : AppCompatActivity() {
 
     private var musicService: MusicPlaybackService? = null
     private var isBound = false
+    private lateinit var miniPlayer: View
+    private var shouldShowMiniPlayer = true
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,58 +96,8 @@ class MainActivity : AppCompatActivity() {
         bottomNavigationView.itemIconTintList = null
 
         val superiorToolbar = findViewById<View>(R.id.superiorToolbar)
-        val miniPlayer = findViewById<View>(R.id.mini_player)
         val bottomNavigation = findViewById<View>(R.id.bottom_navigation)
         val gradientBottom = findViewById<View>(R.id.gradientBottom)
-
-        val fragmentsConToolbar = setOf(
-            R.id.homeFragment,
-            R.id.searchFragment,
-            R.id.savedFragment,
-            R.id.settingsFragment
-        )
-
-        val fragmentsSinToolbar = setOf(
-            R.id.artistFragment,
-            R.id.albumFragment
-        )
-
-        navController.addOnDestinationChangedListener { _, destination, _ ->
-
-            when (destination.id) {
-                in fragmentsConToolbar -> {
-                    superiorToolbar.visibility = View.VISIBLE
-                    miniPlayer.visibility = View.VISIBLE
-                    bottomNavigation.visibility = View.VISIBLE
-                    gradientBottom.visibility = View.VISIBLE
-                }
-                in fragmentsSinToolbar -> {
-                    superiorToolbar.visibility = View.GONE
-                    miniPlayer.visibility = View.VISIBLE
-                    bottomNavigation.visibility = View.VISIBLE
-                    gradientBottom.visibility = View.VISIBLE
-                }
-                R.id.songFragment -> {
-                    superiorToolbar.visibility = View.GONE
-                    miniPlayer.visibility = View.GONE
-                    bottomNavigation.visibility = View.GONE
-                    gradientBottom.visibility = View.GONE
-                }
-                else -> {
-                    superiorToolbar.visibility = View.GONE
-                    miniPlayer.visibility = View.GONE
-                    bottomNavigation.visibility = View.GONE
-                }
-            }
-
-            if (destination.id == R.id.homeFragment) {
-                val currentFragment = navHostFragment.childFragmentManager.primaryNavigationFragment
-                if (currentFragment is HomeFragment) {
-                    homeFragment = currentFragment
-                    setupObservers()
-                }
-            }
-        }
 
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
@@ -176,6 +130,7 @@ class MainActivity : AppCompatActivity() {
         songImage = findViewById(R.id.songImage)
         songName = findViewById(R.id.songTitle)
         songArtist = findViewById(R.id.songArtist)
+        miniPlayer = findViewById(R.id.mini_player)
 
         userPhotoImage = findViewById(R.id.userProfile)
         drawerLayout = findViewById(R.id.drawerLayout)
@@ -240,6 +195,62 @@ class MainActivity : AppCompatActivity() {
                 val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
                 val navController = navHostFragment.navController
                 navController.navigate(R.id.songFragment, bundle)
+            }
+        }
+
+        val fragmentsConToolbar = setOf(
+            R.id.homeFragment,
+            R.id.searchFragment,
+            R.id.savedFragment
+        )
+
+        val fragmentsSinToolbar = setOf(
+            R.id.artistFragment,
+            R.id.albumFragment
+        )
+
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+
+            when (destination.id) {
+                in fragmentsConToolbar -> {
+                    superiorToolbar.visibility = View.VISIBLE
+                    bottomNavigation.visibility = View.VISIBLE
+                    gradientBottom.visibility = View.VISIBLE
+                    shouldShowMiniPlayer = true
+                }
+                in fragmentsSinToolbar -> {
+                    superiorToolbar.visibility = View.GONE
+                    bottomNavigation.visibility = View.VISIBLE
+                    gradientBottom.visibility = View.VISIBLE
+                    shouldShowMiniPlayer = true
+                }
+                R.id.songFragment -> {
+                    superiorToolbar.visibility = View.GONE
+                    shouldShowMiniPlayer = false
+                    bottomNavigation.visibility = View.GONE
+                    gradientBottom.visibility = View.GONE
+                }
+                else -> {
+                    superiorToolbar.visibility = View.GONE
+                    shouldShowMiniPlayer = false
+                    bottomNavigation.visibility = View.GONE
+                }
+            }
+
+            if (destination.id == R.id.homeFragment) {
+                val currentFragment = navHostFragment.childFragmentManager.primaryNavigationFragment
+                if (currentFragment is HomeFragment) {
+                    homeFragment = currentFragment
+                    setupObservers()
+                }
+            }
+
+            // ✅ Evaluar si mostrar mini player cuando se navega
+            val currentSong = musicService?.currentSongLiveData?.value
+            if (shouldShowMiniPlayer && currentSong != null && !currentSong.title.isNullOrEmpty()) {
+                AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
+            } else {
+                AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this@MainActivity)
             }
         }
 
@@ -314,16 +325,30 @@ class MainActivity : AppCompatActivity() {
             musicService = binder.getService()
             isBound = true
 
+            // Observers
             musicService?.currentSongLiveData?.observe(this@MainActivity) { song ->
-                song?.let {
-                    updateDataPlayer(it)
+                if (song != null && !song.title.isNullOrEmpty() && shouldShowMiniPlayer) {
+                    updateDataPlayer(song)
+                    AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
+                } else {
+                    AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this@MainActivity)
                 }
             }
 
             musicService?.isPlayingLiveData?.observe(this@MainActivity) { playing ->
                 updatePlayPauseButton(playing)
             }
+
+            // ✅ Forzar evaluación inicial si ya hay canción activa
+            val currentSong = musicService?.currentSongLiveData?.value
+            if (currentSong != null && !currentSong.title.isNullOrEmpty()) {
+                updateDataPlayer(currentSong)
+                if (shouldShowMiniPlayer) {
+                    AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
+                }
+            }
         }
+
 
         override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
