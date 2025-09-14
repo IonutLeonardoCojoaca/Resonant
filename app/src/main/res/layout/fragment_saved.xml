@@ -17,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingHorizontal="20dp"
-            android:paddingVertical="15dp">
+            android:paddingVertical="10dp">
 
             <TextView
                 android:id="@+id/favoriteText"
@@ -31,66 +31,88 @@
 
         </FrameLayout>
 
-        <RelativeLayout
-            android:id="@+id/favoriteButtonContainer"
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/buttonFavoriteContainer"
             android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_below="@id/favoritesTextContainer"
-            android:paddingHorizontal="20dp">
+            android:layout_height="105dp"
+            android:layout_below="@+id/favoritesTextContainer"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="5dp">
 
-            <RelativeLayout
-                android:id="@+id/box_view_stroke"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:background="@drawable/simple_box_border_background"
-                android:layout_centerVertical="true"
-                android:paddingHorizontal="15dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/songsButton"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_margin="5dp"
+                android:padding="10dp"
+                android:textSize="14sp"
+                app:icon="@drawable/song"
+                android:text="Canciones"
+                app:rippleColor="@color/ripple_white"
+                android:fontFamily="@font/unageo_regular"
+                app:iconGravity="top"
+                app:iconSize="30dp"
+                app:cornerRadius="12dp"
+                app:iconTint="@color/white"
+                android:textColor="@color/white"
+                app:backgroundTint="@color/cardsTheme"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintWidth_percent="0.3"
+                app:layout_constraintEnd_toStartOf="@id/artistsButton"/>
 
-                <View
-                    android:id="@+id/icon_favorite"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="@drawable/favorite"
-                    android:layout_centerVertical="true"/>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/artistsButton"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_margin="5dp"
+                app:icon="@drawable/artist"
+                android:textSize="14sp"
+                app:iconTint="@color/no_selected_color_icon"
+                android:textColor="@color/no_selected_color_icon"
+                android:text="Artistas"
+                android:padding="10dp"
+                android:fontFamily="@font/unageo_regular"
+                app:iconGravity="top"
+                app:iconSize="30dp"
+                app:cornerRadius="12dp"
+                app:backgroundTint="@color/cardsTheme"
+                app:layout_constraintStart_toEndOf="@id/songsButton"
+                app:layout_constraintEnd_toStartOf="@id/albumsButton"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintWidth_percent="0.3"/>
 
-                <RelativeLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_toRightOf="@id/icon_favorite"
-                    android:layout_marginLeft="15dp"
-                    android:layout_centerVertical="true">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/albumsButton"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_margin="5dp"
+                app:icon="@drawable/album"
+                android:textSize="14sp"
+                android:text="Álbumes"
+                android:padding="10dp"
+                android:fontFamily="@font/unageo_regular"
+                app:iconGravity="top"
+                app:iconSize="32dp"
+                app:iconTint="@color/no_selected_color_icon"
+                android:textColor="@color/no_selected_color_icon"
+                app:cornerRadius="12dp"
+                app:backgroundTint="@color/cardsTheme"
+                app:layout_constraintStart_toEndOf="@id/artistsButton"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintWidth_percent="0.3"/>
 
-                    <TextView
-                        android:id="@+id/favoriteSongsText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Favoritos"
-                        android:textColor="@color/white"
-                        android:fontFamily="@font/unageo_medium"
-                        android:textSize="14sp"/>
-
-                    <TextView
-                        android:id="@+id/totalLikedSongsText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textColor="@color/no_selected_color_icon"
-                        android:layout_below="@id/favoriteSongsText"
-                        android:fontFamily="@font/unageo_regular"
-                        android:textSize="14sp"
-                        android:layout_marginTop="5dp"/>
-
-                </RelativeLayout>
-
-            </RelativeLayout>
-
-        </RelativeLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <FrameLayout
             android:id="@+id/playlistTextContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/favoriteButtonContainer"
+            android:layout_below="@id/buttonFavoriteContainer"
             android:paddingHorizontal="20dp">
 
             <TextView
@@ -98,27 +120,24 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/unageo_medium"
-                android:text="Mis playlists"
+                android:text="Listas de reproducción"
                 android:textColor="@color/white"
                 android:textSize="20sp"
                 android:layout_gravity="center_vertical|start"
-                android:layout_marginVertical="15dp"/>
+                android:layout_marginVertical="10dp"/>
 
-            <FrameLayout
-                android:id="@+id/backgroundAddPlaylistButton"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/createPlaylistButton"
+                android:layout_width="40dp"
+                android:layout_height="45dp"
                 android:layout_gravity="center_vertical|end"
-                android:background="@drawable/button_interface_background">
-
-                <ImageButton
-                    android:id="@+id/addPlaylistButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/add"
-                    android:layout_gravity="center"/>
-
-            </FrameLayout>
+                app:icon="@drawable/add"
+                app:rippleColor="@color/ripple_white"
+                app:iconGravity="top"
+                app:iconSize="25dp"
+                app:cornerRadius="12dp"
+                app:iconTint="@color/white"
+                app:backgroundTint="@color/cardsTheme"/>
 
         </FrameLayout>
 
@@ -144,29 +163,13 @@
 
             </androidx.core.widget.NestedScrollView>
 
-            <RelativeLayout
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true">
-
-                <ImageView
-                    android:id="@+id/playlistIcon"
-                    android:layout_width="130dp"
-                    android:layout_height="130dp"
-                    android:background="@drawable/playlist_stack"
-                    android:alpha="0.8"
-                    android:layout_centerHorizontal="true"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="No tienes ninguna playlist guardada"
-                    android:fontFamily="@font/unageo_medium"
-                    android:layout_below="@id/playlistIcon"
-                    android:layout_centerHorizontal="true"
-                    android:layout_marginTop="5dp"/>
-
-            </RelativeLayout>
+                android:text="No tienes ninguna playlist guardada"
+                android:fontFamily="@font/unageo_medium"
+                android:layout_marginTop="5dp"
+                android:layout_centerInParent="true"/>
 
         </RelativeLayout>
 
@@ -175,7 +178,6 @@
             android:layout_width="match_parent"
             android:layout_height="80dp"
             android:layout_alignParentBottom="true">
-
 
 
         </FrameLayout>

@@ -1,5 +1,7 @@
 package com.example.resonant
 
+import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -11,61 +13,106 @@ import androidx.navigation.findNavController
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
-import com.squareup.picasso.Callback
-import com.squareup.picasso.Picasso
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
 
-class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<ArtistAdapter.ArtistViewHolder>() {
+class ArtistAdapter(
+    private var artists: List<Artist>
+) : RecyclerView.Adapter<ArtistAdapter.ArtistViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ArtistViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_artist, parent, false)
 
+        // Mantiene 3 columnas ajustando el ancho del item al ancho del contenedor
         val screenWidth = parent.measuredWidth
-        val layoutParams = view.layoutParams
-        layoutParams.width = screenWidth / 3
-        view.layoutParams = layoutParams
+        val lp = view.layoutParams
+        lp.width = if (screenWidth > 0) screenWidth / 3 else ViewGroup.LayoutParams.MATCH_PARENT
+        view.layoutParams = lp
 
         return ArtistViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ArtistViewHolder, position: Int) {
-        val artist = artists[position]
-        holder.bind(artist)
+        holder.bind(artists[position])
     }
 
     override fun getItemCount(): Int = artists.size
 
+    override fun onViewRecycled(holder: ArtistViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.artistImage)
+        holder.loadingAnimation.cancelAnimation()
+        holder.loadingAnimation.visibility = View.GONE
+    }
+
+    fun submitArtists(newArtists: List<Artist>) {
+        this.artists = newArtists
+        notifyDataSetChanged()
+    }
+
     inner class ArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
-        private val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
+        val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
-        private val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
+        val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
             artistImage.transitionName = "artistImage_${artist.id}"
 
+            // Estado inicial
             loadingAnimation.visibility = View.VISIBLE
             artistImage.visibility = View.INVISIBLE
 
-            if (!artist.fileName.isNullOrEmpty()) {
-                Picasso.get()
-                    .load(artist.fileName)
-                    .error(R.drawable.user)
-                    .into(artistImage, object : Callback {
-                        override fun onSuccess() {
-                            Log.d("Picasso", "Imagen cargada correctamente: ${artist.fileName}")
+            // Limpia request anterior
+            Glide.with(itemView).clear(artistImage)
+
+            val placeholderRes = R.drawable.user
+            val url = artist.fileName
+            if (url.isNullOrBlank()) {
+                loadingAnimation.visibility = View.GONE
+                artistImage.setImageResource(placeholderRes)
+                artistImage.visibility = View.VISIBLE
+            } else {
+                val model = ImageRequestHelper.buildGlideModel(itemView.context, url)
+                Glide.with(itemView)
+                    .load(model)
+                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                    .timeout(10_000)
+                    .dontAnimate()
+                    .circleCrop()
+                    .placeholder(placeholderRes)
+                    .error(placeholderRes)
+                    .listener(object : RequestListener<Drawable> {
+                        override fun onLoadFailed(
+                            e: GlideException?,
+                            model: Any?,
+                            target: Target<Drawable>,
+                            isFirstResource: Boolean
+                        ): Boolean {
+                            Log.w("ArtistAdapter", "Artist image load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}")
                             loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
+                            return false
                         }
 
-                        override fun onError(e: Exception?) {
-                            Log.e("Picasso", "Error al cargar la imagen: ${artist.fileName}", e)
+                        override fun onResourceReady(
+                            resource: Drawable,
+                            model: Any,
+                            target: Target<Drawable>?,
+                            dataSource: DataSource,
+                            isFirstResource: Boolean
+                        ): Boolean {
                             loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
+                            return false
                         }
                     })
-            } else {
-                artistImage.setImageResource(R.drawable.user)
+                    .into(artistImage)
             }
 
             itemView.setOnClickListener {
@@ -73,13 +120,11 @@ class ArtistAdapter(private val artists: List<Artist>) : RecyclerView.Adapter<Ar
                     putString("artistId", artist.id)
                     putString("artistName", artist.name)
                     putString("artistImageUrl", artist.fileName)
-                    putString("artistImageTransitionName", "artistImage_${artist.id}")
+                    putString("artistImageTransitionName", artistImage.transitionName)
                 }
-
                 val extras = FragmentNavigatorExtras(
-                    artistImage to "artistImage_${artist.id}"
+                    artistImage to artistImage.transitionName
                 )
-
                 itemView.findNavController().navigate(
                     R.id.action_homeFragment_to_artistFragment,
                     bundle,

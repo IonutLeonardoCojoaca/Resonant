@@ -21,6 +21,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.squareup.picasso.Picasso
 import kotlinx.coroutines.launch
@@ -38,8 +39,8 @@ class AlbumFragment : Fragment() {
     private lateinit var nestedScroll: NestedScrollView
 
     private lateinit var songAdapter: SongAdapter
-    private var songList: List<Song>? = null
     private lateinit var sharedViewModel: SharedViewModel
+    private lateinit var favoritesViewModel: FavoritesViewModel
 
     private lateinit var shimmerLayout: ShimmerFrameLayout
 
@@ -129,6 +130,57 @@ class AlbumFragment : Fragment() {
             requireContext().startService(playIntent)
         }
 
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+
+        // Cargar favoritos al inicio
+        favoritesViewModel.loadFavorites()
+
+        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
+            val ids = favorites.map { it.id }.toSet()
+            songAdapter.favoriteSongIds = ids
+            songAdapter.submitList(songAdapter.currentList)
+        }
+
+        songAdapter.onFavoriteClick = { song, isFavorite ->
+            if (isFavorite) {
+                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
+                songAdapter.notifyItemChanged(
+                    songAdapter.currentList.indexOfFirst { it.id == song.id },
+                    "silent"
+                )
+
+                favoritesViewModel.deleteFavorite(song.id) { success ->
+                    if (!success) {
+                        // Revertir si falla
+                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
+                        songAdapter.notifyItemChanged(
+                            songAdapter.currentList.indexOfFirst { it.id == song.id },
+                            "silent"
+                        )
+                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
+                songAdapter.notifyItemChanged(
+                    songAdapter.currentList.indexOfFirst { it.id == song.id },
+                    "silent"
+                )
+
+                favoritesViewModel.addFavorite(song) { success ->
+                    if (!success) {
+                        // Revertir si falla
+                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
+                        songAdapter.notifyItemChanged(
+                            songAdapter.currentList.indexOfFirst { it.id == song.id },
+                            "silent"
+                        )
+                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
         arrowGoBackButton.setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
@@ -143,7 +195,8 @@ class AlbumFragment : Fragment() {
                 recyclerViewSongs.visibility = View.GONE
 
                 val album = api.getAlbumById(albumId)
-                val albumImageUrl = api.getAlbumUrl(album.fileName).url
+                val albumFileName = album.fileName
+                val albumImageUrl = albumFileName?.let { api.getAlbumUrl(it).url }.orEmpty()
                 val artistName = album.artistName ?: run {
                     val artistList = api.getArtistsByAlbumId(albumId)
                     artistList.firstOrNull()?.name ?: "Artista desconocido"
@@ -151,19 +204,34 @@ class AlbumFragment : Fragment() {
 
                 albumName.text = album.title ?: "Sin título"
                 albumArtistName.text = artistName
-                Picasso.get().load(albumImageUrl).into(albumImage)
+
+                val albumImageModel = if (albumImageUrl.isNotBlank())
+                    ImageRequestHelper.buildGlideModel(requireContext(), albumImageUrl)
+                else
+                    R.drawable.album_cover
+                Glide.with(this@AlbumFragment)
+                    .load(albumImageModel)
+                    .placeholder(R.drawable.album_cover)
+                    .error(R.drawable.album_cover)
+                    .into(albumImage)
+
                 albumDuration.text = Utils.formatDuration(album.duration)
                 albumNumberOfTracks.text = "${album.numberOfTracks} canciones"
 
                 val songs = getSongsFromAlbum(requireContext(), albumId)
-                songs.forEach { it.albumImageUrl = albumImageUrl }
+
+                if (albumImageUrl.isNotBlank()) {
+                    songs.forEach { it.albumImageUrl = albumImageUrl }
+                } else {
+                    songs.forEach { it.albumImageUrl = null }
+                }
 
                 songAdapter.submitList(songs)
                 shimmerLayout.visibility = View.GONE
                 recyclerViewSongs.visibility = View.VISIBLE
+
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), "Error al cargar el álbum", Toast.LENGTH_SHORT).show()
-
                 shimmerLayout.visibility = View.GONE
                 recyclerViewSongs.visibility = View.VISIBLE
             }

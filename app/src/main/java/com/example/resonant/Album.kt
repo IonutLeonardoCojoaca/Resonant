@@ -7,7 +7,7 @@ import kotlinx.parcelize.Parcelize
 data class Album(
     val id: String = "",
     val title: String? = "",
-    var fileName: String = "",
+    var fileName: String? = null,
     val releaseYear: Int,
     val numberOfTracks: Int = 0,
     val duration: Int = 0,

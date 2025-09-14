@@ -81,4 +81,17 @@ object Utils {
         }
     }
 
+    fun compareSemver(a: String, b: String): Int {
+        fun toParts(s: String) = s
+            .split("-", limit = 2)[0] // quita sufijo -beta etc
+            .split(".")
+            .map { it.toIntOrNull() ?: 0 }
+            .let { parts -> listOf(parts.getOrElse(0) {0}, parts.getOrElse(1){0}, parts.getOrElse(2){0}) }
+
+        val (a1, a2, a3) = toParts(a)
+        val (b1, b2, b3) = toParts(b)
+        if (a1 != b1) return a1 - b1
+        if (a2 != b2) return a2 - b2
+        return a3 - b3
+    }
 }

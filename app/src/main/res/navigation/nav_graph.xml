@@ -62,7 +62,7 @@
         android:id="@+id/favoriteSongsFragment"
         android:name="com.example.resonant.FavoriteSongsFragment"
         android:label="Canciones favoritas"
-        tools:layout="@layout/fragment_favorite_songs" >
+        tools:layout="@layout/fragment_favorite" >
         <action
             android:id="@+id/action_favoriteSongsFragment_to_savedFragment"
             app:destination="@id/savedFragment" />

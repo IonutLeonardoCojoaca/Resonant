@@ -1,13 +1,11 @@
 package com.example.resonant
 
-import android.app.Activity
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Base64
 import android.util.Log
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -30,12 +28,9 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import androidx.credentials.CredentialManager
+import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import org.json.JSONObject
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class LoginActivity : AppCompatActivity() {
 
@@ -43,6 +38,7 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var videoView: VideoView
     private lateinit var auth: FirebaseAuth
     private lateinit var credentialManager: CredentialManager
+    private lateinit var userViewModel: UserViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +58,7 @@ class LoginActivity : AppCompatActivity() {
 
         loginButton = findViewById(R.id.loginButton)
         videoView = findViewById(R.id.videoViewBackground1)
+        userViewModel = ViewModelProvider(this).get(UserViewModel::class.java)
 
         auth = Firebase.auth
         credentialManager = CredentialManager.create(baseContext)
@@ -72,84 +69,7 @@ class LoginActivity : AppCompatActivity() {
             launchCredentialManager()
         }
 
-        checkSessionAndNavigate(this)
-
     }
-
-    fun checkSessionAndNavigate(context: Context) {
-        val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
-        val accessToken = prefs.getString("ACCESS_TOKEN", null)
-        val refreshToken = prefs.getString("REFRESH_TOKEN", null)
-        val email = prefs.getString("EMAIL", null)
-
-        if (accessToken != null && isTokenValid(accessToken)) {
-            goToMain(context)
-        } else if (refreshToken != null && email != null) {
-            refreshAccessToken(refreshToken, email, context)
-        } else {
-            // 👇 Evita recargar LoginActivity si ya estamos en ella
-            if (context !is LoginActivity) {
-                goToLogin(context)
-            }
-        }
-    }
-
-
-    fun isTokenValid(token: String): Boolean {
-        return try {
-            val parts = token.split(".")
-            if (parts.size != 3) return false
-            val payload = String(Base64.decode(parts[1], Base64.URL_SAFE))
-            val json = JSONObject(payload)
-            val exp = json.getLong("exp")
-            val now = System.currentTimeMillis() / 1000
-            exp > now
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    fun refreshAccessToken(refreshToken: String, email: String, context: Context) {
-        val service = ApiClient.getService(context)
-        val call = service.refreshToken(RefreshTokenDTO(refreshToken, email))
-
-        call.enqueue(object : Callback<AuthResponse> {
-            override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
-                if (response.isSuccessful) {
-                    val auth = response.body()
-                    auth?.let {
-                        val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
-                        prefs.edit()
-                            .putString("ACCESS_TOKEN", it.accessToken)
-                            .putString("REFRESH_TOKEN", it.refreshToken)
-                            .apply()
-                        goToMain(context)
-                    } ?: run {
-                        goToLogin(context)
-                    }
-                } else {
-                    goToLogin(context)
-                }
-            }
-
-            override fun onFailure(call: Call<AuthResponse>, t: Throwable) {
-                goToLogin(context)
-            }
-        })
-    }
-
-    fun goToMain(context: Context) {
-        val intent = Intent(context, MainActivity::class.java)
-        context.startActivity(intent)
-        if (context is Activity) context.finish()
-    }
-
-    fun goToLogin(context: Context) {
-        val intent = Intent(context, LoginActivity::class.java)
-        context.startActivity(intent)
-        if (context is Activity) context.finish()
-    }
-
 
     private fun launchCredentialManager() {
         val googleIdOption = GetGoogleIdOption.Builder()
@@ -196,9 +116,23 @@ class LoginActivity : AppCompatActivity() {
                             val service = ApiClient.getService(applicationContext)
                             val response = service.loginWithGoogle(request)
                             saveTokens(response.accessToken, response.refreshToken, email)
+                            val userData = service.getUserByEmail(email)
+                            userViewModel.user = userData
+
+                            if (userData.isBanned == true) {
+                                Toast.makeText(this@LoginActivity, "Tu cuenta tiene acceso restringido.", Toast.LENGTH_LONG).show()
+                                FirebaseAuth.getInstance().signOut()
+                                userViewModel.user = null
+                                getSharedPreferences("user_data", Context.MODE_PRIVATE).edit().clear().apply()
+                                getSharedPreferences("Auth", Context.MODE_PRIVATE).edit().clear().apply()
+                                return@launch
+                            }
+
+                            saveUserData(userData)
+
+                            Log.d("LOGIN", "Usuario id guardado: ${userData.id}")
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                             finish()
-
                         } catch (e: Exception) {
                             Toast.makeText(this@LoginActivity, "Error backend: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -207,6 +141,17 @@ class LoginActivity : AppCompatActivity() {
                     Toast.makeText(this, "Error con Firebase login", Toast.LENGTH_SHORT).show()
                 }
             }
+    }
+
+    fun saveUserData(userData: User) {
+        val prefs = getSharedPreferences("user_data", Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putString("NAME", userData.name)
+            putString("EMAIL", userData.email)
+            putString("USER_ID", userData.id)
+            putBoolean("IS_BANNED", userData.isBanned)
+            apply()
+        }
     }
 
     fun saveTokens(accessToken: String, refreshToken: String, email: String) {

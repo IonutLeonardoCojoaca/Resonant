@@ -1,65 +1,59 @@
 package com.example.resonant
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.Route
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
 class TokenAuthenticator(private val context: Context) : Authenticator {
+
+    private val session by lazy { SessionManager(context.applicationContext, ApiClient.baseUrl()) }
+
     override fun authenticate(route: Route?, response: Response): Request? {
+        // Evita bucles: no más de 1 reintento por cadena
         if (responseCount(response) >= 2) return null
 
-        val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
-        val refreshToken = prefs.getString("REFRESH_TOKEN", null) ?: return null
-        val email = prefs.getString("EMAIL", null) ?: return null
-
-        return runBlocking {
-            try {
-                val retrofit = Retrofit.Builder()
-                    .baseUrl("https://resonantapp.ddns.net:8443/")
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build()
-
-                val service = retrofit.create(ApiResonantService::class.java)
-                val call = service.refreshToken(RefreshTokenDTO(refreshToken, email))
-                val responseRefresh = call.execute()
-
-                if (responseRefresh.isSuccessful) {
-                    val newAuth = responseRefresh.body() ?: return@runBlocking null
-
-                    prefs.edit()
-                        .putString("ACCESS_TOKEN", newAuth.accessToken)
-                        .putString("REFRESH_TOKEN", newAuth.refreshToken)
-                        .apply()
-
-                    return@runBlocking response.request.newBuilder()
-                        .header("Authorization", "Bearer ${newAuth.accessToken}")
-                        .build()
-                } else {
-                    return@runBlocking null
-                }
-            } catch (e: Exception) {
-                return@runBlocking null
-            }
+        // No intentes refrescar para endpoints de auth
+        val path = response.request.url.encodedPath
+        if (path.contains("/api/Auth/Refresh") || path.contains("/api/Auth/Google")) {
+            return null
         }
+
+        // Si no teníamos Authorization en el request original, no reintentes con token
+        if (response.request.header("Authorization").isNullOrBlank()) {
+            return null
+        }
+
+        // Refresca de forma sincronizada
+        val newToken = try {
+            runBlocking { session.refreshTokensOrNull() }
+        } catch (e: Exception) {
+            Log.e("Authenticator", "Refresh failed", e)
+            null
+        }
+
+        if (newToken.isNullOrBlank()) {
+            // Refresh inválido (probablemente >7 días). Limpia tokens y deja que la app gestione logout.
+            session.clearTokens()
+            return null
+        }
+
+        // Repite la request con el token nuevo
+        return response.request.newBuilder()
+            .header("Authorization", "Bearer $newToken")
+            .build()
     }
 
     private fun responseCount(response: Response): Int {
-        var res = response.priorResponse
-        var result = 1
+        var res: Response? = response
+        var count = 0
         while (res != null) {
-            result++
+            count++
             res = res.priorResponse
         }
-        return result
+        return count
     }
 }
-
-
-
-
-

@@ -161,6 +161,7 @@ class MusicPlaybackService : Service() {
             ACTION_REQUEST_STATE -> {
                 notifyPlaybackStateChanged()
                 notifySeekBarUpdate()
+                currentSong?.let { notifySongChangedBroadcast(it) }
             }
         }
         return START_STICKY

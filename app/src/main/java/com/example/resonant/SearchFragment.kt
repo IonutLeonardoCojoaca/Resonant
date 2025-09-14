@@ -34,13 +34,14 @@ class SearchFragment : Fragment() {
     private var searchJob: Job? = null
     private var restoringState = false
     private lateinit var sharedViewModel: SharedViewModel
+    private lateinit var favoritesViewModel: FavoritesViewModel
 
     private lateinit var noSongsFounded: TextView
     private lateinit var loadingAnimation: LottieAnimationView
 
     private lateinit var searchResultAdapter: SearchResultAdapter
     private lateinit var resultsRecyclerView: RecyclerView
-    private lateinit var editTextQuery: EditText
+    private var editTextQuery: EditText? = null
 
     private lateinit var chipSongs: Chip
     private lateinit var chipAlbums: Chip
@@ -80,12 +81,9 @@ class SearchFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        var view = inflater.inflate(R.layout.fragment_search, container, false)
+        val view = inflater.inflate(R.layout.fragment_search, container, false)
 
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
+        // QUITADO: registro duplicado del receiver (ya se registra en onViewCreated)
 
         chipSongs = view.findViewById(R.id.chipSongs)
         chipSongs.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
@@ -103,24 +101,31 @@ class SearchFragment : Fragment() {
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
 
         sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let {
-                searchResultAdapter.setCurrentPlayingSong(it.id)
-            }
+            currentSong?.let { searchResultAdapter.setCurrentPlayingSong(it.id) }
         }
+
+        // Restaurar estado (chips + query + resultados)
+        showSongs = savedInstanceState?.getBoolean("showSongs") ?: true
+        showAlbums = savedInstanceState?.getBoolean("showAlbums") ?: true
+        showArtists = savedInstanceState?.getBoolean("showArtists") ?: true
+
+        // Establecer estado de chips ANTES de añadir listeners para no dispararlos innecesariamente
+        chipSongs.isChecked = showSongs
+        chipAlbums.isChecked = showAlbums
+        chipArtists.isChecked = showArtists
 
         val restoredQuery = savedInstanceState?.getString("query")
         val restoredResults = savedInstanceState?.getParcelableArrayList<SearchResult>("results")
         if (!restoredQuery.isNullOrBlank() && !restoredResults.isNullOrEmpty()) {
             restoringState = true
-            editTextQuery.setText(restoredQuery)
+            editTextQuery?.setText(restoredQuery)
             loadingAnimation.visibility = View.GONE
 
             lastResults = restoredResults
-            searchResultAdapter.submitList(restoredResults)
+            searchResultAdapter.submitList(applyActiveFilters(lastResults))
 
             songResults.clear()
             songResults.addAll(restoredResults.filterIsInstance<SearchResult.SongItem>().map { it.song })
@@ -132,24 +137,22 @@ class SearchFragment : Fragment() {
             artistResults.addAll(restoredResults.filterIsInstance<SearchResult.ArtistItem>().map { it.artist })
 
             updateFilteredResults()
-
             restoringState = false
         }
 
+        // Listeners de chips
         chipSongs.setOnCheckedChangeListener { chip, isChecked ->
             showSongs = isChecked
             updateFilteredResults()
             AnimationsUtils.animateChip(chip as Chip, isChecked)
             AnimationsUtils.animateChipColor(chip, isChecked)
         }
-
         chipAlbums.setOnCheckedChangeListener { chip, isChecked ->
             showAlbums = isChecked
             updateFilteredResults()
             AnimationsUtils.animateChip(chip as Chip, isChecked)
             AnimationsUtils.animateChipColor(chip, isChecked)
         }
-
         chipArtists.setOnCheckedChangeListener { chip, isChecked ->
             showArtists = isChecked
             updateFilteredResults()
@@ -173,18 +176,47 @@ class SearchFragment : Fragment() {
             requireContext().startService(playIntent)
         }
 
-        editTextQuery.addTextChangedListener(object : TextWatcher {
-            override fun afterTextChanged(s: Editable?) {
-                if (restoringState) return  // ✅ NO hagas nada si estás restaurando
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
+        // Cargar favoritos al inicio
+        favoritesViewModel.loadFavorites()
+
+        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
+            val ids = favorites.map { it.id }.toSet()
+            searchResultAdapter.favoriteSongIds = ids
+            searchResultAdapter.submitList(searchResultAdapter.currentList)
+        }
+
+        searchResultAdapter.onFavoriteClick = { song, newState ->
+            if (newState) {
+                favoritesViewModel.addFavorite(song) { success ->
+                    if (!success) {
+                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                favoritesViewModel.deleteFavorite(song.id) { success ->
+                    if (!success) {
+                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        editTextQuery?.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (restoringState) return
                 if (s.isNullOrBlank()) {
+                    // Reset limpio
+                    searchJob?.cancel()
+                    lastResults = emptyList()
                     searchResultAdapter.submitList(emptyList())
                     songResults.clear()
                     albumResults.clear()
                     artistResults.clear()
                     loadingAnimation.visibility = View.INVISIBLE
+                    resultsRecyclerView.visibility = View.INVISIBLE
                     noSongsFounded.visibility = View.GONE
-                    return
                 }
             }
 
@@ -193,11 +225,11 @@ class SearchFragment : Fragment() {
             override fun onTextChanged(newText: CharSequence?, start: Int, before: Int, count: Int) {
                 if (restoringState) return
 
-                val query = newText.toString().trim()
+                val query = newText?.toString()?.trim().orEmpty()
                 searchJob?.cancel()
 
                 if (query.isEmpty()) {
-                    searchResultAdapter.submitList(emptyList())
+                    // Ya manejado en afterTextChanged
                     return
                 }
 
@@ -205,13 +237,13 @@ class SearchFragment : Fragment() {
                 resultsRecyclerView.visibility = View.INVISIBLE
                 loadingAnimation.visibility = View.VISIBLE
 
-                searchJob = lifecycleScope.launch {
-                    delay(800)
+                searchJob = viewLifecycleOwner.lifecycleScope.launch {
+                    // Debounce
+                    delay(500)
 
                     val service = ApiClient.getService(requireContext())
-
                     try {
-                        // Ejecutamos los 3 endpoints en paralelo
+                        // Ejecutar las 3 búsquedas en paralelo
                         val songsDeferred = async { service.searchSongsByQuery(query) }
                         val albumsDeferred = async { service.searchAlbumsByQuery(query) }
                         val artistsDeferred = async { service.searchArtistsByQuery(query) }
@@ -220,87 +252,66 @@ class SearchFragment : Fragment() {
                         val albums = albumsDeferred.await()
                         val artists = artistsDeferred.await()
 
-// Obtener URLs reales de imagen para artistas
-                        val artistsPrepared = artists.toMutableList()
-                        val artistsWithoutUrl = artistsPrepared.filter { it.fileName.isNotBlank() } // Asumimos que imageUrl guarda el "fileName"
-
-                        if (artistsWithoutUrl.isNotEmpty()) {
-                            val fileNames = artistsWithoutUrl.map { it.fileName } // imageUrl contiene el nombre del archivo
-                            val urlList = service.getMultipleArtistUrls(fileNames)
-                            val urlMap = urlList.associateBy { it.fileName }
-
-                            artistsWithoutUrl.forEach { artist ->
-                                artist.fileName = urlMap[artist.fileName]?.url ?: ""
-                            }
+                        // Resolver URLs en lote para evitar N llamadas por item
+                        // ARTISTAS
+                        val artistFileNames = artists.mapNotNull { it.fileName?.takeIf { fn -> fn.isNotBlank() } }
+                        val artistUrls = if (artistFileNames.isNotEmpty())
+                            service.getMultipleArtistUrls(artistFileNames)
+                        else emptyList()
+                        val artistUrlMap = artistFileNames.zip(artistUrls.map { it.url }).toMap()
+                        val artistsPrepared = artists.map { artist ->
+                            val url = artist.fileName?.let { artistUrlMap[it] }.orEmpty()
+                            artist.copy(
+                                fileName = url,
+                                description = artist.description ?: ""
+                            )
                         }
 
-
-                        // Obtener nombres de artistas para las canciones
-                        for (song in songs) {
+                        // CANCIONES: nombres de artistas y URLs de canciones faltantes
+                        // Nombres de artistas por canción (si tu API permite batch, cámbialo; si no, mantenlo)
+                        songs.forEach { song ->
                             val songArtists = service.getArtistsBySongId(song.id)
-                            song.artistName = songArtists.joinToString(", ") { it.name }
+                            song.artistName = songArtists.filterNotNull().map { it.name ?: "Desconocido" }.joinToString(", ")
                         }
-
-                        // Obtener URLs faltantes para canciones
-                        val songsWithoutUrl = songs.filter { it.url == null }
-                        if (songsWithoutUrl.isNotEmpty()) {
-                            val fileNames = songsWithoutUrl.map { it.fileName }
-                            val urlList = service.getMultipleSongUrls(fileNames)
-                            val urlMap = urlList.associateBy { it.fileName }
-
-                            songsWithoutUrl.forEach { song ->
-                                song.url = urlMap[song.fileName]?.url
+                        val missingSongFileNames = songs.filter { it.url.isNullOrEmpty() }
+                            .mapNotNull { it.fileName?.takeIf { fn -> fn.isNotBlank() } }
+                        if (missingSongFileNames.isNotEmpty()) {
+                            val songUrls = service.getMultipleSongUrls(missingSongFileNames)
+                            val songUrlMap = missingSongFileNames.zip(songUrls.map { it.url }).toMap()
+                            songs.forEach { s ->
+                                if (s.url.isNullOrEmpty()) {
+                                    s.fileName?.let { fn -> s.url = songUrlMap[fn] }
+                                }
                             }
                         }
 
-                        // Obtener nombres de artistas para los álbumes
-                        for (album in albums) {
+                        // ÁLBUMES: nombres de artistas y URLs de portadas en lote
+                        albums.forEach { album ->
                             val albumArtists = service.getArtistsByAlbumId(album.id)
-                            album.artistName = albumArtists.joinToString(", ") { it.name } // Asegúrate de tener esta propiedad en el modelo Album
+                            album.artistName = albumArtists.filterNotNull().map { it.name ?: "Desconocido" }.joinToString(", ")
+                        }
+                        val albumSafeNames = albums.map { a ->
+                            a.fileName = a.fileName?.takeIf { it.isNotBlank() } ?: "${a.id}.jpg"
+                            a.fileName!!
+                        }
+                        if (albumSafeNames.isNotEmpty()) {
+                            val albumUrls = service.getMultipleAlbumUrls(albumSafeNames)
+                            val albumUrlMap = albumSafeNames.zip(albumUrls.map { it.url }).toMap()
+                            albums.forEach { a -> a.url = albumUrlMap[a.fileName] }
                         }
 
-                        val albumsWithoutUrl = albums.filter { it.url == null }
-                        if (albumsWithoutUrl.isNotEmpty()) {
-                            val fileNames = albumsWithoutUrl.map { it.fileName }
-                            val urlList = service.getMultipleAlbumUrls(fileNames)
-                            val urlMap = urlList.associateBy { it.fileName }
+                        // Intercalar y ordenar por relevancia
+                        val combined = intercalateAndSortResults(songs, albums, artistsPrepared, query)
 
-                            albumsWithoutUrl.forEach { album ->
-                                album.url = urlMap[album.fileName]?.url
-                            }
-                        }
+                        // Actualizar colecciones internas
+                        songResults.clear(); songResults.addAll(songs)
+                        albumResults.clear(); albumResults.addAll(albums)
+                        artistResults.clear(); artistResults.addAll(artistsPrepared)
 
-                        val combinedResults = mutableListOf<SearchResult>().apply {
-                            addAll(songs.map { SearchResult.SongItem(it) })
-                            addAll(albums.map { SearchResult.AlbumItem(it) })
-                            addAll(artistsPrepared.map { SearchResult.ArtistItem(it) })
-                        }
+                        // ACTUALIZAR lastResults ANTES de filtrar (fix principal)
+                        lastResults = combined
 
-                        val sortedResults = sortByRelevance(combinedResults, query)
-                        lastResults = sortedResults
-
-                        // Guardamos las listas por separado si usas filtros por tipo
-                        songResults.clear()
-                        albumResults.clear()
-                        artistResults.clear()
-
-                        songResults.addAll(songs)
-                        albumResults.addAll(albums)
-                        artistResults.addAll(artistsPrepared) // <-- usar la lista con URLs ya asignadas
-
-                        // Aplica filtros si los usas, si no, simplemente usa combinedResults
-                        val finalList = applyActiveFilters(sortedResults)
-
-                        if (songs.isNotEmpty()) {
-                            val updateIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                                action = MusicPlaybackService.UPDATE_SONGS
-                                putParcelableArrayListExtra(
-                                    MusicPlaybackService.SONG_LIST,
-                                    ArrayList(songs)
-                                )
-                            }
-                            requireContext().startService(updateIntent)
-                        }
+                        val finalList = applyActiveFilters(lastResults)
 
                         loadingAnimation.visibility = View.INVISIBLE
                         resultsRecyclerView.visibility = View.VISIBLE
@@ -312,58 +323,76 @@ class SearchFragment : Fragment() {
                             searchResultAdapter.submitList(finalList)
                             noSongsFounded.visibility = View.GONE
                         }
+
                     } catch (e: Exception) {
                         loadingAnimation.visibility = View.INVISIBLE
+                        resultsRecyclerView.visibility = View.INVISIBLE
+                        searchResultAdapter.submitList(emptyList())
+                        noSongsFounded.visibility = View.VISIBLE
                         e.printStackTrace()
                         Toast.makeText(requireContext(), "Error al buscar resultados", Toast.LENGTH_SHORT).show()
-                        searchResultAdapter.submitList(emptyList())
                     }
                 }
             }
         })
-
 
         return view
     }
 
-    private fun sortByRelevance(results: List<SearchResult>, query: String): List<SearchResult> {
-        val lowerQuery = query.trim().lowercase()
+    private fun intercalateAndSortResults(
+        songs: List<Song>,
+        albums: List<Album>,
+        artists: List<Artist>,
+        query: String
+    ): List<SearchResult> {
+        val lowerQuery = query.lowercase()
 
-        return results.sortedWith(compareByDescending { item ->
-            when (item) {
-                is SearchResult.ArtistItem -> {
-                    val name = item.artist.name.lowercase()
-                    when {
-                        name == lowerQuery -> 100
-                        name.startsWith(lowerQuery) -> 90
-                        name.contains(lowerQuery) -> 80
-                        else -> 0
-                    }
-                }
-                is SearchResult.AlbumItem -> {
-                    val title = item.album.title?.lowercase()
-                    when {
-                        title == lowerQuery -> 70
-                        title?.startsWith(lowerQuery) == true -> 60
-                        title?.contains(lowerQuery) == true -> 50
-                        else -> 0
-                    }
-                }
-                is SearchResult.SongItem -> {
-                    val title = item.song.title.lowercase()
-                    val artistName = item.song.artistName?.lowercase()
-                    when {
-                        title == lowerQuery -> 40
-                        artistName == lowerQuery -> 35
-                        title.contains(lowerQuery) -> 30
-                        artistName?.contains(lowerQuery) == true -> 20
-                        else -> 0
-                    }
+        // Ordenar por relevancia por tipo
+        val sortedSongs = songs.sortedByDescending { song ->
+            val t = song.title.lowercase()
+            val a = song.artistName?.lowercase()
+            when {
+                t == lowerQuery -> 40
+                a == lowerQuery -> 35
+                t.contains(lowerQuery) -> 30
+                a?.contains(lowerQuery) == true -> 20
+                else -> 0
+            }
+        }.map { SearchResult.SongItem(it) }
+
+        val sortedAlbums = albums.sortedByDescending { album ->
+            val t = album.title?.lowercase()
+            when {
+                t == lowerQuery -> 70
+                t?.startsWith(lowerQuery) == true -> 60
+                t?.contains(lowerQuery) == true -> 50
+                else -> 0
+            }
+        }.map { SearchResult.AlbumItem(it) }
+
+        val sortedArtists = artists.sortedByDescending { artist ->
+            val n = artist.name.lowercase()
+            when {
+                n == lowerQuery -> 100
+                n.startsWith(lowerQuery) -> 90
+                n.contains(lowerQuery) -> 80
+                else -> 0
+            }
+        }.map { SearchResult.ArtistItem(it) }
+
+        // Intercalado round-robin
+        val lists = mutableListOf(sortedArtists, sortedSongs, sortedAlbums)
+        val combined = mutableListOf<SearchResult>()
+        while (lists.any { it.isNotEmpty() }) {
+            lists.forEachIndexed { index, list ->
+                if (list.isNotEmpty()) {
+                    combined.add(list.first())
+                    lists[index] = list.drop(1)
                 }
             }
-        })
+        }
+        return combined
     }
-
 
     private fun applyActiveFilters(results: List<SearchResult>): List<SearchResult> {
         return results.filter { item ->
@@ -378,9 +407,10 @@ class SearchFragment : Fragment() {
     private fun updateFilteredResults() {
         val filtered = applyActiveFilters(lastResults)
         searchResultAdapter.submitList(filtered)
-        noSongsFounded.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+        noSongsFounded.visibility = if (filtered.isEmpty() && lastResults.isNotEmpty()) View.VISIBLE else View.GONE
+        resultsRecyclerView.visibility = if (filtered.isNotEmpty()) View.VISIBLE else View.INVISIBLE
+        loadingAnimation.visibility = View.INVISIBLE
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -389,9 +419,13 @@ class SearchFragment : Fragment() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putString("query", editTextQuery.text.toString())
+        view?.let {
+            outState.putString("query", editTextQuery?.text?.toString() ?: "")
+        }
         outState.putParcelableArrayList("results", ArrayList(lastResults))
+        outState.putBoolean("showSongs", showSongs)
+        outState.putBoolean("showAlbums", showAlbums)
+        outState.putBoolean("showArtists", showArtists)
     }
-
 
 }

@@ -6,4 +6,12 @@
     </style>
 
     <style name="Theme.SpoMusicApp" parent="Base.Theme.SpoMusicApp" />
+
+    <!-- Tema para el Splash con fondo sólido, sin ActionBar -->
+    <style name="Theme.Resonant.Splash" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@null</item>
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

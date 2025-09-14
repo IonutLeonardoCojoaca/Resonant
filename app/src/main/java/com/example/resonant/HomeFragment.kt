@@ -44,6 +44,7 @@ class HomeFragment : Fragment(){
 
     private val _currentSongLiveData = MutableLiveData<Song>()
     private lateinit var sharedViewModel: SharedViewModel
+    private lateinit var favoritesViewModel: FavoritesViewModel
 
     private val songChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -119,6 +120,58 @@ class HomeFragment : Fragment(){
 
             requireContext().startService(playIntent)
         }
+
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+
+        // Cargar favoritos al inicio
+        favoritesViewModel.loadFavorites()
+
+        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
+            val ids = favorites.map { it.id }.toSet()
+            songAdapter.favoriteSongIds = ids
+            songAdapter.submitList(songAdapter.currentList)
+        }
+
+        songAdapter.onFavoriteClick = { song, isFavorite ->
+            if (isFavorite) {
+                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
+                songAdapter.notifyItemChanged(
+                    songAdapter.currentList.indexOfFirst { it.id == song.id },
+                    "silent"
+                )
+
+                favoritesViewModel.deleteFavorite(song.id) { success ->
+                    if (!success) {
+                        // Revertir si falla
+                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
+                        songAdapter.notifyItemChanged(
+                            songAdapter.currentList.indexOfFirst { it.id == song.id },
+                            "silent"
+                        )
+                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
+                songAdapter.notifyItemChanged(
+                    songAdapter.currentList.indexOfFirst { it.id == song.id },
+                    "silent"
+                )
+
+                favoritesViewModel.addFavorite(song) { success ->
+                    if (!success) {
+                        // Revertir si falla
+                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
+                        songAdapter.notifyItemChanged(
+                            songAdapter.currentList.indexOfFirst { it.id == song.id },
+                            "silent"
+                        )
+                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
 
         rechargeSongs.setOnClickListener {
             lifecycleScope.launch {
@@ -215,9 +268,9 @@ class HomeFragment : Fragment(){
                     ArrayList(cancionesNuevas)
                 )
             }
-            requireContext().startService(updateIntent)
+            context?.startService(updateIntent) // <- seguro, no crashea si detached
+            return cancionesNuevas
 
-            cancionesNuevas
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -239,7 +292,7 @@ class HomeFragment : Fragment(){
                 artistasNuevos.add(artist)
             }
 
-            val fileNames = artistasNuevos.map { it.fileName }
+            val fileNames = artistasNuevos.mapNotNull { it.fileName }
             val urlList = service.getMultipleArtistUrls(fileNames)
             val urlMap = urlList.associateBy { it.fileName }
 
@@ -288,15 +341,17 @@ class HomeFragment : Fragment(){
             val albumsSinUrl = albumsNuevos.filter { it.url.isNullOrEmpty() }
 
             if (albumsSinUrl.isNotEmpty()) {
-                val fileNames = albumsSinUrl.map {
-                    it.fileName.takeIf { name -> name.isNotBlank() } ?: "${it.id}.jpg"
+                // Crear lista de fileNames no nulos para la API
+                val fileNames = albumsSinUrl.map { album ->
+                    val fileName = album.fileName
+                    fileName.takeIf { it?.isNotBlank() == true } ?: "${album.id}.jpg"
                 }
 
                 val urlList = service.getMultipleAlbumUrls(fileNames)
                 val urlMap = urlList.associateBy { it.fileName }
 
                 albumsSinUrl.forEach { album ->
-                    val fileName = album.fileName.takeIf { it.isNotBlank() } ?: "${album.id}.jpg"
+                    val fileName = album.fileName.takeIf { it?.isNotBlank() == true } ?: "${album.id}.jpg"
                     album.fileName = fileName
                     album.url = urlMap[fileName]?.url
                 }
@@ -317,12 +372,15 @@ class HomeFragment : Fragment(){
         } else {
             lifecycleScope.launch {
                 val canciones = getRandomSongs(requireContext())
+                if (!isAdded || context == null) return@launch
                 if (canciones.isNotEmpty()) {
                     songList = canciones
                     hideShimmer()
                     songAdapter.submitList(canciones)
                 } else {
-                    Toast.makeText(requireContext(), "No se encontraron canciones", Toast.LENGTH_SHORT).show()
+                    context?.let { ctx ->
+                        Toast.makeText(ctx, "No se encontraron canciones", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -335,18 +393,25 @@ class HomeFragment : Fragment(){
             albumsAdapter.notifyDataSetChanged()
         } else {
             lifecycleScope.launch {
-                val albums = getRandomAlbums(requireContext(), albumsAnteriores = albumList)
+                // Solo accede a context si el fragmento sigue attached
+                val ctx = context ?: return@launch
+                val albums = getRandomAlbums(ctx, albumsAnteriores = albumList)
+                if (!isAdded || context == null) return@launch
+
                 if (albums.isNotEmpty()) {
                     albumsCargados = albums
                     albumList.clear()
                     albumList.addAll(albums)
                     albumsAdapter.notifyDataSetChanged()
                 } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "No se encontraron álbumes",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    // Usa context?.let para mostrar el Toast de forma segura
+                    context?.let { safeContext ->
+                        Toast.makeText(
+                            safeContext,
+                            "No se encontraron álbumes",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         }
@@ -359,7 +424,10 @@ class HomeFragment : Fragment(){
             artistAdapter.notifyDataSetChanged()
         } else {
             lifecycleScope.launch {
-                val artistas = getRandomArtists(requireContext())
+                val ctx = context ?: return@launch
+                val artistas = getRandomArtists(ctx)
+                if (!isAdded || context == null) return@launch
+
                 if (artistas.isNotEmpty()) {
                     artistasCargados = artistas
                     artistsList.clear()

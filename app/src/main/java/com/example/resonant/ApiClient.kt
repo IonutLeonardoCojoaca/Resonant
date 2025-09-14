@@ -13,8 +13,9 @@ object ApiClient {
     fun getService(context: Context): ApiResonantService {
         val appContext = context.applicationContext
         if (retrofit == null) {
+            val session = SessionManager(appContext, BASE_URL)
             val okHttpClient = OkHttpClient.Builder()
-                .addInterceptor(AuthInterceptor(appContext))
+                .addInterceptor(AuthInterceptor(appContext, session))
                 .authenticator(TokenAuthenticator(appContext))
                 .build()
 
@@ -24,9 +25,8 @@ object ApiClient {
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
         }
-
         return retrofit!!.create(ApiResonantService::class.java)
     }
 
+    fun baseUrl(): String = BASE_URL
 }
-

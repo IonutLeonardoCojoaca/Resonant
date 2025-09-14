@@ -16,7 +16,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 3
-        versionName = "1.40.0"
+        versionName = "1.42.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -99,6 +99,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation ("com.github.bumptech.glide:glide:4.16.0")
+
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
 
 

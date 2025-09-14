@@ -32,16 +32,27 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
-import com.example.resonant.databinding.ActivityMainBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
 import java.net.URL
 import android.Manifest
+import android.graphics.drawable.AnimatedVectorDrawable
+import android.util.Log
 import android.widget.Toast
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavController
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.setupActionBarWithNavController
+import com.example.resonant.updates.AppUpdateManager
+import kotlinx.coroutines.launch
 import kotlin.concurrent.thread
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListener {
 
     private val REQUEST_NOTIFICATION_PERMISSION = 123
 
@@ -56,8 +67,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var songImage: ImageView
     private lateinit var songName: TextView
     private lateinit var songArtist: TextView
-
-    private var shouldStopMusic: Boolean = true
 
     private var currentSongBitmap: Bitmap? = null
 
@@ -76,7 +85,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var miniPlayer: View
     private var shouldShowMiniPlayer = true
 
+    private val api by lazy { ApiClient.getService(this) }
+    private val updateManager by lazy { AppUpdateManager(this, api, ApiClient.baseUrl()) }
 
+    private lateinit var navController: NavController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,8 +100,24 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        val userViewModel = ViewModelProvider(this)[UserViewModel::class.java]
+        if (userViewModel.user == null) {
+            val prefs = getSharedPreferences("user_data", Context.MODE_PRIVATE)
+            val name = prefs.getString("NAME", null)
+            val email = prefs.getString("EMAIL", null)
+            val userId = prefs.getString("USER_ID", null)
+            val isBanned = prefs.getBoolean("IS_BANNED", false)
+            if (email != null && userId != null) {
+                userViewModel.user = User(email = email, name = name, id = userId, isBanned = isBanned)
+            }
+        }
+
+        checkBanStatus()
+
+        checkAppUpdate()
+
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-        val navController = navHostFragment.navController
+        navController = navHostFragment.navController
         val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
 
         bottomNavigationView.setupWithNavController(navController)
@@ -168,6 +196,22 @@ class MainActivity : AppCompatActivity() {
             currentSongBitmap = bitmap
             if (bitmap != null) {
                 songImage.setImageBitmap(bitmap)
+
+                // 🎨 Aplicar color predominante al mini reproductor
+                val miniPlayerContainer = findViewById<View>(R.id.miniPlayerContainer)
+                MiniPlayerColorizer.applyFromImageView(
+                    imageView = songImage,
+                    targets = MiniPlayerColorizer.Targets(
+                        container = miniPlayerContainer,
+                        title = songName,
+                        subtitle = songArtist,
+                        iconButtons = listOf(previousSongButton, playPauseButton, nextSongButton),
+                        seekBar = seekBar,
+                        gradientOverlay = findViewById(R.id.gradientText)
+                    ),
+                    fallbackColor = getColor(R.color.secondaryColorTheme) // color por defecto
+                )
+
             } else {
                 songImage.setImageResource(R.drawable.album_cover)
             }
@@ -201,7 +245,8 @@ class MainActivity : AppCompatActivity() {
         val fragmentsConToolbar = setOf(
             R.id.homeFragment,
             R.id.searchFragment,
-            R.id.savedFragment
+            R.id.savedFragment,
+            R.id.favoriteSongsFragment
         )
 
         val fragmentsSinToolbar = setOf(
@@ -210,6 +255,12 @@ class MainActivity : AppCompatActivity() {
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
+
+            when (destination.id) {
+                R.id.homeFragment -> bottomNavigationView.menu.findItem(R.id.homeFragment).isChecked = true
+                R.id.searchFragment -> bottomNavigationView.menu.findItem(R.id.searchFragment).isChecked = true
+                R.id.savedFragment -> bottomNavigationView.menu.findItem(R.id.savedFragment).isChecked = true
+            }
 
             when (destination.id) {
                 in fragmentsConToolbar -> {
@@ -254,9 +305,58 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        bottomNavigationView.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.homeFragment -> {
+                    // Elimina todo lo que haya encima del fragmento raíz
+                    navController.popBackStack(R.id.homeFragment, false)
+                    if (navController.currentDestination?.id != R.id.homeFragment) {
+                        navController.navigate(R.id.homeFragment)
+                    }
+                    true
+                }
+                R.id.searchFragment -> {
+                    navController.popBackStack(R.id.searchFragment, false)
+                    if (navController.currentDestination?.id != R.id.searchFragment) {
+                        navController.navigate(R.id.searchFragment)
+                    }
+                    true
+                }
+                R.id.savedFragment -> {
+                    navController.popBackStack(R.id.savedFragment, false)
+                    if (navController.currentDestination?.id != R.id.savedFragment) {
+                        navController.navigate(R.id.savedFragment)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+
         getProfileImage()
 
         checkNotificationPermission()
+    }
+
+    @Deprecated("This method has been deprecated in favor of using the\n      {@link OnBackPressedDispatcher} via {@link #getOnBackPressedDispatcher()}.\n      The OnBackPressedDispatcher controls how back button events are dispatched\n      to one or more {@link OnBackPressedCallback} objects.")
+    @SuppressLint("MissingSuperCall")
+    override fun onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            return
+        }
+
+        val mainFragmentId = R.id.homeFragment
+        val currentFragmentId = navController.currentDestination?.id
+        val topLevelFragments = setOf(R.id.homeFragment, R.id.searchFragment, R.id.savedFragment, R.id.settingsFragment)
+
+        if (currentFragmentId != null && currentFragmentId !in topLevelFragments) {
+            navController.popBackStack()
+        } else if (currentFragmentId != null && currentFragmentId != mainFragmentId) {
+            navController.navigate(mainFragmentId)
+        } else {
+            moveTaskToBack(true)
+        }
     }
 
     private fun setupObservers() {
@@ -283,7 +383,11 @@ class MainActivity : AppCompatActivity() {
                     val currentSong = intent?.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
                     currentSong?.let {
                         homeFragment.updateCurrentSong(it)
-                        it.url?.let { it1 -> homeFragment.setCurrentPlayingSong(it1) }
+                        it.url?.let { url -> homeFragment.setCurrentPlayingSong(url) }
+
+                        // 🔥 Aquí faltaba esto
+                        songName.text = it.title
+                        songArtist.text = it.artistName
                     }
                 }
             }
@@ -348,7 +452,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
 
         override fun onServiceDisconnected(name: ComponentName?) {
             isBound = false
@@ -448,6 +551,116 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkAppUpdate() {
+        lifecycleScope.launch {
+            val decision = runCatching { updateManager.checkForUpdate() }
+                .onFailure { e -> Log.e("AppUpdate", "Error checking update", e) }
+                .getOrNull() ?: return@launch
+
+            when (decision) {
+                is UpdateDecision.NoUpdate -> {
+                    WorkManager.getInstance(this@MainActivity)
+                        .cancelUniqueWork("HourlyNotification")
+                }
+                is UpdateDecision.Forced -> {
+                    showUpdateDialog(
+                        title = decision.latest.title ?: "Actualización obligatoria",
+                        message = decision.latest.description ?: "Hay una nueva versión ${decision.latest.version}. Debes actualizar para continuar.",
+                        forced = true,
+                        downloadUrl = decision.downloadUrl,
+                        version = decision.latest.version
+                    )
+                }
+                is UpdateDecision.Optional -> {
+                    showUpdateDialog(
+                        title = decision.latest.title ?: "Actualización disponible",
+                        message = decision.latest.description ?: "Nueva versión ${decision.latest.version} disponible. ¿Deseas actualizar ahora?",
+                        forced = false,
+                        downloadUrl = decision.downloadUrl,
+                        version = decision.latest.version
+                    )
+                }
+            }
+        }
+    }
+
+    private fun showUpdateDialog(
+        title: String,
+        message: String,
+        forced: Boolean,
+        downloadUrl: String,
+        version: String
+    ) {
+        val tag = "UpdateDialog"
+        if (supportFragmentManager.findFragmentByTag(tag) == null) {
+            UpdateDialogFragment.newInstance(title, message, forced, downloadUrl, version)
+                .show(supportFragmentManager, tag)
+        }
+    }
+
+    override fun onUpdateConfirmed(downloadUrl: String, version: String) {
+        lifecycleScope.launch {
+            try {
+                val presigned = updateManager.getPresignedDownloadUrl(version)
+                val minimal = AppUpdate(
+                    version = version,
+                    platform = "Android",
+                    fileName = "resonant-$version.apk",
+                    title = "Resonant $version",
+                    description = "Descargando actualización"
+                )
+                updateManager.enqueueDownload(minimal, presigned)
+                Toast.makeText(this@MainActivity, "Descarga iniciada", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e("AppUpdate", "Error resolviendo URL prefirmada", e)
+                Toast.makeText(this@MainActivity, "No se pudo iniciar la descarga", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    override fun onUpdateDeferred() {
+        // Programar la notificación cada hora SOLO mientras haya actualización pendiente
+        val workRequest = PeriodicWorkRequestBuilder<HourlyNotificationWorker>(1, TimeUnit.HOURS)
+            .build()
+        WorkManager.getInstance(this@MainActivity).enqueueUniquePeriodicWork(
+            "HourlyNotification",
+            androidx.work.ExistingPeriodicWorkPolicy.REPLACE,
+            workRequest
+        )
+    }
+
+    private fun checkBanStatus() {
+        val userViewModel = ViewModelProvider(this)[UserViewModel::class.java]
+        val email = userViewModel.user?.email
+        if (email == null) {
+            userViewModel.user = null
+            FirebaseAuth.getInstance().signOut()
+            Toast.makeText(this, "Tu cuenta ha sido restringida", Toast.LENGTH_LONG).show()
+            val intent = Intent(this, LoginActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        lifecycleScope.launch {
+            val service = ApiClient.getService(this@MainActivity)
+            val userData = service.getUserByEmail(email)
+            userViewModel.user = userData // Actualiza el ViewModel
+            if (userData.isBanned == true) {
+                Toast.makeText(this@MainActivity, "Tu cuenta ha sido restringida.", Toast.LENGTH_LONG).show()
+                userViewModel.user = null
+                FirebaseAuth.getInstance().signOut()
+                val prefs = getSharedPreferences("user_data", Context.MODE_PRIVATE)
+                prefs.edit().clear().apply()
+                val intent = Intent(this@MainActivity, LoginActivity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                finish()
+            }
+        }
+    }
+
     private fun getProfileImage() {
         val headerUserName = drawerLayout.findViewById<TextView>(R.id.headerUserName)
         val headerUserPhoto = drawerLayout.findViewById<ShapeableImageView>(R.id.headerUserPhoto)
@@ -487,12 +700,6 @@ class MainActivity : AppCompatActivity() {
             userPhotoImage.setImageResource(R.drawable.user)
             headerUserPhoto.setImageResource(R.drawable.user)
         }
-    }
-
-    @SuppressLint("MissingSuperCall")
-    override fun onBackPressed() {
-        shouldStopMusic = false
-        moveTaskToBack(true)
     }
 
 }

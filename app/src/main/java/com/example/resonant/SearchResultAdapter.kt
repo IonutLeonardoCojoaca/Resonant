@@ -1,29 +1,39 @@
 package com.example.resonant
 
+import android.animation.ObjectAnimator
 import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
-import com.squareup.picasso.Callback
-import com.squareup.picasso.Picasso
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
+import kotlinx.parcelize.Parcelize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.parcelize.Parcelize
+import java.util.Collections
 
 sealed class SearchResult : Parcelable {
     @Parcelize
@@ -44,13 +54,8 @@ sealed class SearchResult : Parcelable {
     abstract val type: DataType
 }
 
-class SearchResultAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-
-    private val items = mutableListOf<SearchResult>()
-    private val bitmapCache = mutableMapOf<String, Bitmap>()
-    var onSongClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
-    private var currentPlayingId: String? = null
-    private var previousPlayingId: String? = null
+class SearchResultAdapter :
+    ListAdapter<SearchResult, RecyclerView.ViewHolder>(SearchResultDiffCallback()) {
 
     companion object {
         private const val TYPE_SONG = 0
@@ -58,44 +63,104 @@ class SearchResultAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         private const val TYPE_ARTIST = 2
     }
 
-    override fun getItemCount() = items.size
+    var onSongClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
+    private var currentPlayingId: String? = null
+    private var previousPlayingId: String? = null
 
-    override fun getItemViewType(position: Int): Int {
-        return when (items[position]) {
-            is SearchResult.SongItem -> TYPE_SONG
-            is SearchResult.AlbumItem -> TYPE_ALBUM
-            is SearchResult.ArtistItem -> TYPE_ARTIST
+    var onFavoriteClick: ((Song, Boolean) -> Unit)? = null
+    var favoriteSongIds: Set<String> = emptySet()
+        set(value) {
+            field = value
+            currentList.forEachIndexed { index, result ->
+                if (result is SearchResult.SongItem) {
+                    val song = result.song
+                    if (field.contains(song.id) != value.contains(song.id)) {
+                        notifyItemChanged(index, "silent")
+                    }
+                }
+            }
         }
+
+    // Cache de bitmaps para canciones (para pasar a onSongClick)
+    private val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
+
+    override fun getItemViewType(position: Int): Int = when (getItem(position)) {
+        is SearchResult.SongItem -> TYPE_SONG
+        is SearchResult.AlbumItem -> TYPE_ALBUM
+        is SearchResult.ArtistItem -> TYPE_ARTIST
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-        val inflater = LayoutInflater.from(parent.context)
+        val inf = LayoutInflater.from(parent.context)
         return when (viewType) {
-            TYPE_SONG -> SongViewHolder(inflater.inflate(R.layout.item_result_song, parent, false))
-            TYPE_ALBUM -> AlbumViewHolder(inflater.inflate(R.layout.item_result_album, parent, false))
-            TYPE_ARTIST -> ArtistViewHolder(inflater.inflate(R.layout.item_result_artist, parent, false))
-            else -> throw IllegalArgumentException("Unknown view type $viewType")
+            TYPE_SONG -> SongViewHolder(inf.inflate(R.layout.item_result_song, parent, false))
+            TYPE_ALBUM -> AlbumViewHolder(inf.inflate(R.layout.item_result_album, parent, false))
+            TYPE_ARTIST -> ArtistViewHolder(inf.inflate(R.layout.item_result_artist, parent, false))
+            else -> error("Unknown viewType: $viewType")
         }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        when (val item = items[position]) {
+        when (val item = getItem(position)) {
             is SearchResult.SongItem -> (holder as SongViewHolder).bind(item.song)
             is SearchResult.AlbumItem -> (holder as AlbumViewHolder).bind(item.album)
             is SearchResult.ArtistItem -> (holder as ArtistViewHolder).bind(item.artist)
         }
     }
 
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        when (holder) {
+            is SongViewHolder -> {
+                holder.cancelJobs()
+                Glide.with(holder.itemView).clear(holder.albumArtImageView)
+                holder.albumArtAnimator?.cancel()
+                holder.albumArtImageView.rotation = 0f
+            }
+            is AlbumViewHolder -> {
+                Glide.with(holder.itemView).clear(holder.albumImage)
+            }
+            is ArtistViewHolder -> {
+                Glide.with(holder.itemView).clear(holder.artistImage)
+                holder.loadingAnimation.cancelAnimation()
+                holder.loadingAnimation.visibility = View.GONE
+            }
+        }
+    }
+
+    // SONGS
+
     inner class SongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val nameTextView = itemView.findViewById<TextView>(R.id.songTitle)
-        private val artistTextView = itemView.findViewById<TextView>(R.id.songArtist)
-        private val albumArtImageView = itemView.findViewById<ImageView>(R.id.songImage)
-        private val loadingAnimation = itemView.findViewById<LottieAnimationView>(R.id.loadingAnimation)
+        private val nameTextView: TextView = itemView.findViewById(R.id.songTitle)
+        private val artistTextView: TextView = itemView.findViewById(R.id.songArtist)
+        val albumArtImageView: ImageView = itemView.findViewById(R.id.songImage)
+        private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
+
+        private var artworkJob: Job? = null
+        private val ioScope = CoroutineScope(Dispatchers.IO)
+        var albumArtAnimator: ObjectAnimator? = null
+
+        fun cancelJobs() {
+            artworkJob?.cancel()
+            artworkJob = null
+        }
 
         fun bind(song: Song) {
+            // Estado del botón de like
+            val isFavorite = favoriteSongIds.contains(song.id)
+            likeButton.setImageResource(
+                if (isFavorite) R.drawable.favorite else R.drawable.favorite_border
+            )
+
+            // Estado inicial determinista
+            cancelJobs()
+            Glide.with(itemView).clear(albumArtImageView)
+            albumArtAnimator?.cancel()
+            albumArtImageView.rotation = 0f
+            albumArtImageView.visibility = View.VISIBLE
+
             nameTextView.text = song.title
             artistTextView.text = song.artistName ?: "Desconocido"
-
             nameTextView.setTextColor(
                 ContextCompat.getColor(
                     itemView.context,
@@ -103,99 +168,183 @@ class SearchResultAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 )
             )
 
-            if (!bitmapCache.containsKey(song.id)) {
+            val placeholderRes = R.drawable.album_cover
+
+            // Cache propia
+            bitmapCache[song.id]?.let { cached ->
+                albumArtImageView.setImageBitmap(cached)
+            } ?: run {
                 val albumImageUrl = song.albumImageUrl
-                if (!albumImageUrl.isNullOrEmpty()) {
-                    Glide.with(itemView)
-                        .asBitmap()
-                        .load(albumImageUrl)
-                        .into(albumArtImageView)
-
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val bitmap = Glide.with(itemView)
-                            .asBitmap()
-                            .load(albumImageUrl)
-                            .submit()
-                            .get()
-
-                        bitmapCache[song.id] = bitmap
-                        Utils.saveBitmapToCache(itemView.context, bitmap, song.id)
-                    }
-                } else if (!song.url.isNullOrEmpty()) {
-                    loadingAnimation.visibility = View.VISIBLE
-                    albumArtImageView.visibility = View.INVISIBLE
-                    val currentPosition = bindingAdapterPosition
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val bitmap = withTimeoutOrNull(8000L) {
-                            Utils.getEmbeddedPictureFromUrl(itemView.context, song.url!!)
+                when {
+                    !albumImageUrl.isNullOrBlank() -> {
+                        // Animación de rotación mientras carga la portada remota
+                        albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
+                            duration = 3000
+                            repeatCount = ObjectAnimator.INFINITE
+                            interpolator = LinearInterpolator()
+                            start()
                         }
-                        bitmap?.let {
-                            bitmapCache[song.id] = it
-                            Utils.saveBitmapToCache(itemView.context, it, song.id)
+                        val model = ImageRequestHelper.buildGlideModel(itemView.context, albumImageUrl)
 
+                        Glide.with(itemView)
+                            .asBitmap()
+                            .load(model)
+                            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                            .timeout(10_000)
+                            .dontAnimate()
+                            .placeholder(placeholderRes)
+                            .error(placeholderRes)
+                            .listener(object : RequestListener<Bitmap> {
+                                override fun onLoadFailed(
+                                    e: GlideException?,
+                                    model: Any?,
+                                    target: Target<Bitmap>,
+                                    isFirstResource: Boolean
+                                ): Boolean {
+                                    albumArtAnimator?.cancel()
+                                    albumArtImageView.rotation = 0f
+                                    Log.w("SearchResultAdapter", "Song album art load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}")
+                                    return false
+                                }
+
+                                override fun onResourceReady(
+                                    resource: Bitmap,
+                                    model: Any,
+                                    target: Target<Bitmap>?,
+                                    dataSource: DataSource,
+                                    isFirstResource: Boolean
+                                ): Boolean {
+                                    albumArtAnimator?.cancel()
+                                    albumArtImageView.rotation = 0f
+                                    bitmapCache[song.id] = resource
+                                    ioScope.launch {
+                                        runCatching { Utils.saveBitmapToCache(itemView.context, resource, song.id) }
+                                    }
+                                    return false
+                                }
+                            })
+                            .into(albumArtImageView)
+                    }
+
+                    !song.url.isNullOrBlank() -> {
+                        albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
+                            duration = 3000
+                            repeatCount = ObjectAnimator.INFINITE
+                            interpolator = LinearInterpolator()
+                            start()
+                        }
+                        albumArtImageView.setImageResource(placeholderRes)
+                        albumArtImageView.visibility = View.VISIBLE
+
+                        val positionAtBind = bindingAdapterPosition
+                        artworkJob = ioScope.launch {
+                            val bitmap = withTimeoutOrNull(8_000L) {
+                                Utils.getEmbeddedPictureFromUrl(itemView.context, song.url!!)
+                            }
                             withContext(Dispatchers.Main) {
-                                if (bindingAdapterPosition == currentPosition) {
-                                    albumArtImageView.setImageBitmap(it)
-                                    loadingAnimation.visibility = View.GONE
-                                    albumArtImageView.visibility = View.VISIBLE
+                                if (bindingAdapterPosition != positionAtBind) return@withContext
+                                albumArtAnimator?.cancel()
+                                albumArtImageView.rotation = 0f
+                                if (bitmap != null) {
+                                    bitmapCache[song.id] = bitmap
+                                    albumArtImageView.setImageBitmap(bitmap)
+                                    ioScope.launch {
+                                        runCatching { Utils.saveBitmapToCache(itemView.context, bitmap, song.id) }
+                                    }
+                                } else {
+                                    albumArtImageView.setImageResource(placeholderRes)
                                 }
                             }
                         }
                     }
+
+                    else -> {
+                        albumArtImageView.setImageResource(placeholderRes)
+                    }
                 }
-            } else {
-                albumArtImageView.setImageBitmap(bitmapCache[song.id])
+            }
+
+            likeButton.setOnClickListener {
+                val currentlyFavorite = favoriteSongIds.contains(song.id)
+                val newState = !currentlyFavorite
+
+                // Actualizar estado local inmediatamente
+                favoriteSongIds = if (newState) {
+                    favoriteSongIds + song.id
+                } else {
+                    favoriteSongIds - song.id
+                }
+
+                notifyItemChanged(bindingAdapterPosition, "silent")
+
+                // Notificar al ViewModel
+                onFavoriteClick?.invoke(song, newState)
             }
 
             itemView.setOnClickListener {
-                val previousId = currentPlayingId
+                val prev = currentPlayingId
                 currentPlayingId = song.id
 
-                previousId?.let { prev ->
-                    val prevIndex = items.indexOfFirst {
-                        it is SearchResult.SongItem && it.song.id == prev
+                prev?.let { prevId ->
+                    val prevIndex = currentList.indexOfFirst {
+                        it is SearchResult.SongItem && it.song.id == prevId
                     }
-                    if (prevIndex != -1) notifyItemChanged(prevIndex)
+                    if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
                 }
-
-                val currentIndex = items.indexOfFirst {
+                val currIndex = currentList.indexOfFirst {
                     it is SearchResult.SongItem && it.song.id == currentPlayingId
                 }
-                if (currentIndex != -1) notifyItemChanged(currentIndex)
+                if (currIndex != -1) notifyItemChanged(currIndex, "silent")
 
-                val bitmap = bitmapCache[song.id]
-                onSongClick?.invoke(song to bitmap)
+                val bmp = bitmapCache[song.id]
+                onSongClick?.invoke(song to bmp)
             }
         }
     }
 
+    // ALBUMS
+
     inner class AlbumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val albumTitle = itemView.findViewById<TextView>(R.id.albumTitle)
-        private val albumImage = itemView.findViewById<ImageView>(R.id.albumImage)
-        private val albumArtistName = itemView.findViewById<TextView>(R.id.albumArtistName) // ← CORRECTO
+        private val albumTitle: TextView = itemView.findViewById(R.id.albumTitle)
+        private val albumArtistName: TextView = itemView.findViewById(R.id.albumArtistName)
+        val albumImage: ImageView = itemView.findViewById(R.id.albumImage)
 
         fun bind(album: Album) {
             albumTitle.text = album.title ?: "Not found"
             albumArtistName.text = album.artistName ?: "Desconocido"
 
-            if (!album.url.isNullOrEmpty()) {
-                Picasso.get().load(album.url).into(albumImage)
+            val placeholderRes = R.drawable.album_stack
+            Glide.with(itemView).clear(albumImage)
+
+            val url = album.url
+            if (url.isNullOrBlank()) {
+                albumImage.setImageResource(placeholderRes)
+            } else {
+                val model = ImageRequestHelper.buildGlideModel(itemView.context, url)
+                Glide.with(itemView)
+                    .load(model)
+                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                    .timeout(10_000)
+                    .dontAnimate()
+                    .placeholder(placeholderRes)
+                    .error(placeholderRes)
+                    .into(albumImage)
             }
 
             itemView.setOnClickListener {
-                val bundle = Bundle().apply {
-                    putString("albumId", album.id)
-                }
+                val bundle = Bundle().apply { putString("albumId", album.id) }
                 itemView.findNavController()
                     .navigate(R.id.action_searchFragment_to_albumFragment, bundle)
             }
         }
     }
 
+    // ARTISTS
+
     inner class ArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val artistName = itemView.findViewById<TextView>(R.id.artistName)
-        private val artistImage = itemView.findViewById<ImageView>(R.id.artistImage)
-        private val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
+        private val artistName: TextView = itemView.findViewById(R.id.artistName)
+        val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
+        val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
@@ -204,72 +353,94 @@ class SearchResultAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             loadingAnimation.visibility = View.VISIBLE
             artistImage.visibility = View.INVISIBLE
 
-            if (!artist.fileName.isNullOrEmpty()) {
-                Picasso.get()
-                    .load(artist.fileName)
-                    .error(R.drawable.user)
-                    .into(artistImage, object : Callback {
-                        override fun onSuccess() {
-                            Log.d("Picasso", "Imagen cargada correctamente: ${artist.fileName}")
+            Glide.with(itemView).clear(artistImage)
+
+            val placeholderRes = R.drawable.user
+            val url = artist.fileName
+            if (url.isNullOrBlank()) {
+                loadingAnimation.visibility = View.GONE
+                artistImage.setImageResource(placeholderRes)
+                artistImage.visibility = View.VISIBLE
+            } else {
+                val model = ImageRequestHelper.buildGlideModel(itemView.context, url)
+                Glide.with(itemView)
+                    .load(model)
+                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                    .timeout(10_000)
+                    .dontAnimate()
+                    .circleCrop()
+                    .placeholder(placeholderRes)
+                    .error(placeholderRes)
+                    .listener(object : RequestListener<Drawable> {
+                        override fun onLoadFailed(
+                            e: GlideException?,
+                            model: Any?,
+                            target: Target<Drawable>,
+                            isFirstResource: Boolean
+                        ): Boolean {
+                            Log.w("SearchResultAdapter", "Artist image load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}")
                             loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
+                            return false
                         }
 
-                        override fun onError(e: Exception?) {
-                            Log.e("Picasso", "Error al cargar la imagen: ${artist.fileName}", e)
+                        override fun onResourceReady(
+                            resource: Drawable,
+                            model: Any,
+                            target: Target<Drawable>?,
+                            dataSource: DataSource,
+                            isFirstResource: Boolean
+                        ): Boolean {
                             loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
+                            return false
                         }
                     })
-            } else {
-                artistImage.setImageResource(R.drawable.user)
+                    .into(artistImage)
             }
-
 
             itemView.setOnClickListener {
                 val bundle = Bundle().apply {
                     putString("artistId", artist.id)
                     putString("artistName", artist.name)
                     putString("artistImageUrl", artist.fileName)
-                    putString("artistImageTransitionName", "artistImage_${artist.id}")
+                    putString("artistImageTransitionName", artistImage.transitionName)
                 }
-
-                val extras = FragmentNavigatorExtras(
-                    artistImage to "artistImage_${artist.id}"
-                )
-
-                itemView.findNavController().navigate(
-                    R.id.action_searchFragment_to_artistFragment,
-                    bundle,
-                    null,
-                    extras
-                )
+                val extras = FragmentNavigatorExtras(artistImage to artistImage.transitionName)
+                itemView.findNavController()
+                    .navigate(R.id.action_searchFragment_to_artistFragment, bundle, null, extras)
             }
         }
     }
 
-    class SongDiffCallback : DiffUtil.ItemCallback<Song>() {
-        override fun areItemsTheSame(oldItem: Song, newItem: Song): Boolean = oldItem.id == newItem.id
-        override fun areContentsTheSame(oldItem: Song, newItem: Song): Boolean = oldItem == newItem
-    }
-
     fun setCurrentPlayingSong(songId: String?) {
-        val previous = currentPlayingId
+        if (currentPlayingId == songId) return
+
+        previousPlayingId = currentPlayingId
         currentPlayingId = songId
 
-        // Notifica el anterior y el nuevo para que se actualicen visualmente
-        previous?.let {
-            val oldIndex = items.indexOfFirst { it is SearchResult.SongItem && it.song.id == previous }
-            if (oldIndex != -1) notifyItemChanged(oldIndex)
+        previousPlayingId?.let { prev ->
+            val prevIndex = currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == prev }
+            if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
         }
+        currentPlayingId?.let { curr ->
+            val currIndex = currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == curr }
+            if (currIndex != -1) notifyItemChanged(currIndex, "silent")
+        }
+    }
+}
 
-        val newIndex = items.indexOfFirst { it is SearchResult.SongItem && it.song.id == songId }
-        if (newIndex != -1) notifyItemChanged(newIndex)
+private class SearchResultDiffCallback : DiffUtil.ItemCallback<SearchResult>() {
+    override fun areItemsTheSame(oldItem: SearchResult, newItem: SearchResult): Boolean {
+        return when {
+            oldItem is SearchResult.SongItem && newItem is SearchResult.SongItem -> oldItem.song.id == newItem.song.id
+            oldItem is SearchResult.AlbumItem && newItem is SearchResult.AlbumItem -> oldItem.album.id == newItem.album.id
+            oldItem is SearchResult.ArtistItem && newItem is SearchResult.ArtistItem -> oldItem.artist.id == newItem.artist.id
+            else -> false
+        }
     }
 
-    fun submitList(newItems: List<SearchResult>) {
-        items.clear()
-        items.addAll(newItems)
-        notifyDataSetChanged()
+    override fun areContentsTheSame(oldItem: SearchResult, newItem: SearchResult): Boolean {
+        return oldItem == newItem
     }
 }

@@ -75,6 +75,7 @@
             android:visibility="gone">
 
             <RelativeLayout
+                android:id="@+id/miniPlayerContainer"
                 android:layout_width="match_parent"
                 android:layout_height="62dp"
                 android:background="@drawable/music_player_background"
@@ -133,6 +134,7 @@
                         android:scrollHorizontally="true"/>
 
                     <View
+                        android:id="@+id/gradientText"
                         android:layout_width="50dp"
                         android:layout_height="match_parent"
                         android:background="@drawable/gradient_text_player_background"

@@ -1,26 +1,28 @@
 package com.example.resonant
 
 import android.content.Context
-import android.content.Intent
-import android.util.Log
+import com.example.resonant.SessionManager
 import okhttp3.Interceptor
 import okhttp3.Response
 
-class AuthInterceptor(private val context: Context) : Interceptor {
-
+class AuthInterceptor(private val context: Context, private val session: SessionManager) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
-        val token = prefs.getString("ACCESS_TOKEN", null)
+        val req = chain.request()
+        val path = req.url.encodedPath
 
-        val original = chain.request()
-        val requestBuilder = original.newBuilder()
-
-        if (!token.isNullOrEmpty()) {
-            requestBuilder.addHeader("Authorization", "Bearer $token")
+        // No adjuntes Authorization en endpoints de auth
+        if (path.contains("/api/Auth/Google") || path.contains("/api/Auth/Refresh")) {
+            return chain.proceed(req)
         }
 
-        val request = requestBuilder.build()
-        return chain.proceed(request)
+        val token = session.getAccessToken()
+        return if (!token.isNullOrBlank()) {
+            val newReq = req.newBuilder()
+                .header("Authorization", "Bearer $token")
+                .build()
+            chain.proceed(newReq)
+        } else {
+            chain.proceed(req)
+        }
     }
-
 }

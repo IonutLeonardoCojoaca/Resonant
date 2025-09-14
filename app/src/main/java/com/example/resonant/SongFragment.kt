@@ -52,6 +52,7 @@ class SongFragment : Fragment() {
     private var musicService: MusicPlaybackService? = null
 
     private var lastDirection = 1
+    private var lastSongId: String? = null
     private var isFirstLoad = true
 
     private val songChangedReceiver = object : BroadcastReceiver() {
@@ -152,8 +153,8 @@ class SongFragment : Fragment() {
                 val bitmap = BitmapFactory.decodeFile(coverFile.absolutePath)
                     ?: BitmapFactory.decodeResource(resources, R.drawable.album_cover)
 
-                if (view != null && bitmap != null) {
-                    if (isFirstLoad) {
+                if (bitmap != null) {
+                    if (isFirstLoad || it.id == lastSongId) {
                         blurrySongImageBackground.setImageBitmap(bitmap)
                         imageSong?.setImageBitmap(bitmap)
                         isFirstLoad = false
@@ -161,28 +162,24 @@ class SongFragment : Fragment() {
                         AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, bitmap)
                         AnimationsUtils.animateSongImage(imageSong!!, bitmap, lastDirection)
                     }
+                    lastSongId = it.id
                 }
-
             }
         }
 
-        // Efecto blur
         val blurEffect = RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
         blurrySongImageBackground.setRenderEffect(blurEffect)
 
-        // Apply the rotation animation
         val rotateAnimator = ObjectAnimator.ofFloat(parallaxRotatingImage, "rotation", 0f, 360f)
-        rotateAnimator.duration = 40000 // 40 seconds
+        rotateAnimator.duration = 40000
         rotateAnimator.interpolator = LinearInterpolator()
         rotateAnimator.repeatCount = ObjectAnimator.INFINITE
         rotateAnimator.start()
 
-        // Botón de volver atrás
         arrowGoBackButton.setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
 
-        // Controles de reproducción
         playPauseButton.setOnClickListener {
             val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
                 action = if (isPlaying) MusicPlaybackService.ACTION_PAUSE else MusicPlaybackService.ACTION_RESUME
@@ -206,7 +203,6 @@ class SongFragment : Fragment() {
             requireContext().startService(intent)
         }
 
-        // Loop
         sharedPref = requireContext().getSharedPreferences("music_experience", Context.MODE_PRIVATE)
         var isLooping = sharedPref.getBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, false)
 
@@ -223,7 +219,6 @@ class SongFragment : Fragment() {
             )
         }
 
-        // SeekBar
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {

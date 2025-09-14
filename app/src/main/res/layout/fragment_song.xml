@@ -23,9 +23,11 @@
         android:id="@+id/parallaxRotatingImage"
         android:layout_width="300dp"
         android:layout_height="300dp"
-        android:scaleY="2"
-        android:scaleX="2"
-        android:layout_centerInParent="true"
+        android:scaleY="2.5"
+        android:scaleX="2.5"
+        android:translationY="170dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
         android:alpha="0.15"
         android:background="@drawable/album_cover"/>
 

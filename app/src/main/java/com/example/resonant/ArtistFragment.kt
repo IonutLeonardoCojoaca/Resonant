@@ -91,9 +91,9 @@ class ArtistFragment : Fragment() {
                 val artist = api.getArtistById(artistId)
                 artistNameTextView.text = artist.name ?: "Artista desconocido"
 
-                val artistImageUrl = if (!artist.fileName.isNullOrEmpty()) {
-                    api.getArtistUrl(artist.fileName).url
-                } else null
+                val artistImageUrl = artist.fileName?.takeIf { it.isNotEmpty() }?.let { file ->
+                    api.getArtistUrl(file).url
+                }
 
                 if (!artistImageUrl.isNullOrEmpty()) {
                     Picasso.get().load(artistImageUrl).into(artistImage)
@@ -111,15 +111,16 @@ class ArtistFragment : Fragment() {
                 val albumsSinUrl = albums.filter { it.url.isNullOrEmpty() }
 
                 if (albumsSinUrl.isNotEmpty()) {
-                    val fileNames = albumsSinUrl.map {
-                        it.fileName.takeIf { name -> name.isNotBlank() } ?: "${it.id}.jpg"
+                    val fileNames = albumsSinUrl.map { album ->
+                        val fileName = album.fileName
+                        fileName.takeIf { it?.isNotBlank() == true } ?: "${album.id}.jpg"
                     }
 
                     val urlList = api.getMultipleAlbumUrls(fileNames)
                     val urlMap = urlList.associateBy { it.fileName }
 
                     albumsSinUrl.forEach { album ->
-                        val fileName = album.fileName.takeIf { it.isNotBlank() } ?: "${album.id}.jpg"
+                        val fileName = album.fileName.takeIf { it?.isNotBlank() == true } ?: "${album.id}.jpg"
                         album.fileName = fileName
                         album.url = urlMap[fileName]?.url
                     }

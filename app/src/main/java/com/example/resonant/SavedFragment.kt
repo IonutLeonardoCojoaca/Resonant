@@ -1,79 +1,42 @@
 package com.example.resonant
 
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.os.Bundle
-import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.RelativeLayout
+import android.view.animation.BounceInterpolator
 import android.widget.TextView
-import com.google.firebase.firestore.FirebaseFirestore
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.NavOptions
+import androidx.navigation.fragment.findNavController
+import com.google.android.material.button.MaterialButton
 
 class SavedFragment : Fragment() {
-
-    private lateinit var favoriteButtonContainer: RelativeLayout
-    private lateinit var favoriteSongsNumberTextView: TextView
-    private var favoriteSongsNumber: Int = 0
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-    }
+    private lateinit var songsButton: MaterialButton
+    private lateinit var artistsButton: MaterialButton
+    private lateinit var albumsButton: MaterialButton
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        var view = inflater.inflate(R.layout.fragment_saved, container, false)
+        val view = inflater.inflate(R.layout.fragment_saved, container, false)
 
-        favoriteButtonContainer = view.findViewById(R.id.favoriteButtonContainer)
-        favoriteSongsNumberTextView = view.findViewById(R.id.totalLikedSongsText)
+        songsButton = view.findViewById(R.id.songsButton)
+        artistsButton = view.findViewById(R.id.artistsButton)
+        albumsButton = view.findViewById(R.id.albumsButton)
 
-        /*
-
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-        observeNumberOfLikedSongs(userId) { count ->
-            favoriteSongsNumberTextView.text = "Tienes $count canciones guardadas."
+        songsButton.setOnClickListener {
+            // Navega después de la animación
+            songsButton.postDelayed({
+                val action = SavedFragmentDirections.actionSavedFragmentToFavoriteSongsFragment()
+                findNavController().navigate(action)
+            }, 200) // El delay debe ser igual o ligeramente menor que la duración de la animación
         }
-        favoriteButtonContainer.setOnClickListener {
-            val action = SavedFragmentDirections.actionSavedFragmentToFavoriteSongsFragment()
-            findNavController().navigate(
-                action,
-                NavOptions.Builder()
-                    .setLaunchSingleTop(true)
-                    .setPopUpTo(R.id.savedFragment, true)
-                    .build()
-            )
-        }
-
-        */
 
         return view
     }
-
-    fun observeNumberOfLikedSongs(userId: String, onNumberChanged: (Int) -> Unit) {
-        val db = FirebaseFirestore.getInstance()
-
-        db.collection("users")
-            .document(userId)
-            .collection("likes")
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.e("LikedSongsCount", "Error al escuchar likes: ${error.message}")
-                    onNumberChanged(0)
-                    return@addSnapshotListener
-                }
-
-                if (snapshot != null) {
-                    val count = snapshot.size()
-                    onNumberChanged(count)
-                } else {
-                    onNumberChanged(0)
-                }
-            }
-    }
-
-
-
-
 }
