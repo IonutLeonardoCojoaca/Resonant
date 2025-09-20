@@ -4,4 +4,10 @@
     <string name="default_web_client_id">961497830766-d6vri0eo9hh4rfjdf42m1lgrovh04lni.apps.googleusercontent.com</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="public_playlist_check_text">Todos los usuarios podrán acceder a tu lista personalizada y editarla.</string>
+    <string name="private_playlist_check_text">Solo tú podrás acceder a tu lista. Nadie más podrá interactuar.</string>
+
+    <string name="advise_create_playlist_note">Si creas tu lista privada podrás cambiarla a pública cuando quieras, de la misma manera que la lista pública.</string>
+
 </resources>

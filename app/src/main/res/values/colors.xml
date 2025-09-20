@@ -5,11 +5,13 @@
 
     <color name="transparent">#00000000</color>
 
+    <color name="successColor">#1CC145</color>
+
     <color name="primaryColorButton">#D1D1D1</color>
     <color name="selectedSongColorWhilePlaying">#2C2C2C</color>
     <color name="titleSongColorWhilePlaying">#E21616</color>
 
-    <color name="errorColorText">#E21616</color>
+    <color name="errorColor">#E21616</color>
 
     <color name="appBackgroundTheme">#000000</color>
     <color name="cardsTheme">#171717</color>

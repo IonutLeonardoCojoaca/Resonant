@@ -63,6 +63,8 @@ class SearchResultAdapter :
         private const val TYPE_ARTIST = 2
     }
 
+    var onSettingsClick: ((Song) -> Unit)? = null
+
     var onSongClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
@@ -135,6 +137,8 @@ class SearchResultAdapter :
         private val artistTextView: TextView = itemView.findViewById(R.id.songArtist)
         val albumArtImageView: ImageView = itemView.findViewById(R.id.songImage)
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
+        private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
+
 
         private var artworkJob: Job? = null
         private val ioScope = CoroutineScope(Dispatchers.IO)
@@ -148,9 +152,13 @@ class SearchResultAdapter :
         fun bind(song: Song) {
             // Estado del botón de like
             val isFavorite = favoriteSongIds.contains(song.id)
-            likeButton.setImageResource(
-                if (isFavorite) R.drawable.favorite else R.drawable.favorite_border
-            )
+
+            if (isFavorite) {
+                likeButton.visibility = View.VISIBLE
+                likeButton.setImageResource(R.drawable.favorite)
+            } else {
+                likeButton.visibility = View.INVISIBLE
+            }
 
             // Estado inicial determinista
             cancelJobs()
@@ -262,6 +270,10 @@ class SearchResultAdapter :
                         albumArtImageView.setImageResource(placeholderRes)
                     }
                 }
+            }
+
+            settingsButton.setOnClickListener {
+                onSettingsClick?.invoke(song)
             }
 
             likeButton.setOnClickListener {

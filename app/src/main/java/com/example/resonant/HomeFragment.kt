@@ -16,6 +16,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -23,7 +24,7 @@ import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class HomeFragment : Fragment(){
+class HomeFragment : BaseFragment(R.layout.fragment_home){
 
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
@@ -84,6 +85,7 @@ class HomeFragment : Fragment(){
         recyclerViewArtists.layoutManager = GridLayoutManager(context, 3)
         artistAdapter = ArtistAdapter(artistsList)
         recyclerViewArtists.adapter = artistAdapter
+        artistAdapter.setViewType(ArtistAdapter.VIEW_TYPE_GRID)
 
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
         recyclerViewAlbums.layoutManager = GridLayoutManager(context, 3)
@@ -172,6 +174,38 @@ class HomeFragment : Fragment(){
             }
         }
 
+        songAdapter.onSettingsClick = { song ->
+            val service = ApiClient.getService(requireContext())
+            lifecycleScope.launch {
+                val artistList = service.getArtistsBySongId(song.id)
+                song.artistName = artistList.joinToString(", ") { it.name }
+
+                val bottomSheet = SongOptionsBottomSheet(
+                    song = song,
+                    onSeeSongClick = { selectedSong ->
+                        val bundle = Bundle().apply {
+                            putParcelable("song", selectedSong)
+                        }
+                        findNavController().navigate(
+                            R.id.action_homeFragment_to_detailedSongFragment,
+                            bundle
+                        )
+                    },
+                    onFavoriteToggled = { toggledSong, wasFavorite ->
+                        if (wasFavorite) {
+                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - toggledSong.id
+                        } else {
+                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + toggledSong.id
+                        }
+                        songAdapter.notifyItemChanged(
+                            songAdapter.currentList.indexOfFirst { it.id == toggledSong.id },
+                            "silent"
+                        )
+                    }
+                )
+                bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
+            }
+        }
 
         rechargeSongs.setOnClickListener {
             lifecycleScope.launch {

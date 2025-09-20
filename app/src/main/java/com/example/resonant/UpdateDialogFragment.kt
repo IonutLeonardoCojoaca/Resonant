@@ -29,7 +29,6 @@ class UpdateDialogFragment : DialogFragment() {
         val downloadUrl = requireArguments().getString(ARG_DOWNLOAD_URL) ?: ""
         val version = requireArguments().getString(ARG_VERSION) ?: ""
 
-        // Seteamos título y mensaje
         view.findViewById<TextView>(R.id.adviseTitle).text = title
         view.findViewById<TextView>(R.id.adviseMessage).text = message
 
@@ -45,7 +44,6 @@ class UpdateDialogFragment : DialogFragment() {
         }
 
         if (forced) {
-            // Oculta "Cancelar"
             cancelBtn.visibility = View.GONE
 
             // Haz que "Actualizar" ocupe todo el ancho
@@ -58,12 +56,10 @@ class UpdateDialogFragment : DialogFragment() {
             }
             acceptBtn.layoutParams = lp
 
-            // No permitir cerrar
             isCancelable = false
             dialog.setCancelable(false)
             dialog.setCanceledOnTouchOutside(false)
         } else {
-            // Mostrar "Cancelar" y permitir cierre
             cancelBtn.visibility = View.VISIBLE
             cancelBtn.text = "Más tarde"
             cancelBtn.setOnClickListener {

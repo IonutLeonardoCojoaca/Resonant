@@ -9,35 +9,41 @@ import kotlinx.coroutines.launch
 
 class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = FavoriteManager(app.applicationContext)
-
     private val _favorites = MutableLiveData<List<Song>>(emptyList())
     val favorites: LiveData<List<Song>> get() = _favorites
 
+    // Inicializa favoritos en memoria
+    private var currentFavorites: MutableList<Song> = mutableListOf()
+
     fun loadFavorites() {
         viewModelScope.launch {
-            _favorites.value = repo.getFavorites()
-        }
-    }
-
-    fun deleteFavorite(songId: String, onResult: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            val result = repo.deleteFavorite(songId)
-            if (result) {
-                loadFavorites() // 🔑 recargar toda la lista
-            }
-            onResult(result)
+            val favs = repo.getFavorites(currentFavorites)
+            currentFavorites = favs.toMutableList()
+            _favorites.value = favs
         }
     }
 
     fun addFavorite(song: Song, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            currentFavorites.add(song)
+            _favorites.value = currentFavorites.toList()
             val result = repo.addFavorite(song.id)
             if (result) {
-                loadFavorites() // 🔑 recargar toda la lista
+                loadFavorites() // sincroniza con backend
             }
             onResult(result)
         }
     }
 
-
+    fun deleteFavorite(songId: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            currentFavorites.removeAll { it.id == songId }
+            _favorites.value = currentFavorites.toList()
+            val result = repo.deleteFavorite(songId)
+            if (result) {
+                loadFavorites() // sincroniza con backend
+            }
+            onResult(result)
+        }
+    }
 }

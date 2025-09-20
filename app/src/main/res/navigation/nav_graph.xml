@@ -20,6 +20,9 @@
         <action
             android:id="@+id/action_homeFragment_to_artistFragment"
             app:destination="@id/artistFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
 
     </fragment>
 
@@ -39,6 +42,9 @@
         <action
             android:id="@+id/action_searchFragment_to_artistFragment"
             app:destination="@id/artistFragment" />
+        <action
+            android:id="@+id/action_searchFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
     </fragment>
 
     <fragment
@@ -50,6 +56,12 @@
         <action
             android:id="@+id/action_savedFragment_to_favoriteSongsFragment"
             app:destination="@id/favoriteSongsFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_createPlaylistFragment"
+            app:destination="@id/createPlaylistFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_playlistFragment"
+            app:destination="@id/playlistFragment" />
     </fragment>
 
     <fragment
@@ -62,17 +74,24 @@
         android:id="@+id/favoriteSongsFragment"
         android:name="com.example.resonant.FavoriteSongsFragment"
         android:label="Canciones favoritas"
-        tools:layout="@layout/fragment_favorite" >
+        tools:layout="@layout/fragment_favorite_songs" >
         <action
             android:id="@+id/action_favoriteSongsFragment_to_savedFragment"
             app:destination="@id/savedFragment" />
+        <action
+            android:id="@+id/action_favoriteSongsFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
     </fragment>
 
     <fragment
         android:id="@+id/albumFragment"
         android:name="com.example.resonant.AlbumFragment"
         android:label="Album"
-        tools:layout="@layout/fragment_album"/>
+        tools:layout="@layout/fragment_album">
+        <action
+            android:id="@+id/action_albumFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
+    </fragment>
 
     <fragment
         android:id="@+id/artistFragment"
@@ -91,5 +110,35 @@
         android:name="com.example.resonant.SongFragment"
         android:label="Cancion"
         tools:layout="@layout/fragment_song"/>
+
+    <fragment
+        android:id="@+id/createPlaylistFragment"
+        android:name="com.example.resonant.CreatePlaylistFragment"
+        android:label="Crear Playlist"
+        tools:layout="@layout/fragment_create_playlist">
+        <action
+            android:id="@+id/action_createPlaylistFragment_to_savedFragment"
+            app:destination="@id/savedFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/playlistFragment"
+        android:name="com.example.resonant.PlaylistFragment"
+        android:label="Playlist"
+        tools:layout="@layout/fragment_playlist">
+        <action
+            android:id="@+id/action_playlistFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/detailedSongFragment"
+        android:name="com.example.resonant.DetailedSongFragment"
+        android:label="Detailed Song"
+        tools:layout="@layout/fragment_detailed_song">
+        <action
+            android:id="@+id/action_detailedSongFragment_to_artistFragment"
+            app:destination="@id/artistFragment" />
+    </fragment>
 
 </navigation>

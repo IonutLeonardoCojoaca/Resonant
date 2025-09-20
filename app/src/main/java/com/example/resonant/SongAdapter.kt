@@ -12,7 +12,11 @@ import android.view.animation.LinearInterpolator
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -39,6 +43,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
     var onItemClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
+    var onSettingsClick: ((Song) -> Unit)? = null
     val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
     var onFavoriteClick: ((Song, Boolean) -> Unit)? = null
     var favoriteSongIds: Set<String> = emptySet()
@@ -82,8 +87,8 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
         private val nameTextView: TextView = itemView.findViewById(R.id.songTitle)
         private val artistTextView: TextView = itemView.findViewById(R.id.songArtist)
-        private val streamsTextView: TextView = itemView.findViewById(R.id.songStreams)
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
+        private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
         val albumArtImageView: ImageView = itemView.findViewById(R.id.songImage)
         var albumArtAnimator: ObjectAnimator? = null
 
@@ -99,13 +104,15 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         fun bind(song: Song, partial: Boolean = false) {
             nameTextView.text = song.title
             artistTextView.text = song.artistName ?: "Desconocido"
-            streamsTextView.text = song.streams.toString()
 
             val isFavorite = favoriteSongIds.contains(song.id)
 
-            likeButton.setImageResource(
-                if (isFavorite) R.drawable.favorite else R.drawable.favorite_border
-            )
+            if (isFavorite) {
+                likeButton.visibility = View.VISIBLE
+                likeButton.setImageResource(R.drawable.favorite)
+            } else {
+                likeButton.visibility = View.INVISIBLE
+            }
 
             nameTextView.setTextColor(
                 ContextCompat.getColor(
@@ -230,6 +237,9 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 onFavoriteClick?.invoke(song, currentlyFavorite)
             }
 
+            settingsButton.setOnClickListener {
+                onSettingsClick?.invoke(song)
+            }
 
             itemView.setOnClickListener {
                 val previousId = currentPlayingId

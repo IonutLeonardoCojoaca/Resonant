@@ -19,6 +19,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
@@ -28,7 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class SearchFragment : Fragment() {
+class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private lateinit var sharedPref: SharedPreferences
     private var searchJob: Job? = null
@@ -200,6 +201,41 @@ class SearchFragment : Fragment() {
                         Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
                     }
                 }
+            }
+        }
+
+        searchResultAdapter.onSettingsClick = { song ->
+            val service = ApiClient.getService(requireContext())
+            lifecycleScope.launch {
+                val artistList = service.getArtistsBySongId(song.id)
+                song.artistName = artistList.joinToString(", ") { it.name }
+
+                val bottomSheet = SongOptionsBottomSheet(
+                    song = song,
+                    onSeeSongClick = { selectedSong ->
+                        val bundle = Bundle().apply {
+                            putParcelable("song", selectedSong)
+                        }
+                        findNavController().navigate(
+                            R.id.action_searchFragment_to_detailedSongFragment,
+                            bundle
+                        )
+                    },
+                    onFavoriteToggled = { toggledSong, wasFavorite ->
+                        if (wasFavorite) {
+                            searchResultAdapter.favoriteSongIds = searchResultAdapter.favoriteSongIds - toggledSong.id
+                        } else {
+                            searchResultAdapter.favoriteSongIds = searchResultAdapter.favoriteSongIds + toggledSong.id
+                        }
+                        val index = searchResultAdapter.currentList.indexOfFirst {
+                            it is SearchResult.SongItem && it.song.id == toggledSong.id
+                        }
+                        if (index != -1) {
+                            searchResultAdapter.notifyItemChanged(index, "silent")
+                        }
+                    }
+                )
+                bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
 

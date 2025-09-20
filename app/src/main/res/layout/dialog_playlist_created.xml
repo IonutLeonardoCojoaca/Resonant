@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/transparent">
+
+    <RelativeLayout
+        android:layout_width="290dp"
+        android:layout_height="200dp"
+        android:layout_centerInParent="true"
+        android:padding="8dp"
+        android:background="@drawable/dialog_fragment_advise_background">
+
+        <TextView
+            android:id="@+id/adviseTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="¡Lista creada correctamente!"
+            android:textColor="@color/primaryColorButton"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:fontFamily="@font/unageo_bold"
+            android:textSize="18sp"
+            android:padding="10dp"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_below="@id/adviseTitle"
+            android:layout_marginHorizontal="8dp"
+            android:background="@color/numberTime"/>
+
+        <TextView
+            android:id="@+id/subtitleUpdate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/adviseTitle"
+            android:text="Ya puedes empezar a agregar tus canciones favoritas sin límites."
+            android:textColor="@color/primaryColorButton"
+            android:layout_centerHorizontal="true"
+            android:fontFamily="@font/unageo_medium"
+            android:textSize="15sp"
+            android:padding="10dp"/>
+
+        <Button
+            android:id="@+id/dismissButton"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:backgroundTint="@color/discTheme"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentBottom="true"
+            android:text="Aceptar"
+            android:textColor="@color/primaryColorButton"
+            android:fontFamily="@font/unageo_bold"
+            android:textSize="15sp"
+            android:layout_margin="10dp"/>
+    </RelativeLayout>
+</RelativeLayout>

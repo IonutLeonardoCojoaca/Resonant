@@ -25,8 +25,7 @@
                 android:layout_margin="5dp"
                 android:scaleType="fitCenter"
                 android:layout_centerVertical="true"
-                app:shapeAppearanceOverlay="@style/RoundedCornersImage"
-                android:alpha="0.8"/>
+                app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -62,29 +61,30 @@
                     android:fontFamily="@font/unageo_medium"
                     android:layout_below="@id/songTitle"/>
 
-                <TextView
-                    android:id="@+id/songStreams"
-                    android:layout_width="match_parent"
-                    android:layout_height="18dp"
-                    android:layout_toLeftOf="@id/likeButton"
-                    android:textColor="#7A7A7A"
-                    android:text="0"
-                    android:textSize="12sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:layout_below="@id/songArtist"/>
-
                 <ImageButton
                     android:id="@+id/likeButton"
                     android:layout_width="35dp"
                     android:layout_height="35dp"
-                    android:layout_marginRight="10dp"
-                    android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginEnd="5dp"
+                    android:layout_toLeftOf="@id/featuredButton"
+                    android:background="@android:color/transparent"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:focusableInTouchMode="false"/>
+
+                <ImageButton
+                    android:id="@+id/featuredButton"
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:layout_centerVertical="true"
+                    android:layout_alignParentRight="true"
                     android:background="@android:color/transparent"
                     android:clickable="true"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
-                    android:src="@drawable/favorite_border"/>
+                    android:src="@drawable/settings_featured"/>
 
             </RelativeLayout>
 

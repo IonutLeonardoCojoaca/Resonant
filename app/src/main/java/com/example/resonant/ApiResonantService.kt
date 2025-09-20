@@ -106,6 +106,12 @@ interface ApiResonantService {
         @Query("userId") userId: String
     ): List<Song>
 
+    @GET("api/Song/GetByPlaylistId")
+    suspend fun getSongsByPlaylistId(
+        @Query("playlistId") playlistId: String
+    ): List<Song>
+
+
     // Minio
     @POST("api/Minio/GetMultipleAlbumUrls")
     suspend fun getMultipleAlbumUrls(
@@ -144,18 +150,22 @@ interface ApiResonantService {
         @Query("id") id: String
     ): Playlist
 
+    @GET("api/Playlist/GetByUserId")
+    suspend fun getPlaylistByUserId(
+        @Query("userId") userId: String
+    ): List<Playlist>
+
     // Eliminar playlist por Id
     @DELETE("api/Playlist/Delete")
     suspend fun deletePlaylist(
         @Query("id") id: String
-    )
+    ): Response<Unit>
 
-    // Añadir canción a playlist
     @PUT("api/Playlist/AddToPlaylist")
     suspend fun addSongToPlaylist(
         @Query("songId") songId: String,
         @Query("playlistId") playlistId: String
-    )
+    ): retrofit2.Response<Void>
 
     // Comprobar si la canción está en la playlist
     @GET("api/Playlist/IsSongInPlaylist")
@@ -190,6 +200,11 @@ interface ApiResonantService {
     @GET("/api/User/GetByEmail")
     suspend fun getUserByEmail(
         @Query("email") email: String
+    ): User
+
+    @GET("/api/User/GetById")
+    suspend fun getUserById(
+        @Query("id") id: String
     ): User
 
 }

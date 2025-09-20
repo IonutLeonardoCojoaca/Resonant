@@ -133,13 +133,13 @@
                         android:fontFamily="@font/unageo_medium"
                         android:layout_gravity="top"
                         android:textSize="14sp"
-                        android:textColor="@color/errorColorText"
+                        android:textColor="@color/errorColor"
                         android:textStyle="bold"/>
 
                     <TextView
                         android:layout_width="290dp"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/errorColorText"
+                        android:textColor="@color/errorColor"
                         android:layout_gravity="bottom"
                         android:textSize="12sp"
                         android:fontFamily="@font/unageo_medium"

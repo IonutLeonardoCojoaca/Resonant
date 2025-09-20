@@ -18,7 +18,7 @@ import com.facebook.shimmer.ShimmerFrameLayout
 import com.squareup.picasso.Picasso
 import kotlinx.coroutines.launch
 
-class ArtistFragment : Fragment() {
+class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
     private lateinit var api: ApiResonantService
 

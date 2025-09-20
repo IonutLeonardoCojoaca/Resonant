@@ -10,15 +10,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
+import kotlinx.coroutines.launch
 
-class FavoriteSongsFragment : Fragment() {
+class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
 
     private lateinit var recyclerLikedSongs: RecyclerView
     private lateinit var loadingAnimation: LottieAnimationView
@@ -53,7 +55,7 @@ class FavoriteSongsFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val view = inflater.inflate(R.layout.fragment_favorite, container, false)
+        val view = inflater.inflate(R.layout.fragment_favorite_songs, container, false)
 
         noLikedSongsText = view.findViewById(R.id.noLikedSongsText)
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
@@ -125,6 +127,39 @@ class FavoriteSongsFragment : Fragment() {
                         Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
                     }
                 }
+            }
+        }
+
+        songAdapter.onSettingsClick = { song ->
+            val service = ApiClient.getService(requireContext())
+            lifecycleScope.launch {
+                val artistList = service.getArtistsBySongId(song.id)
+                song.artistName = artistList.joinToString(", ") { it.name }
+
+                val bottomSheet = SongOptionsBottomSheet(
+                    song = song,
+                    onSeeSongClick = { selectedSong ->
+                        val bundle = Bundle().apply {
+                            putParcelable("song", selectedSong)
+                        }
+                        findNavController().navigate(
+                            R.id.action_favoriteSongsFragment_to_detailedSongFragment,
+                            bundle
+                        )
+                    },
+                    onFavoriteToggled = { toggledSong, wasFavorite ->
+                        if (wasFavorite) {
+                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - toggledSong.id
+                        } else {
+                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + toggledSong.id
+                        }
+                        songAdapter.notifyItemChanged(
+                            songAdapter.currentList.indexOfFirst { it.id == toggledSong.id },
+                            "silent"
+                        )
+                    }
+                )
+                bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
 

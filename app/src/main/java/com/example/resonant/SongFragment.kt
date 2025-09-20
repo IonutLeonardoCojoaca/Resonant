@@ -24,10 +24,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
-class SongFragment : Fragment() {
+class SongFragment : BaseFragment(R.layout.fragment_song) {
 
     private lateinit var blurrySongImageBackground: ImageView
     private lateinit var parallaxRotatingImage : ImageView
@@ -149,20 +153,26 @@ class SongFragment : Fragment() {
                 titleView.text = it.title ?: "Desconocido"
                 artistView.text = it.artistName ?: "Desconocido"
 
-                val coverFile = File(requireContext().cacheDir, "cover_${it.id}.png")
-                val bitmap = BitmapFactory.decodeFile(coverFile.absolutePath)
-                    ?: BitmapFactory.decodeResource(resources, R.drawable.album_cover)
+                if (!it.url.isNullOrBlank()) {
+                    lifecycleScope.launch {
+                        val bitmap = withContext(Dispatchers.IO) {
+                            Utils.getEmbeddedPictureFromUrl(requireContext(), it.url!!)
+                        } ?: BitmapFactory.decodeResource(resources, R.drawable.album_cover)
 
-                if (bitmap != null) {
-                    if (isFirstLoad || it.id == lastSongId) {
-                        blurrySongImageBackground.setImageBitmap(bitmap)
-                        imageSong?.setImageBitmap(bitmap)
-                        isFirstLoad = false
-                    } else {
-                        AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, bitmap)
-                        AnimationsUtils.animateSongImage(imageSong!!, bitmap, lastDirection)
+                        if (isFirstLoad || it.id == lastSongId) {
+                            blurrySongImageBackground.setImageBitmap(bitmap)
+                            imageSong?.setImageBitmap(bitmap)
+                            isFirstLoad = false
+                        } else {
+                            AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, bitmap)
+                            AnimationsUtils.animateSongImage(imageSong!!, bitmap, lastDirection)
+                        }
+                        lastSongId = it.id
                     }
-                    lastSongId = it.id
+                } else {
+                    val bitmap = BitmapFactory.decodeResource(resources, R.drawable.album_cover)
+                    blurrySongImageBackground.setImageBitmap(bitmap)
+                    imageSong?.setImageBitmap(bitmap)
                 }
             }
         }

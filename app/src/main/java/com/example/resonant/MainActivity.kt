@@ -37,14 +37,12 @@ import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
 import java.net.URL
 import android.Manifest
-import android.graphics.drawable.AnimatedVectorDrawable
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
-import androidx.navigation.ui.AppBarConfiguration
-import androidx.navigation.ui.setupActionBarWithNavController
 import com.example.resonant.updates.AppUpdateManager
 import kotlinx.coroutines.launch
 import kotlin.concurrent.thread
@@ -242,16 +240,23 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             }
         }
 
-        val fragmentsConToolbar = setOf(
+        val fragmentsWithToolbar = setOf(
             R.id.homeFragment,
             R.id.searchFragment,
             R.id.savedFragment,
             R.id.favoriteSongsFragment
         )
 
-        val fragmentsSinToolbar = setOf(
+        val fragmentsNoToolbar = setOf(
             R.id.artistFragment,
-            R.id.albumFragment
+            R.id.albumFragment,
+            R.id.detailedSongFragment,
+            R.id.playlistFragment
+        )
+
+        val fragmentsNoToolbarNoBottomNav = setOf(
+            R.id.songFragment,
+            R.id.createPlaylistFragment
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
@@ -263,19 +268,19 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             }
 
             when (destination.id) {
-                in fragmentsConToolbar -> {
+                in fragmentsWithToolbar -> {
                     superiorToolbar.visibility = View.VISIBLE
                     bottomNavigation.visibility = View.VISIBLE
                     gradientBottom.visibility = View.VISIBLE
                     shouldShowMiniPlayer = true
                 }
-                in fragmentsSinToolbar -> {
+                in fragmentsNoToolbar -> {
                     superiorToolbar.visibility = View.GONE
                     bottomNavigation.visibility = View.VISIBLE
                     gradientBottom.visibility = View.VISIBLE
                     shouldShowMiniPlayer = true
                 }
-                R.id.songFragment -> {
+                in fragmentsNoToolbarNoBottomNav -> {
                     superiorToolbar.visibility = View.GONE
                     shouldShowMiniPlayer = false
                     bottomNavigation.visibility = View.GONE
@@ -296,7 +301,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 }
             }
 
-            // ✅ Evaluar si mostrar mini player cuando se navega
             val currentSong = musicService?.currentSongLiveData?.value
             if (shouldShowMiniPlayer && currentSong != null && !currentSong.title.isNullOrEmpty()) {
                 AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
@@ -308,7 +312,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         bottomNavigationView.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.homeFragment -> {
-                    // Elimina todo lo que haya encima del fragmento raíz
                     navController.popBackStack(R.id.homeFragment, false)
                     if (navController.currentDestination?.id != R.id.homeFragment) {
                         navController.navigate(R.id.homeFragment)
@@ -421,7 +424,32 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         observersRegistered = true
+
+        handleDeepLink(intent)
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Maneja deep link al volver a abrir la app desde un enlace
+        intent?.let { handleDeepLink(it) }
+    }
+
+    private fun handleDeepLink(intent: Intent) {
+        val data: Uri? = intent.data
+        if (data != null) {
+            val segments = data.pathSegments
+            if (segments.size >= 4 &&
+                segments[0] == "shared" &&
+                segments[1] == "android" &&
+                segments[2] == "song") {
+
+                val songId = segments[3]
+                val bundle = Bundle().apply { putString("songId", songId) }
+                navController.navigate(R.id.detailedSongFragment, bundle)
+            }
+        }
+    }
+
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {

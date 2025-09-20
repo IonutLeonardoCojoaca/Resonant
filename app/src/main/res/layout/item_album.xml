@@ -13,9 +13,9 @@
     app:cardBackgroundColor="@android:color/transparent">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/item_song_background">
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/item_song_background">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/artistImage"

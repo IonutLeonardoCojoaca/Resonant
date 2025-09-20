@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".DetailedSongFragment"
+    android:background="@color/appBackgroundTheme">
+
+    <RelativeLayout
+        android:id="@+id/songHeaderContainer"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:padding="20dp">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/songImage"
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            app:shapeAppearanceOverlay="@style/RoundedCornersDetailedSong"
+            android:scaleType="centerCrop">
+            
+        </com.google.android.material.imageview.ShapeableImageView>
+        
+        <TextView
+            android:id="@+id/songTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:text=""
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="@color/white"
+            android:fontFamily="@font/unageo_bold"
+            android:textSize="18sp"
+            android:layout_toRightOf="@id/songImage"/>
+        
+        <TextView
+            android:id="@+id/itemType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="8dp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="3dp"
+            android:text="Canción"
+            android:textColor="@color/white"
+            android:fontFamily="@font/unageo_regular"
+            android:textSize="14sp"
+            android:layout_toRightOf="@id/songImage"
+            android:layout_below="@id/songTitle"
+            android:background="@drawable/type_item_detailed_song_background"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/playButton"
+            android:layout_width="53dp"
+            android:layout_height="60dp"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            app:iconTint="@color/white"
+            app:icon="@drawable/play_arrow_filled"
+            app:iconSize="40dp"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:cornerRadius="40dp"
+            android:backgroundTint="@color/secondaryColorTheme"/>
+
+    </RelativeLayout>
+
+    <TextView
+        android:id="@+id/artistText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Artistas y colaboradores"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/white"
+        android:layout_marginHorizontal="20dp"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/songHeaderContainer" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/artistList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/artistText"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp">
+
+
+    </androidx.recyclerview.widget.RecyclerView>
+
+    <TextView
+        android:id="@+id/informationText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Información detallada"
+        android:textSize="20sp"
+        android:textColor="@color/white"
+        android:fontFamily="@font/unageo_medium"
+        android:paddingTop="5dp"
+        android:paddingBottom="15dp"
+        android:layout_marginHorizontal="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/artistList" />
+
+    <TextView
+        android:id="@+id/songDuration"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingVertical="15dp"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:fontFamily="@font/unageo_medium"
+        android:layout_marginHorizontal="20dp"
+        android:text="Duración"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/informationText"
+        android:drawableStart="@drawable/duration"
+        android:drawablePadding="10dp"
+        android:gravity="center_vertical"/>
+
+    <TextView
+        android:id="@+id/songStreams"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Reproducciones"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:fontFamily="@font/unageo_medium"
+        android:paddingVertical="15dp"
+        android:layout_marginHorizontal="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/songDuration"
+        android:drawableStart="@drawable/song"
+        android:drawablePadding="10dp"
+        android:gravity="center_vertical"/>
+
+    <TextView
+        android:id="@+id/songAlbum"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:paddingVertical="15dp"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Álbum"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/songStreams"
+        android:drawableStart="@drawable/album"
+        android:drawablePadding="10dp"
+        android:gravity="center_vertical"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
