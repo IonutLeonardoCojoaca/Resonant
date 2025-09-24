@@ -182,95 +182,63 @@ class SearchResultAdapter :
             bitmapCache[song.id]?.let { cached ->
                 albumArtImageView.setImageBitmap(cached)
             } ?: run {
-                val albumImageUrl = song.albumImageUrl
-                when {
-                    !albumImageUrl.isNullOrBlank() -> {
-                        // Animación de rotación mientras carga la portada remota
-                        albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
-                            duration = 3000
-                            repeatCount = ObjectAnimator.INFINITE
-                            interpolator = LinearInterpolator()
-                            start()
-                        }
-                        val model = ImageRequestHelper.buildGlideModel(itemView.context, albumImageUrl)
-
-                        Glide.with(itemView)
-                            .asBitmap()
-                            .load(model)
-                            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                            .timeout(10_000)
-                            .dontAnimate()
-                            .placeholder(placeholderRes)
-                            .error(placeholderRes)
-                            .listener(object : RequestListener<Bitmap> {
-                                override fun onLoadFailed(
-                                    e: GlideException?,
-                                    model: Any?,
-                                    target: Target<Bitmap>,
-                                    isFirstResource: Boolean
-                                ): Boolean {
-                                    albumArtAnimator?.cancel()
-                                    albumArtImageView.rotation = 0f
-                                    Log.w("SearchResultAdapter", "Song album art load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}")
-                                    return false
-                                }
-
-                                override fun onResourceReady(
-                                    resource: Bitmap,
-                                    model: Any,
-                                    target: Target<Bitmap>?,
-                                    dataSource: DataSource,
-                                    isFirstResource: Boolean
-                                ): Boolean {
-                                    albumArtAnimator?.cancel()
-                                    albumArtImageView.rotation = 0f
-                                    bitmapCache[song.id] = resource
-                                    ioScope.launch {
-                                        runCatching { Utils.saveBitmapToCache(itemView.context, resource, song.id) }
-                                    }
-                                    return false
-                                }
-                            })
-                            .into(albumArtImageView)
+                val albumImageUrl = song.coverUrl
+                if (!albumImageUrl.isNullOrBlank()) {
+                    // Animación de rotación mientras carga la portada remota
+                    albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
+                        duration = 3000
+                        repeatCount = ObjectAnimator.INFINITE
+                        interpolator = LinearInterpolator()
+                        start()
                     }
 
-                    !song.url.isNullOrBlank() -> {
-                        albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
-                            duration = 3000
-                            repeatCount = ObjectAnimator.INFINITE
-                            interpolator = LinearInterpolator()
-                            start()
-                        }
-                        albumArtImageView.setImageResource(placeholderRes)
-                        albumArtImageView.visibility = View.VISIBLE
-
-                        val positionAtBind = bindingAdapterPosition
-                        artworkJob = ioScope.launch {
-                            val bitmap = withTimeoutOrNull(8_000L) {
-                                Utils.getEmbeddedPictureFromUrl(itemView.context, song.url!!)
-                            }
-                            withContext(Dispatchers.Main) {
-                                if (bindingAdapterPosition != positionAtBind) return@withContext
+                    Glide.with(itemView)
+                        .asBitmap()
+                        .load(albumImageUrl) // <-- usar coverUrl, no imageFileName
+                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                        .timeout(10_000)
+                        .dontAnimate()
+                        .placeholder(placeholderRes)
+                        .error(placeholderRes)
+                        .listener(object : RequestListener<Bitmap> {
+                            override fun onLoadFailed(
+                                e: GlideException?,
+                                model: Any?,
+                                target: Target<Bitmap>,
+                                isFirstResource: Boolean
+                            ): Boolean {
                                 albumArtAnimator?.cancel()
                                 albumArtImageView.rotation = 0f
-                                if (bitmap != null) {
-                                    bitmapCache[song.id] = bitmap
-                                    albumArtImageView.setImageBitmap(bitmap)
-                                    ioScope.launch {
-                                        runCatching { Utils.saveBitmapToCache(itemView.context, bitmap, song.id) }
-                                    }
-                                } else {
-                                    albumArtImageView.setImageResource(placeholderRes)
-                                }
+                                Log.w(
+                                    "SearchResultAdapter",
+                                    "Song album art load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}"
+                                )
+                                return false
                             }
-                        }
-                    }
 
-                    else -> {
-                        albumArtImageView.setImageResource(placeholderRes)
-                    }
+                            override fun onResourceReady(
+                                resource: Bitmap,
+                                model: Any,
+                                target: Target<Bitmap>?,
+                                dataSource: DataSource,
+                                isFirstResource: Boolean
+                            ): Boolean {
+                                albumArtAnimator?.cancel()
+                                albumArtImageView.rotation = 0f
+                                bitmapCache[song.id] = resource
+                                ioScope.launch {
+                                    runCatching { Utils.saveBitmapToCache(itemView.context, resource, song.id) }
+                                }
+                                return false
+                            }
+                        })
+                        .into(albumArtImageView)
+                } else {
+                    albumArtImageView.setImageResource(placeholderRes)
                 }
+
             }
+
 
             settingsButton.setOnClickListener {
                 onSettingsClick?.invoke(song)

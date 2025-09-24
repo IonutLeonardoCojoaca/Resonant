@@ -1,6 +1,7 @@
 package com.example.resonant
 
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
@@ -21,12 +22,20 @@ object SnackbarUtils {
             .make(activity.findViewById(R.id.main), text, Snackbar.LENGTH_LONG)
             .setAnchorView(anchorId)
 
+        val snackbarView = snackbar.view
+
+        // Márgenes horizontales personalizados
+        val params = snackbarView.layoutParams
+        if (params is ViewGroup.MarginLayoutParams) {
+            params.setMargins(40, params.topMargin, 40, (params.bottomMargin - 15))
+            snackbarView.layoutParams = params
+        }
+
         // Color personalizado
         snackbar.setBackgroundTint(ContextCompat.getColor(requireContext(), colorRes))
         snackbar.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.white))
 
         // Tipografía y icono (siempre igual)
-        val snackbarView = snackbar.view
         val snackbarTextView = snackbarView.findViewById<TextView>(com.google.android.material.R.id.snackbar_text)
         val typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
         snackbarTextView.typeface = typeface

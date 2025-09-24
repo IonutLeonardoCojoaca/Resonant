@@ -8,6 +8,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
@@ -303,12 +304,12 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             )
                         }
 
-                        // CANCIONES: nombres de artistas y URLs de canciones faltantes
-                        // Nombres de artistas por canción (si tu API permite batch, cámbialo; si no, mantenlo)
                         songs.forEach { song ->
                             val songArtists = service.getArtistsBySongId(song.id)
                             song.artistName = songArtists.filterNotNull().map { it.name ?: "Desconocido" }.joinToString(", ")
                         }
+
+                        // Resolver URLs de canciones que no traen url directa
                         val missingSongFileNames = songs.filter { it.url.isNullOrEmpty() }
                             .mapNotNull { it.fileName?.takeIf { fn -> fn.isNotBlank() } }
                         if (missingSongFileNames.isNotEmpty()) {
@@ -318,6 +319,29 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                                 if (s.url.isNullOrEmpty()) {
                                     s.fileName?.let { fn -> s.url = songUrlMap[fn] }
                                 }
+                            }
+                        }
+
+                        val coversRequest = songs.mapNotNull { song ->
+                            song.imageFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
+                                song.albumId.takeIf { it.isNotBlank() }?.let { albumId ->
+                                    fileName to albumId
+                                }
+                            }
+                        }
+
+                        if (coversRequest.isNotEmpty()) {
+                            val (fileNames, albumIds) = coversRequest.unzip()
+
+                            val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
+
+                            val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
+                                keySelector = { it.imageFileName to it.albumId },
+                                valueTransform = { it.url }
+                            )
+
+                            songs.forEach { s ->
+                                s.coverUrl = coverUrlMap[s.imageFileName to s.albumId]
                             }
                         }
 
@@ -344,7 +368,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                         albumResults.clear(); albumResults.addAll(albums)
                         artistResults.clear(); artistResults.addAll(artistsPrepared)
 
-                        // ACTUALIZAR lastResults ANTES de filtrar (fix principal)
+                        // ACTUALIZAR lastResults ANTES de filtrar
                         lastResults = combined
 
                         val finalList = applyActiveFilters(lastResults)
@@ -360,6 +384,11 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             noSongsFounded.visibility = View.GONE
                         }
 
+                        // 🔎 Debug: ver si alguna canción llega sin coverUrl
+                        songs.forEach {
+                            Log.d("SearchResult", "Song: ${it.title}, coverUrl=${it.coverUrl}")
+                        }
+
                     } catch (e: Exception) {
                         loadingAnimation.visibility = View.INVISIBLE
                         resultsRecyclerView.visibility = View.INVISIBLE
@@ -370,6 +399,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     }
                 }
             }
+
         })
 
         return view

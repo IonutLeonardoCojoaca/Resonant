@@ -31,10 +31,10 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
+import com.bumptech.glide.Glide
 import com.example.resonant.SnackbarUtils.showResonantSnackbar
 import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -108,7 +108,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
             lifecycleScope.launch {
                 try {
-                    delay(700)
                     val playlist = playlistManager.getPlaylistById(playlistId)
                     val songs = getSongsFromPlaylist(requireContext(), playlistId)
 
@@ -130,59 +129,65 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                     playlistNumberOfTracks.text = "${playlist.numberOfTracks} canciones"
                     playlistDuration.text = Utils.formatDuration(playlist.duration ?: 0)
 
-                    // == FLUJO CORRECTO PARA EXTRAER PORTADA Y GENERAR COLLAGE ==
-                    val songsSinUrl = songs.filter { it.url.isNullOrBlank() }
-                    if (songsSinUrl.isNotEmpty()) {
-                        val fileNames = songsSinUrl.map { it.fileName }
-                        val urlList = service.getMultipleSongUrls(fileNames)
-                        val urlMap = urlList.associateBy { it.fileName }
-                        songsSinUrl.forEach { song ->
-                            song.url = urlMap[song.fileName]?.url
+// === Nuevo Collage ===
+// Obtén las 4 primeras canciones
+                    val firstSongs = songs.take(4)
+// Obtén sus URLs de portada correctas (coverUrl)
+                    val coverUrls = firstSongs.mapNotNull { it.coverUrl }
+
+// Descarga los Bitmaps usando Glide en IO
+                    val bitmaps = withContext(Dispatchers.IO) {
+                        coverUrls.map { url ->
+                            try {
+                                Glide.with(requireContext())
+                                    .asBitmap()
+                                    .load(url)
+                                    .submit()
+                                    .get()
+                            } catch (e: Exception) {
+                                null
+                            }
                         }
                     }
 
-                    // === Nuevo Collage ===
-                    // Obtén hasta 4 bitmaps de las portadas de las canciones (usa tu función utilitaria)
-                    val bitmaps = songs.take(4).map { song ->
-                        if (!song.url.isNullOrBlank()) {
-                            Utils.getEmbeddedPictureFromUrl(requireContext(), song.url!!)
-                        } else null
-                    }
+// Rellena con nulls si faltan portadas para tener siempre 4
+                    val paddedBitmaps = (bitmaps + List(4 - bitmaps.size) { null }).take(4)
 
-                    // Asegúrate que playlistImage.width tenga valor (o pon 200 como tamaño por defecto si aún es 0)
+// Asegúrate que playlistImage.width tenga valor (o pon 200 si aún es 0)
                     val collageSize = playlistImage.width.takeIf { it > 0 } ?: 200
 
+// Crea el collage
                     val collageBitmap = createCollageBitmap(
                         requireContext(),
-                        bitmaps,
+                        paddedBitmaps,
                         R.drawable.playlist_stack,
                         collageSize
                     )
 
-                    val collageContainer = view.findViewById<FrameLayout>(R.id.playlistCollageContainer)
-                    val imgViews = listOf(
-                        collageContainer.findViewById<ShapeableImageView>(R.id.img0),
-                        collageContainer.findViewById<ShapeableImageView>(R.id.img1),
-                        collageContainer.findViewById<ShapeableImageView>(R.id.img2),
-                        collageContainer.findViewById<ShapeableImageView>(R.id.img3)
+// Obtén las ImageViews del contenedor
+                    val collageContainer = view?.findViewById<FrameLayout>(R.id.playlistCollageContainer)
+                    val imgViews = listOfNotNull(
+                        collageContainer?.findViewById<ShapeableImageView>(R.id.img0),
+                        collageContainer?.findViewById<ShapeableImageView>(R.id.img1),
+                        collageContainer?.findViewById<ShapeableImageView>(R.id.img2),
+                        collageContainer?.findViewById<ShapeableImageView>(R.id.img3)
                     )
 
 // Asigna los bitmaps a las ImageViews (usa placeholder si no hay bitmap)
                     val placeholder = ContextCompat.getDrawable(requireContext(), R.drawable.playlist_stack)
                     imgViews.forEachIndexed { idx, imgView ->
-                        val bmp = bitmaps.getOrNull(idx)
+                        val bmp = paddedBitmaps.getOrNull(idx)
                         if (bmp != null) {
                             imgView.setImageBitmap(bmp)
                         } else {
                             imgView.setImageDrawable(placeholder)
                         }
                     }
-                    // === Fin Collage ===
+// === Fin Collage ===
 
                     songAdapter.submitList(songs)
-
                     playlistLoader.visibility = View.GONE
-                    separator.visibility = View.VISIBLE// Oculta el loader
+                    separator.visibility = View.VISIBLE // Oculta el loader
 
                 } catch (e: Exception) {
                     playlistLoader.visibility = View.GONE // Oculta el loader
@@ -345,15 +350,18 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             val cancionesDePlaylist = service.getSongsByPlaylistId(playlistId).toMutableList()
             Log.d("PlaylistFragment", "Canciones obtenidas del servidor: ${cancionesDePlaylist.size}")
 
+            // Enriquecer con artistas y reutilizar URLs previas si existen
             for (song in cancionesDePlaylist) {
                 val artistList = service.getArtistsBySongId(song.id)
                 song.artistName = artistList.joinToString(", ") { it.name }
                 val cachedSong = cancionesAnteriores?.find { it.id == song.id }
                 if (cachedSong != null) {
                     song.url = cachedSong.url
+                    song.coverUrl = cachedSong.coverUrl // reaprovechar si ya estaba cargada
                 }
             }
 
+            // Obtener URLs prefirmadas de audio si faltan
             val cancionesSinUrl = cancionesDePlaylist.filter { it.url == null }
             if (cancionesSinUrl.isNotEmpty()) {
                 val fileNames = cancionesSinUrl.map { it.fileName }
@@ -364,9 +372,43 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                 }
             }
 
+// === NUEVO BLOQUE PARA PORTADAS ===
+// Construir request solo con canciones que tengan ambos datos
+            val coversRequest = cancionesDePlaylist.mapNotNull { song ->
+                song.imageFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
+                    song.albumId.takeIf { it.isNotBlank() }?.let { albumId ->
+                        fileName to albumId
+                    }
+                }
+            }
+
+            if (coversRequest.isNotEmpty()) {
+                val (fileNames, albumIds) = coversRequest.unzip()
+
+                // Retrofit devuelve List<CoverResponse>
+                val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
+
+                // Convertimos a Map (imageFileName, albumId) -> url
+                val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
+                    keySelector = { it.imageFileName to it.albumId },
+                    valueTransform = { it.url }
+                )
+
+                // Asignamos URLs a las canciones correspondientes
+                cancionesDePlaylist.forEach { song ->
+                    val key = song.imageFileName to song.albumId
+                    song.coverUrl = coverUrlMap[key]
+                }
+            }
+
+
+            // Avisar al servicio de reproducción que se actualizó la playlist
             val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.UPDATE_SONGS
-                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(cancionesDePlaylist))
+                putParcelableArrayListExtra(
+                    MusicPlaybackService.SONG_LIST,
+                    ArrayList(cancionesDePlaylist)
+                )
             }
             context.startService(updateIntent)
 
@@ -376,7 +418,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             emptyList()
         }
     }
-
 
     fun createCollageBitmap(context: Context, bitmaps: List<Bitmap?>, placeholderRes: Int, size: Int): Bitmap {
         val collage = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -403,19 +444,4 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         return bitmap
     }
 
-    private fun loadMp3CoverAsync(context: Context, url: String, imageView: ImageView) {
-        val placeholderRes = R.drawable.playlist_stack
-        imageView.setImageResource(placeholderRes)
-
-        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-            val bitmap = Utils.getEmbeddedPictureFromUrl(context, url)
-            withContext(Dispatchers.Main) {
-                if (bitmap != null) {
-                    imageView.setImageBitmap(bitmap)
-                } else {
-                    imageView.setImageResource(placeholderRes)
-                }
-            }
-        }
-    }
 }

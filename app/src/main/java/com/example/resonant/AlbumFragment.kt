@@ -6,12 +6,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -24,7 +22,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.facebook.shimmer.ShimmerFrameLayout
-import com.squareup.picasso.Picasso
 import kotlinx.coroutines.launch
 
 class AlbumFragment : BaseFragment(R.layout.fragment_album) {
@@ -255,9 +252,9 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 val songs = getSongsFromAlbum(requireContext(), albumId)
 
                 if (albumImageUrl.isNotBlank()) {
-                    songs.forEach { it.albumImageUrl = albumImageUrl }
+                    songs.forEach { it.imageFileName = albumImageUrl }
                 } else {
-                    songs.forEach { it.albumImageUrl = null }
+                    songs.forEach { it.imageFileName = null }
                 }
 
                 songAdapter.submitList(songs)
@@ -272,7 +269,6 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         }
     }
 
-
     suspend fun getSongsFromAlbum(
         context: Context,
         albumId: String,
@@ -283,26 +279,53 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             val cancionesDelAlbum = service.getSongsByAlbumId(albumId).toMutableList()
             Log.d("AlbumFragment", "Canciones obtenidas del servidor: ${cancionesDelAlbum.size}")
 
+            // ARTISTAS
             for (song in cancionesDelAlbum) {
                 val artistList = service.getArtistsBySongId(song.id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
-                val cachedSong = cancionesAnteriores?.find { it.id == song.id }
-                if (cachedSong != null) {
-                    song.url = cachedSong.url
+                cancionesAnteriores?.find { it.id == song.id }?.let {
+                    song.url = it.url
                 }
             }
 
-            val cancionesSinUrl = cancionesDelAlbum.filter { it.url == null }
+            // AUDIO URLs
+            val cancionesSinUrl = cancionesDelAlbum.filter { it.url.isNullOrEmpty() }
             if (cancionesSinUrl.isNotEmpty()) {
                 val fileNames = cancionesSinUrl.map { it.fileName }
                 val urlList = service.getMultipleSongUrls(fileNames)
                 val urlMap = urlList.associateBy { it.fileName }
-
                 cancionesSinUrl.forEach { song ->
                     song.url = urlMap[song.fileName]?.url
                 }
             }
+
+// PORTADAS (COVER URLs)
+            val coversRequest = cancionesDelAlbum.mapNotNull { song ->
+                val fn = song.imageFileName
+                val aid = song.albumId ?: albumId
+                if (!fn.isNullOrBlank() && !aid.isNullOrBlank()) fn to aid else null
+            }
+
+            if (coversRequest.isNotEmpty()) {
+                val (fileNames, albumIds) = coversRequest.unzip()
+
+                // Ahora devuelve objetos completos
+                val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
+
+                // Creamos un Map (imageFileName, albumId) -> url
+                val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
+                    keySelector = { it.imageFileName to it.albumId },
+                    valueTransform = { it.url }
+                )
+
+                // Asignamos URLs a las canciones correspondientes
+                cancionesDelAlbum.forEach { song ->
+                    val key = song.imageFileName to (song.albumId ?: albumId)
+                    song.coverUrl = coverUrlMap[key]
+                }
+            }
+
 
             val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.UPDATE_SONGS

@@ -44,22 +44,6 @@ object Utils {
         }
     }
 
-    fun getEmbeddedPictureFromUrl(context: Context, url: String): Bitmap? {
-        return try {
-            val mediaMetadataRetriever = MediaMetadataRetriever()
-            mediaMetadataRetriever.setDataSource(url, HashMap<String, String>())
-            val art = mediaMetadataRetriever.embeddedPicture
-            mediaMetadataRetriever.release()
-
-            art?.let {
-                BitmapFactory.decodeByteArray(it, 0, it.size)
-            }
-        } catch (e: Exception) {
-            Log.e("SongViewHolder", "Error al obtener la imagen incrustada desde la URL: $url", e)
-            null
-        }
-    }
-
     fun formatDuration(seconds: Int): String {
         val hours = seconds / 3600
         val minutes = (seconds % 3600) / 60
@@ -69,6 +53,12 @@ object Utils {
             minutes > 0 -> "${minutes}m"
             else -> "0m"
         }
+    }
+
+    fun formatSecondsToMinSec(seconds: Int): String {
+        val min = seconds / 60
+        val sec = seconds % 60
+        return "${min}m ${sec}s"
     }
 
     fun getCachedSongBitmap(songId: String, context: Context): Bitmap? {

@@ -1,11 +1,17 @@
 package com.example.resonant
 
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.cardview.widget.CardView
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.graphics.ColorUtils
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.recyclerview.widget.RecyclerView
@@ -65,15 +71,14 @@ class AlbumAdapter(
         val albumImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val albumName: TextView = itemView.findViewById(R.id.albumName)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
+        private val container: View = itemView.findViewById(R.id.itemContainer) // ConstraintLayout
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
             artistName.text = album.artistName ?: "Unknown"
-
-            // Transition name para shared element
             albumImage.transitionName = "albumImage_${album.id}"
 
-            loadAlbumCover(album.url, albumImage)
+            loadAlbumCoverPalette(album.url, albumImage, container, albumName, artistName)
 
             itemView.setOnClickListener {
                 itemView.postDelayed({
@@ -134,4 +139,63 @@ class AlbumAdapter(
             .error(placeholderRes)
             .into(imageView)
     }
+
+    private fun loadAlbumCoverPalette(
+        url: String?,
+        imageView: ImageView,
+        container: View, // El ConstraintLayout, no el CardView
+        albumName: TextView,
+        artistName: TextView
+    ) {
+        val placeholderRes = R.drawable.album_stack
+
+        Glide.with(imageView).clear(imageView)
+
+        if (url.isNullOrBlank()) {
+            imageView.setImageResource(placeholderRes)
+            // Aplica el colorizer con el fallback
+            MiniPlayerColorizer.applyFromImageView(
+                imageView,
+                MiniPlayerColorizer.Targets(
+                    container = container,
+                    title = albumName,
+                    subtitle = artistName
+                ),
+                fallbackColor = imageView.context.getColor(R.color.appBackgroundTheme),
+                animateMillis = 400L
+            )
+            return
+        }
+
+        val model = ImageRequestHelper.buildGlideModel(imageView.context, url)
+
+        Glide.with(imageView)
+            .asBitmap()
+            .load(model)
+            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+            .timeout(10_000)
+            .dontAnimate()
+            .placeholder(placeholderRes)
+            .error(placeholderRes)
+            .into(object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
+                override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
+                    imageView.setImageBitmap(resource)
+                    // Aplica el colorizer con el bitmap real
+                    MiniPlayerColorizer.applyFromImageView(
+                        imageView,
+                        MiniPlayerColorizer.Targets(
+                            container = container,
+                            title = albumName,
+                            subtitle = artistName
+                        ),
+                        fallbackColor = imageView.context.getColor(R.color.appBackgroundTheme),
+                        animateMillis = 400L
+                    )
+                }
+                override fun onLoadCleared(placeholder: Drawable?) {
+                    imageView.setImageDrawable(placeholder)
+                }
+            })
+    }
+
 }

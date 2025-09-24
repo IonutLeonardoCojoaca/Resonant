@@ -3,7 +3,7 @@ package com.example.resonant
 import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.net.Uri
+import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -12,27 +12,19 @@ import android.view.animation.LinearInterpolator
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.load.model.GlideUrl
-import com.bumptech.glide.load.model.LazyHeaders
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -95,25 +87,22 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         private var artworkJob: Job? = null
         private val ioScope = CoroutineScope(Dispatchers.IO)
 
-
         fun cancelJobs() {
             artworkJob?.cancel()
             artworkJob = null
         }
 
         fun bind(song: Song, partial: Boolean = false) {
-            nameTextView.text = song.title
+            // Textos
+            nameTextView.text = song.title ?: "Desconocido"
             artistTextView.text = song.artistName ?: "Desconocido"
 
+            // Estado favorito
             val isFavorite = favoriteSongIds.contains(song.id)
+            likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
+            likeButton.setImageResource(if (isFavorite) R.drawable.favorite else 0)
 
-            if (isFavorite) {
-                likeButton.visibility = View.VISIBLE
-                likeButton.setImageResource(R.drawable.favorite)
-            } else {
-                likeButton.visibility = View.INVISIBLE
-            }
-
+            // Color del título según si está sonando
             nameTextView.setTextColor(
                 ContextCompat.getColor(
                     itemView.context,
@@ -122,125 +111,70 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             )
 
             if (!partial) {
+                // Cancelar cualquier trabajo anterior y animaciones
                 cancelJobs()
-                // Detén animación previa y resetea rotación
                 albumArtAnimator?.cancel()
                 albumArtImageView.rotation = 0f
                 albumArtImageView.visibility = View.VISIBLE
 
-                Glide.with(itemView).clear(albumArtImageView)
+                Glide.with(itemView)
+                    .clear(albumArtImageView)
 
                 val placeholderRes = R.drawable.album_cover
-                val errorRes = R.drawable.album_cover
+                val url = song.coverUrl
 
-                bitmapCache[song.id]?.let { cached ->
-                    albumArtImageView.setImageBitmap(cached)
-                } ?: run {
-                    when {
-                        !song.albumImageUrl.isNullOrBlank() -> {
-                            albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
-                                duration = 3000
-                                repeatCount = ObjectAnimator.INFINITE
-                                interpolator = LinearInterpolator()
-                                start()
+                if (!url.isNullOrBlank()) {
+                    albumArtAnimator?.cancel()
+                    albumArtImageView.rotation = 0f
+
+                    Glide.with(albumArtImageView.context)
+                        .asBitmap()
+                        .load(url)
+                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                        .placeholder(placeholderRes)
+                        .error(placeholderRes)
+                        .listener(object : RequestListener<Bitmap> {
+                            override fun onLoadFailed(
+                                e: GlideException?,
+                                model: Any?,
+                                target: Target<Bitmap?>,
+                                isFirstResource: Boolean
+                            ): Boolean {
+                                return false
                             }
 
-                            val model = ImageRequestHelper.buildGlideModel(itemView.context, song.albumImageUrl!!)
-                            Glide.with(itemView)
-                                .asBitmap()
-                                .load(model)
-                                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                                .timeout(10_000) // 10s
-                                .dontAnimate()
-                                .placeholder(placeholderRes)
-                                .error(errorRes)
-                                .listener(object : com.bumptech.glide.request.RequestListener<Bitmap> {
-                                    override fun onLoadFailed(
-                                        e: GlideException?,
-                                        model: Any?,
-                                        target: Target<Bitmap>,
-                                        isFirstResource: Boolean
-                                    ): Boolean {
-                                        albumArtAnimator?.cancel()
-                                        albumArtImageView.rotation = 0f
-                                        Log.w("SongAdapter", "Album art load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}")
-                                        return false
-                                    }
-
-                                    override fun onResourceReady(
-                                        resource: Bitmap,
-                                        model: Any,
-                                        target: Target<Bitmap>?,
-                                        dataSource: DataSource,
-                                        isFirstResource: Boolean
-                                    ): Boolean {
-                                        albumArtAnimator?.cancel()
-                                        albumArtImageView.rotation = 0f
-                                        bitmapCache[song.id] = resource
-                                        ioScope.launch {
-                                            runCatching { Utils.saveBitmapToCache(itemView.context, resource, song.id) }
-                                        }
-                                        return false
-                                    }
-                                })
-                                .into(albumArtImageView)
-                        }
-
-                        !song.url.isNullOrBlank() -> {
-                            albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
-                                duration = 3000
-                                repeatCount = ObjectAnimator.INFINITE
-                                interpolator = LinearInterpolator()
-                                start()
+                            override fun onResourceReady(
+                                resource: Bitmap,
+                                model: Any,
+                                target: Target<Bitmap?>?,
+                                dataSource: DataSource,
+                                isFirstResource: Boolean
+                            ): Boolean {
+                                return false
                             }
-                            albumArtImageView.setImageResource(placeholderRes)
-
-                            val positionAtBind = bindingAdapterPosition
-                            artworkJob = ioScope.launch {
-                                val bitmap = withTimeoutOrNull(8_000L) {
-                                    Utils.getEmbeddedPictureFromUrl(itemView.context, song.url!!)
-                                }
-                                withContext(Dispatchers.Main) {
-                                    if (bindingAdapterPosition != positionAtBind) return@withContext
-                                    albumArtAnimator?.cancel()
-                                    albumArtImageView.rotation = 0f
-                                    if (bitmap != null) {
-                                        bitmapCache[song.id] = bitmap
-                                        albumArtImageView.setImageBitmap(bitmap)
-                                        ioScope.launch {
-                                            runCatching { Utils.saveBitmapToCache(itemView.context, bitmap, song.id) }
-                                        }
-                                    } else {
-                                        albumArtImageView.setImageResource(errorRes)
-                                    }
-                                }
-                            }
-                        }
-
-                        else -> {
-                            albumArtImageView.setImageResource(placeholderRes)
-                        }
-                    }
+                        })
+                        .into(albumArtImageView)
+                } else {
+                    albumArtImageView.setImageResource(placeholderRes)
+                    Log.w("SongAdapter", "coverUrl nulo para ${song.title}")
                 }
+
             }
 
+            // Click favorito
             likeButton.setOnClickListener {
                 val currentlyFavorite = favoriteSongIds.contains(song.id)
                 val newState = !currentlyFavorite
-
-                favoriteSongIds = if (newState) {
-                    favoriteSongIds + song.id
-                } else {
-                    favoriteSongIds - song.id
-                }
-
+                favoriteSongIds = if (newState) favoriteSongIds + song.id else favoriteSongIds - song.id
                 onFavoriteClick?.invoke(song, currentlyFavorite)
             }
 
+            // Click settings
             settingsButton.setOnClickListener {
                 onSettingsClick?.invoke(song)
             }
 
+            // Click en la canción
             itemView.setOnClickListener {
                 val previousId = currentPlayingId
                 currentPlayingId = song.id
@@ -253,8 +187,7 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
                 val currentIndex = currentList.indexOfFirst { it.id == currentPlayingId }
                 if (currentIndex != -1) notifyItemChanged(currentIndex, "silent")
 
-                val bitmap = bitmapCache[song.id]
-                onItemClick?.invoke(song to bitmap)
+                onItemClick?.invoke(song to null)
             }
         }
 

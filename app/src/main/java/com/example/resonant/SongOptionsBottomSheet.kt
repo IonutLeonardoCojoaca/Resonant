@@ -2,6 +2,7 @@ package com.example.resonant
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -60,7 +61,8 @@ class SongOptionsBottomSheet(
 
         if (playlistId != null) {
             addToPlaylistButton.text = "Eliminar de la playlist"
-            addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.delete_icon, 0, 0, 0)
+            addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.delete, 0, 0, 0)
+            addToPlaylistButton.setTextColor(Color.parseColor("#F44336"))
 
             addToPlaylistButton.setOnClickListener {
                 dismiss()
@@ -81,26 +83,17 @@ class SongOptionsBottomSheet(
         val placeholderRes = R.drawable.album_cover
         val errorRes = R.drawable.album_cover
 
-        if (!song.albumImageUrl.isNullOrBlank()) {
+        val urlToLoad = song.coverUrl ?: song.imageFileName
+        if (!urlToLoad.isNullOrBlank()) {
             Glide.with(songImage)
-                .load(song.albumImageUrl)
+                .load(urlToLoad)
                 .placeholder(placeholderRes)
                 .error(errorRes)
                 .into(songImage)
-        } else if (!song.url.isNullOrBlank()) {
-            lifecycleScope.launch {
-                val bitmap = withContext(Dispatchers.IO) {
-                    Utils.getEmbeddedPictureFromUrl(requireContext(), song.url!!)
-                }
-                if (bitmap != null) {
-                    songImage.setImageBitmap(bitmap)
-                } else {
-                    songImage.setImageResource(errorRes)
-                }
-            }
         } else {
             songImage.setImageResource(placeholderRes)
         }
+
 
         val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         var isFavorite = false
@@ -110,9 +103,11 @@ class SongOptionsBottomSheet(
             if (isFavorite) {
                 addToFavoriteButton.text = "Eliminar de favoritos"
                 addToFavoriteButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.remove_favorite, 0, 0, 0)
+                addToFavoriteButton.setTextColor(Color.parseColor("#F44336"))
             } else {
                 addToFavoriteButton.text = "Añadir a favoritos"
                 addToFavoriteButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.add_favorite, 0, 0, 0)
+                addToFavoriteButton.setTextColor(Color.parseColor("#FFFFFF"))
             }
         }
 
@@ -245,9 +240,7 @@ class SongOptionsBottomSheet(
         🎵 ${song.title}
         👤 ${song.artistName}
         🔗 $songLink
-        #ResonantApp
     """.trimIndent()
     }
-
 
 }

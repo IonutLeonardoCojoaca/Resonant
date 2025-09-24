@@ -8,6 +8,7 @@ import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -91,7 +92,6 @@ class PlaylistAdapter(
 
     inner class PlaylistGridViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val playlistName: TextView = view.findViewById(R.id.playlistName)
-        // Collage image views
         val collageContainer = view.findViewById<View>(R.id.playlistCollageContainer)
         val imgViews = listOf(
             collageContainer.findViewById<ShapeableImageView>(R.id.img0),
@@ -115,60 +115,93 @@ class PlaylistAdapter(
                 try {
                     val songs = playlistManager.getSongsByPlaylistId(playlist.id!!)
                     val firstSongs = songs.take(4)
-                    firstSongs.forEachIndexed { index, song ->
-                        if (song.url.isNullOrBlank()) {
-                            val urlList = service.getMultipleSongUrls(listOf(song.fileName))
-                            song.url = urlList.firstOrNull()?.url
+
+                    // Batch request de portadas
+                    val coversRequest = firstSongs.mapNotNull { song ->
+                        song.imageFileName?.takeIf { it.isNotBlank() }?.let { fn ->
+                            song.albumId.takeIf { it.isNotBlank() }?.let { aid ->
+                                fn to aid
+                            }
                         }
                     }
-                    val bitmaps = mutableListOf<Bitmap?>()
-                    for (song in firstSongs) {
-                        if (!song.url.isNullOrBlank()) {
-                            bitmaps.add(Utils.getEmbeddedPictureFromUrl(context, song.url!!))
-                        } else {
-                            bitmaps.add(null)
+
+                    if (coversRequest.isNotEmpty()) {
+                        val (fileNames, albumIds) = coversRequest.unzip()
+                        val coverResponses = service.getMultipleSongCoverUrls(fileNames, albumIds)
+                        val coverMap = coverResponses.associateBy({ it.imageFileName to it.albumId }, { it.url })
+                        firstSongs.forEach { song ->
+                            song.coverUrl = coverMap[song.imageFileName to song.albumId]
                         }
                     }
 
                     withContext(Dispatchers.Main) {
-                        imgViews.forEachIndexed { i, imgView ->
-                            val bmp = bitmaps.getOrNull(i)
-                            if (bmp != null) {
-                                imgView.setImageBitmap(bmp)
+                        val bitmaps = arrayOfNulls<Bitmap>(4)
+                        var loadedCount = 0
+
+                        firstSongs.forEachIndexed { i, song ->
+                            val url = song.coverUrl
+                            val target = object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
+                                override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
+                                    bitmaps[i] = resource
+                                    imgViews[i].setImageBitmap(resource)
+                                    loadedCount++
+                                    if (loadedCount == firstSongs.size) {
+                                        // Todas las imágenes cargadas, generar collage
+                                        collageBitmap = createCollageBitmap(context, bitmaps.toList(), placeholderRes, imgViews.first().width)
+                                    }
+                                }
+
+                                override fun onLoadCleared(placeholder: Drawable?) {
+                                    imgViews[i].setImageResource(placeholderRes)
+                                }
+
+                                override fun onLoadFailed(errorDrawable: Drawable?) {
+                                    imgViews[i].setImageResource(placeholderRes)
+                                    loadedCount++
+                                    if (loadedCount == firstSongs.size) {
+                                        collageBitmap = createCollageBitmap(context, bitmaps.toList(), placeholderRes, imgViews.first().width)
+                                    }
+                                }
+                            }
+
+                            if (!url.isNullOrBlank()) {
+                                Glide.with(context)
+                                    .asBitmap()
+                                    .load(url)
+                                    .placeholder(placeholderRes)
+                                    .error(placeholderRes)
+                                    .into(target)
                             } else {
-                                imgView.setImageResource(placeholderRes)
+                                imgViews[i].setImageResource(placeholderRes)
+                                loadedCount++
                             }
                         }
-                        // Aquí generas el collage bitmap correctamente
-                        collageBitmap = createCollageBitmap(context, bitmaps, placeholderRes, imgViews.first().width)
                     }
+
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         imgViews.forEach { it.setImageResource(placeholderRes) }
-                        collageBitmap = createCollageBitmap(context, listOf(null, null, null, null), placeholderRes, imgViews.first().width)
                     }
                 }
             }
 
+            // Click normal
             itemView.setOnClickListener {
-                if (onClick != null) {
-                    onClick.invoke(playlist)
-                } else {
-                    val bundle = Bundle().apply {
-                        putString("playlistId", playlist.id)
-                    }
-                    itemView.findNavController().navigate(
-                        R.id.action_savedFragment_to_playlistFragment, bundle
-                    )
+                if (onClick != null) onClick.invoke(playlist)
+                else {
+                    val bundle = Bundle().apply { putString("playlistId", playlist.id) }
+                    itemView.findNavController().navigate(R.id.action_savedFragment_to_playlistFragment, bundle)
                 }
             }
 
-            // Ahora puedes usar collageBitmap aquí sin error
+            // Long click
             itemView.setOnLongClickListener {
                 onPlaylistLongClick?.invoke(playlist, collageBitmap)
                 onPlaylistLongClick != null
             }
         }
+
+
     }
 
     inner class PlaylistListViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -198,18 +231,17 @@ class PlaylistAdapter(
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val songs = playlistManager.getSongsByPlaylistId(playlist.id!!)
-                    val songsSinUrl = songs.filter { it.url.isNullOrBlank() }
-                    if (songsSinUrl.isNotEmpty()) {
-                        val fileNames = songsSinUrl.map { it.fileName }
-                        val urlList = service.getMultipleSongUrls(fileNames)
-                        val urlMap = urlList.associateBy { it.fileName }
-                        songsSinUrl.forEach { song ->
-                            song.url = urlMap[song.fileName]?.url
-                        }
-                    }
-                    val firstSongUrl = songs.firstOrNull()?.url
+                    val firstSong = songs.firstOrNull()
+                    val imageFileName = firstSong?.imageFileName
+                    val albumId = firstSong?.albumId
+
+                    // Obtén la URL prefirmada individual de la portada
+                    val coverUrl = if (!imageFileName.isNullOrBlank() && !albumId.isNullOrBlank()) {
+                        service.getSongCoverUrl(imageFileName, albumId).url
+                    } else null
+
                     withContext(Dispatchers.Main) {
-                        if (!firstSongUrl.isNullOrBlank()) {
+                        if (!coverUrl.isNullOrBlank()) {
                             // Animación de círculo de carga (rotación)
                             albumArtAnimator = ObjectAnimator.ofFloat(playlistImage, "rotation", 0f, 360f).apply {
                                 duration = 3000
@@ -218,22 +250,44 @@ class PlaylistAdapter(
                                 start()
                             }
 
-                            // Marca el ImageView como cargando
                             playlistImage.setImageResource(placeholderRes)
 
-                            // Extrae el bitmap de portada
-                            CoroutineScope(Dispatchers.IO).launch {
-                                val bitmap = Utils.getEmbeddedPictureFromUrl(context, firstSongUrl)
-                                withContext(Dispatchers.Main) {
-                                    albumArtAnimator?.cancel()
-                                    playlistImage.rotation = 0f
-                                    if (bitmap != null) {
-                                        playlistImage.setImageBitmap(bitmap)
-                                    } else {
+                            // Descarga la portada usando Glide
+                            Glide.with(context)
+                                .asBitmap()
+                                .load(coverUrl)
+                                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                                .timeout(10_000)
+                                .dontAnimate()
+                                .placeholder(placeholderRes)
+                                .error(noImageRes)
+                                .listener(object : com.bumptech.glide.request.RequestListener<Bitmap> {
+                                    override fun onLoadFailed(
+                                        e: com.bumptech.glide.load.engine.GlideException?,
+                                        model: Any?,
+                                        target: com.bumptech.glide.request.target.Target<Bitmap>,
+                                        isFirstResource: Boolean
+                                    ): Boolean {
+                                        albumArtAnimator?.cancel()
+                                        playlistImage.rotation = 0f
                                         playlistImage.setImageResource(noImageRes)
+                                        return false
                                     }
-                                }
-                            }
+
+                                    override fun onResourceReady(
+                                        resource: Bitmap,
+                                        model: Any,
+                                        target: com.bumptech.glide.request.target.Target<Bitmap>?,
+                                        dataSource: com.bumptech.glide.load.DataSource,
+                                        isFirstResource: Boolean
+                                    ): Boolean {
+                                        albumArtAnimator?.cancel()
+                                        playlistImage.rotation = 0f
+                                        playlistImage.setImageBitmap(resource)
+                                        return false
+                                    }
+                                })
+                                .into(playlistImage)
                         } else {
                             playlistImage.setImageResource(noImageRes)
                         }

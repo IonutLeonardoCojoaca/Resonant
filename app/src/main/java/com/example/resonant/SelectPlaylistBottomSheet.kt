@@ -86,26 +86,17 @@ class SelectPlaylistBottomSheet(
         val errorRes = R.drawable.album_cover
         val userViewModel = ViewModelProvider(requireActivity()).get(UserViewModel::class.java)
 
-        if (!song.albumImageUrl.isNullOrBlank()) {
+        val imageUrl = song.coverUrl // ✅ URL prefirmada correcta
+        if (!imageUrl.isNullOrBlank()) {
             Glide.with(songImage)
-                .load(song.albumImageUrl)
+                .load(imageUrl)
                 .placeholder(placeholderRes)
                 .error(errorRes)
                 .into(songImage)
-        } else if (!song.url.isNullOrBlank()) {
-            lifecycleScope.launch {
-                val bitmap = withContext(Dispatchers.IO) {
-                    Utils.getEmbeddedPictureFromUrl(requireContext(), song.url!!)
-                }
-                if (bitmap != null) {
-                    songImage.setImageBitmap(bitmap)
-                } else {
-                    songImage.setImageResource(errorRes)
-                }
-            }
         } else {
             songImage.setImageResource(placeholderRes)
         }
+
 
         lifecycleScope.launch {
             val playlists = withContext(Dispatchers.IO) {

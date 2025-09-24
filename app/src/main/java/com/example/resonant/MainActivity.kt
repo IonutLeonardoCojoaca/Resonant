@@ -37,6 +37,7 @@ import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
 import java.net.URL
 import android.Manifest
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -48,6 +49,10 @@ import kotlinx.coroutines.launch
 import kotlin.concurrent.thread
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListener {
@@ -125,14 +130,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val bottomNavigation = findViewById<View>(R.id.bottom_navigation)
         val gradientBottom = findViewById<View>(R.id.gradientBottom)
 
-        val displayMetrics = Resources.getSystem().displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val drawerWidth = (screenWidth * 0.85).toInt()
+        //val displayMetrics = Resources.getSystem().displayMetrics
+        //val screenWidth = displayMetrics.widthPixels
+        //val drawerWidth = (screenWidth * 0.85).toInt()
 
-        val drawer: View = findViewById(R.id.navigationView)
-        val params = drawer.layoutParams
-        params.width = drawerWidth
-        drawer.layoutParams = params
+        //val drawer: View = findViewById(R.id.navigationView)
+        //val params = drawer.layoutParams
+        //params.width = drawerWidth
+        //drawer.layoutParams = params
 
         val intent = Intent(this, MusicPlaybackService::class.java)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
@@ -162,6 +167,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         drawerLayout = findViewById(R.id.drawerLayout)
         seekBar = findViewById(R.id.seekbarPlayer)
         seekBar.max = 100
+
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
 
         songName.isSelected = true
         songArtist.isSelected = true
@@ -215,9 +222,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             }
         }
 
-        userPhotoImage.setOnClickListener {
-            drawerLayout.openDrawer(GravityCompat.START)
-        }
+        //userPhotoImage.setOnClickListener {
+        //    drawerLayout.openDrawer(GravityCompat.START)
+        //}
 
         songDataPlayer.setOnClickListener {
             val currentSong = musicService?.currentSongLiveData?.value
@@ -362,6 +369,24 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
+    fun updateMiniPlayerImage(url: String?) {
+        if (url.isNullOrBlank()) return
+
+        Glide.with(this)
+            .asBitmap()
+            .load(url)
+            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+            .into(object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                    SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(resource)
+                }
+
+                override fun onLoadCleared(placeholder: Drawable?) {}
+            })
+    }
+
+
+
     private fun setupObservers() {
         if (observersRegistered) return
 
@@ -391,6 +416,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         // 🔥 Aquí faltaba esto
                         songName.text = it.title
                         songArtist.text = it.artistName
+                        updateMiniPlayerImage(it.coverUrl) // <--- AQUÍ
                     }
                 }
             }

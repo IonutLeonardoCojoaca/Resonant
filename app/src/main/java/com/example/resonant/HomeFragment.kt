@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.util.Log
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
@@ -261,7 +262,11 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
         songAdapter.setCurrentPlayingSong(url)
     }
 
-    suspend fun getRandomSongs(context: Context, count: Int = 7, cancionesAnteriores: List<Song>? = null): List<Song> {
+    suspend fun getRandomSongs(
+        context: Context,
+        count: Int = 7,
+        cancionesAnteriores: List<Song>? = null
+    ): List<Song> {
         return try {
             val service = ApiClient.getService(context)
             val allIds = service.getAllSongIds()
@@ -272,18 +277,59 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
             val cancionesNuevas = mutableListOf<Song>()
 
             for (id in randomIds) {
-                var song = service.getSongById(id)
+                val song = service.getSongById(id)
                 val artistList = service.getArtistsBySongId(id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
-                val songCache = cancionesAnteriores?.find { it.id == song.id }
-                if (songCache != null) {
-                    song.url = songCache.url
+                // Reaprovechar URL de audio y cover de canciones anteriores si existen
+                val cachedSong = cancionesAnteriores?.find { it.id == song.id }
+                if (cachedSong != null) {
+                    song.url = cachedSong.url
+                    song.coverUrl = cachedSong.coverUrl
                 }
 
                 cancionesNuevas.add(song)
             }
 
+// === Obtener portadas de forma batch ===
+            val coversRequest = cancionesNuevas.mapNotNull { song ->
+                val fileName = song.imageFileName?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val albumId = song.albumId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                // Normalizamos fileName para asegurar match con la API
+                fileName.trim() to albumId.trim()
+            }
+
+            if (coversRequest.isNotEmpty()) {
+                val (fileNames, albumIds) = coversRequest.unzip()
+
+                try {
+                    val coverResponses: List<CoverResponse> =
+                        service.getMultipleSongCoverUrls(fileNames, albumIds)
+
+                    // Map clave (fileName, albumId) -> URL
+                    val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associate {
+                        (it.imageFileName.trim() to it.albumId.trim()) to it.url
+                    }
+
+                    // Asignamos URL a cada canción
+                    cancionesNuevas.forEach { song ->
+                        val key = song.imageFileName?.trim() to song.albumId.trim()
+                        val coverUrl = coverUrlMap[key]
+                        if (!coverUrl.isNullOrBlank()) {
+                            song.coverUrl = coverUrl
+                        } else {
+                            song.coverUrl = null
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    Log.e("getRandomSongs", "Error obteniendo portadas batch: ${e.message}")
+                }
+            }
+
+
+
+            // === Obtener URLs de audio de forma batch ===
             val cancionesSinUrl = cancionesNuevas.filter { it.url == null }
             if (cancionesSinUrl.isNotEmpty()) {
                 val fileNames = cancionesSinUrl.map { it.fileName }
@@ -295,6 +341,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                 }
             }
 
+            // Actualizar MusicPlaybackService
             val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.UPDATE_SONGS
                 putParcelableArrayListExtra(
@@ -302,14 +349,17 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                     ArrayList(cancionesNuevas)
                 )
             }
-            context?.startService(updateIntent) // <- seguro, no crashea si detached
-            return cancionesNuevas
+            context.startService(updateIntent)
+
+            cancionesNuevas
 
         } catch (e: Exception) {
+            Log.i("getRandomSongs", e.toString())
             e.printStackTrace()
             emptyList()
         }
     }
+
 
     suspend fun getRandomArtists(context: Context, count: Int = 6): List<Artist> {
         return try {

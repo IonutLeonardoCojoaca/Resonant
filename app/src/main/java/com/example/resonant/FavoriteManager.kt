@@ -40,14 +40,14 @@ class FavoriteManager(private val context: Context) {
                 val artistList = service.getArtistsBySongId(song.id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
-                // Reutilizar url si está en cache
+                // Reutilizar url de audio si está en cache
                 val songCache = cancionesAnteriores?.find { it.id == song.id }
                 if (songCache != null) {
                     song.url = songCache.url
                 }
             }
 
-            // Enriquecer url prefirmada si falta
+            // Enriquecer url prefirmada de audio si falta
             val cancionesSinUrl = favoritos.filter { it.url.isNullOrEmpty() }
             if (cancionesSinUrl.isNotEmpty()) {
                 val fileNames = cancionesSinUrl.mapNotNull { it.fileName }
@@ -57,6 +57,34 @@ class FavoriteManager(private val context: Context) {
                     song.url = urlMap[song.fileName]?.url
                 }
             }
+
+            val coversRequest = favoritos.mapNotNull { song ->
+                song.imageFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
+                    song.albumId.takeIf { it.isNotBlank() }?.let { albumId ->
+                        fileName to albumId
+                    }
+                }
+            }
+
+            if (coversRequest.isNotEmpty()) {
+                val (fileNames, albumIds) = coversRequest.unzip()
+
+                // Retrofit devuelve List<CoverResponse>
+                val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
+
+                // Convertimos a Map (imageFileName, albumId) -> url
+                val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
+                    keySelector = { it.imageFileName to it.albumId },
+                    valueTransform = { it.url }
+                )
+
+                // Asignamos URLs a las canciones correspondientes
+                favoritos.forEach { song ->
+                    val key = song.imageFileName to song.albumId
+                    song.coverUrl = coverUrlMap[key]
+                }
+            }
+
 
             // Opcional: actualiza servicio de playback
             val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {

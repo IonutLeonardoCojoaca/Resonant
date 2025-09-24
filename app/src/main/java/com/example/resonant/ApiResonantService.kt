@@ -9,7 +9,6 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Query
-import retrofit2.http.Streaming
 
 interface ApiResonantService {
 
@@ -23,6 +22,16 @@ interface ApiResonantService {
     fun refreshToken(
         @Body request: RefreshTokenDTO
     ): Call<AuthResponse>
+
+    // Compartir canción (TOKEN TEMPORAL)
+    @POST("api/Auth/ShareSongLink")
+    suspend fun getShareSongLink(
+        @Query("songId") songId: String
+    ): String
+
+
+
+
 
     // Album
     @GET("api/Album/GetById")
@@ -42,6 +51,10 @@ interface ApiResonantService {
     suspend fun searchAlbumsByQuery(
         @Query("query") query: String
     ): List<Album>
+
+
+
+
 
     // Artist
     @GET("api/Artist/GetById")
@@ -66,6 +79,10 @@ interface ApiResonantService {
     suspend fun getArtistsByAlbumId(
         @Query("id") songId: String
     ): List<Artist>
+
+
+
+
 
     // Song
     @GET("api/Song/GetById")
@@ -112,6 +129,9 @@ interface ApiResonantService {
     ): List<Song>
 
 
+
+
+
     // Minio
     @POST("api/Minio/GetMultipleAlbumUrls")
     suspend fun getMultipleAlbumUrls(
@@ -128,6 +148,18 @@ interface ApiResonantService {
         @Body fileNames: List<String>
     ): List<SongUrlDTO>
 
+    @POST("api/Minio/GetSongCoverUrl")
+    suspend fun getSongCoverUrl(
+        @Query("imageFileName") imageFileName: String,
+        @Query("albumId") albumId: String
+    ): SongCoverDTO
+
+    @POST("api/Minio/GetMultipleSongCoverUrls")
+    suspend fun getMultipleSongCoverUrls(
+        @Body imageFileNames: List<String>,
+        @Query("albumIds") albumIds: List<String>
+    ): List<CoverResponse>
+
     @POST("api/Minio/GetAlbumUrl")
     suspend fun getAlbumUrl(
         @Query("fileName") fileName: String
@@ -137,6 +169,11 @@ interface ApiResonantService {
     suspend fun getArtistUrl(
         @Query("fileName") fileName: String
     ): ArtistUrlDTO
+
+
+
+
+
 
     // Playlist
     @POST("api/Playlist/Create")
@@ -180,6 +217,8 @@ interface ApiResonantService {
         @Query("songId") songId: String,
         @Query("playlistId") playlistId: String
     )
+
+
 
     // -----------------------------
     // App Updates

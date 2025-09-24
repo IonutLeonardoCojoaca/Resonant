@@ -6,9 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
@@ -26,6 +28,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.bumptech.glide.Glide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -149,33 +152,44 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
 
         sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let {
-                titleView.text = it.title ?: "Desconocido"
-                artistView.text = it.artistName ?: "Desconocido"
+            currentSong?.let { song ->
+                titleView.text = song.title ?: "Desconocido"
+                artistView.text = song.artistName ?: "Desconocido"
 
-                if (!it.url.isNullOrBlank()) {
-                    lifecycleScope.launch {
-                        val bitmap = withContext(Dispatchers.IO) {
-                            Utils.getEmbeddedPictureFromUrl(requireContext(), it.url!!)
-                        } ?: BitmapFactory.decodeResource(resources, R.drawable.album_cover)
+                val albumCoverRes = R.drawable.album_cover
+                val url = song.coverUrl // ✅ usar coverUrl
 
-                        if (isFirstLoad || it.id == lastSongId) {
-                            blurrySongImageBackground.setImageBitmap(bitmap)
-                            imageSong?.setImageBitmap(bitmap)
-                            isFirstLoad = false
-                        } else {
-                            AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, bitmap)
-                            AnimationsUtils.animateSongImage(imageSong!!, bitmap, lastDirection)
-                        }
-                        lastSongId = it.id
-                    }
+                if (!url.isNullOrBlank()) {
+                    Glide.with(requireContext())
+                        .asBitmap()
+                        .load(url)
+                        .placeholder(albumCoverRes)
+                        .error(albumCoverRes)
+                        .into(object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
+                            override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
+                                if (isFirstLoad || song.id == lastSongId) {
+                                    blurrySongImageBackground.setImageBitmap(resource)
+                                    imageSong?.setImageBitmap(resource)
+                                    isFirstLoad = false
+                                } else {
+                                    AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, resource)
+                                    AnimationsUtils.animateSongImage(imageSong!!, resource, lastDirection)
+                                }
+                                lastSongId = song.id
+                            }
+
+                            override fun onLoadCleared(placeholder: Drawable?) {
+                                // Opcional: limpiar imagen si Glide cancela
+                            }
+                        })
                 } else {
-                    val bitmap = BitmapFactory.decodeResource(resources, R.drawable.album_cover)
+                    val bitmap = BitmapFactory.decodeResource(resources, albumCoverRes)
                     blurrySongImageBackground.setImageBitmap(bitmap)
                     imageSong?.setImageBitmap(bitmap)
                 }
             }
         }
+
 
         val blurEffect = RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
         blurrySongImageBackground.setRenderEffect(blurEffect)
@@ -246,9 +260,6 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
 
         return view
     }
-
-    // Función para aplicar el desenfoque a un Bitmap
-
 
     override fun onDestroyView() {
         super.onDestroyView()

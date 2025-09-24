@@ -98,7 +98,7 @@
             android:drawablePadding="10dp"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
-            android:text="Borrar playlist"
+            android:text="Borrar lista"
             android:textColor="@android:color/holo_red_light"
             android:textSize="16sp" />
 
