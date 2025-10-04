@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".FavoriteSongsFragment">
+    tools:context=".FavoriteArtistsFragment">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -22,7 +22,7 @@
                 android:id="@+id/favoriteAlbumsText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Tus canciones favoritas"
+                android:text="Tus artistas favoritos"
                 android:fontFamily="@font/unageo_medium"
                 android:textColor="@color/white"
                 android:textSize="20sp"/>
@@ -43,7 +43,7 @@
             android:id="@+id/noLikedAlbumsText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="No tienes ninguna canción guardada en favoritos"
+            android:text="No tienes ningún artista favorito"
             android:fontFamily="@font/unageo_medium"
             android:layout_centerInParent="true"
             android:layout_marginTop="5dp"

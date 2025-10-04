@@ -52,6 +52,24 @@ interface ApiResonantService {
         @Query("query") query: String
     ): List<Album>
 
+    @POST("/api/Album/AddFavorite")
+    suspend fun addFavoriteAlbum(
+        @Query("userId") userId: String,
+        @Query("albumId") albumId: String
+    )
+
+    @DELETE("/api/Album/DeleteFavorite")
+    suspend fun deleteFavoriteAlbum(
+        @Query("userId") userId: String,
+        @Query("albumId") albumId: String
+    )
+
+    @GET("/api/Album/GetByUserId")
+    suspend fun getFavoriteAlbumsByUser(
+        @Query("userId") userId: String
+    ): List<Album>
+
+
 
 
 
@@ -78,6 +96,23 @@ interface ApiResonantService {
     @GET("api/Artist/GetByAlbumId")
     suspend fun getArtistsByAlbumId(
         @Query("id") songId: String
+    ): List<Artist>
+
+    @POST("/api/Artist/AddFavorite")
+    suspend fun addFavoriteArtist(
+        @Query("userId") userId: String,
+        @Query("artistId") artistId: String
+    )
+
+    @DELETE("/api/Artist/DeleteFavorite")
+    suspend fun deleteFavoriteArtist(
+        @Query("userId") userId: String,
+        @Query("artistId") artistId: String
+    )
+
+    @GET("/api/Artist/GetByUserId")
+    suspend fun getFavoriteArtistsByUser(
+        @Query("userId") userId: String
     ): List<Artist>
 
 
@@ -124,10 +159,15 @@ interface ApiResonantService {
     ): List<Song>
 
     @GET("api/Song/GetByPlaylistId")
-    suspend fun getSongsByPlaylistId(
+    suspend fun getSongsByPlaylistIdWithArtists(
         @Query("playlistId") playlistId: String
     ): List<Song>
 
+    @GET("api/Song/MostStreamedByArtist")
+    suspend fun getMostStreamedSongsByArtist(
+        @Query("artistId") artistId: String,
+        @Query("count") count: Int
+    ): List<Song>
 
 
 
@@ -202,7 +242,7 @@ interface ApiResonantService {
     suspend fun addSongToPlaylist(
         @Query("songId") songId: String,
         @Query("playlistId") playlistId: String
-    ): retrofit2.Response<Void>
+    ): Response<Void>
 
     // Comprobar si la canción está en la playlist
     @GET("api/Playlist/IsSongInPlaylist")
@@ -220,9 +260,7 @@ interface ApiResonantService {
 
 
 
-    // -----------------------------
     // App Updates
-    // -----------------------------
 
     @GET("api/App/LatestVersion")
     suspend fun getLatestAppVersion(

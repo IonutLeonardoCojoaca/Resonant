@@ -10,7 +10,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -29,7 +28,6 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
     private lateinit var sharedViewModel: SharedViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var songAdapter: SongAdapter
-    private val _currentSongLiveData = MutableLiveData<Song>()
 
     private val songChangedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -57,12 +55,12 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_favorite_songs, container, false)
 
-        noLikedSongsText = view.findViewById(R.id.noLikedSongsText)
+        noLikedSongsText = view.findViewById(R.id.noLikedAlbumsText)
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
-        recyclerLikedSongs = view.findViewById(R.id.favoriteSongsList)
+        recyclerLikedSongs = view.findViewById(R.id.favoriteAlbumsList)
         recyclerLikedSongs.layoutManager = LinearLayoutManager(requireContext())
-        songAdapter = SongAdapter()
+        songAdapter = SongAdapter(SongAdapter.VIEW_TYPE_FULL)
         recyclerLikedSongs.adapter = songAdapter
 
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
@@ -78,12 +76,16 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
 
+            val queueItem = "MAIN"
+
             val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.ACTION_PLAY
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                 putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.FAVORITE_SONGS) // <-- Contexto: home random
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, queueItem) // <-- id único para esta cola (puede ser fijo o dinámico)
             }
 
             requireContext().startService(playIntent)
@@ -91,7 +93,7 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
 
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
-        favoritesViewModel.loadFavorites()
+        favoritesViewModel.loadFavoriteSongs()
 
         favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
             loadingAnimation.visibility = View.GONE
@@ -105,29 +107,17 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
                 noLikedSongsText.visibility = View.GONE
                 recyclerLikedSongs.visibility = View.VISIBLE
 
-                val ids = favorites.map { it.id }.toSet()
+                val favoriteSongs = favorites.filterIsInstance<FavoriteItem.SongItem>().map { it.song }
+                val ids = favoriteSongs.map { it.id }.toSet()
                 songAdapter.favoriteSongIds = ids
-
-                songAdapter.submitList(favorites)
+                songAdapter.submitList(favoriteSongs)
             }
         }
 
-        songAdapter.onFavoriteClick = { song, currentlyFavorite ->
-            if (currentlyFavorite) {
-                favoritesViewModel.deleteFavorite(song.id) { success ->
-                    if (!success) {
-                        favoritesViewModel.loadFavorites()
-                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                favoritesViewModel.addFavorite(song) { success ->
-                    if (!success) {
-                        favoritesViewModel.loadFavorites()
-                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+        songAdapter.onFavoriteClick = { song, wasFavorite ->
+            // Le decimos al ViewModel que se encargue de la lógica.
+            // Es exactamente la misma llamada que hicimos desde el BottomSheet.
+            favoritesViewModel.toggleFavoriteSong(song)
         }
 
         songAdapter.onSettingsClick = { song ->
@@ -147,16 +137,8 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
                             bundle
                         )
                     },
-                    onFavoriteToggled = { toggledSong, wasFavorite ->
-                        if (wasFavorite) {
-                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - toggledSong.id
-                        } else {
-                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + toggledSong.id
-                        }
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == toggledSong.id },
-                            "silent"
-                        )
+                    onFavoriteToggled = { toggledSong ->
+                        favoritesViewModel.toggleFavoriteSong(toggledSong)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -166,13 +148,8 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
         loadingAnimation.visibility = View.VISIBLE
         noLikedSongsText.visibility = View.GONE
         recyclerLikedSongs.visibility = View.GONE
-        favoritesViewModel.loadFavorites()
 
         return view
-    }
-
-    fun updateCurrentSong(song: Song) {
-        _currentSongLiveData.postValue(song)
     }
 
     fun setCurrentPlayingSong(url: String) {

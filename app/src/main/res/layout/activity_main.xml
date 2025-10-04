@@ -72,9 +72,9 @@
             app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            android:visibility="gone">
+            android:visibility="visible">
 
-            <RelativeLayout
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/miniPlayerContainer"
                 android:layout_width="match_parent"
                 android:layout_height="62dp"
@@ -84,82 +84,98 @@
 
                 <com.google.android.material.imageview.ShapeableImageView
                     android:id="@+id/songImage"
-                    android:layout_width="45dp"
-                    android:layout_height="45dp"
-                    android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true"
-                    android:layout_marginStart="10dp"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    app:layout_constraintDimensionRatio="1:1"
+                    android:layout_margin="6dp"
                     android:background="@drawable/album_cover"
-                    app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
 
-                <FrameLayout
+                <androidx.constraintlayout.widget.ConstraintLayout
                     android:id="@+id/songDataPlayer"
-                    android:layout_width="130dp"
-                    android:layout_height="40dp"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
                     android:layout_toEndOf="@id/songImage"
-                    android:layout_centerVertical="true"
-                    android:layout_marginStart="12dp">
+                    android:layout_marginHorizontal="10dp"
+                    android:paddingVertical="10dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@+id/playerActions"
+                    app:layout_constraintStart_toEndOf="@+id/songImage"
+                    app:layout_constraintTop_toTopOf="parent">
 
                     <TextView
                         android:id="@+id/songTitle"
-                        android:layout_width="120dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:ellipsize="marquee"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:marqueeRepeatLimit="marquee_forever"
+                        android:scrollHorizontally="true"
+                        android:singleLine="true"
                         android:text=""
                         android:textColor="@color/secondaryColorTheme"
                         android:textSize="15sp"
-                        android:layout_gravity="top"
                         android:textStyle="bold"
-                        android:singleLine="true"
-                        android:ellipsize="marquee"
-                        android:fontFamily="@font/unageo_medium"
-                        android:marqueeRepeatLimit="marquee_forever"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:scrollHorizontally="true" />
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
 
                     <TextView
                         android:id="@+id/songArtist"
-                        android:layout_width="120dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text=""
-                        android:textSize="12sp"
-                        android:textColor="@color/textTheme"
-                        android:layout_gravity="bottom"
-                        android:singleLine="true"
                         android:ellipsize="marquee"
+                        android:focusable="true"
+                        android:layout_marginTop="2dp"
+                        android:focusableInTouchMode="true"
                         android:fontFamily="@font/unageo_medium"
                         android:marqueeRepeatLimit="marquee_forever"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:scrollHorizontally="true"/>
+                        android:scrollHorizontally="true"
+                        android:singleLine="true"
+                        android:text=""
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp"
+                        app:layout_constraintEnd_toEndOf="@+id/gradientText"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@+id/songTitle" />
 
                     <View
                         android:id="@+id/gradientText"
-                        android:layout_width="50dp"
+                        android:layout_width="40dp"
                         android:layout_height="match_parent"
                         android:background="@drawable/gradient_text_player_background"
-                        android:layout_gravity="right"/>
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
 
-                </FrameLayout>
+                </androidx.constraintlayout.widget.ConstraintLayout>
 
                 <RelativeLayout
                     android:id="@+id/playerActions"
                     android:layout_width="145dp"
                     android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
                     android:orientation="horizontal"
                     android:paddingHorizontal="5dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true">
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent">
 
                     <ImageButton
                         android:id="@+id/previousSongButton"
                         android:layout_width="35dp"
                         android:layout_height="35dp"
-                        android:src="@drawable/skip_previous_filled"
-                        android:scaleType="centerCrop"
-                        android:background="@android:color/transparent"
+                        android:layout_alignParentLeft="true"
                         android:layout_centerVertical="true"
-                        android:layout_alignParentLeft="true"/>
+                        android:background="@android:color/transparent"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/skip_previous_filled" />
 
                     <FrameLayout
                         android:layout_width="45dp"
@@ -171,10 +187,10 @@
                             android:id="@+id/playPauseButton"
                             android:layout_width="35dp"
                             android:layout_height="35dp"
-                            android:scaleType="centerCrop"
-                            android:src="@drawable/play_arrow_filled"
+                            android:layout_gravity="center"
                             android:background="@android:color/transparent"
-                            android:layout_gravity="center"/>
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/play_arrow_filled" />
 
                     </FrameLayout>
 
@@ -182,11 +198,11 @@
                         android:id="@+id/nextSongButton"
                         android:layout_width="35dp"
                         android:layout_height="35dp"
-                        android:src="@drawable/skip_next_filled"
-                        android:scaleType="centerCrop"
-                        android:background="@android:color/transparent"
+                        android:layout_alignParentRight="true"
                         android:layout_centerVertical="true"
-                        android:layout_alignParentRight="true"/>
+                        android:background="@android:color/transparent"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/skip_next_filled" />
 
                 </RelativeLayout>
 
@@ -194,13 +210,17 @@
                     android:id="@+id/seekbarPlayer"
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
+                    android:scaleX="1.03"
                     android:layout_alignParentBottom="true"
+                    android:enabled="false"
                     android:progressDrawable="@drawable/seekbar_tracking"
                     android:progressTint="@color/white"
-                    android:enabled="false"
-                    android:thumb="@null"/>
+                    android:thumb="@null"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent" />
 
-            </RelativeLayout>
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
         </FrameLayout>
 

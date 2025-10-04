@@ -24,6 +24,8 @@ class ArtistAdapter(
     private var currentViewType: Int = VIEW_TYPE_GRID
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
+    var onArtistClick: ((artist: Artist, sharedImage: ImageView) -> Unit)? = null
+
     companion object {
         const val VIEW_TYPE_GRID = 0
         const val VIEW_TYPE_LIST = 1
@@ -105,7 +107,7 @@ class ArtistAdapter(
             Glide.with(itemView).clear(artistImage)
 
             val placeholderRes = R.drawable.user
-            val url = artist.fileName
+            val url = artist.url
             if (url.isNullOrBlank()) {
                 loadingAnimation.visibility = View.GONE
                 artistImage.setImageResource(placeholderRes)
@@ -152,7 +154,7 @@ class ArtistAdapter(
                 val bundle = Bundle().apply {
                     putString("artistId", artist.id)
                     putString("artistName", artist.name)
-                    putString("artistImageUrl", artist.fileName)
+                    putString("artistImageUrl", artist.url)
                     putString("artistImageTransitionName", artistImage.transitionName)
                 }
                 val extras = FragmentNavigatorExtras(
@@ -184,7 +186,7 @@ class ArtistAdapter(
             Glide.with(itemView).clear(artistImage)
 
             val placeholderRes = R.drawable.user
-            val url = artist.fileName
+            val url = artist.url
             if (url.isNullOrBlank()) {
                 loadingAnimation.visibility = View.GONE
                 artistImage.setImageResource(placeholderRes)
@@ -228,18 +230,7 @@ class ArtistAdapter(
             }
 
             itemView.setOnClickListener {
-                val bundle = Bundle().apply {
-                    putString("artistId", artist.id)
-                }
-                val extras = FragmentNavigatorExtras(
-                    artistImage to artistImage.transitionName
-                )
-                itemView.findNavController().navigate(
-                    R.id.action_detailedSongFragment_to_artistFragment,
-                    bundle,
-                    null,
-                    extras
-                )
+                onArtistClick?.invoke(artist, artistImage) // 🔥 Llama al callback
             }
         }
     }

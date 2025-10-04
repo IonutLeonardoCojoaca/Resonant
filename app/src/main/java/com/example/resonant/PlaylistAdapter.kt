@@ -1,38 +1,35 @@
 package com.example.resonant
 
-import android.animation.ObjectAnimator
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Rect
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.LinearInterpolator
-import android.widget.ImageView
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
+import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.google.android.material.imageview.ShapeableImageView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.ConcurrentHashMap
 
 class PlaylistAdapter(
     private val viewType: Int,
     private val onClick: ((Playlist) -> Unit)? = null,
     private val onPlaylistLongClick: ((Playlist, Bitmap?) -> Unit)? = null
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+) : ListAdapter<Playlist, RecyclerView.ViewHolder>(PlaylistDiffCallback()) {
 
     companion object {
         const val VIEW_TYPE_GRID = 0
@@ -40,8 +37,15 @@ class PlaylistAdapter(
     }
 
     private var playlists: List<Playlist> = emptyList()
+    // Usamos ConcurrentHashMap para seguridad en hilos
+    private val collageCache = ConcurrentHashMap<String, Bitmap>()
+    private val hashCache = ConcurrentHashMap<String, String>()
+    private val activeJobs = ConcurrentHashMap<String, Job>()
 
-    override fun getItemViewType(position: Int): Int = viewType
+    // ✅ 3. getItemViewType ahora necesita comprobar si la lista no está vacía
+    override fun getItemViewType(position: Int): Int {
+        return if (currentList.isNotEmpty()) viewType else super.getItemViewType(position)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
@@ -59,264 +63,246 @@ class PlaylistAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val playlist = playlists[position]
+        val playlist = getItem(position) // ✅ 4. OBTENEMOS EL ITEM ASÍ
         when (holder) {
             is PlaylistGridViewHolder -> holder.bind(playlist)
             is PlaylistListViewHolder -> holder.bind(playlist)
         }
     }
 
-    override fun getItemCount() = playlists.size
-
-    fun updateData(newPlaylists: List<Playlist>) {
-        playlists = newPlaylists
-        notifyDataSetChanged()
-    }
-
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
+        // Obtenemos el ID de la playlist del ViewHolder que se está reciclando
+        val playlistId = when(holder) {
+            is PlaylistGridViewHolder -> holder.playlistId
+            is PlaylistListViewHolder -> holder.playlistId
+            else -> null
+        }
+        // Cancelamos cualquier trabajo en segundo plano asociado a esa playlist
+        playlistId?.let {
+            activeJobs[it]?.cancel()
+            activeJobs.remove(it)
+        }
+
+        // Limpiamos las vistas de imagen para liberar memoria
         when (holder) {
-            is PlaylistGridViewHolder -> {
-                // Limpia los 4 ShapeableImageView del collage
-                holder.imgViews.forEach { imgView ->
-                    Glide.with(holder.itemView).clear(imgView)
-                    imgView.setImageDrawable(null) // Opcional: asegura que no queda imagen residual
-                }
-            }
-            is PlaylistListViewHolder -> {
-                Glide.with(holder.itemView).clear(holder.playlistImage)
-                holder.playlistImage.setImageDrawable(null) // Opcional
-            }
+            is PlaylistGridViewHolder -> holder.imgViews.forEach { Glide.with(it).clear(it); it.setImageDrawable(null) }
+            is PlaylistListViewHolder -> holder.imgViews.forEach { Glide.with(it).clear(it); it.setImageDrawable(null) }
         }
     }
 
+    // ✅ ---- GRID HOLDER (SIMPLIFICADO) ----
     inner class PlaylistGridViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val playlistName: TextView = view.findViewById(R.id.playlistName)
-        val collageContainer = view.findViewById<View>(R.id.playlistCollageContainer)
-        val imgViews = listOf(
-            collageContainer.findViewById<ShapeableImageView>(R.id.img0),
-            collageContainer.findViewById<ShapeableImageView>(R.id.img1),
-            collageContainer.findViewById<ShapeableImageView>(R.id.img2),
-            collageContainer.findViewById<ShapeableImageView>(R.id.img3)
+        private val collageContainer: View = view.findViewById(R.id.playlistCollageContainer)
+        val imgViews: List<ShapeableImageView> = listOf(
+            collageContainer.findViewById(R.id.img0),
+            collageContainer.findViewById(R.id.img1),
+            collageContainer.findViewById(R.id.img2),
+            collageContainer.findViewById(R.id.img3)
         )
-
+        var playlistId: String? = null
         private var collageBitmap: Bitmap? = null
 
         fun bind(playlist: Playlist) {
+            this.playlistId = playlist.id
             playlistName.text = playlist.name
-            val context = itemView.context
-            val service = ApiClient.getService(context)
-            val playlistManager = PlaylistManager(service)
 
-            val placeholderRes = R.drawable.playlist_stack
-            imgViews.forEach { it.setImageResource(placeholderRes) }
-
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val songs = playlistManager.getSongsByPlaylistId(playlist.id!!)
-                    val firstSongs = songs.take(4)
-
-                    // Batch request de portadas
-                    val coversRequest = firstSongs.mapNotNull { song ->
-                        song.imageFileName?.takeIf { it.isNotBlank() }?.let { fn ->
-                            song.albumId.takeIf { it.isNotBlank() }?.let { aid ->
-                                fn to aid
-                            }
-                        }
-                    }
-
-                    if (coversRequest.isNotEmpty()) {
-                        val (fileNames, albumIds) = coversRequest.unzip()
-                        val coverResponses = service.getMultipleSongCoverUrls(fileNames, albumIds)
-                        val coverMap = coverResponses.associateBy({ it.imageFileName to it.albumId }, { it.url })
-                        firstSongs.forEach { song ->
-                            song.coverUrl = coverMap[song.imageFileName to song.albumId]
-                        }
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        val bitmaps = arrayOfNulls<Bitmap>(4)
-                        var loadedCount = 0
-
-                        firstSongs.forEachIndexed { i, song ->
-                            val url = song.coverUrl
-                            val target = object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
-                                override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
-                                    bitmaps[i] = resource
-                                    imgViews[i].setImageBitmap(resource)
-                                    loadedCount++
-                                    if (loadedCount == firstSongs.size) {
-                                        // Todas las imágenes cargadas, generar collage
-                                        collageBitmap = createCollageBitmap(context, bitmaps.toList(), placeholderRes, imgViews.first().width)
-                                    }
-                                }
-
-                                override fun onLoadCleared(placeholder: Drawable?) {
-                                    imgViews[i].setImageResource(placeholderRes)
-                                }
-
-                                override fun onLoadFailed(errorDrawable: Drawable?) {
-                                    imgViews[i].setImageResource(placeholderRes)
-                                    loadedCount++
-                                    if (loadedCount == firstSongs.size) {
-                                        collageBitmap = createCollageBitmap(context, bitmaps.toList(), placeholderRes, imgViews.first().width)
-                                    }
-                                }
-                            }
-
-                            if (!url.isNullOrBlank()) {
-                                Glide.with(context)
-                                    .asBitmap()
-                                    .load(url)
-                                    .placeholder(placeholderRes)
-                                    .error(placeholderRes)
-                                    .into(target)
-                            } else {
-                                imgViews[i].setImageResource(placeholderRes)
-                                loadedCount++
-                            }
-                        }
-                    }
-
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        imgViews.forEach { it.setImageResource(placeholderRes) }
-                    }
-                }
+            // Llamamos a la función compartida para el collage
+            loadAndBindCollage(playlist, itemView.context, imgViews) { generatedBitmap ->
+                this.collageBitmap = generatedBitmap
             }
 
-            // Click normal
             itemView.setOnClickListener {
-                if (onClick != null) onClick.invoke(playlist)
-                else {
+                onClick?.invoke(playlist) ?: run {
                     val bundle = Bundle().apply { putString("playlistId", playlist.id) }
                     itemView.findNavController().navigate(R.id.action_savedFragment_to_playlistFragment, bundle)
                 }
             }
-
-            // Long click
             itemView.setOnLongClickListener {
                 onPlaylistLongClick?.invoke(playlist, collageBitmap)
-                onPlaylistLongClick != null
+                true
             }
         }
-
-
     }
 
+    // ✅ ---- LIST HOLDER (SIMPLIFICADO) ----
     inner class PlaylistListViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val playlistImage: ImageView = view.findViewById(R.id.songImage)
-        val playlistName: TextView = view.findViewById(R.id.playlistName)
-        val songsCount: TextView = view.findViewById(R.id.songsCount)
-
-        var albumArtAnimator: ObjectAnimator? = null
+        private val playlistName: TextView = view.findViewById(R.id.playlistName)
+        private val songsCount: TextView = view.findViewById(R.id.songsCount)
+        private val collageContainer: View = view.findViewById(R.id.playlistCollageContainer)
+        val imgViews: List<ShapeableImageView> = listOf(
+            collageContainer.findViewById(R.id.img0),
+            collageContainer.findViewById(R.id.img1),
+            collageContainer.findViewById(R.id.img2),
+            collageContainer.findViewById(R.id.img3)
+        )
+        var playlistId: String? = null
 
         fun bind(playlist: Playlist) {
+            this.playlistId = playlist.id
             playlistName.text = playlist.name
-            val placeholderRes = R.drawable.album_cover
-            val noImageRes = R.drawable.playlist_stack
-            playlistImage.setImageResource(placeholderRes)
-
             songsCount.text = "${playlist.numberOfTracks ?: 0} canciones"
 
-            val context = playlistImage.context
-            val service = ApiClient.getService(context)
-            val playlistManager = PlaylistManager(service)
+            // Llamamos a la MISMA función compartida para el collage
+            loadAndBindCollage(playlist, itemView.context, imgViews)
 
-            // Detén cualquier animación previa y resetea la rotación
-            albumArtAnimator?.cancel()
-            playlistImage.rotation = 0f
-            playlistImage.visibility = View.VISIBLE
+            itemView.setOnClickListener { onClick?.invoke(playlist) }
+        }
+    }
 
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val songs = playlistManager.getSongsByPlaylistId(playlist.id!!)
-                    val firstSong = songs.firstOrNull()
-                    val imageFileName = firstSong?.imageFileName
-                    val albumId = firstSong?.albumId
+    // ✅ ---- LÓGICA CENTRALIZADA PARA CREAR COLLAGES ----
+    private fun loadAndBindCollage(
+        playlist: Playlist,
+        context: Context,
+        imgViews: List<ShapeableImageView>,
+        onBitmapReady: ((Bitmap?) -> Unit)? = null
+    ) {
+        val placeholderRes = R.drawable.playlist_stack
+        imgViews.forEach { it.setImageResource(placeholderRes) }
 
-                    // Obtén la URL prefirmada individual de la portada
-                    val coverUrl = if (!imageFileName.isNullOrBlank() && !albumId.isNullOrBlank()) {
-                        service.getSongCoverUrl(imageFileName, albumId).url
-                    } else null
+        val playlistId = playlist.id!!
+        activeJobs[playlistId]?.cancel() // Cancelar trabajo previo para este ID
 
-                    withContext(Dispatchers.Main) {
-                        if (!coverUrl.isNullOrBlank()) {
-                            // Animación de círculo de carga (rotación)
-                            albumArtAnimator = ObjectAnimator.ofFloat(playlistImage, "rotation", 0f, 360f).apply {
-                                duration = 3000
-                                repeatCount = ObjectAnimator.INFINITE
-                                interpolator = LinearInterpolator()
-                                start()
-                            }
+        activeJobs[playlistId] = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val currentHash = playlist.songsHash ?: playlistId
 
-                            playlistImage.setImageResource(placeholderRes)
+                // Comprobar caché en memoria
+                val cachedBitmap = collageCache[playlistId]
+                if (cachedBitmap != null && hashCache[playlistId] == currentHash) {
+                    withContext(Dispatchers.Main) { setCollageToImageViews(cachedBitmap, imgViews) }
+                    onBitmapReady?.invoke(cachedBitmap)
+                    return@launch
+                }
 
-                            // Descarga la portada usando Glide
-                            Glide.with(context)
-                                .asBitmap()
-                                .load(coverUrl)
-                                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                                .timeout(10_000)
-                                .dontAnimate()
-                                .placeholder(placeholderRes)
-                                .error(noImageRes)
-                                .listener(object : com.bumptech.glide.request.RequestListener<Bitmap> {
-                                    override fun onLoadFailed(
-                                        e: com.bumptech.glide.load.engine.GlideException?,
-                                        model: Any?,
-                                        target: com.bumptech.glide.request.target.Target<Bitmap>,
-                                        isFirstResource: Boolean
-                                    ): Boolean {
-                                        albumArtAnimator?.cancel()
-                                        playlistImage.rotation = 0f
-                                        playlistImage.setImageResource(noImageRes)
-                                        return false
-                                    }
+                // Comprobar caché en disco
+                val collageCacheDir = File(context.cacheDir, "playlist_collages")
+                collageCacheDir.mkdirs()
+                val collageFile = File(collageCacheDir, "${playlistId}_${currentHash}.png")
 
-                                    override fun onResourceReady(
-                                        resource: Bitmap,
-                                        model: Any,
-                                        target: com.bumptech.glide.request.target.Target<Bitmap>?,
-                                        dataSource: com.bumptech.glide.load.DataSource,
-                                        isFirstResource: Boolean
-                                    ): Boolean {
-                                        albumArtAnimator?.cancel()
-                                        playlistImage.rotation = 0f
-                                        playlistImage.setImageBitmap(resource)
-                                        return false
-                                    }
-                                })
-                                .into(playlistImage)
-                        } else {
-                            playlistImage.setImageResource(noImageRes)
-                        }
+                if (collageFile.exists()) {
+                    val bitmapFromDisk = BitmapFactory.decodeFile(collageFile.absolutePath)
+                    if (bitmapFromDisk != null) {
+                        collageCache[playlistId] = bitmapFromDisk
+                        hashCache[playlistId] = currentHash
+                        withContext(Dispatchers.Main) { setCollageToImageViews(bitmapFromDisk, imgViews) }
+                        onBitmapReady?.invoke(bitmapFromDisk)
+                        return@launch
                     }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        playlistImage.setImageResource(noImageRes)
+                }
+
+                // Si no hay caché, generar nuevo collage
+                val service = ApiClient.getService(context)
+                val playlistManager = PlaylistManager(service)
+                val songs = playlistManager.getSongsByPlaylistId(playlistId)
+                val firstSongs = songs.take(4)
+
+                val coverUrls = getCoverUrlsForSongs(firstSongs, service)
+                val individualBitmaps = getBitmapsWithGlide(context, coverUrls)
+                val collage = createCollageBitmap(context, individualBitmaps, placeholderRes, 200)
+
+                // Guardar en cachés
+                FileOutputStream(collageFile).use { out -> collage.compress(Bitmap.CompressFormat.PNG, 90, out) }
+                collageCache[playlistId] = collage
+                hashCache[playlistId] = currentHash
+
+                // Mostrar en UI
+                withContext(Dispatchers.Main) {
+                    setCollageToImageViews(collage, imgViews)
+                }
+                onBitmapReady?.invoke(collage)
+
+            } catch (e: CancellationException) {
+                // Trabajo cancelado, es normal al hacer scroll rápido.
+            } catch (e: Exception) {
+                Log.e("PlaylistAdapter", "Error al crear collage para ${playlist.name}", e)
+            } finally {
+                // Una vez terminado (o cancelado), se elimina de los trabajos activos.
+                activeJobs.remove(playlistId)
+            }
+        }
+    }
+
+    // --- FUNCIONES DE AYUDA ---
+
+    private fun setCollageToImageViews(collage: Bitmap, imgViews: List<ShapeableImageView>) {
+        val halfSize = collage.width / 2
+        if (halfSize > 0) {
+            val splitBitmaps = splitCollageBitmap(collage, halfSize)
+            splitBitmaps.forEachIndexed { i, bmp ->
+                imgViews.getOrNull(i)?.setImageBitmap(bmp)
+            }
+        }
+    }
+
+    private suspend fun getCoverUrlsForSongs(songs: List<Song>, service: ApiResonantService): List<String> {
+        val coversRequest = songs.mapNotNull { song ->
+            song.imageFileName?.takeIf { it.isNotBlank() }?.let { fn ->
+                song.albumId?.takeIf { it.isNotBlank() }?.let { aid -> fn to aid }
+            }
+        }
+        if (coversRequest.isNotEmpty()) {
+            val (fileNames, albumIds) = coversRequest.unzip()
+            val coverResponses = service.getMultipleSongCoverUrls(fileNames, albumIds)
+            val coverMap = coverResponses.associateBy({ it.imageFileName to it.albumId }, { it.url })
+            songs.forEach { song ->
+                song.coverUrl = coverMap[song.imageFileName to song.albumId]
+            }
+        }
+        return songs.mapNotNull { it.coverUrl }
+    }
+
+    private suspend fun getBitmapsWithGlide(context: Context, urls: List<String>): List<Bitmap?> {
+        val bitmaps = MutableList<Bitmap?>(4) { null }
+        coroutineScope {
+            urls.take(4).forEachIndexed { index, url ->
+                launch {
+                    try {
+                        bitmaps[index] = Glide.with(context)
+                            .asBitmap()
+                            .load(url)
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .submit()
+                            .get()
+                    } catch (e: Exception) {
+                        // La descarga de una imagen falló, se usará el placeholder
                     }
                 }
             }
+        }
+        return bitmaps
+    }
 
-            itemView.setOnClickListener {
-                onClick?.invoke(playlist)
-            }
+    // ✅ 6. CAMBIO DE DiffUtil.Callback a DiffUtil.ItemCallback
+    class PlaylistDiffCallback : DiffUtil.ItemCallback<Playlist>() {
+        override fun areItemsTheSame(oldItem: Playlist, newItem: Playlist): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Playlist, newItem: Playlist): Boolean {
+            return oldItem.name == newItem.name &&
+                    oldItem.numberOfTracks == newItem.numberOfTracks &&
+                    oldItem.songsHash == newItem.songsHash
         }
     }
 
-    fun createCollageBitmap(
-        context: Context,
-        bitmaps: List<Bitmap?>,
-        placeholderRes: Int,
-        size: Int
-    ): Bitmap {
+    private fun splitCollageBitmap(collage: Bitmap, half: Int): List<Bitmap> {
+        val result = mutableListOf<Bitmap>()
+        for (i in 0 until 4) {
+            val left = if (i % 2 == 0) 0 else half
+            val top = if (i < 2) 0 else half
+            result.add(Bitmap.createBitmap(collage, left, top, half, half))
+        }
+        return result
+    }
+
+    private fun createCollageBitmap(context: Context, bitmaps: List<Bitmap?>, placeholderRes: Int, size: Int): Bitmap {
         val collage = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(collage)
         val half = size / 2
-        val drawable = context.getDrawable(placeholderRes)!!
+        val drawable = ContextCompat.getDrawable(context, placeholderRes)!!
         val placeholderBitmap = drawableToBitmap(drawable, half)
-
         for (i in 0 until 4) {
             val bmp = bitmaps.getOrNull(i) ?: placeholderBitmap
             val left = if (i % 2 == 0) 0 else half
@@ -327,7 +313,7 @@ class PlaylistAdapter(
         return collage
     }
 
-    fun drawableToBitmap(drawable: Drawable, size: Int): Bitmap {
+    private fun drawableToBitmap(drawable: Drawable, size: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         drawable.setBounds(0, 0, size, size)
@@ -335,4 +321,14 @@ class PlaylistAdapter(
         return bitmap
     }
 
+    fun clearCacheForPlaylist(playlistId: String) {
+        collageCache.remove(playlistId)
+        hashCache.remove(playlistId)
+        Log.d("PlaylistAdapter", "Caché invalidada para la playlist ID: $playlistId")
+    }
+
+    fun generatePlaylistHash(songIds: List<String>): String {
+        val data = songIds.joinToString(",")
+        return data.hashCode().toString()
+    }
 }

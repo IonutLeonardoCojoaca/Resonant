@@ -141,7 +141,7 @@
                         android:scrollbars="none"
                         android:nestedScrollingEnabled="false"
                         android:paddingHorizontal="14dp"
-                        android:paddingBottom="140dp">
+                        android:paddingBottom="250dp">
 
                     </androidx.recyclerview.widget.RecyclerView>
 

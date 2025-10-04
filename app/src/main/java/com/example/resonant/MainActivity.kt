@@ -38,9 +38,13 @@ import com.google.firebase.auth.FirebaseAuth
 import java.net.URL
 import android.Manifest
 import android.graphics.drawable.Drawable
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -62,7 +66,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var prefs: SharedPreferences
     private lateinit var userPhotoImage: ImageView
     private lateinit var seekBar: SeekBar
-    private lateinit var songDataPlayer: FrameLayout
+    private lateinit var songDataPlayer: ConstraintLayout
 
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
@@ -90,6 +94,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private val api by lazy { ApiClient.getService(this) }
     private val updateManager by lazy { AppUpdateManager(this, api, ApiClient.baseUrl()) }
+
+    private lateinit var audioManager: AudioManager
 
     private lateinit var navController: NavController
 
@@ -142,17 +148,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val intent = Intent(this, MusicPlaybackService::class.java)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
 
-        prefs = this@MainActivity.getSharedPreferences("user_data", AppCompatActivity.MODE_PRIVATE)
-
-        val sharedPref = this@MainActivity.getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        val savedUrl = sharedPref.getString(PreferenceKeys.CURRENT_SONG_URL, null)
-        val savedId = sharedPref.getString(PreferenceKeys.CURRENT_SONG_ID, "")
-        val savedTitle = sharedPref.getString(PreferenceKeys.CURRENT_SONG_TITLE, "")
-        val savedArtist = sharedPref.getString(PreferenceKeys.CURRENT_SONG_ARTIST, "")
-        val savedAlbum = sharedPref.getString(PreferenceKeys.CURRENT_SONG_ALBUM, "")
-        val savedDuration = sharedPref.getString(PreferenceKeys.CURRENT_SONG_DURATION, "")
-        val savedImage = sharedPref.getString(PreferenceKeys.CURRENT_SONG_COVER, null)  // OK
-        val savedIndex = sharedPref.getInt(PreferenceKeys.CURRENT_SONG_INDEX, -1)
+        prefs = this@MainActivity.getSharedPreferences("user_data", MODE_PRIVATE)
 
         songDataPlayer = findViewById(R.id.songDataPlayer)
         playPauseButton = findViewById(R.id.playPauseButton)
@@ -232,7 +228,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
             if (currentSong != null && bitmap != null) {
                 val fileName = "cover_${currentSong.id}.png"
-                val uri = Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
+                Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
 
                 val bundle = Bundle().apply {
                     putString("title", currentSong.title)
@@ -251,7 +247,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.homeFragment,
             R.id.searchFragment,
             R.id.savedFragment,
-            R.id.favoriteSongsFragment
+            R.id.favoriteSongsFragment,
+            R.id.favoriteArtistsFragment,
+            R.id.favoriteAlbumsFragment
         )
 
         val fragmentsNoToolbar = setOf(
@@ -348,7 +346,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         checkNotificationPermission()
     }
 
-    @Deprecated("This method has been deprecated in favor of using the\n      {@link OnBackPressedDispatcher} via {@link #getOnBackPressedDispatcher()}.\n      The OnBackPressedDispatcher controls how back button events are dispatched\n      to one or more {@link OnBackPressedCallback} objects.")
+    @Deprecated("This method has been deprecated in favor of using the\n      " +
+            "{@link OnBackPressedDispatcher} via {@link #getOnBackPressedDispatcher()}.\n      " +
+            "The OnBackPressedDispatcher controls how back button events are dispatched\n      " +
+            "to one or more {@link OnBackPressedCallback} objects.")
     @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -384,8 +385,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 override fun onLoadCleared(placeholder: Drawable?) {}
             })
     }
-
-
 
     private fun setupObservers() {
         if (observersRegistered) return
@@ -456,7 +455,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Maneja deep link al volver a abrir la app desde un enlace
         intent?.let { handleDeepLink(it) }
     }
 
@@ -476,14 +474,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
-
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as MusicPlaybackService.MusicServiceBinder
             musicService = binder.getService()
             isBound = true
 
-            // Observers
             musicService?.currentSongLiveData?.observe(this@MainActivity) { song ->
                 if (song != null && !song.title.isNullOrEmpty() && shouldShowMiniPlayer) {
                     updateDataPlayer(song)

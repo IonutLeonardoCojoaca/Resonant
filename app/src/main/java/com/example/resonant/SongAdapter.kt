@@ -28,51 +28,87 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.text.NumberFormat
 import java.util.Collections
+import java.util.Locale
 
-class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallback()) {
+class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.ViewHolder>(SongDiffCallback()) {
+
+    companion object {
+        const val VIEW_TYPE_FULL = 1
+        const val VIEW_TYPE_TOP_SONG = 2
+    }
 
     var onItemClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
     var onSettingsClick: ((Song) -> Unit)? = null
-    val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
     var onFavoriteClick: ((Song, Boolean) -> Unit)? = null
     var favoriteSongIds: Set<String> = emptySet()
-        @SuppressLint("NotifyDataSetChanged")
-        set(value) {
-            field = value
-            currentList.forEachIndexed { index, song ->
-                    if (field.contains(song.id) != value.contains(song.id)) {
-                         notifyItemChanged(index, "silent")
-                     }
+        set(newFavoriteIds) {
+            val oldFavoriteIds = field
+            field = newFavoriteIds
+
+            val changedIds = (oldFavoriteIds - newFavoriteIds) + (newFavoriteIds - oldFavoriteIds)
+
+            if (changedIds.isEmpty()) return
+
+            changedIds.forEach { songId ->
+                val index = currentList.indexOfFirst { it.id == songId }
+                if (index != -1) {
+                    notifyItemChanged(index, "silent") // "silent" es un payload opcional que ya usas
                 }
+            }
         }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
-        return SongViewHolder(view)
+    // CORRECCIÓN 2: Añadido el método getItemViewType que faltaba
+    override fun getItemViewType(position: Int): Int {
+        return viewType
     }
 
-    override fun onBindViewHolder(holder: SongViewHolder, position: Int) {
-        holder.bind(getItem(position), partial = false)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return when (viewType) {
+            VIEW_TYPE_TOP_SONG -> {
+                // Asegúrate de que tu layout se llame 'list_item_top_song.xml' como en el ejemplo anterior
+                val view = LayoutInflater.from(parent.context).inflate(R.layout.item_top_song, parent, false)
+                TopSongViewHolder(view)
+            }
+            else -> { // VIEW_TYPE_FULL
+                val view = LayoutInflater.from(parent.context).inflate(R.layout.item_song, parent, false)
+                SongViewHolder(view)
+            }
+        }
     }
 
-    override fun onBindViewHolder(holder: SongViewHolder, position: Int, payloads: MutableList<Any>) {
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        val song = getItem(position)
+        when (holder) {
+            is SongViewHolder -> holder.bind(song, partial = false)
+            is TopSongViewHolder -> holder.bind(song, position, partial = false)
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int, payloads: MutableList<Any>) {
         if (payloads.isEmpty()) {
             super.onBindViewHolder(holder, position, payloads)
         } else {
-            holder.bind(getItem(position), partial = true)
+            val song = getItem(position)
+            when (holder) {
+                is SongViewHolder -> holder.bind(song, partial = true)
+                // MODIFICADO: Ahora llamamos al 'bind' completo con partial = true
+                is TopSongViewHolder -> holder.bind(song, position, partial = true)
+            }
         }
     }
 
-    override fun onViewRecycled(holder: SongViewHolder) {
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
-        holder.cancelJobs()
-        // Cancela cualquier carga pendiente de Glide asociada a esta ImageView
-        Glide.with(holder.itemView).clear(holder.albumArtImageView)
-        holder.albumArtAnimator?.cancel()
-        holder.albumArtImageView.rotation = 0f
+        if (holder is SongViewHolder) {
+            holder.cancelJobs()
+            Glide.with(holder.itemView).clear(holder.albumArtImageView)
+            holder.albumArtAnimator?.cancel()
+            holder.albumArtImageView.rotation = 0f
+        }
     }
 
     inner class SongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -93,16 +129,13 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
         }
 
         fun bind(song: Song, partial: Boolean = false) {
-            // Textos
             nameTextView.text = song.title ?: "Desconocido"
             artistTextView.text = song.artistName ?: "Desconocido"
 
-            // Estado favorito
             val isFavorite = favoriteSongIds.contains(song.id)
             likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
             likeButton.setImageResource(if (isFavorite) R.drawable.favorite else 0)
 
-            // Color del título según si está sonando
             nameTextView.setTextColor(
                 ContextCompat.getColor(
                     itemView.context,
@@ -111,7 +144,6 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             )
 
             if (!partial) {
-                // Cancelar cualquier trabajo anterior y animaciones
                 cancelJobs()
                 albumArtAnimator?.cancel()
                 albumArtImageView.rotation = 0f
@@ -161,20 +193,16 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
 
             }
 
-            // Click favorito
             likeButton.setOnClickListener {
-                val currentlyFavorite = favoriteSongIds.contains(song.id)
-                val newState = !currentlyFavorite
-                favoriteSongIds = if (newState) favoriteSongIds + song.id else favoriteSongIds - song.id
-                onFavoriteClick?.invoke(song, currentlyFavorite)
+                // Ya no modificamos 'favoriteSongIds' aquí.
+                // Solo notificamos al Fragment que el botón fue pulsado.
+                onFavoriteClick?.invoke(song, favoriteSongIds.contains(song.id))
             }
 
-            // Click settings
             settingsButton.setOnClickListener {
                 onSettingsClick?.invoke(song)
             }
 
-            // Click en la canción
             itemView.setOnClickListener {
                 val previousId = currentPlayingId
                 currentPlayingId = song.id
@@ -191,6 +219,93 @@ class SongAdapter : ListAdapter<Song, SongAdapter.SongViewHolder>(SongDiffCallba
             }
         }
 
+    }
+
+    inner class TopSongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val position: TextView = itemView.findViewById(R.id.songPosition)
+        private val coverImageView: ImageView = itemView.findViewById(R.id.songImage)
+        private val title: TextView = itemView.findViewById(R.id.songTitle)
+        private val streams: TextView = itemView.findViewById(R.id.songStreams)
+        private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
+        private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
+
+        fun bind(song: Song, itemPosition: Int, partial: Boolean = false) {
+            position.text = (itemPosition + 1).toString()
+            title.text = song.title
+
+            val formatter = NumberFormat.getInstance(Locale.getDefault())
+            streams.text = "${formatter.format(song.streams)} reproducciones"
+
+            val placeholderRes = R.drawable.album_cover
+            val url = song.coverUrl
+
+            val isFavorite = favoriteSongIds.contains(song.id)
+            likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
+            likeButton.setImageResource(if (isFavorite) R.drawable.favorite else 0)
+
+            // Lógica del resaltado de la canción actual
+            title.setTextColor(
+                ContextCompat.getColor(
+                    itemView.context,
+                    if (song.id == currentPlayingId) R.color.titleSongColorWhilePlaying else R.color.white
+                )
+            )
+
+            if (!url.isNullOrBlank()) {
+                Glide.with(coverImageView.context)
+                    .asBitmap()
+                    .load(url)
+                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                    .placeholder(placeholderRes)
+                    .error(placeholderRes)
+                    .listener(object : RequestListener<Bitmap> {
+                        override fun onLoadFailed(
+                            e: GlideException?,
+                            model: Any?,
+                            target: Target<Bitmap?>,
+                            isFirstResource: Boolean
+                        ): Boolean {
+                            return false
+                        }
+                        override fun onResourceReady(
+                            resource: Bitmap,
+                            model: Any,
+                            target: Target<Bitmap?>?,
+                            dataSource: DataSource,
+                            isFirstResource: Boolean
+                        ): Boolean {
+                            return false
+                        }
+                    })
+                    .into(coverImageView)
+            } else {
+                coverImageView.setImageResource(placeholderRes)
+                Log.w("TopSongViewHolder", "coverUrl nulo para ${song.title}")
+            }
+
+            likeButton.setOnClickListener {
+                onFavoriteClick?.invoke(song, favoriteSongIds.contains(song.id))
+            }
+
+            settingsButton.setOnClickListener {
+                onSettingsClick?.invoke(song)
+            }
+
+            itemView.setOnClickListener {
+                val previousId = currentPlayingId
+                currentPlayingId = song.id
+
+                previousId?.let { prev ->
+                    val prevIndex = currentList.indexOfFirst { it.id == prev }
+                    if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
+                }
+
+                val currentIndex = adapterPosition
+                if (currentIndex != -1) notifyItemChanged(currentIndex, "silent")
+
+                onItemClick?.invoke(song to null)
+            }
+        }
     }
 
     class SongDiffCallback : DiffUtil.ItemCallback<Song>() {

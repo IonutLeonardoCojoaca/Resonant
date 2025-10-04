@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -97,7 +96,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
 
         recyclerViewSongs = view.findViewById(R.id.allSongList)
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
-        songAdapter = SongAdapter()
+        songAdapter = SongAdapter(SongAdapter.VIEW_TYPE_FULL)
         recyclerViewSongs.adapter = songAdapter
 
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
@@ -107,6 +106,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                 songAdapter.setCurrentPlayingSong(it.id)
             }
         }
+
+        var currentHomeQueueId: String = System.currentTimeMillis().toString() // o UUID.randomUUID().toString()
 
         songAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
@@ -119,60 +120,27 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                 putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId) // id único por recarga
             }
-
             requireContext().startService(playIntent)
         }
 
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
-        // Cargar favoritos al inicio
-        favoritesViewModel.loadFavorites()
+        favoritesViewModel.loadFavoriteSongs()
 
         favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val ids = favorites.map { it.id }.toSet()
-            songAdapter.favoriteSongIds = ids
+            val songIds = favorites
+                .filterIsInstance<FavoriteItem.SongItem>()
+                .map { it.song.id }
+                .toSet()
+            songAdapter.favoriteSongIds = songIds
             songAdapter.submitList(songAdapter.currentList)
         }
 
-        songAdapter.onFavoriteClick = { song, isFavorite ->
-            if (isFavorite) {
-                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
-                songAdapter.notifyItemChanged(
-                    songAdapter.currentList.indexOfFirst { it.id == song.id },
-                    "silent"
-                )
-
-                favoritesViewModel.deleteFavorite(song.id) { success ->
-                    if (!success) {
-                        // Revertir si falla
-                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == song.id },
-                            "silent"
-                        )
-                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
-                songAdapter.notifyItemChanged(
-                    songAdapter.currentList.indexOfFirst { it.id == song.id },
-                    "silent"
-                )
-
-                favoritesViewModel.addFavorite(song) { success ->
-                    if (!success) {
-                        // Revertir si falla
-                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == song.id },
-                            "silent"
-                        )
-                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+        songAdapter.onFavoriteClick = { song, wasFavorite ->
+            favoritesViewModel.toggleFavoriteSong(song)
         }
 
         songAdapter.onSettingsClick = { song ->
@@ -192,17 +160,9 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                             bundle
                         )
                     },
-                    onFavoriteToggled = { toggledSong, wasFavorite ->
-                        if (wasFavorite) {
-                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - toggledSong.id
-                        } else {
-                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + toggledSong.id
-                        }
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == toggledSong.id },
-                            "silent"
-                        )
-                    }
+                    onFavoriteToggled = { toggledSong ->
+                        favoritesViewModel.toggleFavoriteSong(toggledSong)
+                    },
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
@@ -219,7 +179,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
 
                 if (nuevas.isNotEmpty()) {
                     songList = nuevas
-
+                    currentHomeQueueId = System.currentTimeMillis().toString() // <-- NUEVO id por cada recarga
                     songAdapter.submitList(nuevas) {
                         val elapsed = System.currentTimeMillis() - shimmerStart
                         val remaining = (1200 - elapsed).coerceAtLeast(0)
@@ -381,7 +341,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
             val urlMap = urlList.associateBy { it.fileName }
 
             artistasNuevos.forEach { artist ->
-                artist.fileName = urlMap[artist.fileName]?.url ?: ""
+                artist.url = urlMap[artist.fileName]?.url ?: ""
             }
 
             artistasNuevos

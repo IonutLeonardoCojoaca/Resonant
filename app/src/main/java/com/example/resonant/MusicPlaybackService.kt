@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.drawable.Drawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Binder
@@ -25,11 +26,16 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.media.session.MediaButtonReceiver
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
@@ -45,9 +51,11 @@ class MusicPlaybackService : Service() {
         const val EXTRA_DURATION = "com.resonant.EXTRA_DURATION"
         const val ACTION_SEEK_BAR_UPDATE = "com.resonant.ACTION_SEEK_BAR_UPDATE"
         const val ACTION_SEEK_BAR_RESET = "com.resonant.ACTION_SEEK_BAR_RESET"
-        const val ACTION_SEEK_TO = "com.tuapp.ACTION_SEEK_TO"
+        const val ACTION_SEEK_TO = "com.resonant.ACTION_SEEK_TO"
         const val EXTRA_SEEK_POSITION = "com.resonant.EXTRA_SEEK_POSITION"
-        const val ACTION_REQUEST_STATE = "com.example.app.ACTION_REQUEST_STATE"
+        const val ACTION_REQUEST_STATE = "com.resonant.ACTION_REQUEST_STATE"
+        const val EXTRA_QUEUE_SOURCE = "com.resonant.EXTRA_QUEUE_SOURCE"
+        const val EXTRA_QUEUE_SOURCE_ID = "com.resonant.EXTRA_QUEUE_SOURCE_ID"
 
         const val ACTION_PLAY = "com.resonant.ACTION_PLAY"
         const val ACTION_PAUSE = "com.resonant.ACTION_PAUSE"
@@ -57,7 +65,8 @@ class MusicPlaybackService : Service() {
         const val UPDATE_SONGS = "com.resonant.UPDATE_SONGS"
         const val SONG_LIST = "com.resonant.SONG_LIST"
 
-        const val ACTION_PLAYER_READY = "ACTION_PLAYER_READY"
+        const val ACTION_PLAYER_READY = "com.resonant.ACTION_PLAYER_READY"
+        const val ACTION_UPDATE_QUEUE = "com.example.resonant.action.UPDATE_QUEUE"
 
         const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "music_channel"
@@ -85,6 +94,8 @@ class MusicPlaybackService : Service() {
 
     private lateinit var mediaSession: MediaSessionCompat
 
+    private var activeQueue: PlaybackQueue? = null
+
     inner class MusicServiceBinder : Binder() {
         fun getService(): MusicPlaybackService = this@MusicPlaybackService
     }
@@ -109,13 +120,45 @@ class MusicPlaybackService : Service() {
                 val bitmapPath = intent.getStringExtra(EXTRA_CURRENT_IMAGE_PATH)
                 val bitmap = bitmapPath?.let { BitmapFactory.decodeFile(it) }
                 val songList = intent.getParcelableArrayListExtra<Song>(SONG_LIST)
+                val sourceType = intent.getSerializableExtra(EXTRA_QUEUE_SOURCE) as? QueueSource ?: QueueSource.UNKNOWN
+                val sourceId = intent.getStringExtra(EXTRA_QUEUE_SOURCE_ID) ?: ""
+                val sourceName = intent.getStringExtra("EXTRA_QUEUE_SOURCE_NAME")
 
-                if (!songList.isNullOrEmpty()) {
-                    updateSongs(songList)
-                }
+                if (!songList.isNullOrEmpty() && song != null) {
+                    val isSameList = activeQueue?.songs?.map { it.id } == songList.map { it.id }
+                    if (activeQueue == null ||
+                        activeQueue?.sourceId != sourceId ||
+                        activeQueue?.sourceType != sourceType ||
+                        !isSameList
+                    ) {
+                        activeQueue = PlaybackQueue(
+                            sourceId = sourceId,
+                            sourceType = sourceType,
+                            songs = songList,
+                            currentIndex = index
+                        )
 
-                if (song != null) {
-                    playSong(this, song, index)
+                        // ✅ CONSTRUIMOS EL NOMBRE Y LO GUARDAMOS EN EL VIEWMODEL
+                        val queueDisplayName = when (sourceType) {
+                            QueueSource.PLAYLIST -> "Cola actual:  Playlist ${sourceName ?: "Playlist"}"
+                            QueueSource.ALBUM -> "Cola actual: Album ${sourceName ?: "Álbum"}"
+                            QueueSource.FAVORITE_SONGS -> "Cola actual: Favoritos"
+                            else -> null // No mostramos nada para fuentes desconocidas
+                        }
+                        SharedViewModelHolder.sharedViewModel.setQueueName(queueDisplayName)
+
+                        Log.d("MusicService", "Nueva cola activa creada: sourceType=$sourceType, sourceId=$sourceId, index=$index, canciones=${songList.size}")
+                        songList.forEachIndexed { i, song ->
+                            Log.d("MusicService", "[$i] ${song.title} - ${song.artistName} (${song.id})")
+                        }
+                        SharedViewModelHolder.sharedViewModel.setQueueSource(sourceType)
+                        SharedViewModelHolder.sharedViewModel.setQueueSourceId(sourceId)
+
+                    } else {
+                        activeQueue?.currentIndex = index
+                        Log.d("MusicService", "Cola activa actualizada (mismo contexto y canciones): sourceType=$sourceType, sourceId=$sourceId, nuevo index=$index")
+                    }
+                    playSongFromQueue(this) // Usa la cola activa
                     SharedViewModelHolder.sharedViewModel.setCurrentSong(song)
                 }
 
@@ -125,7 +168,83 @@ class MusicPlaybackService : Service() {
 
                 startForegroundNotification(song!!, true)
             }
+            ACTION_UPDATE_QUEUE -> {
+                val songList = intent.getParcelableArrayListExtra<Song>(SONG_LIST) ?: arrayListOf()
+                val sourceType = intent.getSerializableExtra(EXTRA_QUEUE_SOURCE) as? QueueSource ?: QueueSource.UNKNOWN
+                val sourceId = intent.getStringExtra(EXTRA_QUEUE_SOURCE_ID) ?: ""
+                val requestedIndex = intent.getIntExtra(EXTRA_CURRENT_INDEX, 0)
 
+                if (activeQueue?.sourceType == sourceType && activeQueue?.sourceId == sourceId) {
+                    val currentSongId = currentSong?.id
+                    val previousIndex = activeQueue?.currentIndex ?: 0
+
+                    val currentSongNewIndex = currentSongId?.let { id ->
+                        songList?.indexOfFirst { it.id == id }
+                    } ?: -1
+
+                    val removedIndices = activeQueue?.songs
+                        ?.mapIndexed { idx, song -> idx to song.id }
+                        ?.filter { (idx, id) ->
+                            !songList.any { it.id == id }
+                        }
+                        ?.map { it.first }
+                        ?: emptyList()
+
+                    val indexOffset = removedIndices.count { it < previousIndex }
+
+                    val finalIndex = if (currentSongNewIndex != -1) {
+                        currentSongNewIndex
+                    } else {
+                        val adjustedIndex = previousIndex - indexOffset
+                        adjustedIndex.coerceAtMost(songList.size - 1)
+                    }
+
+                    activeQueue = PlaybackQueue(
+                        sourceId = sourceId,
+                        sourceType = sourceType,
+                        songs = songList?.toList() ?: emptyList(), // <-- SOLUCIÓN
+                        currentIndex = finalIndex
+                    )
+                    SharedViewModelHolder.sharedViewModel.setQueueSource(sourceType)
+                    SharedViewModelHolder.sharedViewModel.setQueueSourceId(sourceId)
+                    Log.d("MusicService", "Cola de playlist actualizada: $sourceType $sourceId canciones=${songList.size} index=$finalIndex")
+
+                    if (currentSongNewIndex != -1) {
+                        SharedViewModelHolder.sharedViewModel.setCurrentSong(songList[finalIndex])
+                    } else {
+                        // La canción actual ha sido borrada, pero sigue sonando: NO playSongFromQueue aquí
+                        // Actualiza la cola para que el siguiente salto vaya a la canción posterior
+                        // Solo actualiza la UI si lo deseas
+                    }
+                } else if (!songList.isNullOrEmpty()) {
+                    // Si no hay cola activa, crea una nueva
+                    activeQueue = PlaybackQueue(
+                        sourceId = sourceId,
+                        sourceType = sourceType,
+                        songs = songList,
+                        currentIndex = requestedIndex.coerceAtMost(songList.size - 1)
+                    )
+                    SharedViewModelHolder.sharedViewModel.setQueueSource(sourceType)
+                    SharedViewModelHolder.sharedViewModel.setQueueSourceId(sourceId)
+                    SharedViewModelHolder.sharedViewModel.setCurrentSong(songList[activeQueue!!.currentIndex])
+                } else {
+                    // La lista está vacía, pero si hay canción sonando, deja que termine
+                    if (currentSong != null && mediaPlayer?.isPlaying == true) {
+                        Log.d("MusicService", "Playlist vacía pero la canción actual sigue sonando")
+                        activeQueue = PlaybackQueue(
+                            sourceId = sourceId,
+                            sourceType = sourceType,
+                            songs = emptyList(),
+                            currentIndex = -1
+                        )
+                        SharedViewModelHolder.sharedViewModel.setQueueSource(null)
+                        SharedViewModelHolder.sharedViewModel.setQueueSourceId(null)
+                    } else {
+                        stopPlayer()
+                        SharedViewModelHolder.sharedViewModel.setCurrentSong(null)
+                    }
+                }
+            }
             ACTION_PAUSE -> {
                 pause()
                 notifyPlaybackStateChanged()
@@ -138,13 +257,11 @@ class MusicPlaybackService : Service() {
             }
             ACTION_PREVIOUS -> {
                 playPrevious(this)
-                currentSong?.let { notifySongChangedBroadcast(it) }
                 notifyPlaybackStateChanged()
                 updateNotification()
             }
             ACTION_NEXT -> {
                 playNext(this)
-                currentSong?.let { notifySongChangedBroadcast(it) }
                 notifyPlaybackStateChanged()
                 updateNotification()
             }
@@ -185,12 +302,11 @@ class MusicPlaybackService : Service() {
                     streamReported = true
                 }
             }
-            if (isCompletionListenerEnabled && songs.isNotEmpty()) {
-                if (currentIndex < songs.size - 1) {
-                    playNext(context)
-                } else {
-                    _isPlayingLiveData.postValue(false)
-                }
+            if (isCompletionListenerEnabled && activeQueue?.songs?.isNotEmpty() == true) {
+                // ✅ CAMBIO: Usamos playNext para mantener el flujo consistente
+                playNext(context)
+            } else {
+                _isPlayingLiveData.postValue(false)
             }
         }
     }
@@ -273,26 +389,36 @@ class MusicPlaybackService : Service() {
         updatePlaybackState()
     }
 
-    fun playNext(context: Context) {
+    fun playSongFromQueue(context: Context) {
+        val queue = activeQueue ?: run { Log.w("MusicService", "Intento de reproducción sin cola activa"); return }
+        if (queue.songs.isEmpty()) { Log.w("MusicService", "Cola activa vacía"); return }
+        val song = queue.songs.getOrNull(queue.currentIndex) ?: run { Log.w("MusicService", "Índice fuera de rango: ${queue.currentIndex}"); return }
+
         streamReported = false
-        if (songs.isEmpty()) return
-        currentIndex = (currentIndex + 1) % songs.size
-        currentSong = songs[currentIndex]
-        loadAndSetCurrentSongBitmap(context, currentSong!!)
-        notifySongChanged()
-        prepareMediaPlayer(context, currentSong!!.url ?: return)
+        Log.d("MusicService", "Reproduciendo: ${song.title} [${queue.currentIndex}/${queue.songs.size}]")
+
+        updateCurrentSongState(song)
+        loadAndSetCurrentSongBitmap(context, song)
+        isCompletionListenerEnabled = true
+        prepareMediaPlayer(context, song.url ?: return)
         updatePlaybackState()
     }
 
+    fun playNext(context: Context) {
+        streamReported = false
+        val queue = activeQueue ?: return
+        if (queue.songs.isEmpty()) return
+        queue.currentIndex = (queue.currentIndex + 1) % queue.songs.size
+        playSongFromQueue(context)
+    }
+
+    // Canción anterior en la cola activa
     fun playPrevious(context: Context) {
         streamReported = false
-        if (songs.isEmpty()) return
-        currentIndex = if (currentIndex - 1 < 0) songs.size - 1 else currentIndex - 1
-        currentSong = songs[currentIndex]
-        loadAndSetCurrentSongBitmap(context, currentSong!!)
-        notifySongChanged()
-        prepareMediaPlayer(context, currentSong!!.url ?: return)
-        updatePlaybackState()
+        val queue = activeQueue ?: return
+        if (queue.songs.isEmpty()) return
+        queue.currentIndex = if (queue.currentIndex - 1 < 0) queue.songs.size - 1 else queue.currentIndex - 1
+        playSongFromQueue(context)
     }
 
     fun pause() {
@@ -389,14 +515,69 @@ class MusicPlaybackService : Service() {
     }
 
     private fun loadAndSetCurrentSongBitmap(context: Context, song: Song) {
-        val fileName = "cover_${song.id}.png"
-        val file = File(context.cacheDir, fileName)
-        if (file.exists()) {
-            val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-            SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(bitmap)
+        val placeholderRes = R.drawable.album_cover
+        val url = song.coverUrl
+        val songId = song.id ?: return
+
+        Utils.getCachedSongBitmap(songId, context)?.let { cached ->
+            SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(cached)
+
+            // Actualizar metadata y notificación con la imagen del caché
+            val metadataBuilder = MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artistName)
+                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaPlayer?.duration?.toLong() ?: 0L)
+                .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, cached)
+            mediaSession.setMetadata(metadataBuilder.build())
+
+            updateNotification()
+            return
+        }
+
+        if (!url.isNullOrBlank()) {
+            Glide.with(applicationContext)
+                .asBitmap()
+                .load(url)
+                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                .placeholder(placeholderRes)
+                .error(placeholderRes)
+                .into(object : CustomTarget<Bitmap>() {
+                    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                        serviceScope.launch {
+                            try {
+                                Utils.saveBitmapToCache(context, resource, songId)
+                            } catch (e: Exception) {
+                                Log.e("MusicService", "Error guardando portada", e)
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(resource)
+                                updateNotification()
+                            }
+                        }
+                    }
+
+                    override fun onLoadCleared(placeholder: Drawable?) { }
+
+                    override fun onLoadFailed(errorDrawable: Drawable?) {
+                        super.onLoadFailed(errorDrawable)
+                        Log.w("MusicService", "No se pudo descargar portada para ${song.title}")
+                        updateNotification()
+                    }
+                })
         } else {
             SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(null)
+            updateNotification()
         }
+    }
+
+    // En MusicPlaybackService.kt
+
+    private fun updateCurrentSongState(song: Song) {
+        currentSong = song
+        SharedViewModelHolder.sharedViewModel.setCurrentSong(song)
+        _currentSongLiveData.postValue(song)
+        notifySongChangedBroadcast(song)
     }
 
     private fun notifySongChanged() {

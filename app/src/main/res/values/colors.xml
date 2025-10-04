@@ -5,13 +5,14 @@
 
     <color name="transparent">#00000000</color>
 
+    <!-- SNACKBAR COLORS -->
     <color name="successColor">#1CC145</color>
+    <color name="errorColor">#E21616</color>
+    <color name="adviseColor">#D5A91B</color>
 
     <color name="primaryColorButton">#D1D1D1</color>
     <color name="selectedSongColorWhilePlaying">#2C2C2C</color>
     <color name="titleSongColorWhilePlaying">#E21616</color>
-
-    <color name="errorColor">#E21616</color>
 
     <color name="appBackgroundTheme">#000000</color>
     <color name="cardsTheme">#171717</color>
@@ -20,7 +21,7 @@
     <color name="pointersTheme">#0D0D0D</color>
     <color name="discTheme">#2B2B2B</color>
 
-    <color name="numberTime">#626262</color>
+    <color name="numberTime">#9E9E9E</color>
 
     <color name="nav_text_icon_color">#E9E9E9</color>
     <color name="nav_text_icon_color_selected">#E9E9E9</color>

@@ -71,14 +71,18 @@ class SearchResultAdapter :
 
     var onFavoriteClick: ((Song, Boolean) -> Unit)? = null
     var favoriteSongIds: Set<String> = emptySet()
-        set(value) {
-            field = value
-            currentList.forEachIndexed { index, result ->
-                if (result is SearchResult.SongItem) {
-                    val song = result.song
-                    if (field.contains(song.id) != value.contains(song.id)) {
-                        notifyItemChanged(index, "silent")
-                    }
+        set(newFavoriteIds) {
+            val oldFavoriteIds = field
+            field = newFavoriteIds
+
+            val changedIds = (oldFavoriteIds - newFavoriteIds) + (newFavoriteIds - oldFavoriteIds)
+
+            if (changedIds.isEmpty()) return
+
+            changedIds.forEach { songId ->
+                val index = currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == songId }
+                if (index != -1) {
+                    notifyItemChanged(index, "silent") // "silent" es un payload opcional que ya usas
                 }
             }
         }
@@ -150,15 +154,9 @@ class SearchResultAdapter :
         }
 
         fun bind(song: Song) {
-            // Estado del botón de like
             val isFavorite = favoriteSongIds.contains(song.id)
-
-            if (isFavorite) {
-                likeButton.visibility = View.VISIBLE
-                likeButton.setImageResource(R.drawable.favorite)
-            } else {
-                likeButton.visibility = View.INVISIBLE
-            }
+            likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
+            likeButton.setImageResource(if (isFavorite) R.drawable.favorite else 0)
 
             // Estado inicial determinista
             cancelJobs()
@@ -336,7 +334,7 @@ class SearchResultAdapter :
             Glide.with(itemView).clear(artistImage)
 
             val placeholderRes = R.drawable.user
-            val url = artist.fileName
+            val url =  artist.url
             if (url.isNullOrBlank()) {
                 loadingAnimation.visibility = View.GONE
                 artistImage.setImageResource(placeholderRes)
@@ -383,7 +381,7 @@ class SearchResultAdapter :
                 val bundle = Bundle().apply {
                     putString("artistId", artist.id)
                     putString("artistName", artist.name)
-                    putString("artistImageUrl", artist.fileName)
+                    putString("artistImageUrl", artist.url)
                     putString("artistImageTransitionName", artistImage.transitionName)
                 }
                 val extras = FragmentNavigatorExtras(artistImage to artistImage.transitionName)
@@ -393,6 +391,8 @@ class SearchResultAdapter :
         }
     }
 
+// En SearchResultAdapter.kt
+
     fun setCurrentPlayingSong(songId: String?) {
         if (currentPlayingId == songId) return
 
@@ -401,11 +401,15 @@ class SearchResultAdapter :
 
         previousPlayingId?.let { prev ->
             val prevIndex = currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == prev }
-            if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
+            if (prevIndex != -1) {
+                notifyItemChanged(prevIndex, "silent")
+            }
         }
         currentPlayingId?.let { curr ->
             val currIndex = currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == curr }
-            if (currIndex != -1) notifyItemChanged(currIndex, "silent")
+            if (currIndex != -1) {
+                notifyItemChanged(currIndex, "silent")
+            }
         }
     }
 }

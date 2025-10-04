@@ -10,24 +10,19 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.FileProvider
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.resonant.SnackbarUtils.showResonantSnackbar
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
 class SongOptionsBottomSheet(
     private val song: Song,
-    private val onAddToPlaylistClick: (Song) -> Unit = {},
     private val onSeeSongClick: ((Song) -> Unit)? = null,
-    private val onAddToFavoriteClick: ((Song) -> Unit)? = null,
-    private val onFavoriteToggled: ((Song, Boolean) -> Unit)? = null,
+    private val onFavoriteToggled: ((Song) -> Unit)? = null,
     private val playlistId: String? = null,
     private val onRemoveFromPlaylistClick: ((Song, String) -> Unit)? = null
 ) : BottomSheetDialogFragment() {
@@ -60,25 +55,34 @@ class SongOptionsBottomSheet(
         }
 
         if (playlistId != null) {
-            addToPlaylistButton.text = "Eliminar de la playlist"
+            // --- MODO: "Eliminar de la lista actual" ---
+            addToPlaylistButton.text = "Eliminar de la lista"
             addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.delete, 0, 0, 0)
             addToPlaylistButton.setTextColor(Color.parseColor("#F44336"))
 
             addToPlaylistButton.setOnClickListener {
-                dismiss()
+                // Usamos el ViewModel de DETALLE para eliminar la canción
                 onRemoveFromPlaylistClick?.invoke(song, playlistId)
+
+                // Mostramos feedback al usuario
+                showResonantSnackbar(
+                    text = "Canción eliminada de la playlist",
+                    colorRes = R.color.successColor, iconRes = R.drawable.success
+                )
+                dismiss()
             }
         } else {
-            addToPlaylistButton.text = "Añadir a playlist"
+            // --- MODO: "Añadir a una lista" ---
+            addToPlaylistButton.text = "Añadir a lista"
             addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.add, 0, 0, 0)
 
             addToPlaylistButton.setOnClickListener {
-                dismiss()
+                // Abrimos el siguiente BottomSheet que mostrará la lista de playlists
                 val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(song)
                 selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                dismiss() // Cerramos este BottomSheet
             }
         }
-
 
         val placeholderRes = R.drawable.album_cover
         val errorRes = R.drawable.album_cover
@@ -95,76 +99,36 @@ class SongOptionsBottomSheet(
         }
 
 
+        // 1. Obtenemos el ViewModel
         val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
-        var isFavorite = false
 
-        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            isFavorite = favorites.any { it.id == song.id }
-            if (isFavorite) {
-                addToFavoriteButton.text = "Eliminar de favoritos"
-                addToFavoriteButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.remove_favorite, 0, 0, 0)
-                addToFavoriteButton.setTextColor(Color.parseColor("#F44336"))
-            } else {
-                addToFavoriteButton.text = "Añadir a favoritos"
-                addToFavoriteButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.add_favorite, 0, 0, 0)
-                addToFavoriteButton.setTextColor(Color.parseColor("#FFFFFF"))
-            }
+        // 2. Observamos el LiveData de IDs para saber el estado real y actualizar la UI del botón
+        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { favoriteIds ->
+            val isFavorite = favoriteIds.contains(song.id)
+            updateFavoriteButtonUI(addToFavoriteButton, isFavorite)
         }
 
+        // 3. El OnClickListener ahora es mucho más simple
         addToFavoriteButton.setOnClickListener {
-            val oldState = isFavorite
-            val newState = !oldState
+            // A. Simplemente llamamos a la lambda para notificar al Fragment.
+            onFavoriteToggled?.invoke(song)
 
-            // 🔥 Actualizar instantáneamente la UI local
-            isFavorite = newState
-            updateFavoriteButtonUI(addToFavoriteButton, newState)
-
-            // 🔥 Avisar al adapter inmediatamente
-            onFavoriteToggled?.invoke(song, oldState)
-
-            if (newState) {
-                favoritesViewModel.addFavorite(song) { success ->
-                    if (success) {
-                        showResonantSnackbar(
-                            text = "¡Canción añadida a favoritos!",
-                            colorRes = R.color.successColor,
-                            iconRes = R.drawable.success
-                        )
-                    } else {
-                        // revertir si falla
-                        isFavorite = oldState
-                        updateFavoriteButtonUI(addToFavoriteButton, oldState)
-                        onFavoriteToggled?.invoke(song, newState)
-                        showResonantSnackbar(
-                            text = "Error al añadir favorito",
-                            colorRes = R.color.errorColor,
-                            iconRes = R.drawable.error
-                        )
-                    }
-                    dismiss()
-                }
+            // B. (Opcional) Mostramos un snackbar de éxito inmediatamente (actualización optimista del feedback)
+            val isCurrentlyFavorite = favoritesViewModel.favoriteSongIds.value?.contains(song.id) ?: false
+            if (!isCurrentlyFavorite) {
+                showResonantSnackbar(
+                    text = "¡Añadida a favoritos!",
+                    colorRes = R.color.successColor, iconRes = R.drawable.success
+                )
             } else {
-                favoritesViewModel.deleteFavorite(song.id) { success ->
-                    if (success) {
-                        showResonantSnackbar(
-                            text = "Canción eliminada de favoritos",
-                            colorRes = R.color.successColor,
-                            iconRes = R.drawable.success
-                        )
-                    } else {
-                        // revertir si falla
-                        isFavorite = oldState
-                        updateFavoriteButtonUI(addToFavoriteButton, oldState)
-                        onFavoriteToggled?.invoke(song, newState)
-                        showResonantSnackbar(
-                            text = "Error al eliminar favorito",
-                            colorRes = R.color.errorColor,
-                            iconRes = R.drawable.error
-                        )
-                    }
-                    dismiss()
-                }
+                showResonantSnackbar(
+                    text = "Eliminada de favoritos",
+                    colorRes = R.color.successColor, iconRes = R.drawable.success
+                )
             }
+
+            // C. Cerramos el BottomSheet.
+            dismiss()
         }
 
         seeSongButton.setOnClickListener {
@@ -225,9 +189,11 @@ class SongOptionsBottomSheet(
         if (isFavorite) {
             button.text = "Eliminar de favoritos"
             button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.remove_favorite, 0, 0, 0)
+            button.setTextColor(Color.parseColor("#F44336"))
         } else {
             button.text = "Añadir a favoritos"
             button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.add_favorite, 0, 0, 0)
+            button.setTextColor(Color.parseColor("#FFFFFF"))
         }
     }
 

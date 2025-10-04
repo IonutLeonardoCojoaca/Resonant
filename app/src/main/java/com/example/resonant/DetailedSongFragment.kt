@@ -20,6 +20,8 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.fragment.FragmentNavigatorExtras
+import androidx.navigation.fragment.findNavController
 import androidx.palette.graphics.Palette
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -190,7 +192,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         artistList.adapter = artistAdapter
 
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
-        songAdapter = SongAdapter()
+        songAdapter = SongAdapter(SongAdapter.VIEW_TYPE_FULL)
 
         playButton.setOnClickListener {
             if (isPlaying) {
@@ -213,6 +215,17 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
                     requireContext().startService(playIntent)
                 }
             }
+        }
+
+        artistAdapter.onArtistClick = { artist, sharedImage ->
+            val bundle = Bundle().apply { putString("artistId", artist.id) }
+            val extras = FragmentNavigatorExtras(sharedImage to sharedImage.transitionName)
+            findNavController().navigate(
+                R.id.action_detailedSongFragment_to_artistFragment,
+                bundle,
+                null,
+                extras
+            )
         }
 
         return view
@@ -351,9 +364,9 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
                 val urlList = if (fileNames.isNotEmpty()) service.getMultipleArtistUrls(fileNames) else emptyList()
                 val urlMap = urlList.associateBy { it.fileName }
 
-                // 3. Actualiza los artistas con la URL real en el campo fileName
+                // 3. Actualiza los artistas con la URL real en el campo url (no fileName)
                 artists.forEach { artist ->
-                    artist.fileName = urlMap[artist.fileName]?.url ?: ""
+                    artist.url = urlMap[artist.fileName]?.url ?: ""
                 }
 
                 // 4. Actualiza el adapter

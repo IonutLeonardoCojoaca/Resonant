@@ -8,22 +8,22 @@
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/img0"
-        style="@style/PlaylistCoverImage"
-        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.Grid.TopLeft" />
+        style="@style/PlaylistCoverImage.List"
+        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.List.TopLeft" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/img1"
-        style="@style/PlaylistCoverImage"
-        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.Grid.TopRight" />
+        style="@style/PlaylistCoverImage.List"
+        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.List.TopRight" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/img2"
-        style="@style/PlaylistCoverImage"
-        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.Grid.BottomLeft" />
+        style="@style/PlaylistCoverImage.List"
+        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.List.BottomLeft" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/img3"
-        style="@style/PlaylistCoverImage"
-        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.Grid.BottomRight" />
+        style="@style/PlaylistCoverImage.List"
+        app:shapeAppearance="@style/ShapeAppearance.Resonant.Corner.List.BottomRight" />
 
 </GridLayout>

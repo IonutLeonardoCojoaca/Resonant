@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -71,6 +70,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        sharedViewModel.currentSongLiveData.value?.let { currentSong ->
+            searchResultAdapter.setCurrentPlayingSong(currentSong.id)
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
@@ -84,8 +90,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_search, container, false)
-
-        // QUITADO: registro duplicado del receiver (ya se registra en onViewCreated)
 
         chipSongs = view.findViewById(R.id.chipSongs)
         chipSongs.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
@@ -103,18 +107,16 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
+        sharedViewModel = SharedViewModelHolder.sharedViewModel
 
         sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let { searchResultAdapter.setCurrentPlayingSong(it.id) }
+            searchResultAdapter.setCurrentPlayingSong(currentSong?.id)
         }
 
-        // Restaurar estado (chips + query + resultados)
         showSongs = savedInstanceState?.getBoolean("showSongs") ?: true
         showAlbums = savedInstanceState?.getBoolean("showAlbums") ?: true
         showArtists = savedInstanceState?.getBoolean("showArtists") ?: true
 
-        // Establecer estado de chips ANTES de añadir listeners para no dispararlos innecesariamente
         chipSongs.isChecked = showSongs
         chipAlbums.isChecked = showAlbums
         chipArtists.isChecked = showArtists
@@ -137,6 +139,9 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
             artistResults.clear()
             artistResults.addAll(restoredResults.filterIsInstance<SearchResult.ArtistItem>().map { it.artist })
+
+            // Usamos la nueva función centralizada también aquí
+            updateAdapterList(applyActiveFilters(lastResults))
 
             updateFilteredResults()
             restoringState = false
@@ -162,8 +167,10 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
             AnimationsUtils.animateChipColor(chip, isChecked)
         }
 
+        var currentHomeQueueId: String = System.currentTimeMillis().toString() // o UUID.randomUUID().toString()
+
         searchResultAdapter.onSongClick = { (song, bitmap) ->
-            val currentIndex = songResults.indexOfFirst { it.url == song.url }
+            val currentIndex = songResults.indexOfFirst { it.id == song.id }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songResults)
 
@@ -173,6 +180,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                 putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.SEARCH) // <-- Contexto: home random
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId) // <-- id único para esta cola (puede ser fijo o dinámico)
             }
 
             requireContext().startService(playIntent)
@@ -180,29 +189,20 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
-        // Cargar favoritos al inicio
-        favoritesViewModel.loadFavorites()
+        favoritesViewModel.loadFavoriteSongs()
 
         favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val ids = favorites.map { it.id }.toSet()
-            searchResultAdapter.favoriteSongIds = ids
-            searchResultAdapter.submitList(searchResultAdapter.currentList)
+            val songIds = favorites
+                .filterIsInstance<FavoriteItem.SongItem>()
+                .map { it.song.id }
+                .toSet()
+            searchResultAdapter.favoriteSongIds = songIds
         }
 
-        searchResultAdapter.onFavoriteClick = { song, newState ->
-            if (newState) {
-                favoritesViewModel.addFavorite(song) { success ->
-                    if (!success) {
-                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                favoritesViewModel.deleteFavorite(song.id) { success ->
-                    if (!success) {
-                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+        searchResultAdapter.onFavoriteClick = { song, wasFavorite ->
+            // Le decimos al ViewModel que se encargue de la lógica.
+            // Es exactamente la misma llamada que hicimos desde el BottomSheet.
+            favoritesViewModel.toggleFavoriteSong(song)
         }
 
         searchResultAdapter.onSettingsClick = { song ->
@@ -222,18 +222,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             bundle
                         )
                     },
-                    onFavoriteToggled = { toggledSong, wasFavorite ->
-                        if (wasFavorite) {
-                            searchResultAdapter.favoriteSongIds = searchResultAdapter.favoriteSongIds - toggledSong.id
-                        } else {
-                            searchResultAdapter.favoriteSongIds = searchResultAdapter.favoriteSongIds + toggledSong.id
-                        }
-                        val index = searchResultAdapter.currentList.indexOfFirst {
-                            it is SearchResult.SongItem && it.song.id == toggledSong.id
-                        }
-                        if (index != -1) {
-                            searchResultAdapter.notifyItemChanged(index, "silent")
-                        }
+                    onFavoriteToggled = { toggledSong ->
+                        favoritesViewModel.toggleFavoriteSong(toggledSong)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -295,12 +285,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                         val artistUrls = if (artistFileNames.isNotEmpty())
                             service.getMultipleArtistUrls(artistFileNames)
                         else emptyList()
-                        val artistUrlMap = artistFileNames.zip(artistUrls.map { it.url }).toMap()
+                        val artistUrlMap = artistUrls.associateBy { it.fileName }
                         val artistsPrepared = artists.map { artist ->
-                            val url = artist.fileName?.let { artistUrlMap[it] }.orEmpty()
+                            val url = artist.fileName?.let { artistUrlMap[it]?.url }.orEmpty()
                             artist.copy(
-                                fileName = url,
+                                url = url,                        // <--- Asigna aquí la URL
                                 description = artist.description ?: ""
+                                // No sobrescribas fileName
                             )
                         }
 
@@ -371,6 +362,9 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                         // ACTUALIZAR lastResults ANTES de filtrar
                         lastResults = combined
 
+                        // Llamamos a nuestra nueva función centralizada para actualizar la UI
+                        updateAdapterList(applyActiveFilters(lastResults))
+
                         val finalList = applyActiveFilters(lastResults)
 
                         loadingAnimation.visibility = View.INVISIBLE
@@ -395,7 +389,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                         searchResultAdapter.submitList(emptyList())
                         noSongsFounded.visibility = View.VISIBLE
                         e.printStackTrace()
-                        Toast.makeText(requireContext(), "Error al buscar resultados", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -478,9 +471,17 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         loadingAnimation.visibility = View.INVISIBLE
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
+    private fun updateAdapterList(list: List<SearchResult>) {
+        searchResultAdapter.submitList(list)
+        sharedViewModel.currentSongLiveData.value?.let { currentSong ->
+            searchResultAdapter.setCurrentPlayingSong(currentSong.id)
+        }
+
+        // Actualiza la visibilidad de los elementos de la UI
+        val resultsAreEmpty = list.isEmpty()
+        noSongsFounded.visibility = if (resultsAreEmpty && editTextQuery?.text?.isNotEmpty() == true) View.VISIBLE else View.GONE
+        resultsRecyclerView.visibility = if (!resultsAreEmpty) View.VISIBLE else View.INVISIBLE
+        loadingAnimation.visibility = View.INVISIBLE
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -492,6 +493,11 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         outState.putBoolean("showSongs", showSongs)
         outState.putBoolean("showAlbums", showAlbums)
         outState.putBoolean("showArtists", showArtists)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
     }
 
 }

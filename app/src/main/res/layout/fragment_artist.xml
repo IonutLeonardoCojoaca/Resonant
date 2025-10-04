@@ -33,21 +33,21 @@
                     android:id="@+id/gradientOverlay"
                     android:layout_width="match_parent"
                     android:layout_height="150dp"
-                    android:background="@drawable/gradient_artist"
-                    android:layout_alignParentBottom="true"/>
+                    android:layout_alignParentBottom="true"
+                    android:background="@drawable/gradient_artist" />
 
                 <TextView
                     android:id="@+id/artistName"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentBottom="true"
                     android:layout_alignParentStart="true"
+                    android:layout_alignParentBottom="true"
                     android:layout_margin="20dp"
                     android:breakStrategy="simple"
-                    android:fontFamily="@font/unageo_bold"
-                    android:maxLines="2"
                     android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
                     android:hyphenationFrequency="normalFast"
+                    android:maxLines="2"
                     android:text=""
                     android:textColor="@android:color/white"
                     android:textSize="45sp"
@@ -62,60 +62,81 @@
                 android:background="@color/black"
                 android:layout_below="@id/artistBanner">
 
-                <FrameLayout
-                    android:id="@+id/albumTextContainer"
+                <RelativeLayout
+                    android:id="@+id/listSongsContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingHorizontal="20dp"
-                    android:paddingVertical="15dp">
+                    android:layout_alignParentTop="true">
 
-                    <TextView
-                        android:id="@+id/albumsFeatured"
-                        android:layout_width="wrap_content"
+                    <FrameLayout
+                        android:id="@+id/titleTopSongsContainer"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Música del artista"
-                        android:textColor="@color/white"
-                        android:textSize="20sp"
-                        android:layout_gravity="center_vertical|left"/>
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="10dp">
 
-                </FrameLayout>
+                        <TextView
+                            android:id="@+id/titleTopSongs"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Canciones populares"
+                            android:textColor="@color/white"
+                            android:textSize="20sp"
+                            android:layout_gravity="center_vertical|left"/>
+
+                    </FrameLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/topSongsList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/titleTopSongsContainer"
+                        android:nestedScrollingEnabled="false"
+                        android:scrollbars="none"
+                        android:paddingHorizontal="10dp"
+                        android:layout_marginVertical="10dp">
+
+                    </androidx.recyclerview.widget.RecyclerView>
+
+                </RelativeLayout>
 
                 <RelativeLayout
                     android:id="@+id/listAlbums"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_below="@id/albumTextContainer">
+                    android:layout_below="@id/listSongsContainer">
+
+                    <FrameLayout
+                        android:id="@+id/titleAlbumsContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="10dp">
+
+                        <TextView
+                            android:id="@+id/titleAlbumSongs"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Álbumes del artista"
+                            android:textColor="@color/white"
+                            android:textSize="20sp"
+                            android:layout_gravity="center_vertical|left"/>
+
+                    </FrameLayout>
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/listAlbumsRecycler"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_below="@id/titleAlbumsContainer"
                         android:nestedScrollingEnabled="false"
                         android:scrollbars="none"
-                        android:paddingHorizontal="20dp">
+                        android:paddingHorizontal="20dp"
+                        android:layout_marginVertical="10dp">
 
                     </androidx.recyclerview.widget.RecyclerView>
-
-                    <com.facebook.shimmer.ShimmerFrameLayout
-                        android:id="@+id/shimmerLayout"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingHorizontal="20dp">
-
-                        <LinearLayout
-                            android:id="@+id/shimmerInclude"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-
-                            <include layout="@layout/item_album_2_shimmer_placeholder" />
-                            <include layout="@layout/item_album_2_shimmer_placeholder" />
-                            <include layout="@layout/item_album_2_shimmer_placeholder" />
-
-                        </LinearLayout>
-
-                    </com.facebook.shimmer.ShimmerFrameLayout>
 
                 </RelativeLayout>
 
@@ -132,14 +153,17 @@
     </androidx.core.widget.NestedScrollView>
 
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="70dp"
-        android:paddingHorizontal="20dp">
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="15dp"
+        android:background="#00000000">
 
         <FrameLayout
             android:id="@+id/arrowGoBackBackground"
-            android:layout_width="45dp"
-            android:layout_height="45dp"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginVertical="10dp"
             android:background="@drawable/arrow_back_background"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -158,6 +182,49 @@
 
         </FrameLayout>
 
+        <TextView
+            android:id="@+id/albumTopBarText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:text=""
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <FrameLayout
+            android:id="@+id/favoriteBackground"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:background="@drawable/favorite_button_background"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/favoriteButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/favorite_border"
+                android:clickable="false"
+                android:focusable="false"
+                android:scaleX="1.3"
+                android:scaleY="1.3" />
+
+        </FrameLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <View
+        android:id="@+id/gradientTopBar"
+        android:layout_width="match_parent"
+        android:layout_height="10dp"
+        android:background="@drawable/gradient_playlist_top"
+        android:layout_below="@id/topBar"
+        android:visibility="invisible"/>
 
 </RelativeLayout>

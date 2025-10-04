@@ -28,7 +28,9 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.fragment.findNavController
 import com.bumptech.glide.Glide
+import com.example.resonant.SnackbarUtils.showResonantSnackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,8 +39,8 @@ import java.io.File
 class SongFragment : BaseFragment(R.layout.fragment_song) {
 
     private lateinit var blurrySongImageBackground: ImageView
-    private lateinit var parallaxRotatingImage : ImageView
     private lateinit var arrowGoBackButton: FrameLayout
+    private lateinit var settingsButton: FrameLayout
 
     private lateinit var seekBar: SeekBar
     private lateinit var currentTimeText: TextView
@@ -53,8 +55,9 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
 
     lateinit var songAdapter: SongAdapter
     private lateinit var sharedViewModel: SharedViewModel
-    private val _currentSongLiveData = MutableLiveData<Song>()
     private var isPlaying : Boolean = false
+    private lateinit var favoritesViewModel: FavoritesViewModel
+    private lateinit var favoriteButton: ImageButton
 
     private var musicService: MusicPlaybackService? = null
 
@@ -138,10 +141,11 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
         previousSongButton = view.findViewById(R.id.previousSongButton)
         nextSongButton = view.findViewById(R.id.nextSongButton)
         replayButton = view.findViewById(R.id.replay_button)
-        songAdapter = SongAdapter()
+        songAdapter = SongAdapter(SongAdapter.VIEW_TYPE_FULL)
         blurrySongImageBackground = view.findViewById(R.id.blurrySongImageBackground)
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
-        parallaxRotatingImage = view.findViewById(R.id.parallaxRotatingImage)
+        settingsButton = view.findViewById(R.id.settingsBackground)
+        favoriteButton = view.findViewById(R.id.likeButton)
 
         arguments?.getString("coverFileName")?.let { fileName ->
             val file = File(requireContext().cacheDir, fileName)
@@ -157,7 +161,7 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
                 artistView.text = song.artistName ?: "Desconocido"
 
                 val albumCoverRes = R.drawable.album_cover
-                val url = song.coverUrl // ✅ usar coverUrl
+                val url = song.coverUrl
 
                 if (!url.isNullOrBlank()) {
                     Glide.with(requireContext())
@@ -178,9 +182,7 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
                                 lastSongId = song.id
                             }
 
-                            override fun onLoadCleared(placeholder: Drawable?) {
-                                // Opcional: limpiar imagen si Glide cancela
-                            }
+                            override fun onLoadCleared(placeholder: Drawable?) { }
                         })
                 } else {
                     val bitmap = BitmapFactory.decodeResource(resources, albumCoverRes)
@@ -190,18 +192,71 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
             }
         }
 
-
         val blurEffect = RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
         blurrySongImageBackground.setRenderEffect(blurEffect)
 
-        val rotateAnimator = ObjectAnimator.ofFloat(parallaxRotatingImage, "rotation", 0f, 360f)
-        rotateAnimator.duration = 40000
-        rotateAnimator.interpolator = LinearInterpolator()
-        rotateAnimator.repeatCount = ObjectAnimator.INFINITE
-        rotateAnimator.start()
-
         arrowGoBackButton.setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
+        }
+
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+
+        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { favoriteIds ->
+            val currentSong = sharedViewModel.currentSongLiveData.value
+            val isFavorite = currentSong?.id?.let { favoriteIds.contains(it) } ?: false
+            updateFavoriteButtonUI(isFavorite)
+        }
+
+        favoriteButton.setOnClickListener {
+            val song = sharedViewModel.currentSongLiveData.value ?: return@setOnClickListener
+
+            favoritesViewModel.toggleFavoriteSong(song) { success, isNowFavorite ->
+                if (success) {
+                    updateFavoriteButtonUI(isNowFavorite)
+
+                    showResonantSnackbar(
+                        text = if (isNowFavorite) "¡Canción añadida a favoritos!" else "Canción eliminada de favoritos",
+                        colorRes = R.color.successColor,
+                        iconRes = R.drawable.success
+                    )
+                } else {
+                    showResonantSnackbar(
+                        text = "Error al actualizar favoritos",
+                        colorRes = R.color.errorColor,
+                        iconRes = R.drawable.error
+                    )
+                }
+            }
+        }
+
+        settingsButton.setOnClickListener {
+            val currentSong = sharedViewModel.currentSongLiveData.value
+            currentSong?.let { song ->
+                lifecycleScope.launch {
+                    val service = ApiClient.getService(requireContext())
+                    val artistList = service.getArtistsBySongId(song.id)
+                    song.artistName = artistList.joinToString(", ") { it.name }
+
+                    val bottomSheet = SongOptionsBottomSheet(
+                        song = song,
+                        onSeeSongClick = { selectedSong ->
+                            val bundle = Bundle().apply {
+                                putParcelable("song", selectedSong)
+                            }
+                            findNavController().navigate(
+                                R.id.action_songFragment_to_detailedSongFragment,
+                                bundle
+                            )
+                        },
+                        // --- INSTRUCCIÓN AÑADIDA ---
+                        // Aquí le decimos qué hacer cuando se toque el botón de favorito
+                        onFavoriteToggled = { toggledSong ->
+                            favoritesViewModel.toggleFavoriteSong(toggledSong)
+                        }
+                    )
+                    bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
+                }
+            }
         }
 
         playPauseButton.setOnClickListener {
@@ -261,15 +316,19 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
         return view
     }
 
+    private fun updateFavoriteButtonUI(isFavorite: Boolean) {
+        if (isFavorite) {
+            favoriteButton.setBackgroundResource(R.drawable.favorite)
+        } else {
+            favoriteButton.setBackgroundResource(R.drawable.favorite_border)
+        }
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(seekBarUpdateReceiver)
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(playbackStateReceiver)
-    }
-
-    fun updateCurrentSong(song: Song) {
-        _currentSongLiveData.postValue(song)
     }
 
     fun setCurrentPlayingSong(url: String) {

@@ -26,6 +26,7 @@ class AlbumAdapter(
     companion object {
         const val VIEW_TYPE_SIMPLE = 0
         const val VIEW_TYPE_DETAILED = 1
+        const val VIEW_TYPE_FAVORITE = 2
     }
 
     override fun getItemViewType(position: Int): Int = viewType
@@ -36,9 +37,13 @@ class AlbumAdapter(
                 val view = LayoutInflater.from(parent.context).inflate(R.layout.item_album_2, parent, false)
                 DetailedAlbumViewHolder(view)
             }
-            else -> {
+            VIEW_TYPE_SIMPLE -> {
                 val view = LayoutInflater.from(parent.context).inflate(R.layout.item_album, parent, false)
                 SimpleAlbumViewHolder(view)
+            }
+            else -> {
+                val view = LayoutInflater.from(parent.context).inflate(R.layout.item_favorite_album, parent, false)
+                FavoriteAlbumViewHolder(view)
             }
         }
     }
@@ -48,6 +53,7 @@ class AlbumAdapter(
         when (holder) {
             is SimpleAlbumViewHolder -> holder.bind(album)
             is DetailedAlbumViewHolder -> holder.bind(album)
+            is FavoriteAlbumViewHolder -> holder.bind(album) // <-- FALTA ESTO
         }
     }
 
@@ -58,6 +64,7 @@ class AlbumAdapter(
         when (holder) {
             is SimpleAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
             is DetailedAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
+            is FavoriteAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
         }
     }
 
@@ -76,20 +83,14 @@ class AlbumAdapter(
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
             artistName.text = album.artistName ?: "Unknown"
-            albumImage.transitionName = "albumImage_${album.id}"
 
             loadAlbumCoverPalette(album.url, albumImage, container, albumName, artistName)
 
             itemView.setOnClickListener {
+                val bundle = Bundle().apply { putString("albumId", album.id) }
                 itemView.postDelayed({
-                    val bundle = Bundle().apply {
-                        putString("albumId", album.id)
-                        putString("albumImageTransitionName", albumImage.transitionName)
-                    }
-                    val extras = FragmentNavigatorExtras(albumImage to albumImage.transitionName)
-                    itemView.findNavController()
-                        .navigate(R.id.action_homeFragment_to_albumFragment, bundle, null, extras)
-                }, 200)
+                    itemView.findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
+                }, 200) // 200ms de delay
             }
         }
     }
@@ -112,15 +113,36 @@ class AlbumAdapter(
 
             itemView.setOnClickListener {
                 val bundle = Bundle().apply { putString("albumId", album.id) }
-                itemView.findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
+                itemView.postDelayed({
+                    itemView.findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
+                }, 200)
+            }
+        }
+    }
+
+    inner class FavoriteAlbumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val albumImage: ImageView = itemView.findViewById(R.id.albumImage)
+        private val albumName: TextView = itemView.findViewById(R.id.albumTitle)
+        private val artistName: TextView = itemView.findViewById(R.id.albumArtistName)
+
+        fun bind(album: Album) {
+            albumName.text = album.title ?: "Unknown"
+            artistName.text = album.artistName ?: "Unknown"
+
+            loadAlbumCover(album.url, albumImage)
+
+            itemView.setOnClickListener {
+                val bundle = Bundle().apply { putString("albumId", album.id) }
+                itemView.postDelayed({
+                    itemView.findNavController().navigate(R.id.action_favoriteAlbumsFragment_to_albumFragment, bundle)
+                }, 200)
             }
         }
     }
 
     private fun loadAlbumCover(url: String?, imageView: ImageView) {
-        val placeholderRes = R.drawable.album_stack // asegúrate de tener este drawable
+        val placeholderRes = R.drawable.album_stack
 
-        // Limpia cualquier request previo asociado a esta ImageView
         Glide.with(imageView).clear(imageView)
 
         if (url.isNullOrBlank()) {

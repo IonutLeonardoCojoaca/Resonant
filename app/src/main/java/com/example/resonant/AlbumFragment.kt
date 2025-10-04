@@ -13,6 +13,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -21,6 +22,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.example.resonant.SnackbarUtils.showResonantSnackbar
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.launch
 
@@ -35,10 +37,15 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
     private lateinit var albumNumberOfTracks: TextView
     private lateinit var recyclerViewSongs: RecyclerView
     private lateinit var nestedScroll: NestedScrollView
+    private lateinit var topBar: ConstraintLayout
+    private lateinit var albumTopBarText: TextView
+    private lateinit var favoriteButton: FrameLayout
 
     private lateinit var songAdapter: SongAdapter
     private lateinit var sharedViewModel: SharedViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
+    private var loadedAlbum: Album? = null
+    private lateinit var favoriteIcon: ImageView
 
     private lateinit var shimmerLayout: ShimmerFrameLayout
 
@@ -65,17 +72,21 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
         recyclerViewSongs = view.findViewById(R.id.albumSongsContainer)
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
-        songAdapter = SongAdapter()
+        songAdapter = SongAdapter(SongAdapter.VIEW_TYPE_FULL)
         recyclerViewSongs.adapter = songAdapter
+        topBar = view.findViewById(R.id.topBar)
 
         shimmerLayout = view.findViewById(R.id.shimmerLayout)
 
         albumName = view.findViewById(R.id.albumName)
+        albumTopBarText = view.findViewById(R.id.albumTopBarText)
         albumArtistName = view.findViewById(R.id.albumArtistName)
         albumImage = view.findViewById(R.id.artistImage)
         albumDuration = view.findViewById(R.id.albumDuration)
         albumNumberOfTracks = view.findViewById(R.id.albumNumberOfTracks)
         nestedScroll = view.findViewById(R.id.nested_scroll)
+        favoriteButton = view.findViewById(R.id.favoriteBackground)
+        favoriteIcon = view.findViewById(R.id.favoriteButton)
 
         val albumId = arguments?.getString("albumId") ?: return view
 
@@ -93,10 +104,78 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             .setDuration(1000)
             .start()
 
+        val startFade = 200
+        val endFade = 500
+
+        albumTopBarText.visibility = View.INVISIBLE
+        albumTopBarText.alpha = 0f
+
         nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val parallaxFactor = 0.3f
             val offset = -scrollY * parallaxFactor
             albumImage.translationY = offset
+
+            val progress =
+                ((scrollY - startFade).toFloat() / (endFade - startFade).toFloat()).coerceIn(0f, 1f)
+            val alpha = (progress * 255).toInt()
+
+            topBar.setBackgroundColor(android.graphics.Color.argb(alpha, 0, 0, 0))
+
+            if (progress > 0f) {
+                if (albumTopBarText.visibility != View.VISIBLE) albumTopBarText.visibility = View.VISIBLE
+                albumTopBarText.alpha = progress // de 0f (transparente) a 1f (opaco)
+            } else {
+                if (albumTopBarText.visibility != View.INVISIBLE) albumTopBarText.visibility = View.INVISIBLE
+                albumTopBarText.alpha = 0f
+            }
+        }
+
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+
+        favoritesViewModel.loadAllFavorites()
+
+        favoritesViewModel.favoriteAlbumIds.observe(viewLifecycleOwner) { ids ->
+            val isFavorite = albumId?.let { ids.contains(it) } ?: false
+            updateFavoriteIcon(isFavorite)
+        }
+
+        favoriteButton.setOnClickListener {
+            loadedAlbum?.let { album ->
+                val isFavorite = favoritesViewModel.favoriteAlbumIds.value?.contains(album.id) ?: false
+                if (isFavorite) {
+                    favoritesViewModel.deleteFavoriteAlbum(album.id) { success ->
+                        if (success) {
+                            showResonantSnackbar(
+                                text = "¡Álbum eliminado de favoritos!",
+                                colorRes = R.color.successColor,
+                                iconRes = R.drawable.success
+                            )
+                        } else {
+                            showResonantSnackbar(
+                                text = "Error al eliminar favorito",
+                                colorRes = R.color.errorColor,
+                                iconRes = R.drawable.error
+                            )
+                        }
+                    }
+                } else {
+                    favoritesViewModel.addFavoriteAlbum(album) { success ->
+                        if (success) {
+                            showResonantSnackbar(
+                                text = "¡Álbum añadido a favoritos!",
+                                colorRes = R.color.successColor,
+                                iconRes = R.drawable.success
+                            )
+                        } else {
+                            showResonantSnackbar(
+                                text = "Error al añadir favorito",
+                                colorRes = R.color.errorColor,
+                                iconRes = R.drawable.error
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         sharedViewModel = ViewModelProvider(requireActivity())[SharedViewModel::class.java]
@@ -116,67 +195,34 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
+            val albumId = song.albumId
 
-            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+            val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.ACTION_PLAY
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
                 putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                 putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.ALBUM)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, albumId)
             }
 
             requireContext().startService(playIntent)
         }
 
-        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
-
-        // Cargar favoritos al inicio
-        favoritesViewModel.loadFavorites()
+        favoritesViewModel.loadFavoriteSongs()
 
         favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val ids = favorites.map { it.id }.toSet()
-            songAdapter.favoriteSongIds = ids
+            val songIds = favorites
+                .filterIsInstance<FavoriteItem.SongItem>()
+                .map { it.song.id }
+                .toSet()
+            songAdapter.favoriteSongIds = songIds
             songAdapter.submitList(songAdapter.currentList)
         }
 
-        songAdapter.onFavoriteClick = { song, isFavorite ->
-            if (isFavorite) {
-                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
-                songAdapter.notifyItemChanged(
-                    songAdapter.currentList.indexOfFirst { it.id == song.id },
-                    "silent"
-                )
-
-                favoritesViewModel.deleteFavorite(song.id) { success ->
-                    if (!success) {
-                        // Revertir si falla
-                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == song.id },
-                            "silent"
-                        )
-                        Toast.makeText(requireContext(), "Error al eliminar favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + song.id
-                songAdapter.notifyItemChanged(
-                    songAdapter.currentList.indexOfFirst { it.id == song.id },
-                    "silent"
-                )
-
-                favoritesViewModel.addFavorite(song) { success ->
-                    if (!success) {
-                        // Revertir si falla
-                        songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - song.id
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == song.id },
-                            "silent"
-                        )
-                        Toast.makeText(requireContext(), "Error al añadir favorito", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+        songAdapter.onFavoriteClick = { song, wasFavorite ->
+            favoritesViewModel.toggleFavoriteSong(song)
         }
 
         songAdapter.onSettingsClick = { song ->
@@ -196,16 +242,8 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                             bundle
                         )
                     },
-                    onFavoriteToggled = { toggledSong, wasFavorite ->
-                        if (wasFavorite) {
-                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds - toggledSong.id
-                        } else {
-                            songAdapter.favoriteSongIds = songAdapter.favoriteSongIds + toggledSong.id
-                        }
-                        songAdapter.notifyItemChanged(
-                            songAdapter.currentList.indexOfFirst { it.id == toggledSong.id },
-                            "silent"
-                        )
+                    onFavoriteToggled = { toggledSong ->
+                        favoritesViewModel.toggleFavoriteSong(toggledSong)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -235,6 +273,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
                 albumName.text = album.title ?: "Sin título"
                 albumArtistName.text = artistName
+                albumTopBarText.text = album.title
 
                 val albumImageModel = if (albumImageUrl.isNotBlank())
                     ImageRequestHelper.buildGlideModel(requireContext(), albumImageUrl)
@@ -256,6 +295,8 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 } else {
                     songs.forEach { it.imageFileName = null }
                 }
+
+                loadedAlbum = album
 
                 songAdapter.submitList(songs)
                 shimmerLayout.visibility = View.GONE
@@ -340,5 +381,10 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         }
     }
 
+    private fun updateFavoriteIcon(isFavorite: Boolean) {
+        favoriteIcon.setImageResource(
+            if (isFavorite) R.drawable.favorite else R.drawable.favorite_border
+        )
+    }
 
 }
