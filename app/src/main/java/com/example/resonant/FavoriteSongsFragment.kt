@@ -29,26 +29,6 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var songAdapter: SongAdapter
 
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                song?.let {
-                    songAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
-    }
-
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -139,6 +119,15 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
                     },
                     onFavoriteToggled = { toggledSong ->
                         favoritesViewModel.toggleFavoriteSong(toggledSong)
+                    },
+                    onAddToPlaylistClick = { songToAdd ->
+                        val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                            song = songToAdd,
+                            onNoPlaylistsFound = {
+                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
+                            }
+                        )
+                        selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -154,11 +143,6 @@ class FavoriteSongsFragment : BaseFragment(R.layout.fragment_favorite_songs) {
 
     fun setCurrentPlayingSong(url: String) {
         songAdapter.setCurrentPlayingSong(url)
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
     }
 
 }

@@ -27,6 +27,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.example.resonant.managers.SongManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.*
@@ -36,7 +37,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
 
     private var song: Song? = null
 
-    // Elementos del layout
     private lateinit var songImage: ShapeableImageView
     private lateinit var songTitle: TextView
     private lateinit var artistList: RecyclerView
@@ -46,11 +46,9 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
 
     private var albumJob: Job? = null
 
-    // Para animación y caché
     private var albumArtAnimator: ObjectAnimator? = null
     private val bitmapCache = mutableMapOf<String, Bitmap>()
     private var artworkJob: Job? = null
-    private val ioScope = CoroutineScope(Dispatchers.IO)
     override val coroutineContext: CoroutineContext get() = Dispatchers.Main + SupervisorJob()
     lateinit var songAdapter: SongAdapter
     private lateinit var sharedViewModel: SharedViewModel
@@ -58,116 +56,39 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     private var isPlaying: Boolean = false
     private lateinit var playButton: MaterialButton
 
-    private val playbackStateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED) {
-                val isPlayingNow = intent.getBooleanExtra(MusicPlaybackService.EXTRA_IS_PLAYING, false)
-                val currentSong = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-
-                // Compara IDs de la canción
-                val isThisSongPlaying = currentSong?.id == song?.id
-                isPlaying = isPlayingNow && isThisSongPlaying
-                updatePlayPauseButton(isPlaying)
-            }
-        }
-    }
-
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                song?.let {
-                    songAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            playbackStateReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED)
-        )
-
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
-
-        // Solicitar el estado actual al servicio
-        val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_REQUEST_STATE
-        }
-
-        requireContext().startService(intent)
-
+        setupViewModelObservers()
         val songId = arguments?.getString("songId")
         song = arguments?.getParcelable("song")
 
         if (song == null && !songId.isNullOrBlank()) {
-            val service = ApiClient.getService(requireContext())
+            // CASO 1: Solo tenemos el ID de la canción.
+            // El SongManager se encargará de hacer UNA SOLA llamada para obtener
+            // la canción, sus artistas, análisis, y luego las URLs.
             lifecycleScope.launch {
-                try {
-                    var loadedSong = service.getSongById(songId)
-
-                    if (loadedSong != null) {
-                        // Completar URL de audio si falta
-                        if (loadedSong.url.isNullOrBlank() && !loadedSong.fileName.isNullOrBlank()) {
-                            val songUrls = service.getMultipleSongUrls(listOf(loadedSong.fileName!!))
-                            val urlDto = songUrls.firstOrNull { it.fileName == loadedSong.fileName }
-                            if (urlDto != null) {
-                                loadedSong = loadedSong.copy(url = urlDto.url)
-                            }
-                        }
-
-                        // ✅ Completar portada si falta
-                        if (loadedSong.coverUrl.isNullOrBlank() && !loadedSong.imageFileName.isNullOrBlank()) {
-                            try {
-                                val coverDto = service.getSongCoverUrl(
-                                    loadedSong.imageFileName!!,
-                                    loadedSong.albumId
-                                )
-                                loadedSong = loadedSong.copy(coverUrl = coverDto.url)
-                            } catch (e: Exception) {
-                                Log.w("DetailedSongFragment", "No se pudo cargar portada: ${e.message}")
-                            }
-                        }
-
-                        // Completar artistas
-                        val artists = runCatching { service.getArtistsBySongId(loadedSong.id) }.getOrNull() ?: emptyList()
-                        val artistNames = artists.joinToString(", ") { it.name }
-                        loadedSong = loadedSong.copy(artistName = artistNames)
-
-                        song = loadedSong
-                        setupSongUI(loadedSong)
-                    } else {
-                        showSongNotFound()
-                    }
-                } catch (e: Exception) {
+                val loadedSong = SongManager.getSongById(requireContext(), songId)
+                if (loadedSong != null) {
+                    song = loadedSong
+                    setupSongUI(loadedSong)
+                } else {
                     showSongNotFound()
                 }
             }
         }
         else if (song != null) {
-            val service = ApiClient.getService(requireContext())
-            if (song?.url.isNullOrBlank() && !song?.fileName.isNullOrBlank()) {
-                lifecycleScope.launch {
-                    try {
-                        val songUrls = service.getMultipleSongUrls(listOf(song!!.fileName!!))
-                        val urlDto = songUrls.firstOrNull { it.fileName == song!!.fileName }
-                        if (urlDto != null) {
-                            song = song!!.copy(url = urlDto.url)
-                        }
-                        setupSongUI(song!!)
-                    } catch (e: Exception) {
-                        setupSongUI(song!!)
-                    }
+            // CASO 2: Ya tenemos el objeto Song, pero podría estar incompleto (sin url).
+            // Usamos nuestro nuevo método del manager para asegurarnos de que tiene todo.
+            lifecycleScope.launch {
+                try {
+                    // Esta llamada enriquecerá el objeto 'song' con las URLs que le falten.
+                    song = SongManager.enrichSingleSong(requireContext(), song!!)
+                    setupSongUI(song!!)
+                } catch (e: Exception) {
+                    Log.e("DetailedSongFragment", "Error al enriquecer la canción", e)
+                    // Si falla, mostramos la UI con los datos que ya teníamos.
+                    setupSongUI(song!!)
                 }
-            } else {
-                setupSongUI(song!!)
             }
         }
     }
@@ -190,8 +111,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         artistList.layoutManager = LinearLayoutManager(requireContext())
         val artistAdapter = ArtistAdapter(emptyList())
         artistList.adapter = artistAdapter
-
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
+
         songAdapter = SongAdapter(SongAdapter.VIEW_TYPE_FULL)
 
         playButton.setOnClickListener {
@@ -229,6 +150,32 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         }
 
         return view
+    }
+
+    private fun setupViewModelObservers() {
+        fun updateButtonState() {
+            // Obtenemos los valores actuales del ViewModel
+            val isCurrentlyPlaying = sharedViewModel.isPlayingLiveData.value ?: false
+            val currentlyPlayingId = sharedViewModel.currentSongLiveData.value?.id
+
+            // La condición clave: ¿Está el reproductor en "play" Y el ID de la canción
+            // que suena es el mismo que el de esta pantalla?
+            val isThisSongPlaying = isCurrentlyPlaying && (currentlyPlayingId == song?.id)
+
+            // Actualizamos la variable local y el botón
+            this.isPlaying = isThisSongPlaying
+            updatePlayPauseButton(isThisSongPlaying)
+        }
+
+        // Observador 1: Se activa cuando cambia la canción que está sonando en toda la app.
+        sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { _ ->
+            updateButtonState()
+        }
+
+        // Observador 2: Se activa cuando el estado de reproducción cambia (Play -> Pause o viceversa).
+        sharedViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { _ ->
+            updateButtonState()
+        }
     }
 
     private fun animateBackgroundColorFade(view: View, targetColor: Int, duration: Long = 500) {
@@ -327,8 +274,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         super.onDestroyView()
         cancelJobs()
         albumArtAnimator?.cancel()
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(playbackStateReceiver)
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
     }
 
     private fun loadAlbumName(albumId: String?) {

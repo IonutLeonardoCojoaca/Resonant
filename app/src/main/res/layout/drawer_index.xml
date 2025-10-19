@@ -6,381 +6,129 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <RelativeLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/headerDrawer"
         android:layout_width="match_parent"
-        android:layout_height="100dp"
-        android:paddingHorizontal="20dp"
+        android:layout_height="wrap_content"
+        android:padding="20dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/headerUserPhoto"
-            android:layout_width="70dp"
-            android:layout_height="70dp"
-            android:layout_centerVertical="true"
-            android:padding="2dp"
+            android:layout_width="65dp"
+            android:layout_height="65dp"
             android:scaleType="centerCrop"
             android:src="@drawable/user"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             app:shapeAppearanceOverlay="@style/CircularUserImage" />
 
-        <FrameLayout
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_centerVertical="true"
-            android:layout_marginLeft="10dp"
-            android:layout_toRightOf="@id/headerUserPhoto">
+        <TextView
+            android:id="@+id/headerUserName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_margin="15dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text=""
+            android:textColor="#fff"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/headerUserPhoto"
+            app:layout_constraintTop_toTopOf="parent" />
 
-            <TextView
-                android:id="@+id/headerUserName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Nombre de usuario"
-                android:textColor="#fff"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-            <TextView
-                android:id="@+id/headerUserRole"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom"
-                android:fontFamily="@font/unageo_light"
-                android:text="Ver perfil"
-                android:textColor="#fff"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-        </FrameLayout>
-
-    </RelativeLayout>
-
-    <View
-        android:id="@+id/topDivider"
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@drawable/gradient_top_drawer_background"
-        app:layout_constraintBottom_toBottomOf="@+id/headerDrawer"
+    <TextView
+        android:id="@+id/fastAccessText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:text="Acceso rápido"
+        android:textSize="16sp"
+        android:textColor="@color/white"
+        android:fontFamily="@font/unageo_bold"
+        android:layout_marginHorizontal="10dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/headerDrawer" />
 
-    <RelativeLayout
-        android:id="@+id/firstSectionDrawer"
+    <TextView
+        android:id="@+id/searchButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingVertical="15dp"
+        android:layout_marginHorizontal="10dp"
+        android:drawableStart="@drawable/search"
+        android:drawablePadding="10dp"
+        android:drawableTint="@color/white"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="Buscar"
+        android:textColor="@color/white"
+        android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/headerDrawer">
+        app:layout_constraintTop_toBottomOf="@+id/fastAccessText" />
 
-        <TextView
-            android:id="@+id/fastAccessText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="15dp"
-            android:fontFamily="@font/unageo_bold"
-            android:paddingHorizontal="20dp"
-            android:text="Acceso rápido"
-            android:textColor="@color/white"
-            android:textSize="16sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/fastAccessText"
-            android:orientation="horizontal">
-
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="85dp"
-                android:layout_weight="1">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|center">
-
-                    <ImageButton
-                        android:layout_width="60dp"
-                        android:layout_height="60dp"
-                        android:background="@drawable/drawer_button_background" />
-
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:background="@drawable/favorite"
-                        android:backgroundTint="@color/secondaryColorTheme"
-                        android:scaleX="1.2"
-                        android:scaleY="1.2" />
-
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|center"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Favoritas"
-                    android:textColor="@color/white"
-                    android:textSize="14sp" />
-
-            </FrameLayout>
-
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="85dp"
-                android:layout_weight="1">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|center">
-
-                    <ImageButton
-                        android:layout_width="60dp"
-                        android:layout_height="60dp"
-                        android:background="@drawable/drawer_button_background" />
-
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:background="@drawable/download"
-                        android:backgroundTint="@color/secondaryColorTheme"
-                        android:scaleX="1.4"
-                        android:scaleY="1.4" />
-
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|center"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Descargas"
-                    android:textColor="@color/white"
-                    android:textSize="14sp" />
-
-            </FrameLayout>
-
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="85dp"
-                android:layout_weight="1">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|center">
-
-                    <ImageButton
-                        android:layout_width="60dp"
-                        android:layout_height="60dp"
-                        android:background="@drawable/drawer_button_background" />
-
-                    <ImageView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:background="@drawable/recent"
-                        android:backgroundTint="@color/secondaryColorTheme"
-                        android:scaleX="1.4"
-                        android:scaleY="1.4" />
-
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|center"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Recientes"
-                    android:textColor="@color/white"
-                    android:textSize="14sp" />
-
-            </FrameLayout>
-
-        </LinearLayout>
-
-    </RelativeLayout>
-
-    <RelativeLayout
-        android:id="@+id/secondSectionDrawer"
+    <TextView
+        android:id="@+id/savedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingVertical="5dp"
+        android:layout_marginHorizontal="10dp"
+        android:drawableStart="@drawable/saved"
+        android:drawablePadding="10dp"
+        android:drawableTint="@color/white"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="Mi biblioteca"
+        android:textColor="@color/white"
+        android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/firstSectionDrawer">
+        app:layout_constraintTop_toBottomOf="@+id/searchButton" />
 
-        <TextView
-            android:id="@+id/musicText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_bold"
-            android:paddingHorizontal="20dp"
-            android:text="Música"
-            android:textColor="@color/white"
-            android:textSize="16sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/musicText"
-            android:orientation="vertical"
-            android:layout_marginTop="5dp"
-            android:paddingHorizontal="10dp">
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Inicio"
-                android:textAlignment="textStart"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/home"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#FFFFFF" />
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Explorar"
-                android:textAlignment="textStart"
-                android:textColor="#C5C5C5"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/explore"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#C5C5C5" />
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Playlists"
-                android:textAlignment="textStart"
-                android:textColor="#C5C5C5"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/playlist"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#C5C5C5" />
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Álbumes"
-                android:textAlignment="textStart"
-                android:textColor="#C5C5C5"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/song"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#C5C5C5" />
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Artistas"
-                android:textAlignment="textStart"
-                android:textColor="#C5C5C5"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/artist"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#C5C5C5" />
-
-        </LinearLayout>
-
-    </RelativeLayout>
-
-    <RelativeLayout
-        android:id="@+id/thirdSectionDrawer"
+    <TextView
+        android:id="@+id/favoriteSongsButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginHorizontal="10dp"
+        android:drawableStart="@drawable/favorite_border"
+        android:drawablePadding="10dp"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="Canciones favoritas"
+        android:textColor="@color/white"
+        android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/secondSectionDrawer">
+        app:layout_constraintTop_toBottomOf="@+id/savedButton" />
 
-        <TextView
-            android:id="@+id/settingsText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_bold"
-            android:paddingHorizontal="20dp"
-            android:text="Parámetros"
-            android:textColor="@color/white"
-            android:textSize="16sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/settingsText"
-            android:orientation="vertical"
-            android:paddingHorizontal="10dp">
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:layout_marginTop="5dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Ajustes"
-                android:textAlignment="textStart"
-                android:textColor="#C5C5C5"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/settings_selected"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#C5C5C5" />
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:backgroundTint="#0D0D0D"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Ayuda y soporte"
-                android:textAlignment="textStart"
-                android:textColor="#C5C5C5"
-                android:textSize="16sp"
-                app:cornerRadius="15dp"
-                app:icon="@drawable/information"
-                app:iconGravity="start"
-                app:iconPadding="15dp"
-                app:iconSize="20dp"
-                app:iconTint="#C5C5C5" />
-
-        </LinearLayout>
-
-    </RelativeLayout>
+    <TextView
+        android:id="@+id/settingsButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="10dp"
+        android:drawableStart="@drawable/settings"
+        android:drawablePadding="10dp"
+        android:drawableTint="@color/white"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="Ajustes"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/favoriteSongsButton" />
 
     <ImageView
         android:id="@+id/imageView"

@@ -3,6 +3,12 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="switch_thumb_on">#E21616</color>
+    <color name="switch_track_on">#4DE21616</color>
+
+    <color name="switch_thumb_off">#BDBDBD</color>
+    <color name="switch_track_off">#424242</color>
+
     <color name="transparent">#00000000</color>
 
     <!-- SNACKBAR COLORS -->
@@ -23,7 +29,7 @@
 
     <color name="numberTime">#9E9E9E</color>
 
-    <color name="nav_text_icon_color">#E9E9E9</color>
+    <color name="nav_text_icon_color">#6F6F6F</color>
     <color name="nav_text_icon_color_selected">#E9E9E9</color>
 
     <color name="no_selected_color_icon">#6F6F6F</color>

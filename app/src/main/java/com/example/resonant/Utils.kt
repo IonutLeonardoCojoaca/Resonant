@@ -44,6 +44,21 @@ object Utils {
         }
     }
 
+    fun cacheSongBitmap(songId: String, bitmap: Bitmap, context: Context) {
+        if (songId.isBlank()) return
+        try {
+            // Usamos .jpg para optimizar el espacio. 85 es un buen balance calidad/tamaño.
+            val fileName = "cover_$songId.jpg"
+            val file = File(context.cacheDir, fileName)
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
+            }
+            Log.d("UtilsCache", "✅ Bitmap cacheado para songId: $songId")
+        } catch (e: Exception) {
+            Log.e("UtilsCache", "❌ Error al cachear bitmap para songId: $songId", e)
+        }
+    }
+
     fun formatDuration(seconds: Int): String {
         val hours = seconds / 3600
         val minutes = (seconds % 3600) / 60
@@ -62,11 +77,17 @@ object Utils {
     }
 
     fun getCachedSongBitmap(songId: String, context: Context): Bitmap? {
-        val fileName = "cover_${songId}.png"
-        val file = File(context.cacheDir, fileName)
-        return if (file.exists()) {
-            BitmapFactory.decodeFile(file.absolutePath)
-        } else {
+        if (songId.isBlank()) return null
+        return try {
+            val fileName = "cover_$songId.jpg" // Buscamos el archivo .jpg
+            val file = File(context.cacheDir, fileName)
+            if (file.exists()) {
+                BitmapFactory.decodeFile(file.absolutePath)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("UtilsCache", "❌ Error al leer bitmap de la caché para songId: $songId", e)
             null
         }
     }

@@ -23,6 +23,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
+import com.example.resonant.managers.SongManager
 import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -58,31 +59,11 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private var lastResults: List<SearchResult> = emptyList()
 
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                song?.let {
-                    searchResultAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         sharedViewModel.currentSongLiveData.value?.let { currentSong ->
             searchResultAdapter.setCurrentPlayingSong(currentSong.id)
         }
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
     }
 
     override fun onCreateView(
@@ -107,7 +88,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
-        sharedViewModel = SharedViewModelHolder.sharedViewModel
+        sharedViewModel = ViewModelProvider(requireActivity())[SharedViewModel::class.java]
 
         sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             searchResultAdapter.setCurrentPlayingSong(currentSong?.id)
@@ -224,6 +205,15 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     },
                     onFavoriteToggled = { toggledSong ->
                         favoritesViewModel.toggleFavoriteSong(toggledSong)
+                    },
+                    onAddToPlaylistClick = { songToAdd ->
+                        val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                            song = songToAdd,
+                            onNoPlaylistsFound = {
+                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
+                            }
+                        )
+                        selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -271,7 +261,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     val service = ApiClient.getService(requireContext())
                     try {
                         // Ejecutar las 3 búsquedas en paralelo
-                        val songsDeferred = async { service.searchSongsByQuery(query) }
+                        val songsDeferred = async { SongManager.searchSongs(requireContext(), query) }
                         val albumsDeferred = async { service.searchAlbumsByQuery(query) }
                         val artistsDeferred = async { service.searchArtistsByQuery(query) }
 
@@ -295,47 +285,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             )
                         }
 
-                        songs.forEach { song ->
-                            val songArtists = service.getArtistsBySongId(song.id)
-                            song.artistName = songArtists.filterNotNull().map { it.name ?: "Desconocido" }.joinToString(", ")
-                        }
-
-                        // Resolver URLs de canciones que no traen url directa
-                        val missingSongFileNames = songs.filter { it.url.isNullOrEmpty() }
-                            .mapNotNull { it.fileName?.takeIf { fn -> fn.isNotBlank() } }
-                        if (missingSongFileNames.isNotEmpty()) {
-                            val songUrls = service.getMultipleSongUrls(missingSongFileNames)
-                            val songUrlMap = missingSongFileNames.zip(songUrls.map { it.url }).toMap()
-                            songs.forEach { s ->
-                                if (s.url.isNullOrEmpty()) {
-                                    s.fileName?.let { fn -> s.url = songUrlMap[fn] }
-                                }
-                            }
-                        }
-
-                        val coversRequest = songs.mapNotNull { song ->
-                            song.imageFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
-                                song.albumId.takeIf { it.isNotBlank() }?.let { albumId ->
-                                    fileName to albumId
-                                }
-                            }
-                        }
-
-                        if (coversRequest.isNotEmpty()) {
-                            val (fileNames, albumIds) = coversRequest.unzip()
-
-                            val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
-
-                            val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
-                                keySelector = { it.imageFileName to it.albumId },
-                                valueTransform = { it.url }
-                            )
-
-                            songs.forEach { s ->
-                                s.coverUrl = coverUrlMap[s.imageFileName to s.albumId]
-                            }
-                        }
-
                         // ÁLBUMES: nombres de artistas y URLs de portadas en lote
                         albums.forEach { album ->
                             val albumArtists = service.getArtistsByAlbumId(album.id)
@@ -353,7 +302,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
                         // Intercalar y ordenar por relevancia
                         val combined = intercalateAndSortResults(songs, albums, artistsPrepared, query)
-
                         // Actualizar colecciones internas
                         songResults.clear(); songResults.addAll(songs)
                         albumResults.clear(); albumResults.addAll(albums)
@@ -493,11 +441,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         outState.putBoolean("showSongs", showSongs)
         outState.putBoolean("showAlbums", showAlbums)
         outState.putBoolean("showArtists", showArtists)
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
     }
 
 }

@@ -16,7 +16,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 3
-        versionName = "1.44.0"
+        versionName = "1.50.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -79,8 +79,6 @@ dependencies {
 
     implementation ("com.airbnb.android:lottie:6.0.0")
 
-    implementation ("com.google.android.material:material:1.12.0")
-
     implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation ("androidx.core:core-ktx:1.7.0")
@@ -90,7 +88,7 @@ dependencies {
 
     implementation ("androidx.navigation:navigation-fragment:2.9.0")
     implementation ("androidx.navigation:navigation-ui:2.9.0")
-    implementation ("com.google.android.material:material:1.12.0")
+    implementation ("com.google.android.material:material:1.13.0")
 
     implementation (libs.picasso)
 
@@ -104,6 +102,10 @@ dependencies {
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation("androidx.media3:media3-ui:1.8.0")
+    implementation("androidx.media3:media3-session:1.8.0")
 
 }

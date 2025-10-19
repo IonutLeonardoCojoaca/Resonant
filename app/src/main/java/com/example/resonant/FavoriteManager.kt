@@ -3,6 +3,7 @@ package com.example.resonant
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.example.resonant.managers.SongManager
 
 class FavoriteManager(private val context: Context) {
     private val api = ApiClient.getService(context)
@@ -30,68 +31,14 @@ class FavoriteManager(private val context: Context) {
         }
     }
 
-    suspend fun getFavoritesSongs(cancionesAnteriores: List<Song>? = null): List<Song> {
+    suspend fun getFavoritesSongs(context: Context): List<Song> {
         val userId = getUserId() ?: return emptyList()
+
         return try {
-            val favoritos = api.getFavoriteSongsByUser(userId).toMutableList()
-            val service = api
+            SongManager.getFavoriteSongs(context, userId)
 
-            for (song in favoritos) {
-                val artistList = service.getArtistsBySongId(song.id)
-                song.artistName = artistList.joinToString(", ") { it.name }
-
-                val songCache = cancionesAnteriores?.find { it.id == song.id }
-                if (songCache != null) {
-                    song.url = songCache.url
-                }
-            }
-
-            val cancionesSinUrl = favoritos.filter { it.url.isNullOrEmpty() }
-            if (cancionesSinUrl.isNotEmpty()) {
-                val fileNames = cancionesSinUrl.mapNotNull { it.fileName }
-                val urlList = service.getMultipleSongUrls(fileNames)
-                val urlMap = urlList.associateBy { it.fileName }
-                cancionesSinUrl.forEach { song ->
-                    song.url = urlMap[song.fileName]?.url
-                }
-            }
-
-            val coversRequest = favoritos.mapNotNull { song ->
-                song.imageFileName?.takeIf { it.isNotBlank() }?.let { fileName ->
-                    song.albumId.takeIf { it.isNotBlank() }?.let { albumId ->
-                        fileName to albumId
-                    }
-                }
-            }
-
-            if (coversRequest.isNotEmpty()) {
-                val (fileNames, albumIds) = coversRequest.unzip()
-
-                val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
-
-                val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
-                    keySelector = { it.imageFileName to it.albumId },
-                    valueTransform = { it.url }
-                )
-
-                favoritos.forEach { song ->
-                    val key = song.imageFileName to song.albumId
-                    song.coverUrl = coverUrlMap[key]
-                }
-            }
-
-            val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.UPDATE_SONGS
-                putParcelableArrayListExtra(
-                    MusicPlaybackService.SONG_LIST,
-                    ArrayList(favoritos)
-                )
-            }
-            context.startService(updateIntent)
-
-            favoritos
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("FavoriteManager", "Error al obtener las canciones favoritas", e)
             emptyList()
         }
     }

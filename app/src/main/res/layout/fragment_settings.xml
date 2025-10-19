@@ -1,164 +1,257 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".SettingsFragment"
-    android:background="@color/black">
+    android:background="@color/black"
+    android:paddingHorizontal="20dp">
 
-    <RelativeLayout
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/title_settings"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="15dp"
+        android:fontFamily="@font/unageo_regular"
+        android:text="Ajustes"
+        android:textColor="@color/white"
+        android:textSize="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/title_playback"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="15dp"
+        android:fontFamily="@font/unageo_bold"
+        android:text="Reproducción"
+        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+        android:textColor="@color/secondaryColorTheme"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/title_settings" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_automix"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Automix"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@+id/automix_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/title_playback" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/subtitle_automix"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Elimina el silencio entre canciones de un mismo álbum."
+        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toStartOf="@+id/automix_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/label_automix" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/automix_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@id/subtitle_automix"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/label_automix"
+        app:thumbTint="@color/switch_thumb_selector"
+        app:trackTint="@color/switch_track_selector" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_crossfade_section"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Crossfade"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/subtitle_automix" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_crossfade"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_regular"
+        android:text="Duración del fundido (0s = desactivado)"
+        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toStartOf="@+id/crossfade_value_label"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/label_crossfade_section" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/crossfade_value_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/secondaryColorTheme"
+        app:layout_constraintBaseline_toBaselineOf="@id/label_crossfade"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="5 s" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/crossfade_slider"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:stepSize="1.0"
+        android:value="5.0"
+        android:valueFrom="0.0"
+        android:valueTo="12.0"
+        android:layout_marginTop="10dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/label_crossfade" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_mode_crossfade"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:fontFamily="@font/unageo_regular"
+        android:text="Modo de fundido"
+        android:textSize="16sp"
+        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+        android:textColor="@color/white"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/crossfade_slider" />
+
+    <LinearLayout
+        android:id="@+id/crossfade_mode_group"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp"
+        android:paddingVertical="4dp"
+        app:layout_constraintTop_toBottomOf="@id/label_mode_crossfade">
 
-        <FrameLayout
-            android:id="@+id/settingsTextContainer"
-            android:layout_width="match_parent"
+        <androidx.cardview.widget.CardView
+            android:id="@+id/mode_soft_card"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="15dp">
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/card_toggle_background"
+            app:strokeColor="@color/card_toggle_stroke">
 
-            <TextView
-                android:id="@+id/settingsText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Ajustes"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="start"/>
+            <ImageView
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_gravity="center"
+                android:layout_margin="12dp"
+                android:src="@drawable/spectrogram_soft"
+                app:tint="@color/card_toggle_icon_tint" />
 
-        </FrameLayout>
+        </androidx.cardview.widget.CardView>
 
-        <RelativeLayout
-            android:id="@+id/clearCacheButton"
-            android:layout_width="match_parent"
+        <androidx.cardview.widget.CardView
+            android:id="@+id/mode_fast_card"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_below="@id/settingsTextContainer"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="5dp">
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/card_toggle_background"
+            app:strokeColor="@color/card_toggle_stroke">
 
-            <ImageButton
-                android:id="@+id/layoutBackground2"
-                android:layout_width="match_parent"
-                android:layout_height="70dp"
-                android:background="@drawable/item_settings_button"/>
+            <ImageView
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_gravity="center"
+                android:layout_margin="12dp"
+                android:src="@drawable/spectrogram_cut"
+                app:tint="@color/card_toggle_icon_tint" />
 
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="70dp"
-                android:layout_centerInParent="true"
-                android:padding="10dp">
+        </androidx.cardview.widget.CardView>
 
-                <ImageView
-                    android:id="@+id/iconTrash"
-                    android:layout_width="32dp"
-                    android:layout_height="30dp"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentStart="true"
-                    android:background="@drawable/delete_icon"
-                    android:layout_marginRight="10dp"/>
+    </LinearLayout>
 
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="54dp"
-                    android:layout_toRightOf="@id/iconTrash"
-                    android:layout_centerVertical="true">
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_intelligent_crossfade"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="15dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Crossfade inteligente - Beta"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@+id/intelligent_crossfade_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/crossfade_mode_group" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Borrar caché"
-                        android:fontFamily="@font/unageo_medium"
-                        android:layout_gravity="top"
-                        android:textSize="14sp"
-                        android:textColor="@color/white"
-                        android:textStyle="bold"/>
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/subtitle_intelligent_crossfade"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Ecualizador, BPM, tonalidades y acustica implementada."
+        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toStartOf="@+id/intelligent_crossfade_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/label_intelligent_crossfade" />
 
-                    <TextView
-                        android:layout_width="290dp"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:layout_gravity="bottom"
-                        android:textSize="12sp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Borra los datos para mejorar el rendimiento de la apliacación"/>
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/intelligent_crossfade_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@id/subtitle_intelligent_crossfade"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/label_intelligent_crossfade"
+        app:thumbTint="@color/switch_thumb_selector"
+        app:trackTint="@color/switch_track_selector" />
 
-                </FrameLayout>
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/title_account"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_bold"
+        android:text="Cuenta"
+        android:layout_marginTop="15dp"
+        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+        android:textColor="@color/secondaryColorTheme"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/subtitle_intelligent_crossfade" />
 
-            </RelativeLayout>
+    <TextView
+        android:id="@+id/signOutButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:drawableStart="@drawable/signout"
+        android:drawablePadding="10dp"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="Cerrar sesión"
+        android:textColor="@color/errorColor"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/title_account" />
 
-        </RelativeLayout>
-
-        <RelativeLayout
-
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/clearCacheButton"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="5dp">
-
-            <ImageButton
-                android:id="@+id/layoutBackground"
-                android:layout_width="match_parent"
-                android:layout_height="70dp"
-                android:background="@drawable/item_settings_button"/>
-
-            <RelativeLayout
-                android:id="@+id/signOutButton"
-                android:layout_width="match_parent"
-                android:layout_height="70dp"
-                android:layout_centerInParent="true"
-                android:padding="10dp">
-
-                <ImageView
-                    android:id="@+id/iconSignOut"
-                    android:layout_width="32dp"
-                    android:layout_height="30dp"
-                    android:layout_centerVertical="true"
-                    android:layout_alignParentStart="true"
-                    android:background="@drawable/signout"
-                    android:layout_marginRight="10dp"/>
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="54dp"
-                    android:layout_toRightOf="@id/iconSignOut"
-                    android:layout_centerVertical="true">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Cerrar Sesión"
-                        android:fontFamily="@font/unageo_medium"
-                        android:layout_gravity="top"
-                        android:textSize="14sp"
-                        android:textColor="@color/errorColor"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:layout_width="290dp"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/errorColor"
-                        android:layout_gravity="bottom"
-                        android:textSize="12sp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Tendrás que volver a iniciar sesión para poder escuchar tus canciones guardadas"/>
-
-                </FrameLayout>
-
-            </RelativeLayout>
-
-        </RelativeLayout>
-
-        <ImageView
-            android:layout_width="185dp"
-            android:layout_height="185dp"
-            android:background="@drawable/resonant_black"
-            android:scaleType="centerCrop"
-            android:layout_centerInParent="true"
-            android:alpha="0.2"/>
-
-    </RelativeLayout>
-
-</FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

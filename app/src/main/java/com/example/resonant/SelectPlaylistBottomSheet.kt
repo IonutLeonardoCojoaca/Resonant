@@ -20,7 +20,8 @@ import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.launch
 
 class SelectPlaylistBottomSheet(
-    private val song: Song
+    private val song: Song,
+    private val onNoPlaylistsFound: () -> Unit
 ) : BottomSheetDialogFragment() {
 
     private lateinit var playlistAdapter: PlaylistAdapter
@@ -136,10 +137,11 @@ class SelectPlaylistBottomSheet(
             noPlaylistTextView.visibility = View.VISIBLE
             selectPlaylistText.visibility = View.GONE
             noPlaylistTextView.setOnClickListener {
-                dismiss() // Cierra este BottomSheet
-                // Navega a la pantalla de crear playlist
-                val navHostFragment = requireActivity().supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-                navHostFragment.navController.navigate(R.id.createPlaylistFragment)
+                onNoPlaylistsFound()
+                // El dismiss() no es estrictamente necesario aquí,
+                // ya que la lambda probablemente cerrará toda la pila de diálogos.
+                // Pero no hace daño dejarlo.
+                dismiss()
             }
         } else {
             playlistRecyclerView.visibility = View.VISIBLE

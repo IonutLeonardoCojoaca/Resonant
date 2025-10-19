@@ -204,17 +204,7 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
             }
 
             itemView.setOnClickListener {
-                val previousId = currentPlayingId
-                currentPlayingId = song.id
-
-                previousId?.let { prev ->
-                    val prevIndex = currentList.indexOfFirst { it.id == prev }
-                    if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
-                }
-
-                val currentIndex = currentList.indexOfFirst { it.id == currentPlayingId }
-                if (currentIndex != -1) notifyItemChanged(currentIndex, "silent")
-
+                // Ahora solo notificamos el clic. Nada más.
                 onItemClick?.invoke(song to null)
             }
         }
@@ -292,17 +282,7 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
             }
 
             itemView.setOnClickListener {
-                val previousId = currentPlayingId
-                currentPlayingId = song.id
-
-                previousId?.let { prev ->
-                    val prevIndex = currentList.indexOfFirst { it.id == prev }
-                    if (prevIndex != -1) notifyItemChanged(prevIndex, "silent")
-                }
-
-                val currentIndex = adapterPosition
-                if (currentIndex != -1) notifyItemChanged(currentIndex, "silent")
-
+                // Solo notificamos la intención del usuario.
                 onItemClick?.invoke(song to null)
             }
         }

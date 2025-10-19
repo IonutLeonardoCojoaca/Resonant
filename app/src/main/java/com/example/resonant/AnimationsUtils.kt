@@ -69,8 +69,16 @@ object AnimationsUtils {
             .start()
     }
 
-    fun animateSongImage(imageView: ImageView, newBitmap: Bitmap, direction: Int) {
+    // En tu archivo AnimationsUtils.kt o donde tengas la función
+
+    fun animateSongImage(
+        imageView: ImageView,
+        newBitmap: Bitmap,
+        direction: Int,
+        onComplete: () -> Unit // <-- AÑADE ESTE PARÁMETRO
+    ) {
         val moveX = if (direction > 0) -200f else 200f
+
         imageView.animate()
             .translationX(moveX)
             .scaleX(0.8f)
@@ -83,12 +91,17 @@ object AnimationsUtils {
                 imageView.scaleX = 0.8f
                 imageView.scaleY = 0.8f
                 imageView.alpha = 0f
+
                 imageView.animate()
                     .translationX(0f)
                     .scaleX(1f)
                     .scaleY(1f)
                     .alpha(1f)
                     .setDuration(250)
+                    // 👇 ESTE ES EL CAMBIO CLAVE 👇
+                    .withEndAction {
+                        onComplete() // Avisamos que TODO ha terminado
+                    }
                     .start()
             }
             .start()

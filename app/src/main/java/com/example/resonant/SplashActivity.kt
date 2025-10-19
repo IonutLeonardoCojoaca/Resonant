@@ -12,13 +12,12 @@ import kotlinx.coroutines.launch
 class SplashActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Llama a la extensión de Jetpack antes de super.onCreate
         installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
         val lottie = findViewById<LottieAnimationView>(R.id.lottieLoader)
-        lottie.speed = 2f // opcional
+        lottie.speed = 2f
 
         val session = SessionManager(applicationContext, ApiClient.baseUrl())
 

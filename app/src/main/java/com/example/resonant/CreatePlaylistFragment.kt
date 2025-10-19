@@ -104,9 +104,8 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
         // Observador para el éxito de la creación
         playlistsViewModel.playlistCreated.observe(viewLifecycleOwner) { isCreated ->
             if (isCreated) {
-                PlaylistCreatedDialogFragment {
-                    findNavController().navigate(R.id.action_createPlaylistFragment_to_savedFragment)
-                }.show(parentFragmentManager, "playlist_created")
+                findNavController().navigate(R.id.action_createPlaylistFragment_to_savedFragment)
+
 
                 // Reseteamos el estado para evitar que el diálogo se muestre de nuevo
                 playlistsViewModel.onPlaylistCreationHandled()

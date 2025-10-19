@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.managers.SongManager
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.launch
 
@@ -48,20 +49,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
     private lateinit var favoriteIcon: ImageView
 
     private lateinit var shimmerLayout: ShimmerFrameLayout
-
     private lateinit var api: ApiResonantService
-
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                song?.let {
-                    songAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -186,11 +174,6 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             }
         }
 
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
-
         songAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
@@ -244,6 +227,15 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                     },
                     onFavoriteToggled = { toggledSong ->
                         favoritesViewModel.toggleFavoriteSong(toggledSong)
+                    },
+                    onAddToPlaylistClick = { songToAdd ->
+                        val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                            song = songToAdd,
+                            onNoPlaylistsFound = {
+                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
+                            }
+                        )
+                        selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -263,6 +255,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 shimmerLayout.visibility = View.VISIBLE
                 recyclerViewSongs.visibility = View.GONE
 
+                // --- 1. OBTENER DETALLES DEL ÁLBUM (Esta parte no cambia) ---
                 val album = api.getAlbumById(albumId)
                 val albumFileName = album.fileName
                 val albumImageUrl = albumFileName?.let { api.getAlbumUrl(it).url }.orEmpty()
@@ -288,13 +281,11 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 albumDuration.text = Utils.formatDuration(album.duration)
                 albumNumberOfTracks.text = "${album.numberOfTracks} canciones"
 
-                val songs = getSongsFromAlbum(requireContext(), albumId)
-
-                if (albumImageUrl.isNotBlank()) {
-                    songs.forEach { it.imageFileName = albumImageUrl }
-                } else {
-                    songs.forEach { it.imageFileName = null }
-                }
+                // --- 2. ¡EL CAMBIO MÁGICO! OBTENER CANCIONES CON EL MANAGER ---
+                // Una sola línea reemplaza toda tu función getSongsFromAlbum.
+                val songs = SongManager.getSongsFromAlbum(requireContext(), albumId)
+                // La lista 'songs' ya viene completa con artistas, URLs y datos de análisis.
+                // -----------------------------------------------------------
 
                 loadedAlbum = album
 
@@ -307,77 +298,6 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 shimmerLayout.visibility = View.GONE
                 recyclerViewSongs.visibility = View.VISIBLE
             }
-        }
-    }
-
-    suspend fun getSongsFromAlbum(
-        context: Context,
-        albumId: String,
-        cancionesAnteriores: List<Song>? = null
-    ): List<Song> {
-        return try {
-            val service = ApiClient.getService(context)
-            val cancionesDelAlbum = service.getSongsByAlbumId(albumId).toMutableList()
-            Log.d("AlbumFragment", "Canciones obtenidas del servidor: ${cancionesDelAlbum.size}")
-
-            // ARTISTAS
-            for (song in cancionesDelAlbum) {
-                val artistList = service.getArtistsBySongId(song.id)
-                song.artistName = artistList.joinToString(", ") { it.name }
-
-                cancionesAnteriores?.find { it.id == song.id }?.let {
-                    song.url = it.url
-                }
-            }
-
-            // AUDIO URLs
-            val cancionesSinUrl = cancionesDelAlbum.filter { it.url.isNullOrEmpty() }
-            if (cancionesSinUrl.isNotEmpty()) {
-                val fileNames = cancionesSinUrl.map { it.fileName }
-                val urlList = service.getMultipleSongUrls(fileNames)
-                val urlMap = urlList.associateBy { it.fileName }
-                cancionesSinUrl.forEach { song ->
-                    song.url = urlMap[song.fileName]?.url
-                }
-            }
-
-// PORTADAS (COVER URLs)
-            val coversRequest = cancionesDelAlbum.mapNotNull { song ->
-                val fn = song.imageFileName
-                val aid = song.albumId ?: albumId
-                if (!fn.isNullOrBlank() && !aid.isNullOrBlank()) fn to aid else null
-            }
-
-            if (coversRequest.isNotEmpty()) {
-                val (fileNames, albumIds) = coversRequest.unzip()
-
-                // Ahora devuelve objetos completos
-                val coverResponses: List<CoverResponse> = service.getMultipleSongCoverUrls(fileNames, albumIds)
-
-                // Creamos un Map (imageFileName, albumId) -> url
-                val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associateBy(
-                    keySelector = { it.imageFileName to it.albumId },
-                    valueTransform = { it.url }
-                )
-
-                // Asignamos URLs a las canciones correspondientes
-                cancionesDelAlbum.forEach { song ->
-                    val key = song.imageFileName to (song.albumId ?: albumId)
-                    song.coverUrl = coverUrlMap[key]
-                }
-            }
-
-
-            val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.UPDATE_SONGS
-                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(cancionesDelAlbum))
-            }
-            context.startService(updateIntent)
-
-            cancionesDelAlbum
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
         }
     }
 

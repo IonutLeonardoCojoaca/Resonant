@@ -5,6 +5,27 @@
 
     </style>
 
+    <style name="AppBottomSheetDialogTheme" parent="Theme.Design.Light.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/AppModalStyle</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="AppModalStyle" parent="Widget.Design.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="FullScreenDialogStyle" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+
+        <item name="android:windowEnterAnimation">@anim/slide_in_up</item>
+
+        <item name="android:windowExitAnimation">@anim/slide_out_down</item>
+    </style>
+
     <style name="ShapeAppearance.Resonant.Corner.Grid.TopLeft" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSizeTopLeft">8dp</item>
@@ -110,6 +131,7 @@
     <style name="BottomNavTextAppearance" parent="TextAppearance.MaterialComponents.Caption">
         <item name="fontFamily">@font/unageo_medium</item>
         <item name="android:textSize">12sp</item>
+        <item name="android:lineHeight">20sp</item>
     </style>
 
     <style name="BottomNavigationViewStyle" parent="Widget.MaterialComponents.BottomNavigationView">
@@ -118,6 +140,18 @@
         <item name="itemTextColor">@color/nav_text_icon_color</item>
         <item name="itemTextAppearanceActive">@style/BottomNavTextAppearance</item>
         <item name="itemTextAppearanceInactive">@style/BottomNavTextAppearance</item>
+    </style>
+
+    <style name="Widget.App.Button.IconOnly" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="iconPadding">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="android:minWidth">48dp</item>
+        <item name="android:minHeight">48dp</item>
+
+        <item name="iconSize">34dp</item>
     </style>
 
 </resources>

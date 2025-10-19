@@ -112,7 +112,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="20dp"
         android:fontFamily="@font/unageo_regular"
-        android:gravity="center"
+        android:gravity="start|center_vertical"
         android:text="No tienes ninguna lista todavía ¡Crea una!"
         android:textColor="@color/white"
         android:textSize="15sp"

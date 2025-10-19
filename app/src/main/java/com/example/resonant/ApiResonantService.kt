@@ -118,23 +118,8 @@ interface ApiResonantService {
 
 
 
-
-    // Song
-    @GET("api/Song/GetById")
-    suspend fun getSongById(
-        @Query("id") id: String): Song
-
     @GET("api/Song/GetAllIds")
     suspend fun getAllSongIds(): List<String>
-
-    @GET("api/Song/SearchByQuery")
-    suspend fun searchSongsByQuery(
-        @Query("query") query: String): List<Song>
-
-    @GET("api/Song/GetByAlbumId")
-    suspend fun getSongsByAlbumId(
-        @Query("albumId") albumId: String
-    ): List<Song>
 
     @PUT("api/Song/AddStream")
     suspend fun incrementStream(
@@ -153,22 +138,47 @@ interface ApiResonantService {
         @Query("songId") songId: String
     )
 
-    @GET("/api/Song/GetByUserId")
-    suspend fun getFavoriteSongsByUser(
-        @Query("userId") userId: String
-    ): List<Song>
-
-    @GET("api/Song/GetByPlaylistId")
-    suspend fun getSongsByPlaylistIdWithArtists(
-        @Query("playlistId") playlistId: String
-    ): List<Song>
-
     @GET("api/Song/MostStreamedByArtist")
     suspend fun getMostStreamedSongsByArtist(
         @Query("artistId") artistId: String,
         @Query("count") count: Int
     ): List<Song>
 
+    /** 🔹 Canción individual (por ID) con artistas + audio analysis */
+    @GET("api/Song/GetByIdWithMetadata")
+    suspend fun getSongByIdWithMetadata(
+        @Query("id") songId: String
+    ): Song
+
+    /** 🔹 Canciones de una playlist con artistas + audio analysis */
+    @GET("api/Song/GetByPlaylistIdWithMetadata")
+    suspend fun getSongsByPlaylistIdWithMetadata(
+        @Query("playlistId") playlistId: String
+    ): List<Song>
+
+    /** 🔹 Canciones favoritas de un usuario */
+    @GET("api/Song/GetByUserIdWithMetadata")
+    suspend fun getSongsByUserIdWithMetadata(
+        @Query("userId") userId: String
+    ): List<Song>
+
+    /** 🔹 Canciones de un álbum */
+    @GET("api/Song/GetByAlbumIdWithMetadata")
+    suspend fun getSongsByAlbumIdWithMetadata(
+        @Query("albumId") albumId: String
+    ): List<Song>
+
+    /** 🔹 Canciones por artista */
+    @GET("api/Song/GetByArtistIdWithMetadata")
+    suspend fun getSongsByArtistIdWithMetadata(
+        @Query("artistId") artistId: String
+    ): List<Song>
+
+    /** 🔹 Canciones por búsqueda (query) */
+    @GET("api/Song/SearchWithMetadata")
+    suspend fun searchSongsWithMetadata( // El nombre del método puede ser diferente al del endpoint
+        @Query("query") query: String
+    ): List<Song>
 
 
 

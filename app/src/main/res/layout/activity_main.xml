@@ -80,7 +80,10 @@
                 android:layout_height="62dp"
                 android:background="@drawable/music_player_background"
                 android:elevation="10dp"
-                android:translationZ="4dp">
+                android:translationZ="4dp"
+                android:focusable="true"
+                android:clickable="true"
+                android:foreground="?attr/selectableItemBackground">
 
                 <com.google.android.material.imageview.ShapeableImageView
                     android:id="@+id/songImage"
@@ -211,11 +214,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:scaleX="1.03"
-                    android:layout_alignParentBottom="true"
                     android:enabled="false"
                     android:progressDrawable="@drawable/seekbar_tracking"
                     android:progressTint="@color/white"
                     android:thumb="@null"
+                    android:background="@android:color/transparent"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent" />
@@ -226,19 +229,19 @@
 
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"
+            style="@style/BottomNavigationViewStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:minHeight="60dp"
             android:background="@drawable/gradient_bottom_navigation"
             android:clipToPadding="false"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:menu="@menu/bottom_navigation_menu"
-            app:itemTextColor="@color/nav_text_icon_color"
             app:itemBackground="@android:color/transparent"
-            style="@style/BottomNavigationViewStyle"
-            app:labelVisibilityMode="selected"/>
+            app:itemIconTint="@color/nav_item_color_selector"
+            app:itemTextColor="@color/nav_item_color_selector"
+            app:labelVisibilityMode="labeled"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:menu="@menu/bottom_navigation_menu" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

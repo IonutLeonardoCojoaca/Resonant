@@ -24,10 +24,14 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.findNavController
 import androidx.navigation.fragment.findNavController
 import com.bumptech.glide.Glide
 import com.example.resonant.SnackbarUtils.showResonantSnackbar
@@ -36,8 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-class SongFragment : BaseFragment(R.layout.fragment_song) {
-
+class SongFragment : DialogFragment() {
     private lateinit var blurrySongImageBackground: ImageView
     private lateinit var arrowGoBackButton: FrameLayout
     private lateinit var settingsButton: FrameLayout
@@ -59,69 +62,28 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var favoriteButton: ImageButton
 
+    lateinit var bottomSheet: SongOptionsBottomSheet
+
     private var musicService: MusicPlaybackService? = null
 
     private var lastDirection = 1
     private var lastSongId: String? = null
     private var isFirstLoad = true
+    private var isAnimatingCover = false // <-- AÑADE ESTA LÍNEA
 
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                song?.let {
-                    songAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
-
-    private val playbackStateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED) {
-                val isPlayingNow = intent.getBooleanExtra(MusicPlaybackService.EXTRA_IS_PLAYING, false)
-                isPlaying = isPlayingNow
-                updatePlayPauseButton(isPlayingNow)
-            }
-        }
-    }
-
-    private val seekBarUpdateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SEEK_BAR_UPDATE) {
-                val position = intent.getIntExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, 0)
-                val duration = intent.getIntExtra(MusicPlaybackService.EXTRA_DURATION, 0)
-
-                seekBar.max = duration
-                seekBar.progress = position
-
-                currentTimeText.text = Utils.formatTime(position)
-                totalTimeText.text = Utils.formatTime(duration)
-            }
-        }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setStyle(DialogFragment.STYLE_NORMAL, R.style.FullScreenDialogStyle)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-
-        AnimationsUtils.animateOpenFragment(view)
-
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            seekBarUpdateReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_UPDATE)
-        )
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            playbackStateReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED)
-        )
-        val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_REQUEST_STATE
+        super.onViewCreated(view, savedInstanceState)
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
         }
-        requireContext().startService(intent)
+        AnimationsUtils.animateOpenFragment(view)
     }
 
     override fun onCreateView(
@@ -154,52 +116,16 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
         }
 
         sharedViewModel = ViewModelProvider(requireActivity()).get(SharedViewModel::class.java)
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
-        sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let { song ->
-                titleView.text = song.title ?: "Desconocido"
-                artistView.text = song.artistName ?: "Desconocido"
-
-                val albumCoverRes = R.drawable.album_cover
-                val url = song.coverUrl
-
-                if (!url.isNullOrBlank()) {
-                    Glide.with(requireContext())
-                        .asBitmap()
-                        .load(url)
-                        .placeholder(albumCoverRes)
-                        .error(albumCoverRes)
-                        .into(object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
-                            override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
-                                if (isFirstLoad || song.id == lastSongId) {
-                                    blurrySongImageBackground.setImageBitmap(resource)
-                                    imageSong?.setImageBitmap(resource)
-                                    isFirstLoad = false
-                                } else {
-                                    AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, resource)
-                                    AnimationsUtils.animateSongImage(imageSong!!, resource, lastDirection)
-                                }
-                                lastSongId = song.id
-                            }
-
-                            override fun onLoadCleared(placeholder: Drawable?) { }
-                        })
-                } else {
-                    val bitmap = BitmapFactory.decodeResource(resources, albumCoverRes)
-                    blurrySongImageBackground.setImageBitmap(bitmap)
-                    imageSong?.setImageBitmap(bitmap)
-                }
-            }
-        }
+        setupViewModelObservers()
 
         val blurEffect = RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
         blurrySongImageBackground.setRenderEffect(blurEffect)
 
         arrowGoBackButton.setOnClickListener {
-            requireActivity().onBackPressedDispatcher.onBackPressed()
+            dismiss()
         }
-
-        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { favoriteIds ->
             val currentSong = sharedViewModel.currentSongLiveData.value
@@ -237,21 +163,31 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
                     val artistList = service.getArtistsBySongId(song.id)
                     song.artistName = artistList.joinToString(", ") { it.name }
 
-                    val bottomSheet = SongOptionsBottomSheet(
+                    bottomSheet = SongOptionsBottomSheet(
                         song = song,
                         onSeeSongClick = { selectedSong ->
-                            val bundle = Bundle().apply {
-                                putParcelable("song", selectedSong)
-                            }
-                            findNavController().navigate(
-                                R.id.action_songFragment_to_detailedSongFragment,
-                                bundle
-                            )
+                            val bundle = Bundle().apply { putParcelable("song", selectedSong) }
+                            requireActivity().findNavController(R.id.nav_host_fragment)
+                                .navigate(R.id.action_global_to_detailedSongFragment, bundle)
+
+                            bottomSheet.dismiss()
+                            this@SongFragment.dismiss()
                         },
-                        // --- INSTRUCCIÓN AÑADIDA ---
-                        // Aquí le decimos qué hacer cuando se toque el botón de favorito
                         onFavoriteToggled = { toggledSong ->
                             favoritesViewModel.toggleFavoriteSong(toggledSong)
+                        },
+                        // --- AQUÍ IMPLEMENTAMOS LA NUEVA LAMBDA CON LA LÓGICA ESPECIAL ---
+                        onAddToPlaylistClick = { songToAdd ->
+                            val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                                song = songToAdd,
+                                // La lógica aquí es la compleja: primero cierra, luego navega
+                                onNoPlaylistsFound = {
+                                    this@SongFragment.dismiss()
+                                    requireActivity().findNavController(R.id.nav_host_fragment)
+                                        .navigate(R.id.action_global_to_createPlaylistFragment)
+                                }
+                            )
+                            selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
                         }
                     )
                     bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -299,21 +235,122 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
         }
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+
+            // Se llama continuamente mientras el usuario arrastra el dedo.
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                // Solo actuamos si el cambio lo ha iniciado el usuario (no el sistema).
                 if (fromUser) {
-                    val intent = Intent(context, MusicPlaybackService::class.java).apply {
-                        action = MusicPlaybackService.ACTION_SEEK_TO
-                        putExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, progress)
-                    }
-                    context?.startService(intent)
+                    // 🔥 YA NO ENVIAMOS EL INTENT DESDE AQUÍ 🔥
+                    // Esta función ahora solo tiene UNA responsabilidad: actualizar el texto
+                    // del tiempo para que el usuario vea a dónde está saltando en tiempo real.
                     currentTimeText.text = Utils.formatTime(progress)
                 }
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
 
+            // Se llama UNA SOLA VEZ cuando el usuario toca el SeekBar.
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                // Le decimos al servicio que hemos empezado a arrastrar, para que ignore
+                // las "micro-pausas" y el botón de play/pause no parpadee.
+                val intent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_START_SEEK
+                }
+                context?.startService(intent)
+            }
+
+            // Se llama UNA SOLA VEZ cuando el usuario levanta el dedo del SeekBar.
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                // 🔥 AQUÍ ES DONDE ENVIAMOS LA ORDEN FINAL Y ÚNICA 🔥
+
+                // 1. Enviamos la posición final a la que queremos que salte el reproductor.
+                val seekIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_SEEK_TO
+                    // Usamos el progreso final del seekBar en el momento de soltar.
+                    putExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, seekBar?.progress ?: 0)
+                }
+                context?.startService(seekIntent)
+
+                // 2. Le decimos al servicio que hemos terminado de arrastrar, para que
+                //    vuelva a su comportamiento normal y reanude las actualizaciones automáticas.
+                val stopIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_STOP_SEEK
+                }
+                context?.startService(stopIntent)
+            }
+        })
         return view
+    }
+
+    private fun setupViewModelObservers() {
+        // 1. OBSERVADOR PARA LA CANCIÓN ACTUAL (ESTE YA LO TENÍAS, LO INTEGRAMOS AQUÍ)
+        // Reemplaza a ACTION_SONG_CHANGED. Se encarga de actualizar título, artista, carátula, etc.
+        sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
+            currentSong?.let { song ->
+                // Actualiza los textos
+                view?.findViewById<TextView>(R.id.song_title)?.text = song.title ?: "Desconocido"
+                view?.findViewById<TextView>(R.id.songArtist)?.text = song.artistName ?: "Desconocido"
+
+                // Actualiza el estado del botón de favoritos
+                val favoriteIds = favoritesViewModel.favoriteSongIds.value
+                val isFavorite = song.id.let { favoriteIds?.contains(it) } ?: false
+                updateFavoriteButtonUI(isFavorite)
+
+                // Lógica para cargar y animar la imagen de la carátula
+                val albumCoverRes = R.drawable.album_cover
+                val url = song.coverUrl
+
+                if (!url.isNullOrBlank()) {
+                    Glide.with(requireContext())
+                        .asBitmap()
+                        .load(url)
+                        .placeholder(albumCoverRes)
+                        .error(albumCoverRes)
+                        .into(object : com.bumptech.glide.request.target.CustomTarget<Bitmap>() {
+                            override fun onResourceReady(resource: Bitmap, transition: com.bumptech.glide.request.transition.Transition<in Bitmap>?) {
+                                if (isAnimatingCover) return
+
+                                if (isFirstLoad || song.id == lastSongId) {
+                                    blurrySongImageBackground.setImageBitmap(resource)
+                                    view?.findViewById<ImageView>(R.id.song_image)?.setImageBitmap(resource)
+                                    isFirstLoad = false
+                                } else {
+                                    isAnimatingCover = true
+                                    AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, resource)
+                                    AnimationsUtils.animateSongImage(view!!.findViewById(R.id.song_image), resource, lastDirection) {
+                                        isAnimatingCover = false
+                                    }
+                                }
+                                lastSongId = song.id
+                            }
+                            override fun onLoadCleared(placeholder: Drawable?) {}
+                        })
+                } else {
+                    val bitmap = BitmapFactory.decodeResource(resources, albumCoverRes)
+                    blurrySongImageBackground.setImageBitmap(bitmap)
+                    view?.findViewById<ImageView>(R.id.song_image)?.setImageBitmap(bitmap)
+                }
+            }
+        }
+
+        // 2. OBSERVADOR PARA EL ESTADO DE REPRODUCCIÓN (PLAY/PAUSE)
+        // Reemplaza a ACTION_PLAYBACK_STATE_CHANGED
+        sharedViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { isPlayingUpdate ->
+            this.isPlaying = isPlayingUpdate // Actualiza la variable de estado local
+            updatePlayPauseButton(isPlayingUpdate) // Actualiza el icono del botón
+        }
+
+        // 3. OBSERVADOR PARA EL PROGRESO DEL SEEKBAR
+        // Reemplaza a ACTION_SEEK_BAR_UPDATE y ACTION_SEEK_BAR_RESET
+        sharedViewModel.playbackPositionLiveData.observe(viewLifecycleOwner) { positionInfo ->
+            // Evita que el SeekBar se actualice si el usuario lo está arrastrando
+            if (!seekBar.isPressed) {
+                if (positionInfo.duration > 0) {
+                    seekBar.max = positionInfo.duration.toInt()
+                }
+                seekBar.progress = positionInfo.position.toInt()
+                currentTimeText.text = Utils.formatTime(positionInfo.position.toInt())
+                totalTimeText.text = Utils.formatTime(positionInfo.duration.toInt())
+            }
+        }
     }
 
     private fun updateFavoriteButtonUI(isFavorite: Boolean) {
@@ -322,17 +359,6 @@ class SongFragment : BaseFragment(R.layout.fragment_song) {
         } else {
             favoriteButton.setBackgroundResource(R.drawable.favorite_border)
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(seekBarUpdateReceiver)
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(playbackStateReceiver)
-    }
-
-    fun setCurrentPlayingSong(url: String) {
-        songAdapter.setCurrentPlayingSong(url)
     }
 
     private fun updatePlayPauseButton(isPlaying: Boolean) {

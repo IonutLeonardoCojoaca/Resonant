@@ -32,6 +32,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private lateinit var noSongsInPlaylistText: TextView
     private lateinit var playlistNumberOfTracks: TextView
     private lateinit var playlistName: TextView
+    private lateinit var playlistText: TextView
     private lateinit var playlistOwner: TextView
     private lateinit var playlistDuration: TextView
     private lateinit var recyclerView: RecyclerView
@@ -42,7 +43,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private var img2: ShapeableImageView? = null
     private var img3: ShapeableImageView? = null
 
-    private val sharedViewModel: SharedViewModel by lazy { SharedViewModelHolder.sharedViewModel }
+    private lateinit var sharedViewModel : SharedViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
 
     private var firstRenderDone = false
@@ -53,19 +54,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         PlaylistDetailViewModelFactory(playlistManager)
     }
 
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                Log.d("PlaylistFragment", "Receiver ACTION_SONG_CHANGED -> ${song?.title} (${song?.id})")
-                song?.let {
-                    songAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -73,25 +61,46 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         setupRecyclerView()
         setupViewModels()
 
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
+        // En PlaylistFragment.kt, dentro de onViewCreated -> playlistViewModel.screenState.observe
 
         playlistViewModel.screenState.observe(viewLifecycleOwner) { state ->
-            Log.d("PlaylistFragment", "El observador ha recibido un estado con ${state.songs.size} canciones.")
+            Log.d("PlaylistFragment", "Nuevo estado: isLoading=${state.isLoading}, songs=${state.songs.size}")
 
-            val shouldShowLoader = state.isLoading && state.songs.isEmpty()
-            if (shouldShowLoader) {
+            // --- Lógica de Visibilidad ---
+            val collageContainer = view.findViewById<View>(R.id.playlistCollageContainer)
+
+            val isInitialLoad = state.isLoading && state.songs.isEmpty() && state.playlistDetails == null
+            if (isInitialLoad) {
                 playlistLoader.visibility = View.VISIBLE
                 playlistLoader.playAnimation()
+                recyclerView.visibility = View.GONE
+                noSongsInPlaylistText.visibility = View.GONE
+                collageContainer.visibility = View.GONE // Ocultar collage durante la carga inicial
             } else {
                 playlistLoader.cancelAnimation()
                 playlistLoader.visibility = View.GONE
+
+                // ✅ --- INICIO DE LA CORRECCIÓN ---
+                // Una vez que la carga termina, el collage SIEMPRE es visible.
+                collageContainer.visibility = View.VISIBLE
+                // Y siempre intentamos actualizarlo. El ViewModel ya nos dará los placeholders si es necesario.
+                updateCollage(state.collageBitmaps)
+                // --- FIN DE LA CORRECCIÓN ---
             }
 
+            val showEmptyState = !state.isLoading && state.songs.isEmpty()
+            if (showEmptyState) {
+                noSongsInPlaylistText.visibility = View.VISIBLE
+                recyclerView.visibility = View.GONE
+            } else {
+                noSongsInPlaylistText.visibility = View.GONE
+                recyclerView.visibility = View.VISIBLE
+            }
+
+            // --- Actualización de Datos (resto del código igual) ---
             state.playlistDetails?.let { details ->
                 playlistName.text = details.name
+                playlistText.text = details.name
                 details.numberOfTracks?.let { count ->
                     playlistNumberOfTracks.text = "$count canciones"
                 }
@@ -106,7 +115,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                 songAdapter.setCurrentPlayingSong(playingId)
             }
 
-            updateCollage(state.collageBitmaps)
             if (!firstRenderDone && state.songs.isNotEmpty()) firstRenderDone = true
         }
 
@@ -130,14 +138,10 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         setupAdapterClickListeners(playlistId)
     }
 
-    override fun onDestroyView() {
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
-        super.onDestroyView()
-    }
-
     private fun initViews(view: View) {
         noSongsInPlaylistText = view.findViewById(R.id.noSongsInPlaylist)
         playlistName = view.findViewById(R.id.playlistName)
+        playlistText = view.findViewById(R.id.playlistText)
         playlistOwner = view.findViewById(R.id.playlistOwner)
         playlistDuration = view.findViewById(R.id.playlistDuration)
         playlistNumberOfTracks = view.findViewById(R.id.playlistNumberOfTracks)
@@ -178,6 +182,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     }
 
     private fun setupViewModels() {
+        sharedViewModel = ViewModelProvider(requireActivity())[SharedViewModel::class.java]
         sharedViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             currentSong?.let {
                 val playingId = currentSong?.id
@@ -242,10 +247,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                                 playlistViewModel.removeSongFromPlaylist(
                                     songId = songToRemove.id,
                                     playlistId = id,
-                                    context = requireContext(),
-                                    currentSongId = sharedViewModel.currentSongLiveData.value?.id,
-                                    songUrl = songToRemove.url,
-                                    fileName = songToRemove.fileName
+                                    context = requireContext()
                                 )
                                 showResonantSnackbar(
                                     text = "Canción eliminada de la playlist",

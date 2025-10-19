@@ -15,11 +15,11 @@ import android.widget.Toast
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.resonant.managers.SongManager
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,29 +43,11 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
     private lateinit var rechargeSongs: ImageButton
     private lateinit var shimmerLayout: ShimmerFrameLayout
 
-    private val _currentSongLiveData = MutableLiveData<Song>()
     private lateinit var sharedViewModel: SharedViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
 
-    private val songChangedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                val song = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                song?.let {
-                    songAdapter.setCurrentPlayingSong(it.id)
-                    sharedViewModel.setCurrentSong(it)
-                }
-            }
-        }
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(
-            songChangedReceiver,
-            IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED)
-        )
 
         checkSongs()
         checkAlbums()
@@ -163,6 +145,15 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                     onFavoriteToggled = { toggledSong ->
                         favoritesViewModel.toggleFavoriteSong(toggledSong)
                     },
+                    onAddToPlaylistClick = { songToAdd ->
+                        val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                            song = songToAdd,
+                            onNoPlaylistsFound = {
+                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
+                            }
+                        )
+                        selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                    }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
@@ -175,7 +166,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
 
                 val shimmerStart = System.currentTimeMillis()
 
-                val nuevas = getRandomSongs(requireContext(), cancionesAnteriores = songList)
+                val nuevas = SongManager.getRandomSongs(requireContext(), count = 7)
 
                 if (nuevas.isNotEmpty()) {
                     songList = nuevas
@@ -209,153 +200,49 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
         return view
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(songChangedReceiver)
-    }
-
-    fun updateCurrentSong(song: Song) {
-        _currentSongLiveData.postValue(song)
-    }
-
-    fun setCurrentPlayingSong(url: String) {
-        songAdapter.setCurrentPlayingSong(url)
-    }
-
-    suspend fun getRandomSongs(
-        context: Context,
-        count: Int = 7,
-        cancionesAnteriores: List<Song>? = null
-    ): List<Song> {
-        return try {
-            val service = ApiClient.getService(context)
-            val allIds = service.getAllSongIds()
-
-            if (allIds.size < count) return emptyList()
-
-            val randomIds = allIds.shuffled().take(count)
-            val cancionesNuevas = mutableListOf<Song>()
-
-            for (id in randomIds) {
-                val song = service.getSongById(id)
-                val artistList = service.getArtistsBySongId(id)
-                song.artistName = artistList.joinToString(", ") { it.name }
-
-                // Reaprovechar URL de audio y cover de canciones anteriores si existen
-                val cachedSong = cancionesAnteriores?.find { it.id == song.id }
-                if (cachedSong != null) {
-                    song.url = cachedSong.url
-                    song.coverUrl = cachedSong.coverUrl
-                }
-
-                cancionesNuevas.add(song)
-            }
-
-// === Obtener portadas de forma batch ===
-            val coversRequest = cancionesNuevas.mapNotNull { song ->
-                val fileName = song.imageFileName?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                val albumId = song.albumId.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                // Normalizamos fileName para asegurar match con la API
-                fileName.trim() to albumId.trim()
-            }
-
-            if (coversRequest.isNotEmpty()) {
-                val (fileNames, albumIds) = coversRequest.unzip()
-
-                try {
-                    val coverResponses: List<CoverResponse> =
-                        service.getMultipleSongCoverUrls(fileNames, albumIds)
-
-                    // Map clave (fileName, albumId) -> URL
-                    val coverUrlMap: Map<Pair<String, String>, String> = coverResponses.associate {
-                        (it.imageFileName.trim() to it.albumId.trim()) to it.url
-                    }
-
-                    // Asignamos URL a cada canción
-                    cancionesNuevas.forEach { song ->
-                        val key = song.imageFileName?.trim() to song.albumId.trim()
-                        val coverUrl = coverUrlMap[key]
-                        if (!coverUrl.isNullOrBlank()) {
-                            song.coverUrl = coverUrl
-                        } else {
-                            song.coverUrl = null
-                        }
-                    }
-
-                } catch (e: Exception) {
-                    Log.e("getRandomSongs", "Error obteniendo portadas batch: ${e.message}")
-                }
-            }
-
-
-
-            // === Obtener URLs de audio de forma batch ===
-            val cancionesSinUrl = cancionesNuevas.filter { it.url == null }
-            if (cancionesSinUrl.isNotEmpty()) {
-                val fileNames = cancionesSinUrl.map { it.fileName }
-                val urlList = service.getMultipleSongUrls(fileNames)
-                val urlMap = urlList.associateBy { it.fileName }
-
-                cancionesSinUrl.forEach { song ->
-                    song.url = urlMap[song.fileName]?.url
-                }
-            }
-
-            // Actualizar MusicPlaybackService
-            val updateIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.UPDATE_SONGS
-                putParcelableArrayListExtra(
-                    MusicPlaybackService.SONG_LIST,
-                    ArrayList(cancionesNuevas)
-                )
-            }
-            context.startService(updateIntent)
-
-            cancionesNuevas
-
-        } catch (e: Exception) {
-            Log.i("getRandomSongs", e.toString())
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-
-
     suspend fun getRandomArtists(context: Context, count: Int = 6): List<Artist> {
         return try {
             val service = ApiClient.getService(context)
-            val allIds = service.getAllArtistIds()
 
-            if (allIds.size < count) return emptyList()
+            // 1. Obtenemos todos los IDs y los barajamos para procesarlos en orden aleatorio.
+            val shuffledIds = service.getAllArtistIds().shuffled().toMutableList()
+            val artistsWithPhoto = mutableListOf<Artist>()
 
-            val randomIds = allIds.shuffled().take(count)
-            val artistasNuevos = mutableListOf<Artist>()
+            // 2. Iteramos sobre los IDs aleatorios HASTA que encontremos 'count' artistas
+            //    con foto, o hasta que nos quedemos sin IDs.
+            while (artistsWithPhoto.size < count && shuffledIds.isNotEmpty()) {
+                val artistId = shuffledIds.removeAt(0) // Tomamos un ID de la lista
+                val artist = service.getArtistById(artistId)
 
-            for (id in randomIds) {
-                val artist = service.getArtistById(id)
-                artistasNuevos.add(artist)
+                // 3. Añadimos el artista a la lista SOLO si tiene un 'fileName'.
+                if (artist.fileName != null) {
+                    artistsWithPhoto.add(artist)
+                }
             }
 
-            val fileNames = artistasNuevos.mapNotNull { it.fileName }
+            // Si al final del bucle no encontramos ningún artista con foto, terminamos.
+            if (artistsWithPhoto.isEmpty()) {
+                return emptyList()
+            }
+
+            // 4. Ahora, obtenemos las URLs únicamente para los artistas que ya hemos validado.
+            val fileNames = artistsWithPhoto.mapNotNull { it.fileName }
             val urlList = service.getMultipleArtistUrls(fileNames)
             val urlMap = urlList.associateBy { it.fileName }
 
-            artistasNuevos.forEach { artist ->
+            artistsWithPhoto.forEach { artist ->
                 artist.url = urlMap[artist.fileName]?.url ?: ""
             }
 
-            artistasNuevos
+            artistsWithPhoto // Devolvemos la lista final
+
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
         }
     }
 
-    suspend fun getRandomAlbums(
-        context: Context,
-        count: Int = 3,
-        albumsAnteriores: List<Album>? = null
-    ): List<Album> {
+    suspend fun getRandomAlbums(context: Context,count: Int = 3,albumsAnteriores: List<Album>? = null): List<Album> {
         return try {
             val service = ApiClient.getService(context)
             val allIds = service.getAllAlbumIds()
@@ -408,24 +295,31 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
         }
     }
 
+    fun checkSongs() {
+        // ✅ PASO 1: SIEMPRE muestra el estado de carga al principio.
+        showShimmer(true)
+        recyclerViewSongs.visibility = View.GONE // Oculta la lista explícitamente
 
-    fun checkSongs () {
         if (songList != null) {
-            hideShimmer()
+            // Si ya tenemos las canciones, las mostramos.
             songAdapter.submitList(songList)
+            hideShimmer() // Oculta el shimmer y muestra la lista.
         } else {
+            // Si no tenemos canciones, las descargamos.
             lifecycleScope.launch {
-                val canciones = getRandomSongs(requireContext())
-                if (!isAdded || context == null) return@launch
+                val canciones = SongManager.getRandomSongs(requireContext(), count = 7)
+
+                if (!isAdded) return@launch // Comprobación de seguridad
+
                 if (canciones.isNotEmpty()) {
                     songList = canciones
-                    hideShimmer()
                     songAdapter.submitList(canciones)
                 } else {
-                    context?.let { ctx ->
-                        Toast.makeText(ctx, "No se encontraron canciones", Toast.LENGTH_SHORT).show()
-                    }
+                    Toast.makeText(requireContext(), "No se encontraron canciones", Toast.LENGTH_SHORT).show()
                 }
+
+                // ✅ PASO 2: SIEMPRE oculta el shimmer al final, haya canciones o no.
+                hideShimmer()
             }
         }
     }

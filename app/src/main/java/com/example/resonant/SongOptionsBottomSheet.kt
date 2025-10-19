@@ -24,8 +24,15 @@ class SongOptionsBottomSheet(
     private val onSeeSongClick: ((Song) -> Unit)? = null,
     private val onFavoriteToggled: ((Song) -> Unit)? = null,
     private val playlistId: String? = null,
-    private val onRemoveFromPlaylistClick: ((Song, String) -> Unit)? = null
+    private val onRemoveFromPlaylistClick: ((Song, String) -> Unit)? = null,
+    private val onAddToPlaylistClick: ((Song) -> Unit)? = null
+
 ) : BottomSheetDialogFragment() {
+
+    // AÑADE ESTE MÉTODO PARA APLICAR EL TEMA PERSONALIZADO
+    override fun getTheme(): Int {
+        return R.style.AppBottomSheetDialogTheme
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -77,10 +84,9 @@ class SongOptionsBottomSheet(
             addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.add, 0, 0, 0)
 
             addToPlaylistButton.setOnClickListener {
-                // Abrimos el siguiente BottomSheet que mostrará la lista de playlists
-                val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(song)
-                selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
-                dismiss() // Cerramos este BottomSheet
+                // Ahora, simplemente llama a la nueva lambda y cierra
+                onAddToPlaylistClick?.invoke(song)
+                dismiss()
             }
         }
 

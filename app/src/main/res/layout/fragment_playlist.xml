@@ -33,7 +33,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_regular"
-            android:text="Mi lista de reproducción"
             android:textColor="@color/white"
             android:textSize="18sp"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -158,6 +157,8 @@
                 android:fontFamily="@font/unageo_regular"
                 android:text="No tienes canciones guardadas en esta playlist."
                 android:textSize="15sp"
+                android:textColor="@color/no_selected_color_icon"
+                android:layout_marginTop="20dp"
                 android:visibility="invisible"
                 app:layout_constraintTop_toBottomOf="@id/playlistDataContainer"
                 app:layout_constraintStart_toStartOf="parent"
@@ -166,12 +167,6 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </androidx.core.widget.NestedScrollView>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="30dp"
-        android:layout_below="@id/topBar"
-        android:background="@drawable/gradient_playlist_top"/>
 
     <com.airbnb.lottie.LottieAnimationView
         android:id="@+id/lottieLoader"
@@ -183,4 +178,5 @@
         app:lottie_loop="true"
         app:lottie_repeatCount="-1"
         app:lottie_enableMergePathsForKitKatAndAbove="true" />
+
 </RelativeLayout>

@@ -50,7 +50,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     // ---- CARGA GENERAL ----
     fun loadAllFavorites() {
         viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs()
+            val favSongs = repo.getFavoritesSongs(getApplication())
             val favArtists = repo.getFavoriteArtists()
             val favAlbums = repo.getFavoriteAlbums()
             val items = mutableListOf<FavoriteItem>()
@@ -65,7 +65,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     // ---- SONGS ----
     fun loadFavoriteSongs() {
         viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs()
+            val favSongs = repo.getFavoritesSongs(getApplication())
             val current = _favorites.value.orEmpty().filterNot { it is FavoriteItem.SongItem }
             _favorites.value = current + favSongs.map { FavoriteItem.SongItem(it) }
             updateFavoriteIds()

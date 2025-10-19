@@ -14,15 +14,15 @@ data class Song(
     var streams: Int = 0,
     var position: Int = 0,
     var fileName: String = "",
-    var imageFileName: String? = null, // <-- sigue siendo el nombre del archivo en Minio
-    var url: String? = null,          // URL de audio
-    var coverUrl: String? = null,      // <-- NUEVO: URL prefirmada de la portada
+    var imageFileName: String? = null,
+    var url: String? = null,
+    var coverUrl: String? = null,
 
-    // --- ¡¡¡AQUÍ ESTÁ EL CAMBIO MÁS IMPORTANTE!!! ---
-    // Añade esta línea. El nombre "artists" debe coincidir con el del DTO en .NET
     @SerializedName("artists")
-    val artists: List<Artist> = emptyList()
+    val artists: List<ArtistDTO> = emptyList(),
 
+    @SerializedName("audioAnalysis")
+    val audioAnalysis: AudioAnalysis? = null
 ) : Parcelable
 
 

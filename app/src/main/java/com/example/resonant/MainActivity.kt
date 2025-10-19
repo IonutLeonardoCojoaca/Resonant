@@ -67,7 +67,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var userPhotoImage: ImageView
     private lateinit var seekBar: SeekBar
     private lateinit var songDataPlayer: ConstraintLayout
-
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
@@ -76,14 +75,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var songArtist: TextView
 
     private var currentSongBitmap: Bitmap? = null
-
-    private lateinit var playbackStateReceiver: BroadcastReceiver
-    private lateinit var songChangedReceiver: BroadcastReceiver
-    private lateinit var seekBarUpdateReceiver: BroadcastReceiver
-    private lateinit var resetSeekBarReceiver: BroadcastReceiver
-
-    private var observersRegistered = false
-
     private lateinit var homeFragment: HomeFragment
     private lateinit var drawerLayout: DrawerLayout
 
@@ -95,8 +86,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private val api by lazy { ApiClient.getService(this) }
     private val updateManager by lazy { AppUpdateManager(this, api, ApiClient.baseUrl()) }
 
-    private lateinit var audioManager: AudioManager
-
+    private lateinit var sharedViewModel: SharedViewModel
     private lateinit var navController: NavController
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,14 +126,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val bottomNavigation = findViewById<View>(R.id.bottom_navigation)
         val gradientBottom = findViewById<View>(R.id.gradientBottom)
 
-        //val displayMetrics = Resources.getSystem().displayMetrics
-        //val screenWidth = displayMetrics.widthPixels
-        //val drawerWidth = (screenWidth * 0.85).toInt()
-
-        //val drawer: View = findViewById(R.id.navigationView)
-        //val params = drawer.layoutParams
-        //params.width = drawerWidth
-        //drawer.layoutParams = params
+        setupDrawerNavigation()
 
         val intent = Intent(this, MusicPlaybackService::class.java)
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
@@ -193,43 +176,27 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             startService(intent)
         }
 
-        SharedViewModelHolder.sharedViewModel.currentSongBitmapLiveData.observe(this) { bitmap ->
-            currentSongBitmap = bitmap
-            if (bitmap != null) {
-                songImage.setImageBitmap(bitmap)
+        sharedViewModel = ViewModelProvider(this).get(SharedViewModel::class.java)
+        setupViewModelObservers()
 
-                // 🎨 Aplicar color predominante al mini reproductor
-                val miniPlayerContainer = findViewById<View>(R.id.miniPlayerContainer)
-                MiniPlayerColorizer.applyFromImageView(
-                    imageView = songImage,
-                    targets = MiniPlayerColorizer.Targets(
-                        container = miniPlayerContainer,
-                        title = songName,
-                        subtitle = songArtist,
-                        iconButtons = listOf(previousSongButton, playPauseButton, nextSongButton),
-                        seekBar = seekBar,
-                        gradientOverlay = findViewById(R.id.gradientText)
-                    ),
-                    fallbackColor = getColor(R.color.secondaryColorTheme) // color por defecto
-                )
-
-            } else {
-                songImage.setImageResource(R.drawable.album_cover)
-            }
+        userPhotoImage.setOnClickListener {
+            drawerLayout.openDrawer(GravityCompat.START)
         }
 
-        //userPhotoImage.setOnClickListener {
-        //    drawerLayout.openDrawer(GravityCompat.START)
-        //}
+        val miniPlayerContainer = findViewById<ConstraintLayout>(R.id.miniPlayerContainer) // Asegúrate de tener la referencia
 
-        songDataPlayer.setOnClickListener {
-            val currentSong = musicService?.currentSongLiveData?.value
-            val bitmap = currentSongBitmap
+        miniPlayerContainer.setOnClickListener {
+            // ✅ OBTENEMOS TODO DESDE LA ÚNICA FUENTE DE VERDAD: el ViewModel
+            val currentSong = sharedViewModel.currentSongLiveData.value
+            val bitmap = sharedViewModel.currentSongBitmapLiveData.value
 
+            // Ahora la comprobación es fiable y está sincronizada
             if (currentSong != null && bitmap != null) {
                 val fileName = "cover_${currentSong.id}.png"
+                // Guardamos el bitmap en un archivo para pasárselo al SongFragment
                 Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
 
+                // El resto de tu código para crear el Bundle y mostrar el fragmento está perfecto
                 val bundle = Bundle().apply {
                     putString("title", currentSong.title)
                     putString("artist", currentSong.artistName)
@@ -237,9 +204,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     putString("coverFileName", fileName)
                 }
 
-                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-                val navController = navHostFragment.navController
-                navController.navigate(R.id.songFragment, bundle)
+                val songFragment = SongFragment()
+                songFragment.arguments = bundle
+
+                songFragment.show(supportFragmentManager, "SongFragment")
+            } else {
+                // (Opcional) Añade un log para depurar si sigue fallando
+                Log.w("MiniPlayerClick", "No se pudo abrir SongFragment: currentSong is ${if(currentSong == null) "null" else "OK"}, bitmap is ${if(bitmap == null) "null" else "OK"}")
             }
         }
 
@@ -273,6 +244,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             }
 
             when (destination.id) {
+                R.id.settingsFragment -> {
+                    superiorToolbar.visibility = View.VISIBLE
+                    bottomNavigation.visibility = View.GONE // Ocultamos la navegación inferior
+                    gradientBottom.visibility = View.GONE
+                    shouldShowMiniPlayer = false
+                }
                 in fragmentsWithToolbar -> {
                     superiorToolbar.visibility = View.VISIBLE
                     bottomNavigation.visibility = View.VISIBLE
@@ -302,7 +279,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 val currentFragment = navHostFragment.childFragmentManager.primaryNavigationFragment
                 if (currentFragment is HomeFragment) {
                     homeFragment = currentFragment
-                    setupObservers()
                 }
             }
 
@@ -363,94 +339,90 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         if (currentFragmentId != null && currentFragmentId !in topLevelFragments) {
             navController.popBackStack()
-        } else if (currentFragmentId != null && currentFragmentId != mainFragmentId) {
-            navController.navigate(mainFragmentId)
+        }
+        else if (currentFragmentId != null && currentFragmentId != mainFragmentId) {
+            navController.popBackStack()
         } else {
             moveTaskToBack(true)
         }
     }
 
-    fun updateMiniPlayerImage(url: String?) {
-        if (url.isNullOrBlank()) return
+    private fun setupDrawerNavigation() {
+        val displayMetrics = Resources.getSystem().displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val drawerWidth = (screenWidth * 0.85).toInt()
 
-        Glide.with(this)
-            .asBitmap()
-            .load(url)
-            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .into(object : CustomTarget<Bitmap>() {
-                override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                    SharedViewModelHolder.sharedViewModel.setCurrentSongBitmap(resource)
-                }
+        val drawer: View = findViewById(R.id.navigationView)
+        val params = drawer.layoutParams
+        params.width = drawerWidth
+        drawer.layoutParams = params
 
-                override fun onLoadCleared(placeholder: Drawable?) {}
-            })
+        val settingsButton = findViewById<TextView>(R.id.settingsButton)
+        val searchButton = findViewById<TextView>(R.id.searchButton)
+        val savedButton = findViewById<TextView>(R.id.savedButton)
+        val favoriteSongsButton = findViewById<TextView>(R.id.favoriteSongsButton)
+
+        settingsButton.setOnClickListener {
+            navController.navigate(R.id.settingsFragment)
+            drawerLayout.closeDrawers()
+        }
+
+        searchButton.setOnClickListener {
+            navController.navigate(R.id.searchFragment)
+            drawerLayout.closeDrawers()
+        }
+
+        savedButton.setOnClickListener {
+            navController.navigate(R.id.savedFragment)
+            drawerLayout.closeDrawers()
+        }
+
+        favoriteSongsButton.setOnClickListener {
+            navController.navigate(R.id.favoriteSongsFragment)
+            drawerLayout.closeDrawers()
+        }
     }
 
-    private fun setupObservers() {
-        if (observersRegistered) return
-
-        playbackStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED) {
-                    val currentSong = intent.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                    val isPlaying = intent.getBooleanExtra(MusicPlaybackService.EXTRA_IS_PLAYING, false)
-
-                    currentSong?.let {
-                        homeFragment.updateCurrentSong(it)
-                        updatePlayPauseButton(isPlaying)
-                    }
-                    updatePlayPauseButton(isPlaying)
-                }
+    private fun setupViewModelObservers() {
+        sharedViewModel.currentSongLiveData.observe(this) { song ->
+            if (song != null && shouldShowMiniPlayer) {
+                updateDataPlayer(song) // ✅ CORRECTO: Solo actualiza texto
+                AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this)
+            } else {
+                AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this)
             }
         }
 
-        songChangedReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == MusicPlaybackService.ACTION_SONG_CHANGED) {
-                    val currentSong = intent?.getParcelableExtra<Song>(MusicPlaybackService.EXTRA_CURRENT_SONG)
-                    currentSong?.let {
-                        homeFragment.updateCurrentSong(it)
-                        it.url?.let { url -> homeFragment.setCurrentPlayingSong(url) }
+        sharedViewModel.isPlayingLiveData.observe(this) { isPlaying ->
+            updatePlayPauseButton(isPlaying) // Actualiza el icono del botón
+        }
 
-                        // 🔥 Aquí faltaba esto
-                        songName.text = it.title
-                        songArtist.text = it.artistName
-                        updateMiniPlayerImage(it.coverUrl) // <--- AQUÍ
-                    }
-                }
+        sharedViewModel.playbackPositionLiveData.observe(this) { positionInfo ->
+            if (positionInfo.duration > 0) {
+                seekBar.max = positionInfo.duration.toInt()
+            }
+            seekBar.progress = positionInfo.position.toInt()
+        }
+
+        sharedViewModel.currentSongBitmapLiveData.observe(this) { bitmap ->
+            if (bitmap != null) {
+                songImage.setImageBitmap(bitmap)
+                MiniPlayerColorizer.applyFromImageView(
+                    imageView = songImage,
+                    targets = MiniPlayerColorizer.Targets(
+                        container = findViewById<View>(R.id.miniPlayerContainer),
+                        title = songName,
+                        subtitle = songArtist,
+                        iconButtons = listOf(previousSongButton, playPauseButton, nextSongButton),
+                        seekBar = seekBar,
+                        gradientOverlay = findViewById(R.id.gradientText)
+                    ),
+                    fallbackColor = getColor(R.color.secondaryColorTheme)
+                )
+            } else {
+                songImage.setImageResource(R.drawable.album_cover)
             }
         }
-
-        seekBarUpdateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == MusicPlaybackService.ACTION_SEEK_BAR_UPDATE) {
-                    val position = intent.getIntExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, 0)
-                    val duration = intent.getIntExtra(MusicPlaybackService.EXTRA_DURATION, 0)
-
-                    seekBar.max = duration
-                    seekBar.progress = position
-                }
-            }
-        }
-
-        resetSeekBarReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == MusicPlaybackService.ACTION_SEEK_BAR_RESET) {
-                    seekBar.progress = 0
-                }
-            }
-        }
-
-        LocalBroadcastManager.getInstance(this).apply {
-            registerReceiver(playbackStateReceiver, IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED))
-            registerReceiver(songChangedReceiver, IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED))
-            registerReceiver(seekBarUpdateReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_UPDATE))
-            registerReceiver(resetSeekBarReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_RESET))
-        }
-
-        observersRegistered = true
-
-        handleDeepLink(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -479,28 +451,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             val binder = service as MusicPlaybackService.MusicServiceBinder
             musicService = binder.getService()
             isBound = true
-
-            musicService?.currentSongLiveData?.observe(this@MainActivity) { song ->
-                if (song != null && !song.title.isNullOrEmpty() && shouldShowMiniPlayer) {
-                    updateDataPlayer(song)
-                    AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
-                } else {
-                    AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this@MainActivity)
-                }
-            }
-
-            musicService?.isPlayingLiveData?.observe(this@MainActivity) { playing ->
-                updatePlayPauseButton(playing)
-            }
-
-            // ✅ Forzar evaluación inicial si ya hay canción activa
-            val currentSong = musicService?.currentSongLiveData?.value
-            if (currentSong != null && !currentSong.title.isNullOrEmpty()) {
-                updateDataPlayer(currentSong)
-                if (shouldShowMiniPlayer) {
-                    AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
-                }
-            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -536,29 +486,24 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     override fun onStop() {
         super.onStop()
-        if (isBound) {
-            unbindService(serviceConnection)
-            isBound = false
-        }
     }
 
     override fun onResume() {
         super.onResume()
-
-        LocalBroadcastManager.getInstance(this).apply {
-            registerReceiver(playbackStateReceiver, IntentFilter(MusicPlaybackService.ACTION_PLAYBACK_STATE_CHANGED))
-            registerReceiver(songChangedReceiver, IntentFilter(MusicPlaybackService.ACTION_SONG_CHANGED))
-            registerReceiver(seekBarUpdateReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_UPDATE))
-            registerReceiver(resetSeekBarReceiver, IntentFilter(MusicPlaybackService.ACTION_SEEK_BAR_RESET))
-        }
     }
 
     override fun onPause() {
         super.onPause()
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(playbackStateReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(songChangedReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(seekBarUpdateReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(resetSeekBarReceiver)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // 3. Solo nos desvinculamos cuando la actividad está siendo destruida permanentemente.
+        //    Esto previene fugas de memoria.
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
     }
 
     private fun checkNotificationPermission() {
@@ -584,11 +529,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         startService(intent)  // o startForegroundService según sea necesario
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int,permissions: Array<out String>,grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -634,13 +575,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
-    private fun showUpdateDialog(
-        title: String,
-        message: String,
-        forced: Boolean,
-        downloadUrl: String,
-        version: String
-    ) {
+    private fun showUpdateDialog(title: String,message: String,forced: Boolean,downloadUrl: String,version: String) {
         val tag = "UpdateDialog"
         if (supportFragmentManager.findFragmentByTag(tag) == null) {
             UpdateDialogFragment.newInstance(title, message, forced, downloadUrl, version)

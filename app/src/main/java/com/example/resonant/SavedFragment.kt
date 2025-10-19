@@ -16,7 +16,6 @@ import com.google.android.material.button.MaterialButton
 
 class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
-    // --- Vistas ---
     private lateinit var songsButton: MaterialButton
     private lateinit var artistsButton: MaterialButton
     private lateinit var albumsButton: MaterialButton
@@ -25,8 +24,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private lateinit var playlistRecyclerView: RecyclerView
     private lateinit var playlistAdapter: PlaylistAdapter
 
-    // --- ViewModel ---
-    // ✅ Pide la instancia del ViewModel correcto: PlaylistsListViewModel
     private val playlistsListViewModel: PlaylistsListViewModel by viewModels {
         val service = ApiClient.getService(requireContext())
         val playlistManager = PlaylistManager(service)
@@ -37,47 +34,36 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // En onCreateView, solo inflamos la vista. No hacemos nada más.
         return inflater.inflate(R.layout.fragment_saved, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 1. INICIALIZACIÓN: Todas las inicializaciones ocurren aquí.
         initViews(view)
         setupRecyclerView()
         setupClickListeners()
 
-        // 2. OBSERVADOR PRINCIPAL: Observa la lista de playlists.
         playlistsListViewModel.playlists.observe(viewLifecycleOwner, Observer { playlists ->
             Log.d("SavedFragment", "Observer de playlists ha recibido ${playlists?.size ?: 0} elementos.")
             playlistAdapter.submitList(playlists ?: emptyList())
             updateEmptyView(playlists)
         })
 
-        // 3. OBSERVADOR DE RESULTADO: Escucha la señal del fragment de detalle.
-        // Lo ponemos aquí, en onViewCreated, para asegurar que playlistAdapter está inicializado.
         val navController = findNavController()
         navController.currentBackStackEntry?.savedStateHandle?.getLiveData<String>("PLAYLIST_UPDATED_ID")
             ?.observe(viewLifecycleOwner) { playlistId ->
                 if (playlistId != null) {
                     Log.d("SavedFragment", "Señal de refresco recibida para la playlist ID: $playlistId")
 
-                    // A. Invalidamos la caché del adapter para esa playlist específica
                     playlistAdapter.clearCacheForPlaylist(playlistId)
 
-                    // B. Recargamos los datos para obtener la info actualizada (contador, etc.)
                     forceReloadPlaylists()
 
-                    // C. Limpiamos la señal para que no se vuelva a ejecutar
                     navController.currentBackStackEntry?.savedStateHandle?.remove<String>("PLAYLIST_UPDATED_ID")
                 }
             }
 
-        // 4. ELIMINAMOS EL OBSERVADOR ANTIGUO: El listener para "NEEDS_REFRESH" ya no es necesario.
-
-        // 5. CARGA INICIAL: Llama a la lógica de carga inicial.
         reloadPlaylistsInitial()
     }
 
@@ -99,14 +85,13 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                     playlist = playlist,
                     playlistImageBitmap = bitmap,
                     onDeleteClick = { playlistToDelete ->
-                        // ✅ Llama al método del ViewModel correcto
                         playlistsListViewModel.deletePlaylist(playlistToDelete.id!!)
+
                         showResonantSnackbar(
                             text = "Se ha borrado la lista correctamente",
                             colorRes = R.color.successColor,
                             iconRes = R.drawable.success
                         )
-                        forceReloadPlaylists()
                     }
                 )
                 bottomSheet.show(childFragmentManager, bottomSheet.tag)
@@ -117,7 +102,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     }
 
     private fun reloadPlaylistsInitial() {
-        // ✅ Comprueba el LiveData del ViewModel correcto
         if (playlistsListViewModel.playlists.value.isNullOrEmpty()) {
             Log.d("SavedFragment", "ViewModel vacío. Realizando carga inicial de playlists.")
             forceReloadPlaylists()
@@ -130,7 +114,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         Log.d("SavedFragment", "Forzando recarga de playlists desde la red.")
         val userId = UserManager.getUserId(requireContext())
         if (userId != null) {
-            // ✅ Llama al método del ViewModel correcto
             playlistsListViewModel.getPlaylistsByUserId(userId)
         } else {
             updateEmptyView(null)

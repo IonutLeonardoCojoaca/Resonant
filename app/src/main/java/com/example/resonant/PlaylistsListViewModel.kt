@@ -1,5 +1,6 @@
 package com.example.resonant
 
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -15,25 +16,18 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> get() = _error
 
-    // Lo mantenemos para el flujo de creación
     private val _playlistCreated = MutableLiveData<Boolean>(false)
     val playlistCreated: LiveData<Boolean> get() = _playlistCreated
 
-    // Guardamos el userId para poder refrescar fácilmente
     private var currentUserId: String? = null
 
-    // ...
     fun getPlaylistsByUserId(userId: String) {
         currentUserId = userId
-        refreshPlaylists() // Usamos la nueva función de refresco
+        refreshPlaylists()
     }
 
-    /**
-     * Nueva función centralizada para refrescar la lista.
-     * Puede ser llamada desde el fragment cuando sea necesario.
-     */
     fun refreshPlaylists() {
-        val userId = currentUserId ?: return // No hagas nada si no hay un usuario
+        val userId = currentUserId ?: return
         viewModelScope.launch {
             try {
                 val pls = playlistManager.getPlaylistByUserId(userId)
@@ -46,15 +40,22 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
     }
 
     fun deletePlaylist(playlistId: String) {
+        val originalList = _playlists.value
+        if (originalList == null) {
+            _error.postValue("No se pudo borrar, la lista no estaba cargada.")
+            return
+        }
+
+        val updatedList = originalList.filterNot { it.id == playlistId }
+        _playlists.postValue(updatedList)
+
         viewModelScope.launch {
             try {
                 playlistManager.deletePlaylist(playlistId)
-                // ¡Actualización optimista! Eliminamos la playlist de la lista local
-                // para que la UI se actualice al instante.
-                val updatedList = _playlists.value?.filterNot { it.id == playlistId }
-                _playlists.postValue(updatedList)
             } catch (e: Exception) {
-                _error.postValue("Error al borrar la playlist: ${e.message}")
+                Log.i("Exception playlist", e.toString())
+                _error.postValue("Error al borrar la playlist. Se ha restaurado.")
+                _playlists.postValue(originalList)
             }
         }
     }
@@ -64,7 +65,6 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
             try {
                 playlistManager.createPlaylist(playlist)
                 _playlistCreated.postValue(true)
-                // Después de crear, refrescamos toda la lista para obtener el nuevo item
                 refreshPlaylists()
             } catch (e: Exception) {
                 _error.postValue("Error al crear la playlist: ${e.message}")

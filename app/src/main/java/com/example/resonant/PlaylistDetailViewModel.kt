@@ -67,7 +67,7 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
             try {
                 val refreshedData = withContext(Dispatchers.IO) {
                     val p = playlistManager.getPlaylistById(playlistId)
-                    val s = playlistManager.getSongsByPlaylistId(playlistId)
+                    val s = playlistManager.getSongsByPlaylistId(context, playlistId)
                     val owner = p.userId?.let {
                         try { playlistManager.getUserById(it).name ?: "" } catch (_: Exception) { "" }
                     } ?: ""
@@ -130,30 +130,29 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
         }
     }
 
+    private fun notifySongMarkedForDeletion(context: Context, playlistId: String, songId: String) {
+        val intent = Intent(context, MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_SONG_MARKED_FOR_DELETION
+            putExtra(MusicPlaybackService.EXTRA_PLAYLIST_ID, playlistId)
+            putExtra(MusicPlaybackService.EXTRA_SONG_ID, songId)
+        }
+        context.startService(intent)
+    }
+
     // 3. La función de eliminar ahora es MUCHO más simple.
     fun removeSongFromPlaylist(
         songId: String,
         playlistId: String,
-        context: Context,
-        currentSongId: String? = null,
-        songUrl: String? = null, // Estos ya no son necesarios aquí, pero los dejo por si los usas en otro lado.
-        fileName: String? = null
+        context: Context
     ) {
         viewModelScope.launch {
             try {
-                // Paso 1: Realiza la acción de eliminar en la base de datos.
                 withContext(Dispatchers.IO) {
                     playlistManager.deleteSongFromPlaylist(songId, playlistId)
                 }
-
-                // Paso 2: Simplemente, vuelve a cargar TODOS los datos de la playlist.
-                // Esto garantiza que la UI reflejará el estado real de la base de datos.
+                notifySongMarkedForDeletion(context, playlistId, songId)
+                // 2. Recarga los datos de esta pantalla.
                 refreshPlaylistData(playlistId, context)
-
-                // Sincroniza la cola si es necesario.
-                // Es mejor esperar un poco para que el estado se propague.
-                delay(50) // Pequeño delay opcional
-                syncPlaybackQueueIfActive(context, playlistId, currentSongId)
 
             } catch (e: Exception) {
                 Log.e("PlaylistDetailVM", "Error al eliminar canción", e)
@@ -162,45 +161,11 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
         }
     }
 
-    private suspend fun syncPlaybackQueueIfActive(
-        context: Context,
-        playlistId: String,
-        currentSongId: String?
-    ) {
-        val sharedVM = SharedViewModelHolder.sharedViewModel
-        val isActive = sharedVM.queueSourceLiveData.value == QueueSource.PLAYLIST &&
-                sharedVM.queueSourceIdLiveData.value == playlistId
-
-        if (isActive) {
-            val updatedSongs = _screenState.value?.songs ?: return
-
-            val newCurrentId = if (updatedSongs.any { it.id == currentSongId }) {
-                currentSongId
-            } else {
-                updatedSongs.firstOrNull()?.id
-            }
-
-            delay(100)
-            updatePlaybackQueue(context, playlistId, updatedSongs, newCurrentId)
-        }
-    }
-
-    private fun updatePlaybackQueue(
-        context: Context,
-        playlistId: String,
-        songs: List<Song>,
-        currentSongId: String?
-    ) {
-        val currentIndex = currentSongId?.let { id ->
-            songs.indexOfFirst { it.id == id }.takeIf { it != -1 } ?: 0
-        } ?: 0
-
+    // ✅ AÑADE ESTA NUEVA FUNCIÓN, MUCHO MÁS SIMPLE
+    private fun notifyPlaylistChange(context: Context, playlistId: String) {
         val intent = Intent(context, MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_UPDATE_QUEUE
-            putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(songs))
-            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.PLAYLIST)
-            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, playlistId)
-            putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
+            action = MusicPlaybackService.ACTION_PLAYLIST_MODIFIED
+            putExtra(MusicPlaybackService.EXTRA_PLAYLIST_ID, playlistId)
         }
         context.startService(intent)
     }

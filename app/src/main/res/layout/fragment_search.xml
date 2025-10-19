@@ -94,7 +94,7 @@
                 <com.google.android.material.chip.Chip
                     android:id="@+id/chipSongs"
                     android:layout_width="wrap_content"
-                    android:layout_height="50dp"
+                    android:layout_height="48dp"
                     android:layout_marginEnd="8dp"
                     android:checkable="true"
                     android:checked="true"
@@ -112,7 +112,7 @@
                 <com.google.android.material.chip.Chip
                     android:id="@+id/chipAlbums"
                     android:layout_width="wrap_content"
-                    android:layout_height="50dp"
+                    android:layout_height="48dp"
                     android:layout_marginEnd="8dp"
                     android:checkable="true"
                     android:checked="true"
@@ -130,7 +130,7 @@
                 <com.google.android.material.chip.Chip
                     android:id="@+id/chipArtists"
                     android:layout_width="wrap_content"
-                    android:layout_height="50dp"
+                    android:layout_height="48dp"
                     android:layout_marginEnd="8dp"
                     android:checkable="true"
                     android:checked="true"
