@@ -7,7 +7,29 @@ Aplicación de streaming de música nativa para Android, desarrollada 100% en Ko
 ---
 
 ## 📸 Capturas de Pantalla
-<img width="350" alt="Screenshot_20251020_131433" src="https://github.com/user-attachments/assets/85ad4bb2-faa4-499f-bf2d-f528e77289c0" /> | <img width="350" alt="Screenshot_20251020_131514" src="https://github.com/user-attachments/assets/a58e7f2c-b269-46ad-96d8-639425f8347a" /> | <img width="350" alt="Screenshot_20251020_131548" src="https://github.com/user-attachments/assets/88c12ddc-bb73-4d31-99a1-72fe1641e7e1" /> |
+
+<table align="center" cellpadding="10" cellspacing="10">
+  <tr>
+    <td align="center">
+      <p><b>Vista de Artista</b></p>
+      <img width="360" alt="Vista de Artista" src="https://github.com/user-attachments/assets/87c0a151-9174-46ef-8d63-278774840479">
+    </td>
+    <td align="center">
+      <p><b>Vista de Álbum</b></p>
+      <img width="360" alt="Vista de Álbum" src="https://github.com/user-attachments/assets/ed0047d8-64da-499a-a35a-354586345177">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <p><b>Vista de Búsqueda</b></p>
+      <img width="360" alt="Vista de Búsqueda" src="https://github.com/user-attachments/assets/c6daab4e-5e93-419a-a060-230b0c97f9d2">
+    </td>
+    <td align="center">
+      <p><b>Vista de Reproductor</b></p>
+      <img width="360" alt="Vista de Reproductor" src="https://github.com/user-attachments/assets/d5d01987-860d-44b8-b9b2-9a55be797457">
+    </td>
+  </tr>
+</table>
 
 ---
 
