@@ -21,11 +21,11 @@ Aplicación de streaming de música nativa para Android, desarrollada 100% en Ko
   </tr>
   <tr>
     <td align="center">
-      <p><b>Vista de Búsqueda</b></p>
+      <p><b>Vista de Reproductor</b></p>
       <img width="360" alt="Vista de Búsqueda" src="https://github.com/user-attachments/assets/c6daab4e-5e93-419a-a060-230b0c97f9d2">
     </td>
     <td align="center">
-      <p><b>Vista de Reproductor</b></p>
+      <p><b>Vista de Búsqueda</b></p>
       <img width="360" alt="Vista de Reproductor" src="https://github.com/user-attachments/assets/d5d01987-860d-44b8-b9b2-9a55be797457">
     </td>
   </tr>
