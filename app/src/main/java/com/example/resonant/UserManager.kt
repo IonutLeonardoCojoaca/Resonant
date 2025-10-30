@@ -3,7 +3,6 @@ package com.example.resonant
 import android.content.Context
 
 object UserManager {
-    // Guarda el id en SharedPreferences para usarlo en favoritos y otros features
     fun saveUserId(context: Context, userId: String) {
         val prefs = context.getSharedPreferences("user_data", Context.MODE_PRIVATE)
         prefs.edit().putString("USER_ID", userId).apply()

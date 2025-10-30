@@ -29,7 +29,6 @@ class TransitionManager(
     companion object {
         private const val BEATMATCH_BPM_TOLERANCE = 0.06
         private const val ANIMATION_FRAME_DELAY_MS = 16L
-        const val ALBUM_MIX_TRIGGER_MARGIN_MS = 250L
         private const val EQ_MAX_ATTENUATION: Short = -1500
         private const val EQ_MEDIUM_ATTENUATION: Short = -800
         private const val EQ_LIGHT_ATTENUATION: Short = -400
@@ -38,9 +37,15 @@ class TransitionManager(
     @Volatile
     var isTransitioning: Boolean = false
         private set
-    private var nextExoPlayer: ExoPlayer? = null
+    private var nextPlayer: ExoPlayer? = null
     private var oldPlayerEq: Equalizer? = null
     private var newPlayerEq: Equalizer? = null
+
+    @Volatile
+    var transitionProgress: Float = 0f
+        private set
+    private var currentPlayer: ExoPlayer? = null // El 'oldPlayer'
+    private var currentSong: Song? = null
 
     private fun handleMixCompletion(newPlayer: ExoPlayer, oldPlayer: ExoPlayer, nextSong: Song) {
         if (!isTransitioning) {
@@ -49,13 +54,17 @@ class TransitionManager(
         }
 
         isTransitioning = false
-        this.nextExoPlayer = null
+        this.nextPlayer = null
 
         // Limpieza de EQs
         oldPlayerEq?.release()
         newPlayerEq?.release()
         oldPlayerEq = null
         newPlayerEq = null
+
+        this.currentPlayer = null // 🔥
+        this.currentSong = null   // 🔥
+        transitionProgress = 0f // 🔥
 
         // Restaurar parámetros del nuevo reproductor
         try {
@@ -75,9 +84,10 @@ class TransitionManager(
         Log.e("TransitionManager", "❌ Fallo crítico en transición, recuperando estado...")
         newPlayer?.release()
         isTransitioning = false
-        nextExoPlayer = null
-
-        // Notifica al servicio que la transición ha fallado
+        nextPlayer = null
+        transitionProgress = 0f // 🔥
+        this.currentPlayer = null // 🔥
+        this.currentSong = null   // 🔥
         onTransitionFailed(oldPlayer)
     }
 
@@ -124,6 +134,9 @@ class TransitionManager(
                 return
             }
             isTransitioning = true
+            transitionProgress = 0f // 🔥 AÑADE ESTA LÍNEA
+            this.currentPlayer = oldPlayer // 🔥 AÑADE ESTA LÍNEA
+            this.currentSong = oldSong   // 🔥 AÑADE ESTA LÍNEA
         }
 
         val onComplete: (newPlayer: ExoPlayer) -> Unit = { newPlayer ->
@@ -151,19 +164,35 @@ class TransitionManager(
         if (!isTransitioning) return
         Log.w("TransitionManager", "🛑 CANCELANDO TRANSICIÓN EN CURSO...")
         isTransitioning = false
-        // Simplemente detenemos y liberamos los recursos de la transición.
-        try { nextExoPlayer?.stop(); nextExoPlayer?.release() } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar nextExoPlayer", e) }
-        nextExoPlayer = null
+        transitionProgress = 0f // 🔥
+
+        try { nextPlayer?.stop(); nextPlayer?.release() } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar nextExoPlayer", e) }
+        nextPlayer = null
         try { oldPlayerEq?.release(); newPlayerEq?.release() } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar EQs", e) }
         oldPlayerEq = null
         newPlayerEq = null
+
+        this.currentPlayer = null // 🔥
+        this.currentSong = null   // 🔥
         Log.d("TransitionManager", "✅ Transición cancelada.")
+    }
+
+    fun forceCompleteTransition() {
+        Log.w("TransitionManager", "🚀 FORZANDO COMPLETADO DE TRANSICIÓN...")
+        if (!isTransitioning || this.nextPlayer == null || this.currentPlayer == null || this.currentSong == null) {
+            Log.e("TransitionManager", "No se puede forzar, estado inválido.")
+            if (isTransitioning) {
+                cancelCurrentTransition()
+            }
+            return
+        }
+        handleMixCompletion(this.nextPlayer!!, this.currentPlayer!!, this.currentSong!!)
     }
 
     fun preloadNextSong(nextSong: Song?) {
         // Si ya hay un reproductor precargado, lo liberamos antes de crear uno nuevo.
-        nextExoPlayer?.release()
-        nextExoPlayer = null
+        nextPlayer?.release()
+        nextPlayer = null
 
         if (nextSong == null) {
             Log.d("TransitionManager", "No hay siguiente canción para precargar.")
@@ -182,11 +211,11 @@ class TransitionManager(
             newPlayer.prepare() // Iniciamos la preparación en segundo plano
 
             // Guardamos la referencia para usarla más tarde.
-            this.nextExoPlayer = newPlayer
+            this.nextPlayer = newPlayer
         } catch (e: Exception) {
             Log.e("TransitionManager", "Error durante la pre-carga de ${nextSong.title}", e)
-            nextExoPlayer?.release()
-            nextExoPlayer = null
+            nextPlayer?.release()
+            nextPlayer = null
         }
     }
 
@@ -202,7 +231,7 @@ class TransitionManager(
         Log.i("ResonantAutomix", "🤖 Iniciando Automix de Álbum (usando pre-carga)...")
 
         // 1. OBTENEMOS EL REPRODUCTOR YA PREPARADO
-        val newPlayer = this.nextExoPlayer
+        val newPlayer = this.nextPlayer
 
         // 2. COMPROBACIÓN DE SEGURIDAD: ¿Y si no se pudo pre-cargar?
         if (newPlayer == null) {
@@ -225,7 +254,7 @@ class TransitionManager(
             onMixComplete(newPlayer)
 
             // IMPORTANTE: Reseteamos la referencia para que no se reutilice por error.
-            this.nextExoPlayer = null
+            this.nextPlayer = null
 
         } catch (e: Exception) {
             Log.e("ResonantAutomix", "Error ejecutando el corte con el reproductor pre-cargado.", e)
@@ -246,7 +275,7 @@ class TransitionManager(
     ) {
         Log.i("Crossfade", "🔄 Iniciando Crossfade Simple. Índice siguiente: $nextSongIndex")
         val newPlayer = ExoPlayer.Builder(context).build()
-        this.nextExoPlayer = newPlayer
+        this.nextPlayer = newPlayer
 
         try {
             val queue = PlaybackStateRepository.activeQueue
@@ -316,6 +345,7 @@ class TransitionManager(
 
                 val elapsed = SystemClock.uptimeMillis() - startTime
                 val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
+                transitionProgress = progress // 🔥 AÑADE ESTA LÍNEA
 
                 val (oldVol, newVol) = when (crossfadeMode) {
                     CrossfadeMode.SOFT_MIX -> Pair(sqrt(1 - progress), sqrt(progress))
@@ -399,12 +429,10 @@ class TransitionManager(
         Log.i("IntelligentCrossfade", "📍 Puntos: Salida=${optimalOutPoint}ms, Entrada=${optimalInPoint}ms")
 
         val newPlayer = ExoPlayer.Builder(context).build()
-        this.nextExoPlayer = newPlayer
+        this.nextPlayer = newPlayer
 
         try {
-            // --- INICIO DE LA CORRECCIÓN ---
 
-            // 2. Accedemos a la cola de reproducción completa desde el Repository.
             val queue = PlaybackStateRepository.activeQueue
             if (queue == null || queue.songs.isEmpty()) {
                 Log.e("IntelligentCrossfade", "Error: No se encontró una cola activa para la transición.")
@@ -412,17 +440,9 @@ class TransitionManager(
                 return
             }
 
-            // 3. Creamos la lista de MediaItems a partir de la cola.
             val mediaItems = queue.songs.map { MediaItem.fromUri(it.url ?: "") }
 
-            // 4. ¡LA LÍNEA CLAVE! Configuramos el nuevo reproductor de una sola vez:
-            //    - Con la cola COMPLETA.
-            //    - Apuntando al ÍNDICE de la siguiente canción.
-            //    - Buscando la POSICIÓN de inicio óptima.
             newPlayer.setMediaItems(mediaItems, nextSongIndex, optimalInPoint.toLong())
-
-            // --- FIN DE LA CORRECCIÓN ---
-
 
             newPlayer.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -431,7 +451,6 @@ class TransitionManager(
                         Log.d("IntelligentCrossfade", "✅ NewPlayer listo con la cola completa. Iniciando mezcla.")
 
                         try {
-                            // 5. SINCRONIZACIÓN DE TEMPO (se mantiene igual)
                             if (strategy == MixStrategy.BEATMATCH_MIX) {
                                 oldSong.audioAnalysis?.let { oldA ->
                                     newSong.audioAnalysis?.let { newA ->
@@ -439,9 +458,6 @@ class TransitionManager(
                                     }
                                 }
                             }
-
-                            // 6. ELIMINAMOS EL seekTo, ¡YA NO ES NECESARIO!
-                            // newPlayer.seekTo(startPosition.toLong()) // <-- BORRAR ESTA LÍNEA
 
                             newPlayer.volume = 0f
                             newPlayer.play()
@@ -505,6 +521,7 @@ class TransitionManager(
 
                 val elapsed = SystemClock.uptimeMillis() - startTime
                 val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                transitionProgress = progress // 🔥 AÑADE ESTA LÍNEA
 
                 // ✅ LOG DE PROGRESO CADA 500ms
                 if (elapsed % 500 < 20) {
@@ -558,6 +575,12 @@ class TransitionManager(
             MixStrategy.BEATMATCH_MIX -> applyBeatmatchEffects(progress, effectsState)
             MixStrategy.HARMONIC_BLEND -> applyHarmonicEffects(progress, effectsState)
             MixStrategy.RHYTHMIC_FADE -> applyRhythmicEffects(progress, effectsState)
+            MixStrategy.STEM_SWAP_MIX -> {
+                if (progress >= 0.5f && !effectsState.bassSwapped) {
+                    Log.i("IntelligentCrossfade", "👑 STEM SWAP - Fase de Bass Swap completada")
+                    effectsState.bassSwapped = true
+                }
+            }
             else -> applyStandardEffects(progress, effectsState)
         }
     }
@@ -708,18 +731,32 @@ class TransitionManager(
 
         val bands = shortArrayOf(0, 1, 2, 3, 4)
 
-        // ✅ AÑADIR CASO PARA LA NUEVA ESTRATEGIA
+        // ✅ CORRECCIÓN: Estrategias con lógica de EQ por fases (Stem Swap, Rhythmic Fade)
+        // deben ejecutarse desde el principio (progress 0.0) y usar el 'progress' principal,
+        // no el 'musicalCurve' derivado.
+
         if (strategy == MixStrategy.STEM_SWAP_MIX) {
             applyStemSwapEq(oldEq, newEq, progress, bands)
-            return // Salir para no ejecutar la lógica de abajo
+            return // Salir
         }
+
+        // 🔥 ESTA ES LA LÍNEA CLAVE AÑADIDA
+        if (strategy == MixStrategy.RHYTHMIC_FADE) {
+            applyEnhancedRhythmicEq(oldEq, newEq, progress, bands, oldSong, newSong)
+            return // Salir
+        }
+
+        // --- Lógica de EQ estándar (para BEATMATCH, HARMONIC, STANDARD) ---
 
         // ✅ INICIO DINÁMICO BASADO EN ESTRATEGIA Y PROGRESO
         val eqStartPoint = calculateDynamicEqStartPoint(strategy, progress)
 
         if (progress < eqStartPoint) {
+            // ✅ ¡AQUÍ ESTÁ LA CORRECCIÓN!
+            // La canción antigua se mantiene plana.
             resetEqToFlat(oldEq, bands)
-            resetEqToFlat(newEq, bands)
+            // La canción nueva se mantiene CORTADA (en -1500) hasta que le toque entrar.
+            resetEqToCut(newEq, bands)
             return
         }
 
@@ -731,7 +768,7 @@ class TransitionManager(
         when (strategy) {
             MixStrategy.BEATMATCH_MIX -> applyEnhancedBeatmatchEq(oldEq, newEq, musicalCurve, bands, oldSong, newSong)
             MixStrategy.HARMONIC_BLEND -> applyEnhancedHarmonicEq(oldEq, newEq, musicalCurve, bands, oldSong, newSong)
-            MixStrategy.RHYTHMIC_FADE -> applyEnhancedRhythmicEq(oldEq, newEq, musicalCurve, bands, oldSong, newSong)
+            // RHYTHMIC_FADE y STEM_SWAP ya se han manejado arriba
             else -> applyEnhancedStandardEq(oldEq, newEq, musicalCurve, bands)
         }
 
@@ -844,57 +881,81 @@ class TransitionManager(
         }
     }
 
-    private fun applyStemSwapEq(oldEq: Equalizer, newEq: Equalizer,progress: Float, bands: ShortArray) {
-        val bassBands = shortArrayOf(0)       // Frecuencias graves (beat)
-        val midBands = shortArrayOf(1, 2)     // Frecuencias medias (vocales, acordes)
-        val highBands = shortArrayOf(3, 4)    // Frecuencias agudas (platillos, etc.)
+    private fun applyStemSwapEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray) {
+        val bassBands = shortArrayOf(0)
+        val midBands = shortArrayOf(1, 2)
+        val highBands = shortArrayOf(3, 4)
+
+        val MAX_ATT = EQ_MAX_ATTENUATION
+        val FLAT: Short = 0
 
         // Fase 1 (0% -> 25%): Introducir agudos de la nueva canción
         if (progress < 0.25f) {
-            val stageProgress = progress / 0.25f
-            // La nueva canción solo introduce sus agudos
+            val stageProgress = (progress / 0.25f)
+
+            // oldEq: Sigue sonando normal
+            bassBands.forEach { oldEq.setBandLevel(it, FLAT) }
+            midBands.forEach { oldEq.setBandLevel(it, FLAT) }
+            highBands.forEach { oldEq.setBandLevel(it, FLAT) }
+
+            // newEq: Entra solo con agudos (Graves y Medios cortados)
+            bassBands.forEach { newEq.setBandLevel(it, MAX_ATT) }
+            midBands.forEach { newEq.setBandLevel(it, MAX_ATT) }
             highBands.forEach { band ->
-                newEq.setBandLevel(band, (EQ_MAX_ATTENUATION * (1 - stageProgress)).toInt().toShort())
+                newEq.setBandLevel(band, (MAX_ATT * (1 - stageProgress)).toInt().toShort())
             }
         }
         // Fase 2 (25% -> 50%): Intercambiar los bajos (Bass Swap)
         else if (progress < 0.5f) {
-            val stageProgress = (progress - 0.25f) / 0.25f
-            // Terminar de introducir agudos nuevos
-            highBands.forEach { band -> newEq.setBandLevel(band, 0) }
+            val stageProgress = ((progress - 0.25f) / 0.25f)
 
-            // Intercambiar bajos
+            // oldEq: Empieza a perder sus bajos
             bassBands.forEach { band ->
-                oldEq.setBandLevel(band, (EQ_MAX_ATTENUATION * stageProgress).toInt().toShort())
-                newEq.setBandLevel(band, (EQ_MAX_ATTENUATION * (1 - stageProgress)).toInt().toShort())
+                oldEq.setBandLevel(band, (MAX_ATT * stageProgress).toInt().toShort())
             }
+            midBands.forEach { oldEq.setBandLevel(it, FLAT) }
+            highBands.forEach { oldEq.setBandLevel(it, FLAT) }
+
+            // newEq: Introduce sus bajos, mantiene agudos, medios siguen cortados
+            bassBands.forEach { band ->
+                newEq.setBandLevel(band, (MAX_ATT * (1 - stageProgress)).toInt().toShort())
+            }
+            midBands.forEach { newEq.setBandLevel(it, MAX_ATT) }
+            highBands.forEach { newEq.setBandLevel(it, FLAT) } // Agudos ya entraron
         }
         // Fase 3 (50% -> 75%): Intercambiar los medios (Mid Swap)
         else if (progress < 0.75f) {
-            val stageProgress = (progress - 0.5f) / 0.25f
-            // Mantener bajos intercambiados
-            bassBands.forEach { band ->
-                oldEq.setBandLevel(band, EQ_MAX_ATTENUATION)
-                newEq.setBandLevel(band, 0)
-            }
-            // Intercambiar medios
+            val stageProgress = ((progress - 0.5f) / 0.25f)
+
+            // oldEq: Bajos cortados, empieza a perder medios
+            bassBands.forEach { oldEq.setBandLevel(it, MAX_ATT) }
             midBands.forEach { band ->
-                oldEq.setBandLevel(band, (EQ_MAX_ATTENUATION * stageProgress).toInt().toShort())
-                newEq.setBandLevel(band, (EQ_MAX_ATTENUATION * (1 - stageProgress)).toInt().toShort())
+                oldEq.setBandLevel(band, (MAX_ATT * stageProgress).toInt().toShort())
             }
+            highBands.forEach { oldEq.setBandLevel(it, FLAT) }
+
+            // newEq: Bajos y agudos presentes, introduce medios
+            bassBands.forEach { newEq.setBandLevel(it, FLAT) }
+            midBands.forEach { band ->
+                newEq.setBandLevel(band, (MAX_ATT * (1 - stageProgress)).toInt().toShort())
+            }
+            highBands.forEach { newEq.setBandLevel(it, FLAT) }
         }
         // Fase 4 (75% -> 100%): Limpiar agudos de la canción antigua
         else {
-            val stageProgress = (progress - 0.75f) / 0.25f
-            // Mantener medios intercambiados
-            midBands.forEach { band ->
-                oldEq.setBandLevel(band, EQ_MAX_ATTENUATION)
-                newEq.setBandLevel(band, 0)
-            }
-            // Limpiar agudos antiguos
+            val stageProgress = ((progress - 0.75f) / 0.25f)
+
+            // oldEq: Bajos y medios cortados, pierde agudos
+            bassBands.forEach { oldEq.setBandLevel(it, MAX_ATT) }
+            midBands.forEach { oldEq.setBandLevel(it, MAX_ATT) }
             highBands.forEach { band ->
-                oldEq.setBandLevel(band, (EQ_MAX_ATTENUATION * stageProgress).toInt().toShort())
+                oldEq.setBandLevel(band, (MAX_ATT * stageProgress).toInt().toShort())
             }
+
+            // newEq: Todo presente (plano)
+            bassBands.forEach { newEq.setBandLevel(it, FLAT) }
+            midBands.forEach { newEq.setBandLevel(it, FLAT) }
+            highBands.forEach { newEq.setBandLevel(it, FLAT) }
         }
     }
 
@@ -1413,6 +1474,12 @@ class TransitionManager(
     private fun resetEqToFlat(eq: Equalizer, bands: ShortArray) {
         bands.forEach { band ->
             eq.setBandLevel(band, 0) // Nivel plano
+        }
+    }
+
+    private fun resetEqToCut(eq: Equalizer, bands: ShortArray) {
+        bands.forEach { band ->
+            eq.setBandLevel(band, EQ_MAX_ATTENUATION) // Nivel cortado
         }
     }
 

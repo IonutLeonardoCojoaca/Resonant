@@ -44,6 +44,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
     private lateinit var searchResultAdapter: SearchResultAdapter
     private lateinit var resultsRecyclerView: RecyclerView
     private var editTextQuery: EditText? = null
+    private lateinit var suggestionAdapter: SuggestionAdapter
+    private lateinit var suggestionsRecyclerView: RecyclerView
 
     private lateinit var chipSongs: Chip
     private lateinit var chipAlbums: Chip
@@ -86,6 +88,15 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         resultsRecyclerView.adapter = searchResultAdapter
         editTextQuery = view.findViewById(R.id.editTextQuery)
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
+
+        suggestionsRecyclerView = view.findViewById(R.id.suggestionsRecyclerView)
+        suggestionAdapter = SuggestionAdapter { suggestion ->
+            editTextQuery?.setText(suggestion.text)
+            editTextQuery?.setSelection(suggestion.text.length)
+        }
+        suggestionsRecyclerView.adapter = suggestionAdapter
+        suggestionsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+
 
         sharedPref = requireContext().getSharedPreferences("music_prefs", Context.MODE_PRIVATE)
         sharedViewModel = ViewModelProvider(requireActivity())[SharedViewModel::class.java]
@@ -252,25 +263,36 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
                 noSongsFounded.visibility = View.GONE
                 resultsRecyclerView.visibility = View.INVISIBLE
+                suggestionsRecyclerView.visibility = View.GONE
                 loadingAnimation.visibility = View.VISIBLE
 
                 searchJob = viewLifecycleOwner.lifecycleScope.launch {
-                    // Debounce
-                    delay(500)
+                    delay(500) // debounce
 
                     val service = ApiClient.getService(requireContext())
+
                     try {
-                        // Ejecutar las 3 búsquedas en paralelo
+                        // ✅ Ejecutamos las 3 búsquedas paralelas: usando SongManager solo para canciones
                         val songsDeferred = async { SongManager.searchSongs(requireContext(), query) }
                         val albumsDeferred = async { service.searchAlbumsByQuery(query) }
                         val artistsDeferred = async { service.searchArtistsByQuery(query) }
 
-                        val songs = songsDeferred.await()
-                        val albums = albumsDeferred.await()
-                        val artists = artistsDeferred.await()
+                        val songsResponse = songsDeferred.await()
+                        val albumsResponse = albumsDeferred.await()
+                        val artistsResponse = artistsDeferred.await()
 
-                        // Resolver URLs en lote para evitar N llamadas por item
-                        // ARTISTAS
+                        val songs = songsResponse.results
+                        val albums = albumsResponse.results
+                        val artists = artistsResponse.results
+
+                        val combinedSuggestions = intercalateAndSortSuggestions(
+                            songsResponse.suggestions,
+                            albumsResponse.suggestions,
+                            artistsResponse.suggestions,
+                            query
+                        )
+
+                        // === ARTISTAS ===
                         val artistFileNames = artists.mapNotNull { it.fileName?.takeIf { fn -> fn.isNotBlank() } }
                         val artistUrls = if (artistFileNames.isNotEmpty())
                             service.getMultipleArtistUrls(artistFileNames)
@@ -279,68 +301,78 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                         val artistsPrepared = artists.map { artist ->
                             val url = artist.fileName?.let { artistUrlMap[it]?.url }.orEmpty()
                             artist.copy(
-                                url = url,                        // <--- Asigna aquí la URL
+                                url = url,
                                 description = artist.description ?: ""
-                                // No sobrescribas fileName
                             )
                         }
 
-                        // ÁLBUMES: nombres de artistas y URLs de portadas en lote
+                        // === ÁLBUMES ===
                         albums.forEach { album ->
                             val albumArtists = service.getArtistsByAlbumId(album.id)
-                            album.artistName = albumArtists.filterNotNull().map { it.name ?: "Desconocido" }.joinToString(", ")
+                            album.artistName = albumArtists.filterNotNull()
+                                .map { it.name ?: "Desconocido" }
+                                .joinToString(", ")
                         }
+
                         val albumSafeNames = albums.map { a ->
                             a.fileName = a.fileName?.takeIf { it.isNotBlank() } ?: "${a.id}.jpg"
                             a.fileName!!
                         }
+
                         if (albumSafeNames.isNotEmpty()) {
                             val albumUrls = service.getMultipleAlbumUrls(albumSafeNames)
                             val albumUrlMap = albumSafeNames.zip(albumUrls.map { it.url }).toMap()
                             albums.forEach { a -> a.url = albumUrlMap[a.fileName] }
                         }
 
-                        // Intercalar y ordenar por relevancia
-                        val combined = intercalateAndSortResults(songs, albums, artistsPrepared, query)
-                        // Actualizar colecciones internas
+                        // === COMBINAR Y MOSTRAR RESULTADOS ===
+                        val combinedResults = intercalateAndSortResults(songs, albums, artistsPrepared, query)
+
                         songResults.clear(); songResults.addAll(songs)
                         albumResults.clear(); albumResults.addAll(albums)
                         artistResults.clear(); artistResults.addAll(artistsPrepared)
-
-                        // ACTUALIZAR lastResults ANTES de filtrar
-                        lastResults = combined
-
-                        // Llamamos a nuestra nueva función centralizada para actualizar la UI
-                        updateAdapterList(applyActiveFilters(lastResults))
+                        lastResults = combinedResults
 
                         val finalList = applyActiveFilters(lastResults)
 
                         loadingAnimation.visibility = View.INVISIBLE
-                        resultsRecyclerView.visibility = View.VISIBLE
 
-                        if (finalList.isEmpty()) {
-                            searchResultAdapter.submitList(emptyList())
-                            noSongsFounded.visibility = View.VISIBLE
-                        } else {
-                            searchResultAdapter.submitList(finalList)
-                            noSongsFounded.visibility = View.GONE
-                        }
+                        when {
+                            finalList.isNotEmpty() -> {
+                                // ✅ Mostrar resultados
+                                resultsRecyclerView.visibility = View.VISIBLE
+                                suggestionsRecyclerView.visibility = View.GONE
+                                noSongsFounded.visibility = View.GONE
+                                searchResultAdapter.submitList(finalList)
+                            }
 
-                        // 🔎 Debug: ver si alguna canción llega sin coverUrl
-                        songs.forEach {
-                            Log.d("SearchResult", "Song: ${it.title}, coverUrl=${it.coverUrl}")
+                            combinedSuggestions.isNotEmpty() -> {
+                                // ✅ Mostrar sugerencias
+                                resultsRecyclerView.visibility = View.GONE
+                                suggestionsRecyclerView.visibility = View.VISIBLE
+                                noSongsFounded.visibility = View.GONE
+                                suggestionAdapter.submitList(combinedSuggestions)
+                            }
+
+                            else -> {
+                                // 🚫 Nada
+                                resultsRecyclerView.visibility = View.GONE
+                                suggestionsRecyclerView.visibility = View.GONE
+                                noSongsFounded.visibility = View.VISIBLE
+                                searchResultAdapter.submitList(emptyList())
+                            }
                         }
 
                     } catch (e: Exception) {
                         loadingAnimation.visibility = View.INVISIBLE
                         resultsRecyclerView.visibility = View.INVISIBLE
-                        searchResultAdapter.submitList(emptyList())
+                        suggestionsRecyclerView.visibility = View.GONE
                         noSongsFounded.visibility = View.VISIBLE
-                        e.printStackTrace()
+                        searchResultAdapter.submitList(emptyList())
+                        Log.e("SearchFragment", "Error during search", e)
                     }
                 }
             }
-
         })
 
         return view
@@ -400,6 +432,48 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         }
         return combined
     }
+
+    private fun intercalateAndSortSuggestions(
+        songSuggestions: List<String>,
+        albumSuggestions: List<String>,
+        artistSuggestions: List<String>,
+        query: String
+    ): List<SuggestionItem> {
+        val lowerQuery = query.lowercase()
+
+        fun scoreSuggestion(text: String, baseWeight: Int): Int {
+            val t = text.lowercase()
+            return when {
+                t == lowerQuery -> baseWeight + 100
+                t.startsWith(lowerQuery) -> baseWeight + 80
+                t.contains(lowerQuery) -> baseWeight + 60
+                else -> baseWeight
+            }
+        }
+
+        val scoredSongs = songSuggestions.map { SuggestionItem(it, DataType.SONG) to scoreSuggestion(it, 40) }
+        val scoredAlbums = albumSuggestions.map { SuggestionItem(it, DataType.ALBUM) to scoreSuggestion(it, 60) }
+        val scoredArtists = artistSuggestions.map { SuggestionItem(it, DataType.ARTIST) to scoreSuggestion(it, 80) }
+
+        val sortedSongs = scoredSongs.sortedByDescending { it.second }.map { it.first }
+        val sortedAlbums = scoredAlbums.sortedByDescending { it.second }.map { it.first }
+        val sortedArtists = scoredArtists.sortedByDescending { it.second }.map { it.first }
+
+        val lists = mutableListOf(sortedArtists, sortedSongs, sortedAlbums)
+        val combined = mutableListOf<SuggestionItem>()
+
+        while (lists.any { it.isNotEmpty() }) {
+            lists.forEachIndexed { index, list ->
+                if (list.isNotEmpty()) {
+                    combined.add(list.first())
+                    lists[index] = list.drop(1)
+                }
+            }
+        }
+
+        return combined.distinctBy { it.text }
+    }
+
 
     private fun applyActiveFilters(results: List<SearchResult>): List<SearchResult> {
         return results.filter { item ->

@@ -50,7 +50,7 @@ interface ApiResonantService {
     @GET("api/Album/SearchByQuery")
     suspend fun searchAlbumsByQuery(
         @Query("query") query: String
-    ): List<Album>
+    ): SearchResponse<Album> // <-- ¡CAMBIADO! Antes era List<Album>
 
     @POST("/api/Album/AddFavorite")
     suspend fun addFavoriteAlbum(
@@ -86,7 +86,7 @@ interface ApiResonantService {
     @GET("api/Artist/SearchByQuery")
     suspend fun searchArtistsByQuery(
         @Query("query") query: String
-    ): List<Artist>
+    ): SearchResponse<Artist> // <-- ¡CAMBIADO! Antes era List<Artist>
 
     @GET("api/Artist/GetBySongId")
     suspend fun getArtistsBySongId(
@@ -122,8 +122,8 @@ interface ApiResonantService {
     suspend fun getAllSongIds(): List<String>
 
     @PUT("api/Song/AddStream")
-    suspend fun incrementStream(
-        @Query("id") songId: String
+    suspend fun addStream(
+        @Body streamData: AddStreamDTO
     )
 
     @POST("/api/Song/AddFavorite")
@@ -176,9 +176,9 @@ interface ApiResonantService {
 
     /** 🔹 Canciones por búsqueda (query) */
     @GET("api/Song/SearchWithMetadata")
-    suspend fun searchSongsWithMetadata( // El nombre del método puede ser diferente al del endpoint
+    suspend fun searchSongsWithMetadata(
         @Query("query") query: String
-    ): List<Song>
+    ): SearchResponse<Song> // <-- ¡CAMBIADO! Antes era List<Song>
 
 
 

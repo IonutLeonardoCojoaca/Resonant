@@ -69,6 +69,10 @@ class MusicPlaybackService : Service(), PlayerController {
     private var isSeeking: Boolean = false
     private var lastManualChangeTimestamp: Long = 0L
     private val pendingDeletionSongIds = mutableSetOf<String>()
+    @Volatile
+    private var predictedIntelligentDuration: Long = -1L
+
+    private var currentSongStartTimeMs: Long = 0L // Para el reporte de historial
 
     private val seekBarHandler = Handler(Looper.getMainLooper())
     private val updateSeekBarRunnable = object : Runnable {
@@ -101,15 +105,6 @@ class MusicPlaybackService : Service(), PlayerController {
                 handleTransitionTrigger() // ¡Llama al nuevo coordinador!
                 return // Salimos porque la transición ya ha comenzado y este runnable se detendrá.
             }
-            // 🔥 --- FIN DE LA CORRECCIÓN --- 🔥
-
-            // ✅ USA el Repository para el estado del stream.
-            if (!PlaybackStateRepository.streamReported && position > 10_000) {
-                PlaybackStateRepository.currentSong?.id?.let { id ->
-                    reportStream(id)
-                    PlaybackStateRepository.streamReported = true
-                }
-            }
 
             // ✅ ENVÍA la actualización a la UI.
             PlaybackStateRepository.updatePlaybackPosition(position, duration)
@@ -130,11 +125,26 @@ class MusicPlaybackService : Service(), PlayerController {
     override fun resume() { exoPlayer?.play() }
     override fun pause() {
         if (transitionManager.isTransitioning) {
-            transitionManager.cancelCurrentTransition()
+            Log.w("MusicService", "PAUSA durante transición. Forzando completado para pausar la nueva canción.")
+
+            // 1. FORZAR COMPLETADO
+            // Esto llama a onTransitionComplete, que HACE EL CAMBIO
+            // de 'exoPlayer' a 'newPlayer' (Song B)
+            transitionManager.forceCompleteTransition()
+
+            // 2. PAUSAR EL REPRODUCTOR
+            // Ahora 'this.exoPlayer' ya es el 'newPlayer' (Song B),
+            // así que esto pausa la canción correcta.
+            exoPlayer?.pause()
+
+        } else {
+            // No hay transición, solo pausar normalmente
+            exoPlayer?.pause()
         }
-        exoPlayer?.pause()
     }
     override fun playNext() {
+        reportCurrentSongFinished(wasSkipped = true)
+
         if (transitionManager.isTransitioning) {
             transitionManager.cancelCurrentTransition()
         }
@@ -156,10 +166,12 @@ class MusicPlaybackService : Service(), PlayerController {
         }
     }
     override fun playPrevious() {
+        reportCurrentSongFinished(wasSkipped = true)
+
         if (transitionManager.isTransitioning) {
             transitionManager.cancelCurrentTransition()
         }
-        PlaybackStateRepository.streamReported = false
+
         lastManualChangeTimestamp = System.currentTimeMillis()
 
         val player = exoPlayer ?: return
@@ -178,11 +190,12 @@ class MusicPlaybackService : Service(), PlayerController {
         }
     }
     override fun stop() {
+        reportCurrentSongFinished(wasSkipped = true)
         if (transitionManager.isTransitioning) {
             transitionManager.cancelCurrentTransition()
         }
         stopForeground(true)
-        stopSelf() // Esto activará onDestroy() para la limpieza final
+        stopSelf()
     }
     override fun seekTo(position: Long) {
         val player = exoPlayer ?: return
@@ -275,6 +288,7 @@ class MusicPlaybackService : Service(), PlayerController {
     fun updateSongs(newSongs: List<Song>) {
         val player = exoPlayer ?: return
         val queue = PlaybackStateRepository.activeQueue ?: return
+        transitionManager.cancelCurrentTransition()
 
         val currentPositionMs = player.currentPosition
         val oldIndex = queue.currentIndex
@@ -354,6 +368,10 @@ class MusicPlaybackService : Service(), PlayerController {
                         Log.d("PlayerListener", "Transición de ExoPlayer a una NUEVA canción: ${newSong.title}")
 
                         PlaybackStateRepository.setCurrentSong(newSong)
+
+                        currentSongStartTimeMs = System.currentTimeMillis()
+                        PlaybackStateRepository.streamReported = false
+
                         loadArtworkForSong(newSong)
                         updateUiAndSystem()
                     } else {
@@ -392,6 +410,9 @@ class MusicPlaybackService : Service(), PlayerController {
                         return
                     }
                     Log.i("PlayerListener", "🏁 Canción finalizada naturalmente. Forzando paso a la siguiente.")
+
+                    reportCurrentSongFinished(wasSkipped = false)
+
                     playNext()
                 }
             }
@@ -408,6 +429,12 @@ class MusicPlaybackService : Service(), PlayerController {
         val song = PlaybackStateRepository.currentSong ?: return -1L
         val analysis = song.audioAnalysis ?: return -1L
         val isAlbumMode = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.ALBUM
+
+        val nextSong = PlaybackStateRepository.getNextSong(exoPlayer?.currentMediaItemIndex ?: -1)
+        if (nextSong == null || nextSong.id == song.id) {
+            // No hay siguiente canción o está en bucle. No hay trigger.
+            return -1L
+        }
 
         Log.d("MusicService", "🔧 calculateTriggerPosition - Modo: $crossfadeMode, Duración: ${crossfadeDurationMs}ms, AlbumMode: $isAlbumMode")
 
@@ -494,6 +521,11 @@ class MusicPlaybackService : Service(), PlayerController {
         exoPlayer?.prepare()
         exoPlayer?.play()
 
+        currentSongStartTimeMs = System.currentTimeMillis()
+        PlaybackStateRepository.streamReported = false
+
+        updatePredictedDurationAsync()
+
         val nextSong = PlaybackStateRepository.getNextSong(queue.currentIndex)
         transitionManager.preloadNextSong(nextSong)
 
@@ -513,12 +545,65 @@ class MusicPlaybackService : Service(), PlayerController {
         player.play()
         Log.d("ExoPlayer", "Cola de ExoPlayer sincronizada.")
     }
-    private fun reportStream(songId: String) {
+    private fun reportCurrentSongFinished(wasSkipped: Boolean) {
+        // Si ya se reportó (ej. en una transición), no hacerlo de nuevo.
+        if (PlaybackStateRepository.streamReported) {
+            return
+        }
+
+        // 1. Obtenemos los datos de la canción que acaba de sonar
+        val songToReport = PlaybackStateRepository.currentSong ?: return
+        val startTime = currentSongStartTimeMs
+        val playSource = PlaybackStateRepository.activeQueue?.sourceType?.name ?: "UNKNOWN"
+
+        // 2. Calculamos la duración
+        val endTime = System.currentTimeMillis()
+        val durationInSeconds = ((endTime - startTime) / 1000).toInt()
+
+        // 3. Seguridad: No reportar si se escuchó muy poco (ej. < 5 seg)
+        if (durationInSeconds < 5) {
+            Log.d("StreamAPI", "Duración de $durationInSeconds s es muy corta. No se reporta.")
+            return
+        }
+
+        // 4. Llamamos a la función de red (que ya tienes correcta)
+        Log.d("StreamAPI", "Reportando: Song=${songToReport.title}, Duration=${durationInSeconds}s, Skipped=$wasSkipped")
+        reportStream(
+            songId = songToReport.id,
+            durationInSeconds = durationInSeconds,
+            wasSkipped = wasSkipped,
+            playSource = playSource
+        )
+
+        // 5. Marcamos como reportada para evitar duplicados
+        PlaybackStateRepository.streamReported = true
+    }
+    private fun reportStream(songId: String, durationInSeconds: Int, wasSkipped: Boolean, playSource: String) {
         serviceScope.launch {
             try {
+                val userId = UserManager.getUserId(applicationContext)
+
+                if (userId.isNullOrEmpty()) {
+                    Log.e("StreamAPI", "❌ Error al reportar stream: UserId no encontrado. Abortando.")
+                    return@launch // Abortar la corrutina si no hay UserId
+                }
+
+                // 2. Construir el objeto DTO (¡Añadiendo el userId!)
+                val streamData = AddStreamDTO(
+                    songId = songId,
+                    userId = userId, // 🔥 ¡NUEVA LÍNEA!
+                    listenDurationInSeconds = durationInSeconds,
+                    wasSkipped = wasSkipped,
+                    playSource = playSource
+                )
+
+                Log.i("StreamAPI", "Reportando stream: $streamData")
+
                 val api = ApiClient.getService(applicationContext)
-                api.incrementStream(songId)
+                api.addStream(streamData)
+
                 Log.d("StreamAPI", "✅ Stream reportado para $songId")
+
             } catch (e: Exception) {
                 Log.e("StreamAPI", "❌ Error al reportar stream", e)
             }
@@ -544,6 +629,10 @@ class MusicPlaybackService : Service(), PlayerController {
     private fun handleAction(action: String, intent: Intent) {
         when (action) {
             ACTION_PLAY -> {
+                reportCurrentSongFinished(wasSkipped = true)
+
+                transitionManager.cancelCurrentTransition()
+
                 val song = intent.getParcelableExtra<Song>(EXTRA_CURRENT_SONG)
                 val songList = intent.getParcelableArrayListExtra<Song>(SONG_LIST)
                 val index = intent.getIntExtra(EXTRA_CURRENT_INDEX, -1)
@@ -635,6 +724,7 @@ class MusicPlaybackService : Service(), PlayerController {
         serviceScope.launch {
             settingsManager.crossfadeModeFlow.collect { mode ->
                 crossfadeMode = mode
+                updatePredictedDurationAsync()
                 Log.d("MusicService", "Modo Crossfade: $mode")
             }
         }
@@ -648,10 +738,37 @@ class MusicPlaybackService : Service(), PlayerController {
         notificationManager.updateNotification(song, PlaybackStateRepository.isPlaying, bitmap)
         Log.d("MusicService", "🔄 Metadata de MediaSession y Notificación actualizada para ${song?.title}")
     }
+    private fun updatePredictedDurationAsync() {
+        predictedIntelligentDuration = -1L
+
+        serviceScope.launch {
+
+            val currentIndex: Int
+            val currentSong: Song?
+            val nextSong: Song?
+            withContext(Dispatchers.Main) {
+                currentIndex = exoPlayer?.currentMediaItemIndex ?: -1
+                currentSong = PlaybackStateRepository.currentSong
+                nextSong = PlaybackStateRepository.getNextSong(currentIndex)
+            }
+
+            if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ &&
+                currentSong != null &&
+                nextSong != null &&
+                currentSong.id != nextSong.id) {
+
+                val duration = transitionManager.predictIntelligentMixDuration(currentSong, nextSong)
+                predictedIntelligentDuration = duration // Actualizar la variable cacheada (seguro)
+                Log.d("MusicService", "🧠 Duración inteligente cacheada: ${duration}ms")
+            }
+        }
+    }
 
     private fun handleTransitionTrigger() {
         val player = exoPlayer ?: return
         val oldSong = PlaybackStateRepository.currentSong ?: return
+
+        reportCurrentSongFinished(wasSkipped = false)
 
         val currentIndex = player.currentMediaItemIndex
         val nextSong = PlaybackStateRepository.getNextSong(currentIndex) ?: return
@@ -708,6 +825,9 @@ class MusicPlaybackService : Service(), PlayerController {
         this.exoPlayer = newPlayer
         newPlayer.addListener(playerListener)
 
+        currentSongStartTimeMs = System.currentTimeMillis()
+        PlaybackStateRepository.streamReported = false
+
         Log.d("MusicService", "Reproductor principal actualizado a la nueva instancia.")
 
         PlaybackStateRepository.setCurrentSong(completedSong)
@@ -719,6 +839,8 @@ class MusicPlaybackService : Service(), PlayerController {
         if (newPlayer.isPlaying) {
             startSeekBarUpdates()
         }
+
+        updatePredictedDurationAsync()
 
         val nextSong = PlaybackStateRepository.getNextSong(newIndex)
         transitionManager.preloadNextSong(nextSong)

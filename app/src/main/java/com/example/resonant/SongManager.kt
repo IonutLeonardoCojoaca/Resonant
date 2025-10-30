@@ -3,6 +3,7 @@ package com.example.resonant.managers // o el paquete que prefieras
 import android.content.Context
 import android.util.Log
 import com.example.resonant.ApiClient
+import com.example.resonant.SearchResponse
 import com.example.resonant.Song
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -125,19 +126,18 @@ object SongManager {
         }
     }
 
-    /**
-     * Realiza una búsqueda de canciones, enriqueciendo los resultados con todos sus metadatos y URLs.
-     */
-    suspend fun searchSongs(context: Context, query: String): List<Song> {
+    suspend fun searchSongs(context: Context, query: String): SearchResponse<Song> {
         return try {
             val service = ApiClient.getService(context)
-            val songs = service.searchSongsWithMetadata(query)
-            enrichSongsWithUrls(context, songs)
+            val response = service.searchSongsWithMetadata(query)
+            val enriched = enrichSongsWithUrls(context, response.results)
+            SearchResponse(enriched, response.suggestions)
         } catch (e: Exception) {
             Log.e("SongManager", "Error searching songs with query '$query'", e)
-            emptyList()
+            SearchResponse(emptyList(), emptyList())
         }
     }
+
 
     suspend fun enrichSingleSong(context: Context, song: Song): Song {
         // Simplemente envolvemos la canción en una lista para poder usar nuestra
