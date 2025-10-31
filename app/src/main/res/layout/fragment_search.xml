@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".SearchFragment"
+    tools:context=".ui.fragments.SearchFragment"
     android:background="@color/black">
 
     <RelativeLayout
@@ -44,14 +44,14 @@
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:background="@drawable/search_bar_background"
+                android:background="@drawable/bg_search_bar"
                 app:boxBackgroundMode="none"
                 app:hintEnabled="false"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:startIconDrawable="@drawable/search"
+                app:startIconDrawable="@drawable/ic_menu_search"
                 app:startIconTint="@color/white"
                 app:endIconMode="clear_text"
                 app:endIconTint="@color/white">
@@ -160,7 +160,7 @@
             <View
                 android:layout_width="40dp"
                 android:layout_height="match_parent"
-                android:background="@drawable/gradient_artist"
+                android:background="@drawable/bg_gradient_artist"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
                 android:rotation="-90"/>
@@ -194,7 +194,7 @@
                 android:nestedScrollingEnabled="false"
                 android:paddingHorizontal="14dp"
                 android:paddingBottom="160dp"
-                android:scrollbarThumbVertical="@drawable/scrollbar_thumb"
+                android:scrollbarThumbVertical="@drawable/bg_scrollbar_thumb"
                 android:fadeScrollbars="false"
                 android:visibility="invisible" />
 

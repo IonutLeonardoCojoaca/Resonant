@@ -5,7 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".CreatePlaylistFragment"
+    tools:context=".ui.fragments.CreatePlaylistFragment"
     android:background="@color/appBackgroundTheme">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -25,7 +25,7 @@
             android:background="@color/transparent"
             android:scaleX="0.8"
             android:scaleY="0.8"
-            android:src="@drawable/arrow_back"
+            android:src="@drawable/ic_arrow_back"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
@@ -69,7 +69,7 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/search_bar_background"
+            android:background="@drawable/bg_search_bar"
             app:boxBackgroundMode="none"
             app:hintEnabled="false"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -123,7 +123,7 @@
             android:layout_width="match_parent"
             android:layout_height="100dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/description_bar_background"
+            android:background="@drawable/bg_description_bar"
             app:boxBackgroundMode="none"
             app:hintEnabled="false"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -189,7 +189,7 @@
                 android:id="@+id/checkBoxPublic"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@drawable/public_playlist_check_background_selected"
+                android:background="@drawable/bg_public_playlist_check_selected"
                 android:padding="10dp">
 
                 <FrameLayout
@@ -204,7 +204,7 @@
                         android:id="@+id/publicIconCheck"
                         android:layout_width="35dp"
                         android:layout_height="35dp"
-                        android:src="@drawable/icon_public_selected"
+                        android:src="@drawable/ic_public_selected"
                         android:layout_gravity="center_horizontal|top"/>
 
                     <TextView
@@ -251,7 +251,7 @@
                 android:id="@+id/checkBoxPrivate"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@drawable/public_playlist_check_background"
+                android:background="@drawable/bg_public_playlist_check"
                 android:padding="10dp">
 
                 <FrameLayout
@@ -266,7 +266,7 @@
                         android:id="@+id/privateIconCheck"
                         android:layout_width="35dp"
                         android:layout_height="35dp"
-                        android:src="@drawable/icon_private"
+                        android:src="@drawable/ic_private"
                         android:layout_gravity="center_horizontal|top"/>
 
                     <TextView

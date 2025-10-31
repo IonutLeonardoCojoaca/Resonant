@@ -5,7 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".PlaylistFragment"
+    tools:context=".ui.fragments.PlaylistFragment"
     android:background="@color/appBackgroundTheme">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -23,7 +23,7 @@
             android:scaleY="0.8"
             android:layout_marginVertical="10dp"
             android:background="@color/transparent"
-            android:src="@drawable/arrow_back"
+            android:src="@drawable/ic_arrow_back"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />

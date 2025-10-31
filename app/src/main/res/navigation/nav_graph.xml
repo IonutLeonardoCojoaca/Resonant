@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/homeFragment"
-        android:name="com.example.resonant.HomeFragment"
+        android:name="com.example.resonant.ui.fragments.HomeFragment"
         android:label="Inicio"
         tools:layout="@layout/fragment_home">
 
@@ -28,7 +28,7 @@
 
     <fragment
         android:id="@+id/searchFragment"
-        android:name="com.example.resonant.SearchFragment"
+        android:name="com.example.resonant.ui.fragments.SearchFragment"
         android:label="Buscar"
         tools:layout="@layout/fragment_search">
         <action
@@ -49,7 +49,7 @@
 
     <fragment
         android:id="@+id/savedFragment"
-        android:name="com.example.resonant.SavedFragment"
+        android:name="com.example.resonant.ui.fragments.SavedFragment"
         android:label="Guardados"
         tools:layout="@layout/fragment_saved">
 
@@ -72,13 +72,13 @@
 
     <fragment
         android:id="@+id/settingsFragment"
-        android:name="com.example.resonant.SettingsFragment"
+        android:name="com.example.resonant.ui.fragments.SettingsFragment"
         android:label="Perfil"
         tools:layout="@layout/fragment_settings"/>
 
     <fragment
         android:id="@+id/favoriteSongsFragment"
-        android:name="com.example.resonant.FavoriteSongsFragment"
+        android:name="com.example.resonant.ui.fragments.FavoriteSongsFragment"
         android:label="Canciones favoritas"
         tools:layout="@layout/fragment_favorite_songs" >
         <action
@@ -91,7 +91,7 @@
 
     <fragment
         android:id="@+id/albumFragment"
-        android:name="com.example.resonant.AlbumFragment"
+        android:name="com.example.resonant.ui.fragments.AlbumFragment"
         android:label="Album"
         tools:layout="@layout/fragment_album">
         <action
@@ -101,7 +101,7 @@
 
     <fragment
         android:id="@+id/artistFragment"
-        android:name="com.example.resonant.ArtistFragment"
+        android:name="com.example.resonant.ui.fragments.ArtistFragment"
         android:label="Artista"
         tools:layout="@layout/fragment_artist">
 
@@ -116,7 +116,7 @@
 
     <fragment
         android:id="@+id/songFragment"
-        android:name="com.example.resonant.SongFragment"
+        android:name="com.example.resonant.ui.fragments.SongFragment"
         android:label="Cancion"
         tools:layout="@layout/fragment_song">
         <action
@@ -126,7 +126,7 @@
 
     <fragment
         android:id="@+id/createPlaylistFragment"
-        android:name="com.example.resonant.CreatePlaylistFragment"
+        android:name="com.example.resonant.ui.fragments.CreatePlaylistFragment"
         android:label="Crear Playlist"
         tools:layout="@layout/fragment_create_playlist">
         <action
@@ -136,7 +136,7 @@
 
     <fragment
         android:id="@+id/playlistFragment"
-        android:name="com.example.resonant.PlaylistFragment"
+        android:name="com.example.resonant.ui.fragments.PlaylistFragment"
         android:label="Playlist"
         tools:layout="@layout/fragment_playlist">
         <action
@@ -146,7 +146,7 @@
 
     <fragment
         android:id="@+id/detailedSongFragment"
-        android:name="com.example.resonant.DetailedSongFragment"
+        android:name="com.example.resonant.ui.fragments.DetailedSongFragment"
         android:label="Detailed Song"
         tools:layout="@layout/fragment_detailed_song">
         <action
@@ -159,7 +159,7 @@
 
     <fragment
         android:id="@+id/favoriteArtistsFragment"
-        android:name="com.example.resonant.FavoriteArtistsFragment"
+        android:name="com.example.resonant.ui.fragments.FavoriteArtistsFragment"
         android:label="Artistas favoritos"
         tools:layout="@layout/fragment_favorite_artists" >
 
@@ -173,7 +173,7 @@
 
     <fragment
         android:id="@+id/favoriteAlbumsFragment"
-        android:name="com.example.resonant.FavoriteAlbumsFragment"
+        android:name="com.example.resonant.ui.fragments.FavoriteAlbumsFragment"
         android:label="Álbumes favoritos"
         tools:layout="@layout/fragment_favorite_albums" >
 

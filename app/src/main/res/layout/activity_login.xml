@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".LoginActivity"
+    tools:context=".ui.activities.LoginActivity"
     android:backgroundTint="@color/black">
 
     <VideoView
@@ -14,7 +14,7 @@
         android:layout_height="match_parent"
         android:scaleY="1.1"
         android:scaleX="1.1"
-        android:background="@drawable/gradient_login"
+        android:background="@drawable/bg_gradient_login"
         android:backgroundTint="@color/black"/>
 
     <LinearLayout
@@ -37,7 +37,7 @@
                     android:id="@+id/resonantLogo"
                     android:layout_width="250dp"
                     android:layout_height="50dp"
-                    android:src="@drawable/resonant"/>
+                    android:src="@drawable/logo_resonant_text"/>
 
                 <TextView
                     android:id="@+id/textResonantLogo"

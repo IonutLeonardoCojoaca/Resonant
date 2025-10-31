@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/bottom_sheet_background">
+    android:background="@drawable/bg_bottom_sheet">
 
     <RelativeLayout
         android:id="@+id/relativeLayout"
@@ -120,7 +120,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/playlistList"
-        android:drawableStart="@drawable/add"
+        android:drawableStart="@drawable/ic_add"
         android:drawablePadding="10dp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

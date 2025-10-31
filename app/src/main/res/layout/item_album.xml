@@ -17,7 +17,7 @@
         android:id="@+id/itemContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/item_song_background">
+        android:background="@drawable/bg_item_song">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/artistImage"

@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".AlbumFragment"
+    tools:context=".ui.fragments.AlbumFragment"
     android:background="@color/black">
 
     <ImageView
@@ -33,7 +33,7 @@
                     android:id="@+id/gradientOverlay"
                     android:layout_width="match_parent"
                     android:layout_height="150dp"
-                    android:background="@drawable/gradient_artist"
+                    android:background="@drawable/bg_gradient_artist"
                     android:layout_alignParentBottom="true" />
 
             </RelativeLayout>
@@ -112,7 +112,7 @@
 
                 </RelativeLayout>
 
-                <com.example.resonant.ExpandedRecyclerView
+                <com.example.resonant.ui.views.ExpandedRecyclerView
                     android:id="@+id/albumSongsContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -168,7 +168,7 @@
             android:layout_width="50dp"
             android:layout_height="50dp"
             android:layout_marginVertical="10dp"
-            android:background="@drawable/arrow_back_background"
+            android:background="@drawable/bg_arrow_back"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -180,7 +180,7 @@
                 android:scaleX="0.8"
                 android:scaleY="0.8"
                 android:layout_gravity="center"
-                android:background="@drawable/arrow_back"
+                android:background="@drawable/ic_arrow_back"
                 android:clickable="false"
                 android:focusable="false"/>
 
@@ -207,7 +207,7 @@
             android:id="@+id/favoriteBackground"
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:background="@drawable/favorite_button_background"
+            android:background="@drawable/bg_favorite_button"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -217,7 +217,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:background="@drawable/favorite_border"
+                android:background="@drawable/ic_favorite_border"
                 android:clickable="false"
                 android:focusable="false"
                 android:scaleX="1.3"

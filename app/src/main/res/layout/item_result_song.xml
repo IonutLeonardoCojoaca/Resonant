@@ -120,7 +120,7 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
-                    android:src="@drawable/settings_featured"/>
+                    android:src="@drawable/ic_song_settings"/>
 
             </RelativeLayout>
 

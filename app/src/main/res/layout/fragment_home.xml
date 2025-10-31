@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".HomeFragment"
+    tools:context=".ui.fragments.HomeFragment"
     android:background="@color/black">
 
     <androidx.core.widget.NestedScrollView
@@ -122,7 +122,7 @@
                         android:id="@+id/rechargeSongs"
                         android:layout_width="35dp"
                         android:layout_height="35dp"
-                        android:background="@drawable/replay"
+                        android:background="@drawable/ic_replay"
                         android:layout_gravity="center_vertical|end"/>
 
                 </FrameLayout>
