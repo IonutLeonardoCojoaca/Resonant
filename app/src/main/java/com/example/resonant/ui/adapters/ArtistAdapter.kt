@@ -71,8 +71,6 @@ class ArtistAdapter(
         when (holder) {
             is GridArtistViewHolder -> {
                 Glide.with(holder.itemView).clear(holder.artistImage)
-                holder.loadingAnimation.cancelAnimation()
-                holder.loadingAnimation.visibility = View.GONE
             }
             is ListArtistViewHolder -> {
                 Glide.with(holder.itemView).clear(holder.artistImage)
@@ -98,13 +96,11 @@ class ArtistAdapter(
     inner class GridArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
-        val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
             artistImage.transitionName = "artistImage_${artist.id}"
 
-            loadingAnimation.visibility = View.VISIBLE
             artistImage.visibility = View.INVISIBLE
 
             Glide.with(itemView).clear(artistImage)
@@ -112,13 +108,14 @@ class ArtistAdapter(
             val placeholderRes = R.drawable.ic_user
             val url = artist.url
             if (url.isNullOrBlank()) {
-                loadingAnimation.visibility = View.GONE
                 artistImage.setImageResource(placeholderRes)
                 artistImage.visibility = View.VISIBLE
             } else {
                 val model = ImageRequestHelper.buildGlideModel(itemView.context, url)
                 Glide.with(itemView)
                     .load(model)
+                    .override(500, 500) // CRUCIAL: Mantiene la RAM baja
+                    .encodeQuality(80) // Tu petición de bajar calidad
                     .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                     .timeout(10_000)
                     .dontAnimate()
@@ -133,7 +130,6 @@ class ArtistAdapter(
                             isFirstResource: Boolean
                         ): Boolean {
                             Log.w("ArtistAdapter", "Artist image load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}")
-                            loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
                             return false
                         }
@@ -145,7 +141,6 @@ class ArtistAdapter(
                             dataSource: DataSource,
                             isFirstResource: Boolean
                         ): Boolean {
-                            loadingAnimation.visibility = View.GONE
                             artistImage.visibility = View.VISIBLE
                             return false
                         }

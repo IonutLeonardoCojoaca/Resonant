@@ -10,7 +10,6 @@
         android:name="com.example.resonant.ui.fragments.HomeFragment"
         android:label="Inicio"
         tools:layout="@layout/fragment_home">
-
         <action
             android:id="@+id/action_homeFragment_to_searchFragment"
             app:destination="@id/searchFragment" />
@@ -23,7 +22,6 @@
         <action
             android:id="@+id/action_homeFragment_to_detailedSongFragment"
             app:destination="@id/detailedSongFragment" />
-
     </fragment>
 
     <fragment
@@ -34,11 +32,9 @@
         <action
             android:id="@+id/action_searchFragment_to_savedFragment"
             app:destination="@id/savedFragment" />
-
         <action
             android:id="@+id/action_searchFragment_to_albumFragment"
             app:destination="@id/albumFragment" />
-
         <action
             android:id="@+id/action_searchFragment_to_artistFragment"
             app:destination="@id/artistFragment" />
@@ -52,7 +48,6 @@
         android:name="com.example.resonant.ui.fragments.SavedFragment"
         android:label="Guardados"
         tools:layout="@layout/fragment_saved">
-
         <action
             android:id="@+id/action_savedFragment_to_favoriteSongsFragment"
             app:destination="@id/favoriteSongsFragment" />
@@ -104,14 +99,12 @@
         android:name="com.example.resonant.ui.fragments.ArtistFragment"
         android:label="Artista"
         tools:layout="@layout/fragment_artist">
-
         <action
             android:id="@+id/action_artistFragment_to_albumFragment"
             app:destination="@id/albumFragment" />
         <action
             android:id="@+id/action_artistFragment_to_detailedSongFragment"
             app:destination="@id/detailedSongFragment" />
-
     </fragment>
 
     <fragment
@@ -162,7 +155,6 @@
         android:name="com.example.resonant.ui.fragments.FavoriteArtistsFragment"
         android:label="Artistas favoritos"
         tools:layout="@layout/fragment_favorite_artists" >
-
         <action
             android:id="@+id/action_favoriteArtistsFragment_to_savedFragment"
             app:destination="@id/savedFragment" />
@@ -176,7 +168,6 @@
         android:name="com.example.resonant.ui.fragments.FavoriteAlbumsFragment"
         android:label="Álbumes favoritos"
         tools:layout="@layout/fragment_favorite_albums" >
-
         <action
             android:id="@+id/action_favoriteAlbumsFragment_to_albumFragment"
             app:destination="@id/albumFragment" />

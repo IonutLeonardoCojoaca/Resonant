@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.FragmentNavigatorExtras
@@ -16,6 +17,7 @@ import com.example.resonant.ui.viewmodels.FavoriteItem
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.R
 import com.example.resonant.ui.adapters.ArtistAdapter
+import com.example.resonant.utils.Utils
 
 class FavoriteArtistsFragment : BaseFragment(R.layout.fragment_favorite_artists) {
 
@@ -25,6 +27,7 @@ class FavoriteArtistsFragment : BaseFragment(R.layout.fragment_favorite_artists)
 
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var artistAdapter: ArtistAdapter
+    private lateinit var userProfileImage: ImageView
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -37,16 +40,16 @@ class FavoriteArtistsFragment : BaseFragment(R.layout.fragment_favorite_artists)
         recyclerLikedArtists = view.findViewById(R.id.favoriteAlbumsList)
 
         recyclerLikedArtists.layoutManager = LinearLayoutManager(requireContext())
-        // Inicializamos con lista vacía
         artistAdapter = ArtistAdapter(emptyList(), ArtistAdapter.Companion.VIEW_TYPE_LIST)
         recyclerLikedArtists.adapter = artistAdapter
 
+        userProfileImage = view.findViewById(R.id.userProfile)
+        Utils.loadUserProfile(requireContext(), userProfileImage)
+
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
-        // Cargar artistas favoritos usando el ViewModel genérico
         favoritesViewModel.loadFavoriteArtists()
 
-        // Observar cambios en todos los favoritos y filtrar artistas
         favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
             loadingAnimation.visibility = View.GONE
 

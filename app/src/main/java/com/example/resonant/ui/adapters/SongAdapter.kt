@@ -221,14 +221,10 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
             val formatter = NumberFormat.getInstance(Locale.getDefault())
             streams.text = "${formatter.format(song.streams)} reproducciones"
 
-            val placeholderRes = R.drawable.ic_disc
-            val url = song.coverUrl
-
             val isFavorite = favoriteSongIds.contains(song.id)
             likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
             likeButton.setImageResource(if (isFavorite) R.drawable.ic_favorite else 0)
 
-            // Lógica del resaltado de la canción actual
             title.setTextColor(
                 ContextCompat.getColor(
                     itemView.context,
@@ -236,37 +232,26 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                 )
             )
 
-            if (!url.isNullOrBlank()) {
-                Glide.with(coverImageView.context)
-                    .asBitmap()
-                    .load(url)
-                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                    .placeholder(placeholderRes)
-                    .error(placeholderRes)
-                    .listener(object : RequestListener<Bitmap> {
-                        override fun onLoadFailed(
-                            e: GlideException?,
-                            model: Any?,
-                            target: Target<Bitmap?>,
-                            isFirstResource: Boolean
-                        ): Boolean {
-                            return false
-                        }
-                        override fun onResourceReady(
-                            resource: Bitmap,
-                            model: Any,
-                            target: Target<Bitmap?>?,
-                            dataSource: DataSource,
-                            isFirstResource: Boolean
-                        ): Boolean {
-                            return false
-                        }
-                    })
-                    .into(coverImageView)
-            } else {
-                coverImageView.setImageResource(placeholderRes)
-                Log.w("TopSongViewHolder", "coverUrl nulo para ${song.title}")
+            // --- CORRECCIÓN CRÍTICA AQUÍ ---
+            // Antes recargabas la imagen SIEMPRE. Ahora solo si NO es partial.
+            if (!partial) {
+                val placeholderRes = R.drawable.ic_disc
+                val url = song.coverUrl
+
+                if (!url.isNullOrBlank()) {
+                    Glide.with(coverImageView.context)
+                        .asBitmap()
+                        .load(url)
+                        .dontAnimate() // <--- IMPORTANTE: Evita el parpadeo blanco
+                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                        .placeholder(placeholderRes)
+                        .error(placeholderRes)
+                        .into(coverImageView)
+                } else {
+                    coverImageView.setImageResource(placeholderRes)
+                }
             }
+            // -------------------------------
 
             likeButton.setOnClickListener {
                 onFavoriteClick?.invoke(song, favoriteSongIds.contains(song.id))
@@ -277,7 +262,6 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
             }
 
             itemView.setOnClickListener {
-                // Solo notificamos la intención del usuario.
                 onItemClick?.invoke(song to null)
             }
         }

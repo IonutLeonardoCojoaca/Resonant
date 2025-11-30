@@ -36,6 +36,10 @@ import com.example.resonant.utils.Utils
 import com.example.resonant.data.models.Song
 import com.example.resonant.managers.SongManager
 import com.example.resonant.ui.adapters.ArtistAdapter
+// Importamos los servicios específicos
+import com.example.resonant.data.network.services.AlbumService
+import com.example.resonant.data.network.services.ArtistService
+import com.example.resonant.data.network.services.StorageService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.CoroutineScope
@@ -69,18 +73,31 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     private var isPlaying: Boolean = false
     private lateinit var playButton: MaterialButton
 
+    // --- SERVICIOS Y MANAGERS ---
+    private lateinit var albumService: AlbumService
+    private lateinit var artistService: ArtistService
+    private lateinit var storageService: StorageService
+    private lateinit var songManager: SongManager // Instancia del Manager
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // --- 1. INICIALIZACIÓN DE DEPENDENCIAS ---
+        val context = requireContext()
+        albumService = ApiClient.getAlbumService(context)
+        artistService = ApiClient.getArtistService(context)
+        storageService = ApiClient.getStorageService(context)
+        songManager = SongManager(context) // Instancia
+
         setupViewModelObservers()
         val songId = arguments?.getString("songId")
         song = arguments?.getParcelable("song")
 
         if (song == null && !songId.isNullOrBlank()) {
-            // CASO 1: Solo tenemos el ID de la canción.
-            // El SongManager se encargará de hacer UNA SOLA llamada para obtener
-            // la canción, sus artistas, análisis, y luego las URLs.
+            // CASO 1: Solo tenemos el ID
             lifecycleScope.launch {
-                val loadedSong = SongManager.getSongById(requireContext(), songId)
+                // Usamos la instancia songManager
+                val loadedSong = songManager.getSongById(songId)
                 if (loadedSong != null) {
                     song = loadedSong
                     setupSongUI(loadedSong)
@@ -90,16 +107,14 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             }
         }
         else if (song != null) {
-            // CASO 2: Ya tenemos el objeto Song, pero podría estar incompleto (sin url).
-            // Usamos nuestro nuevo método del manager para asegurarnos de que tiene todo.
+            // CASO 2: Ya tenemos el objeto Song
             lifecycleScope.launch {
                 try {
-                    // Esta llamada enriquecerá el objeto 'song' con las URLs que le falten.
-                    song = SongManager.enrichSingleSong(requireContext(), song!!)
+                    // Usamos la instancia songManager
+                    song = songManager.enrichSingleSong(song!!)
                     setupSongUI(song!!)
                 } catch (e: Exception) {
                     Log.e("DetailedSongFragment", "Error al enriquecer la canción", e)
-                    // Si falla, mostramos la UI con los datos que ya teníamos.
                     setupSongUI(song!!)
                 }
             }
@@ -167,25 +182,17 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
 
     private fun setupViewModelObservers() {
         fun updateButtonState() {
-            // Obtenemos los valores actuales del ViewModel
             val isCurrentlyPlaying = songViewModel.isPlayingLiveData.value ?: false
             val currentlyPlayingId = songViewModel.currentSongLiveData.value?.id
-
-            // La condición clave: ¿Está el reproductor en "play" Y el ID de la canción
-            // que suena es el mismo que el de esta pantalla?
             val isThisSongPlaying = isCurrentlyPlaying && (currentlyPlayingId == song?.id)
-
-            // Actualizamos la variable local y el botón
             this.isPlaying = isThisSongPlaying
             updatePlayPauseButton(isThisSongPlaying)
         }
 
-        // Observador 1: Se activa cuando cambia la canción que está sonando en toda la app.
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { _ ->
             updateButtonState()
         }
 
-        // Observador 2: Se activa cuando el estado de reproducción cambia (Play -> Pause o viceversa).
         songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { _ ->
             updateButtonState()
         }
@@ -212,7 +219,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     }
 
     private fun setupSongUI(song: Song) {
-        // Cancelar trabajos previos y animaciones
         cancelJobs()
         albumArtAnimator?.cancel()
         songImage.rotation = 0f
@@ -225,7 +231,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
 
         val albumUrl = song.coverUrl
         if (!albumUrl.isNullOrBlank()) {
-            // Animación de rotación mientras carga
             albumArtAnimator = ObjectAnimator.ofFloat(songImage, "rotation", 0f, 360f).apply {
                 duration = 3000
                 repeatCount = ObjectAnimator.INFINITE
@@ -236,7 +241,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             Glide.with(requireContext())
                 .asBitmap()
                 .load(albumUrl)
-                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC) // Glide se encarga del cache
+                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .dontAnimate()
                 .placeholder(placeholderRes)
                 .error(errorRes)
@@ -249,11 +254,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
                     ): Boolean {
                         albumArtAnimator?.cancel()
                         songImage.rotation = 0f
-                        Log.w(
-                            "DetailedSongFragment",
-                            "Album art load failed: $model -> ${e?.rootCauses?.firstOrNull()?.message}"
-                        )
-                        return false // Glide seguirá mostrando placeholder/error
+                        Log.w("DetailedSongFragment", "Album art load failed")
+                        return false
                     }
 
                     override fun onResourceReady(
@@ -265,9 +267,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
                     ): Boolean {
                         albumArtAnimator?.cancel()
                         songImage.rotation = 0f
-                        // Actualiza el background usando el bitmap cargado
                         setBackgroundColorFromBitmapFade(rootView, resource)
-                        return false // Glide asigna el Bitmap automáticamente al ImageView
+                        return false
                     }
                 })
                 .into(songImage)
@@ -297,10 +298,10 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             return
         }
 
-        val service = ApiClient.getService(requireContext())
         albumJob = lifecycleScope.launch {
             try {
-                val album = service.getAlbumById(albumId)
+                // --- 2. USO DE ALBUM SERVICE ---
+                val album = albumService.getAlbumById(albumId)
                 val albumName = album.title ?: "Sin título"
                 songAlbum.text = "Álbum: $albumName"
                 songAlbum.visibility = View.VISIBLE
@@ -311,23 +312,25 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     }
 
     private fun loadArtists(songId: String, asList: Boolean = true) {
-        val service = ApiClient.getService(requireContext())
         lifecycleScope.launch {
             try {
-                // 1. Obtén los artistas por canción
-                val artists = service.getArtistsBySongId(songId)
+                // --- 3. USO DE ARTIST Y STORAGE SERVICE ---
 
-                // 2. Extrae los fileNames para pedir las URLs
+                // Obtener datos de artistas
+                val artists = artistService.getArtistsBySongId(songId)
+
+                // Obtener imágenes de artistas
                 val fileNames = artists.mapNotNull { it.fileName }
-                val urlList = if (fileNames.isNotEmpty()) service.getMultipleArtistUrls(fileNames) else emptyList()
+                val urlList = if (fileNames.isNotEmpty()) {
+                    storageService.getMultipleArtistUrls(fileNames)
+                } else emptyList()
+
                 val urlMap = urlList.associateBy { it.fileName }
 
-                // 3. Actualiza los artistas con la URL real en el campo url (no fileName)
                 artists.forEach { artist ->
                     artist.url = urlMap[artist.fileName]?.url ?: ""
                 }
 
-                // 4. Actualiza el adapter
                 (artistList.adapter as? ArtistAdapter)?.apply {
                     submitArtists(artists)
                     setViewType(if (asList) ArtistAdapter.Companion.VIEW_TYPE_LIST else ArtistAdapter.Companion.VIEW_TYPE_GRID)

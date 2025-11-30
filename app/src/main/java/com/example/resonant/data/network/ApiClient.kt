@@ -1,10 +1,15 @@
 package com.example.resonant.data.network
 
 import android.content.Context
-import com.example.resonant.services.ApiResonantService
-import com.example.resonant.data.network.AuthInterceptor
+import com.example.resonant.data.network.services.AlbumService
+import com.example.resonant.data.network.services.AppService
+import com.example.resonant.data.network.services.ArtistService
+import com.example.resonant.data.network.services.AuthService
+import com.example.resonant.data.network.services.PlaylistService
+import com.example.resonant.data.network.services.SongService
+import com.example.resonant.data.network.services.StorageService
+import com.example.resonant.data.network.services.UserService
 import com.example.resonant.managers.SessionManager
-import com.example.resonant.data.network.TokenAuthenticator
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -12,12 +17,18 @@ import retrofit2.converter.gson.GsonConverterFactory
 object ApiClient {
     private const val BASE_URL = "https://resonantapp.ddns.net:8443/"
 
+    // Variable para guardar la instancia de Retrofit
     private var retrofit: Retrofit? = null
 
-    fun getService(context: Context): ApiResonantService {
-        val appContext = context.applicationContext
+    /**
+     * Esta función es PRIVADA. Solo se encarga de construir la máquina de Retrofit.
+     * Reutiliza la lógica que ya tenías.
+     */
+    private fun getRetrofitInstance(context: Context): Retrofit {
         if (retrofit == null) {
+            val appContext = context.applicationContext
             val session = SessionManager(appContext, BASE_URL)
+
             val okHttpClient = OkHttpClient.Builder()
                 .addInterceptor(AuthInterceptor(appContext, session))
                 .authenticator(TokenAuthenticator(appContext))
@@ -29,7 +40,43 @@ object ApiClient {
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
         }
-        return retrofit!!.create(ApiResonantService::class.java)
+        return retrofit!!
+    }
+
+    // ------------------------------------------------------
+    // MÉTODOS PÚBLICOS PARA OBTENER CADA SERVICIO
+    // ------------------------------------------------------
+
+    fun getAuthService(context: Context): AuthService {
+        return getRetrofitInstance(context).create(AuthService::class.java)
+    }
+
+    fun getAlbumService(context: Context): AlbumService {
+        return getRetrofitInstance(context).create(AlbumService::class.java)
+    }
+
+    fun getArtistService(context: Context): ArtistService {
+        return getRetrofitInstance(context).create(ArtistService::class.java)
+    }
+
+    fun getSongService(context: Context): SongService {
+        return getRetrofitInstance(context).create(SongService::class.java)
+    }
+
+    fun getStorageService(context: Context): StorageService { // Antes Minio
+        return getRetrofitInstance(context).create(StorageService::class.java)
+    }
+
+    fun getPlaylistService(context: Context): PlaylistService {
+        return getRetrofitInstance(context).create(PlaylistService::class.java)
+    }
+
+    fun getUserService(context: Context): UserService {
+        return getRetrofitInstance(context).create(UserService::class.java)
+    }
+
+    fun getAppService(context: Context): AppService {
+        return getRetrofitInstance(context).create(AppService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

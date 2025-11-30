@@ -28,6 +28,7 @@ import com.example.resonant.ui.activities.MainActivity
 import com.example.resonant.R
 import com.example.resonant.ui.viewmodels.UserViewModel
 import com.example.resonant.data.models.User
+import com.example.resonant.managers.UserManager
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.Firebase
@@ -116,22 +117,33 @@ class LoginActivity : AppCompatActivity() {
                     val email = user?.email.toString()
                     lifecycleScope.launch {
                         try {
-                            val service = ApiClient.getService(applicationContext)
-                            val response = service.loginWithGoogle(request)
+                            val authService = ApiClient.getAuthService(applicationContext)
+                            val userService = ApiClient.getUserService(applicationContext)
+
+                            val response = authService.loginWithGoogle(request)
+
                             saveTokens(response.accessToken, response.refreshToken, email)
-                            val userData = service.getUserByEmail(email)
+
+                            val userData = userService.getUserByEmail(email)
                             userViewModel.user = userData
 
                             if (userData.isBanned == true) {
                                 Toast.makeText(this@LoginActivity, "Tu cuenta tiene acceso restringido.", Toast.LENGTH_LONG).show()
                                 FirebaseAuth.getInstance().signOut()
                                 userViewModel.user = null
+
+                                // Limpieza de preferencias
                                 getSharedPreferences("user_data", MODE_PRIVATE).edit().clear().apply()
                                 getSharedPreferences("Auth", MODE_PRIVATE).edit().clear().apply()
                                 return@launch
                             }
 
+                            // 4. Guardamos datos (puedes usar tu función local o el UserManager)
                             saveUserData(userData)
+
+                            // OPCIONAL: Si quieres usar el UserManager para asegurar que el ID queda grabado
+                            val userManager = UserManager(applicationContext)
+                            userManager.saveUserId(userData.id)
 
                             Log.d("LOGIN", "Usuario id guardado: ${userData.id}")
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))

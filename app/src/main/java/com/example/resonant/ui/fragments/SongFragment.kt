@@ -35,6 +35,8 @@ import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.utils.Utils
 import com.example.resonant.data.network.ApiClient
+import com.example.resonant.data.network.services.AlbumService
+import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -66,15 +68,27 @@ class SongFragment : DialogFragment() {
     lateinit var bottomSheet: SongOptionsBottomSheet
 
     private var musicService: MusicPlaybackService? = null
+    private lateinit var albumService: AlbumService
+    private lateinit var albumTypeView: TextView
+    private lateinit var albumNameView: TextView
 
     private var lastDirection = 1
     private var lastSongId: String? = null
     private var isFirstLoad = true
-    private var isAnimatingCover = false // <-- AÑADE ESTA LÍNEA
+    private var isAnimatingCover = false
+
+    // 1. Declaramos el servicio
+    private lateinit var artistService: ArtistService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setStyle(STYLE_NORMAL, R.style.FullScreenDialogStyle)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val window = dialog?.window ?: return
+        window.setWindowAnimations(R.style.DialogAnimationUpDown)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -93,6 +107,11 @@ class SongFragment : DialogFragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_song, container, false)
 
+        // 2. Inicializamos el servicio específico
+        artistService = ApiClient.getArtistService(requireContext())
+        artistService = ApiClient.getArtistService(requireContext())
+        albumService = ApiClient.getAlbumService(requireContext())
+
         val titleView = view.findViewById<TextView>(R.id.song_title)
         val artistView = view.findViewById<TextView>(R.id.songArtist)
         val imageSong = view.findViewById<ImageView>(R.id.song_image)
@@ -109,6 +128,8 @@ class SongFragment : DialogFragment() {
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
         settingsButton = view.findViewById(R.id.settingsBackground)
         favoriteButton = view.findViewById(R.id.likeButton)
+        albumTypeView = view.findViewById(R.id.songAlbumType)
+        albumNameView = view.findViewById(R.id.songAlbumName)
 
         arguments?.getString("coverFileName")?.let { fileName ->
             val file = File(requireContext().cacheDir, fileName)
@@ -160,8 +181,8 @@ class SongFragment : DialogFragment() {
             val currentSong = songViewModel.currentSongLiveData.value
             currentSong?.let { song ->
                 lifecycleScope.launch {
-                    val service = ApiClient.getService(requireContext())
-                    val artistList = service.getArtistsBySongId(song.id)
+                    // 3. Usamos artistService para obtener los nombres
+                    val artistList = artistService.getArtistsBySongId(song.id)
                     song.artistName = artistList.joinToString(", ") { it.name }
 
                     bottomSheet = SongOptionsBottomSheet(
@@ -177,11 +198,9 @@ class SongFragment : DialogFragment() {
                         onFavoriteToggled = { toggledSong ->
                             favoritesViewModel.toggleFavoriteSong(toggledSong)
                         },
-                        // --- AQUÍ IMPLEMENTAMOS LA NUEVA LAMBDA CON LA LÓGICA ESPECIAL ---
                         onAddToPlaylistClick = { songToAdd ->
                             val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
                                 song = songToAdd,
-                                // La lógica aquí es la compleja: primero cierra, luego navega
                                 onNoPlaylistsFound = {
                                     this@SongFragment.dismiss()
                                     requireActivity().findNavController(R.id.nav_host_fragment)
@@ -240,41 +259,26 @@ class SongFragment : DialogFragment() {
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
 
-            // Se llama continuamente mientras el usuario arrastra el dedo.
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Solo actuamos si el cambio lo ha iniciado el usuario (no el sistema).
                 if (fromUser) {
-                    // 🔥 YA NO ENVIAMOS EL INTENT DESDE AQUÍ 🔥
-                    // Esta función ahora solo tiene UNA responsabilidad: actualizar el texto
-                    // del tiempo para que el usuario vea a dónde está saltando en tiempo real.
                     currentTimeText.text = Utils.formatTime(progress)
                 }
             }
 
-            // Se llama UNA SOLA VEZ cuando el usuario toca el SeekBar.
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                // Le decimos al servicio que hemos empezado a arrastrar, para que ignore
-                // las "micro-pausas" y el botón de play/pause no parpadee.
                 val intent = Intent(context, MusicPlaybackService::class.java).apply {
                     action = MusicPlaybackService.Companion.ACTION_START_SEEK
                 }
                 context?.startService(intent)
             }
 
-            // Se llama UNA SOLA VEZ cuando el usuario levanta el dedo del SeekBar.
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // 🔥 AQUÍ ES DONDE ENVIAMOS LA ORDEN FINAL Y ÚNICA 🔥
-
-                // 1. Enviamos la posición final a la que queremos que salte el reproductor.
                 val seekIntent = Intent(context, MusicPlaybackService::class.java).apply {
                     action = MusicPlaybackService.Companion.ACTION_SEEK_TO
-                    // Usamos el progreso final del seekBar en el momento de soltar.
                     putExtra(MusicPlaybackService.Companion.EXTRA_SEEK_POSITION, seekBar?.progress ?: 0)
                 }
                 context?.startService(seekIntent)
 
-                // 2. Le decimos al servicio que hemos terminado de arrastrar, para que
-                //    vuelva a su comportamiento normal y reanude las actualizaciones automáticas.
                 val stopIntent = Intent(context, MusicPlaybackService::class.java).apply {
                     action = MusicPlaybackService.Companion.ACTION_STOP_SEEK
                 }
@@ -284,21 +288,71 @@ class SongFragment : DialogFragment() {
         return view
     }
 
+    private fun loadAlbumInfo(song: com.example.resonant.data.models.Song) {
+        // Estado de carga inicial
+        albumTypeView.text = ""
+        albumNameView.text = ""
+
+        lifecycleScope.launch {
+            try {
+                val albumId = song.albumId
+
+                // Si no hay albumId, es un Single (o archivo local suelto)
+                if (albumId == null) {
+                    setSingleMode()
+                    return@launch
+                }
+
+                val album = albumService.getAlbumById(albumId)
+
+                if (album != null) {
+                    // Lógica: Si el título del álbum es igual al de la canción, es un Single
+                    if (album.title.equals(song.title, ignoreCase = true)) {
+                        setSingleMode()
+                    } else {
+                        // ES UN ÁLBUM REAL
+                        albumTypeView.text = "ÁLBUM"
+                        albumTypeView.visibility = View.VISIBLE
+
+                        albumNameView.text = album.title
+                        albumNameView.visibility = View.VISIBLE
+                    }
+                } else {
+                    setSingleMode()
+                }
+
+            } catch (e: Exception) {
+                setSingleMode()
+            }
+        }
+    }
+
+    // Función auxiliar para cuando es Single
+    private fun setSingleMode() {
+        // OPCIÓN A: Poner "SINGLE" arriba y ocultar el nombre (porque es redundante con el título de la canción)
+        albumTypeView.text = "SINGLE"
+        albumTypeView.visibility = View.VISIBLE
+        albumNameView.visibility = View.GONE
+
+        // OPCIÓN B: Si prefieres que ponga "SINGLE" y abajo el nombre igual:
+        /*
+        albumTypeView.text = "SINGLE"
+        albumNameView.text = songViewModel.currentSongLiveData.value?.title
+        */
+    }
+
     private fun setupViewModelObservers() {
-        // 1. OBSERVADOR PARA LA CANCIÓN ACTUAL (ESTE YA LO TENÍAS, LO INTEGRAMOS AQUÍ)
-        // Reemplaza a ACTION_SONG_CHANGED. Se encarga de actualizar título, artista, carátula, etc.
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             currentSong?.let { song ->
-                // Actualiza los textos
                 view?.findViewById<TextView>(R.id.song_title)?.text = song.title ?: "Desconocido"
                 view?.findViewById<TextView>(R.id.songArtist)?.text = song.artistName ?: "Desconocido"
 
-                // Actualiza el estado del botón de favoritos
+                loadAlbumInfo(song)
+
                 val favoriteIds = favoritesViewModel.favoriteSongIds.value
                 val isFavorite = song.id.let { favoriteIds?.contains(it) } ?: false
                 updateFavoriteButtonUI(isFavorite)
 
-                // Lógica para cargar y animar la imagen de la carátula
                 val albumCoverRes = R.drawable.ic_disc
                 val url = song.coverUrl
 
@@ -335,17 +389,12 @@ class SongFragment : DialogFragment() {
             }
         }
 
-        // 2. OBSERVADOR PARA EL ESTADO DE REPRODUCCIÓN (PLAY/PAUSE)
-        // Reemplaza a ACTION_PLAYBACK_STATE_CHANGED
         songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { isPlayingUpdate ->
-            this.isPlaying = isPlayingUpdate // Actualiza la variable de estado local
-            updatePlayPauseButton(isPlayingUpdate) // Actualiza el icono del botón
+            this.isPlaying = isPlayingUpdate
+            updatePlayPauseButton(isPlayingUpdate)
         }
 
-        // 3. OBSERVADOR PARA EL PROGRESO DEL SEEKBAR
-        // Reemplaza a ACTION_SEEK_BAR_UPDATE y ACTION_SEEK_BAR_RESET
         songViewModel.playbackPositionLiveData.observe(viewLifecycleOwner) { positionInfo ->
-            // Evita que el SeekBar se actualice si el usuario lo está arrastrando
             if (!seekBar.isPressed) {
                 if (positionInfo.duration > 0) {
                     seekBar.max = positionInfo.duration.toInt()
@@ -381,6 +430,4 @@ class SongFragment : DialogFragment() {
         }
         imageView.setImageResource(R.drawable.ic_disc)
     }
-
-
 }

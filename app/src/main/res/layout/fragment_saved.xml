@@ -1,191 +1,219 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.fragments.SavedFragment"
-    android:background="@color/black">
+    android:background="@color/black"
+    android:fillViewport="true"
+    tools:context=".ui.fragments.SavedFragment">
 
-    <RelativeLayout
-        android:id="@+id/savedContainer"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/superiorToolbar"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:paddingVertical="10dp"
+        android:paddingHorizontal="20dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <FrameLayout
-            android:id="@+id/favoritesTextContainer"
+        <ImageView
+            android:id="@+id/imageView4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/ic_s_resonant"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:text="Biblioteca"
+            android:textColor="@color/white"
+            android:textSize="25sp"
+            android:layout_marginStart="15dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/imageView4"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/userProfile"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_user"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:shapeAppearanceOverlay="@style/CircularUserImage" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="10dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/favoriteText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Favoritos"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="start"/>
-
-        </FrameLayout>
-
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/buttonFavoriteContainer"
-            android:layout_width="match_parent"
-            android:layout_height="105dp"
-            android:layout_below="@+id/favoritesTextContainer"
-            android:paddingHorizontal="5dp"
-            android:paddingVertical="5dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/songsButton"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_margin="5dp"
-                android:padding="10dp"
-                android:textSize="14sp"
-                app:icon="@drawable/ic_song"
-                android:text="Canciones"
-                app:rippleColor="@color/ripple_white"
-                android:fontFamily="@font/unageo_regular"
-                app:iconGravity="top"
-                app:iconSize="30dp"
-                app:cornerRadius="12dp"
-                app:iconTint="@color/white"
-                android:textColor="@color/white"
-                app:backgroundTint="@color/cardsTheme"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintWidth_percent="0.3"
-                app:layout_constraintEnd_toStartOf="@id/artistsButton"/>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/artistsButton"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_margin="5dp"
-                app:icon="@drawable/ic_artist"
-                android:textSize="14sp"
-                app:rippleColor="@color/ripple_white"
-                app:iconTint="@color/white"
-                android:textColor="@color/white"
-                android:text="Artistas"
-                android:padding="10dp"
-                android:fontFamily="@font/unageo_regular"
-                app:iconGravity="top"
-                app:iconSize="30dp"
-                app:cornerRadius="12dp"
-                app:backgroundTint="@color/cardsTheme"
-                app:layout_constraintStart_toEndOf="@id/songsButton"
-                app:layout_constraintEnd_toStartOf="@id/albumsButton"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintWidth_percent="0.3"/>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/albumsButton"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_margin="5dp"
-                app:rippleColor="@color/ripple_white"
-                app:icon="@drawable/ic_album"
-                android:textSize="14sp"
-                android:text="Álbumes"
-                android:padding="10dp"
-                android:fontFamily="@font/unageo_regular"
-                app:iconGravity="top"
-                app:iconSize="32dp"
-                app:iconTint="@color/white"
-                android:textColor="@color/white"
-                app:cornerRadius="12dp"
-                app:backgroundTint="@color/cardsTheme"
-                app:layout_constraintStart_toEndOf="@id/artistsButton"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintWidth_percent="0.3"/>
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-
-        <FrameLayout
-            android:id="@+id/playlistTextContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/buttonFavoriteContainer"
-            android:paddingHorizontal="20dp">
-
-            <TextView
-                android:id="@+id/playlistText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Listas de reproducción"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="center_vertical|start"
-                android:layout_marginVertical="10dp"/>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/createPlaylistButton"
-                android:layout_width="40dp"
-                android:layout_height="45dp"
-                android:layout_gravity="center_vertical|end"
-                app:icon="@drawable/ic_add"
-                app:rippleColor="@color/ripple_white"
-                app:iconGravity="top"
-                app:iconSize="25dp"
-                app:cornerRadius="12dp"
-                app:iconTint="@color/white"
-                app:backgroundTint="@color/cardsTheme"/>
-
-        </FrameLayout>
-
-        <RelativeLayout
-            android:id="@+id/containerPlaylistsUser"
-            android:layout_width="match_parent"
-            android:layout_height="450dp"
-            android:layout_below="@+id/playlistTextContainer">
-
-            <androidx.core.widget.NestedScrollView
-                android:id="@+id/scrollPlaylistView"
+            <FrameLayout
+                android:id="@+id/favoritesTextContainer"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:paddingTop="15dp">
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp"
+                android:paddingVertical="10dp">
+
+                <TextView
+                    android:id="@+id/favoriteText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="Favoritos"
+                    android:textColor="@color/white"
+                    android:textSize="18sp" />
+
+            </FrameLayout>
+
+            <GridLayout
+                android:id="@+id/buttonFavoriteContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="2"
+                android:paddingHorizontal="10dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/songsButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="5dp"
+                    android:backgroundTint="@color/cardsTheme"
+                    android:fontFamily="@font/unageo_medium"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="18dp"
+                    android:text="Canciones"
+                    android:textAlignment="textStart"
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
+                    app:backgroundTint="@color/transparent"
+                    app:cornerRadius="10dp"
+                    app:icon="@drawable/ic_song"
+                    app:iconGravity="start"
+                    app:iconPadding="15dp"
+                    app:iconSize="20dp"
+                    app:iconTint="@color/white"
+                    app:rippleColor="@color/ripple_white" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/artistsButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="5dp"
+                    android:backgroundTint="@color/cardsTheme"
+                    android:fontFamily="@font/unageo_medium"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="18dp"
+                    android:text="Artistas"
+                    android:textAlignment="textStart"
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
+                    app:backgroundTint="@color/transparent"
+                    app:cornerRadius="10dp"
+                    app:icon="@drawable/ic_artist"
+                    app:iconGravity="start"
+                    app:iconPadding="15dp"
+                    app:iconSize="20dp"
+                    app:iconTint="@color/white"
+                    app:rippleColor="@color/ripple_white" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/albumsButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_margin="5dp"
+                    android:backgroundTint="@color/cardsTheme"
+                    android:fontFamily="@font/unageo_medium"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="18dp"
+                    android:text="Álbumes"
+                    android:textAlignment="textStart"
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
+                    app:backgroundTint="@color/transparent"
+                    app:cornerRadius="10dp"
+                    app:icon="@drawable/ic_album"
+                    app:iconGravity="start"
+                    app:iconPadding="15dp"
+                    app:iconSize="20dp"
+                    app:iconTint="@color/white"
+                    app:rippleColor="@color/ripple_white" />
+
+            </GridLayout>
+
+            <FrameLayout
+                android:id="@+id/playlistTextContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp">
+
+                <TextView
+                    android:id="@+id/playlistText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical|start"
+                    android:layout_marginVertical="10dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="Listas de canciones"
+                    android:textColor="@color/white"
+                    android:textSize="18sp" />
+
+            </FrameLayout>
+
+            <RelativeLayout
+                android:id="@+id/containerPlaylistsUser"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/playlistList"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_below="@id/playlistTextContainer"
-                    android:paddingHorizontal="20dp">
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:paddingHorizontal="5dp"
+                    android:paddingBottom="200dp" />
 
-                </androidx.recyclerview.widget.RecyclerView>
+                <TextView
+                    android:id="@+id/noPlaylistText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="No tienes ninguna playlist guardada"
+                    android:visibility="visible" />
 
-            </androidx.core.widget.NestedScrollView>
+            </RelativeLayout>
 
-            <TextView
-                android:id="@+id/noPlaylistText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="No tienes ninguna playlist guardada"
-                android:fontFamily="@font/unageo_medium"
-                android:layout_marginTop="5dp"
-                android:layout_centerInParent="true"/>
+        </LinearLayout>
 
-        </RelativeLayout>
+    </androidx.core.widget.NestedScrollView>
 
-        <FrameLayout
-            android:id="@+id/paddingEmpty"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_alignParentBottom="true">
+</androidx.constraintlayout.widget.ConstraintLayout>
 
 
-        </FrameLayout>
-
-    </RelativeLayout>
-
-</FrameLayout>

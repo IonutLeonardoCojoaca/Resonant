@@ -2,36 +2,28 @@ package com.example.resonant.ui.viewmodels
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
-import com.example.resonant.data.network.ApiClient
-import com.example.resonant.data.network.CoverRequestDTO
-import com.example.resonant.services.ApiResonantService
 import com.example.resonant.services.MusicPlaybackService
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.collections.get
 
+// 1. Estado limpio: Ya no necesitamos Bitmaps aquí.
 data class PlaylistScreenState(
     val isLoading: Boolean = true,
     val playlistDetails: Playlist? = null,
     val songs: List<Song> = emptyList(),
     val ownerName: String = "",
-    val collageBitmaps: List<Bitmap?> = emptyList(),
     val error: String? = null,
-    val currentPlayingSongId: String? = null // ¡Añadir este campo!
+    val currentPlayingSongId: String? = null
 )
 
 class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : ViewModel() {
@@ -44,27 +36,23 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
 
     private var currentPlaylistId: String? = null
 
+    // Helper interno simplificado
     private data class RefreshedPlaylistData(
         val playlist: Playlist,
         val songs: List<Song>,
-        val ownerName: String,
-        val collageBitmaps: List<Bitmap?>
+        val ownerName: String
     )
 
-    fun loadPlaylistScreenData(playlistId: String, context: Context) {
-        // Evita recargas innecesarias si ya se cargó o se está cargando
+    // 2. Ya no necesitamos 'Context' para cargar datos (porque no usamos Glide aquí)
+    fun loadPlaylistScreenData(playlistId: String) {
         if (playlistId == currentPlaylistId && !_screenState.value!!.isLoading) {
             return
         }
         currentPlaylistId = playlistId
-
-        // CORRECCIÓN: No emitas un nuevo estado aquí. `refreshPlaylistData` se encargará
-        // de mostrar el loader y el resultado final. Simplemente lánzalo.
-        refreshPlaylistData(playlistId, context, showLoading = true)
+        refreshPlaylistData(playlistId, showLoading = true)
     }
 
-    // El showLoading es para diferenciar la carga inicial de una actualización en segundo plano
-    private fun refreshPlaylistData(playlistId: String, context: Context, showLoading: Boolean = false) {
+    private fun refreshPlaylistData(playlistId: String, showLoading: Boolean = false) {
         if (showLoading) {
             _screenState.value = _screenState.value?.copy(isLoading = true, error = null)
         }
@@ -72,29 +60,28 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
         viewModelScope.launch {
             try {
                 val refreshedData = withContext(Dispatchers.IO) {
+                    // A) Obtenemos la playlist actualizada (el Backend ya habrá generado la imageUrl)
                     val p = playlistManager.getPlaylistById(playlistId)
-                    val s = playlistManager.getSongsByPlaylistId(context, playlistId)
+
+                    // B) Obtenemos las canciones
+                    val s = playlistManager.getSongsByPlaylistId(playlistId)
+
+                    // C) Obtenemos el nombre del dueño
                     val owner = p.userId?.let {
                         try { playlistManager.getUserById(it).name ?: "" } catch (_: Exception) { "" }
                     } ?: ""
 
-                    val service = ApiClient.getService(context)
-                    val coverUrls = getCoverUrlsForSongs(s.take(4), service)
-                    val bitmaps = getBitmapsWithGlide(context, coverUrls)
-
-                    RefreshedPlaylistData(p, s, owner, bitmaps)
+                    RefreshedPlaylistData(p, s, owner)
                 }
 
-                // Actualización atómica en el hilo principal.
                 _screenState.postValue(
                     _screenState.value?.copy(
                         isLoading = false,
-                        playlistDetails = refreshedData.playlist,
+                        playlistDetails = refreshedData.playlist, // Aquí viene la nueva URL
                         songs = refreshedData.songs,
                         ownerName = refreshedData.ownerName,
-                        collageBitmaps = refreshedData.collageBitmaps,
                         error = null
-                    ) ?: PlaylistScreenState() // Fallback por si acaso
+                    ) ?: PlaylistScreenState()
                 )
 
             } catch (e: Exception) {
@@ -106,12 +93,84 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
         }
     }
 
+    // --- Lógica de añadir/borrar canciones ---
+
+    fun addSongToPlaylist(songId: String, playlistId: String) {
+        viewModelScope.launch {
+            try {
+                // 1. Llamada a la API (El backend añade la canción y regenera la imagen)
+                withContext(Dispatchers.IO) {
+                    playlistManager.addSongToPlaylist(songId, playlistId)
+                }
+
+                // 2. Recargar datos para obtener la nueva imagen y la lista actualizada
+                refreshPlaylistData(playlistId, showLoading = false)
+            } catch (e: Exception) {
+                _error.postValue(e.message)
+            }
+        }
+    }
+
+    fun removeSongFromPlaylist(
+        songId: String,
+        playlistId: String,
+        context: Context // Contexto necesario solo para el Servicio de música
+    ) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    playlistManager.deleteSongFromPlaylist(songId, playlistId)
+                }
+
+                // Notificar al servicio de música si se está reproduciendo
+                notifySongMarkedForDeletion(context, playlistId, songId)
+
+                // Recargar datos para obtener la nueva imagen
+                refreshPlaylistData(playlistId, showLoading = false)
+
+            } catch (e: Exception) {
+                Log.e("PlaylistDetailVM", "Error al eliminar canción", e)
+                _error.postValue("Error al eliminar canción: ${e.message}")
+            }
+        }
+    }
+
+    // --- Helpers ---
+
+    private fun notifySongMarkedForDeletion(context: Context, playlistId: String, songId: String) {
+        val intent = Intent(context, MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_SONG_MARKED_FOR_DELETION
+            putExtra(MusicPlaybackService.EXTRA_PLAYLIST_ID, playlistId)
+            putExtra(MusicPlaybackService.EXTRA_SONG_ID, songId)
+        }
+        context.startService(intent)
+    }
+
     suspend fun checkSongInPlaylist(songId: String, playlistId: String): Boolean {
         return try {
             withContext(Dispatchers.IO) { playlistManager.isSongInPlaylist(songId, playlistId) }
         } catch (e: Exception) {
             _error.postValue("Error comprobando canción en playlist: ${e.message}")
             false
+        }
+    }
+
+    fun deleteCurrentPlaylist(playlistId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Usamos el mismo manager que ya tienes inyectado
+                playlistManager.deletePlaylist(playlistId)
+
+                // Volvemos al hilo principal para avisar a la vista
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } catch (e: Exception) {
+                Log.e("PlaylistDetailVM", "Error deleting playlist", e)
+                withContext(Dispatchers.Main) {
+                    onError(e.message ?: "Error desconocido al borrar")
+                }
+            }
         }
     }
 
@@ -123,112 +182,6 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
             Log.e("PlaylistDetailVM", "Error obteniendo artistas para la canción $songId", e)
             ""
         }
-    }
-
-    fun addSongToPlaylist(songId: String, playlistId: String, context: Context) {
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) { playlistManager.addSongToPlaylist(songId, playlistId) }
-                loadPlaylistScreenData(playlistId, context)
-            } catch (e: Exception) {
-                _error.postValue(e.message)
-            }
-        }
-    }
-
-    private fun notifySongMarkedForDeletion(context: Context, playlistId: String, songId: String) {
-        val intent = Intent(context, MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_SONG_MARKED_FOR_DELETION
-            putExtra(MusicPlaybackService.EXTRA_PLAYLIST_ID, playlistId)
-            putExtra(MusicPlaybackService.EXTRA_SONG_ID, songId)
-        }
-        context.startService(intent)
-    }
-
-    // 3. La función de eliminar ahora es MUCHO más simple.
-    fun removeSongFromPlaylist(
-        songId: String,
-        playlistId: String,
-        context: Context
-    ) {
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    playlistManager.deleteSongFromPlaylist(songId, playlistId)
-                }
-                notifySongMarkedForDeletion(context, playlistId, songId)
-                // 2. Recarga los datos de esta pantalla.
-                refreshPlaylistData(playlistId, context)
-
-            } catch (e: Exception) {
-                Log.e("PlaylistDetailVM", "Error al eliminar canción", e)
-                _error.postValue("Error al eliminar canción: ${e.message}")
-            }
-        }
-    }
-
-    // ✅ AÑADE ESTA NUEVA FUNCIÓN, MUCHO MÁS SIMPLE
-    private fun notifyPlaylistChange(context: Context, playlistId: String) {
-        val intent = Intent(context, MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_PLAYLIST_MODIFIED
-            putExtra(MusicPlaybackService.EXTRA_PLAYLIST_ID, playlistId)
-        }
-        context.startService(intent)
-    }
-
-    private suspend fun getCoverUrlsForSongs(songs: List<Song>, service: ApiResonantService): List<String> {
-
-        // 1. Filtra las canciones que necesitan portada Y crea la lista de DTOs
-        val coverRequests = songs.mapNotNull { song ->
-            song.imageFileName?.takeIf { it.isNotBlank() }?.let { fn ->
-                // Crea el DTO. albumId se pasa como null si es un single.
-                CoverRequestDTO(
-                    imageFileName = fn,
-                    albumId = song.albumId
-                )
-            }
-        }
-
-        // 2. Llama al servicio con la lista única de DTOs
-        if (coverRequests.isNotEmpty()) {
-            // val (fileNames, albumIds) = coversRequest.unzip() // <-- Ya no se necesita
-
-            val coverResponses = withContext(Dispatchers.IO) {
-                // Llama a la API con la lista de DTOs
-                service.getMultipleSongCoverUrls(coverRequests)
-            }
-
-            // 3. El resto de tu lógica para crear el mapa y asignar es correcta
-            val coverMap = coverResponses.associateBy({ it.imageFileName to it.albumId }, { it.url })
-
-            songs.forEach { song ->
-                // Busca en el mapa usando la misma clave (con albumId nulable)
-                song.coverUrl = coverMap[song.imageFileName to song.albumId]
-            }
-        }
-
-        return songs.mapNotNull { it.coverUrl }
-    }
-
-    private suspend fun getBitmapsWithGlide(context: Context, urls: List<String>): List<Bitmap?> {
-        val bitmaps = MutableList<Bitmap?>(4) { null }
-        coroutineScope {
-            urls.take(4).forEachIndexed { index, url ->
-                launch(Dispatchers.IO) {
-                    try {
-                        bitmaps[index] = Glide.with(context)
-                            .asBitmap()
-                            .load(url)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .submit()
-                            .get()
-                    } catch (e: Exception) {
-                        Log.e("PlaylistDetailVM", "Fallo al descargar imagen: $url", e)
-                    }
-                }
-            }
-        }
-        return bitmaps
     }
 }
 

@@ -32,36 +32,58 @@
             android:id="@+id/playlistText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_regular"
+            android:fontFamily="@font/unageo_medium"
             android:textColor="@color/white"
             android:textSize="18sp"
+            android:ellipsize="end"
+            android:maxLines="1"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <FrameLayout
+            android:id="@+id/settingsBackground"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginVertical="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/settingsButton"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:layout_gravity="center"
+                android:background="@drawable/ic_song_settings_vertical"
+                android:clickable="false"
+                android:focusable="false" />
+
+        </FrameLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- 1) match_parent + fillViewport -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/topBar"
         android:fillViewport="true">
 
-        <!-- 2) wrap_content aquí -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <include
-                android:id="@+id/playlistCollageContainer"
-                layout="@layout/playlist_grid_cover"
-                android:layout_margin="20dp"
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/playlistCoverImage"
+                android:layout_marginHorizontal="15dp"
                 app:layout_constraintDimensionRatio="1:1"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
+                app:shapeAppearanceOverlay="@style/RoundedCornersAlbumImage"
+                android:scaleType="centerCrop"
+                android:background="@color/cardsTheme"
                 android:layout_width="0dp"
                 android:layout_height="0dp" />
 
@@ -72,7 +94,7 @@
                 android:padding="20dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/playlistCollageContainer">
+                app:layout_constraintTop_toBottomOf="@+id/playlistCoverImage">
 
                 <TextView
                     android:id="@+id/playlistName"
@@ -158,7 +180,7 @@
                 android:text="No tienes canciones guardadas en esta playlist."
                 android:textSize="15sp"
                 android:textColor="@color/no_selected_color_icon"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="40dp"
                 android:visibility="invisible"
                 app:layout_constraintTop_toBottomOf="@id/playlistDataContainer"
                 app:layout_constraintStart_toStartOf="parent"

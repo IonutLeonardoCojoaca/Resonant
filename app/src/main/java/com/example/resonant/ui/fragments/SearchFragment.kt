@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
@@ -40,6 +41,10 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.viewmodels.FavoriteItem
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.google.android.material.chip.Chip
+// Importamos los servicios específicos
+import com.example.resonant.data.network.services.AlbumService
+import com.example.resonant.data.network.services.ArtistService
+import com.example.resonant.data.network.services.StorageService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -53,6 +58,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
     private var restoringState = false
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
+    private lateinit var userProfileImage: ImageView
 
     private lateinit var noSongsFounded: TextView
     private lateinit var loadingAnimation: LottieAnimationView
@@ -77,6 +83,12 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private var lastResults: List<SearchResult> = emptyList()
 
+    // --- 1. SERVICIOS Y MANAGER ---
+    private lateinit var albumService: AlbumService
+    private lateinit var artistService: ArtistService
+    private lateinit var storageService: StorageService
+    private lateinit var songManager: SongManager
+
     override fun onResume() {
         super.onResume()
         songViewModel.currentSongLiveData.value?.let { currentSong ->
@@ -89,6 +101,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_search, container, false)
+
+        // --- 2. INICIALIZACIÓN DE DEPENDENCIAS ---
+        val context = requireContext()
+        albumService = ApiClient.getAlbumService(context)
+        artistService = ApiClient.getArtistService(context)
+        storageService = ApiClient.getStorageService(context)
+        songManager = SongManager(context) // Instancia
 
         chipSongs = view.findViewById(R.id.chipSongs)
         chipSongs.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
@@ -104,6 +123,9 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         resultsRecyclerView.adapter = searchResultAdapter
         editTextQuery = view.findViewById(R.id.editTextQuery)
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
+
+        userProfileImage = view.findViewById(R.id.userProfile)
+        Utils.loadUserProfile(requireContext(), userProfileImage)
 
         suggestionsRecyclerView = view.findViewById(R.id.suggestionsRecyclerView)
         suggestionAdapter = SuggestionAdapter { suggestion ->
@@ -148,14 +170,11 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
             artistResults.clear()
             artistResults.addAll(restoredResults.filterIsInstance<SearchResult.ArtistItem>().map { it.artist })
 
-            // Usamos la nueva función centralizada también aquí
             updateAdapterList(applyActiveFilters(lastResults))
-
             updateFilteredResults()
             restoringState = false
         }
 
-        // Listeners de chips
         chipSongs.setOnCheckedChangeListener { chip, isChecked ->
             showSongs = isChecked
             updateFilteredResults()
@@ -175,7 +194,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
             AnimationsUtils.animateChipColor(chip, isChecked)
         }
 
-        var currentHomeQueueId: String = System.currentTimeMillis().toString() // o UUID.randomUUID().toString()
+        var currentHomeQueueId: String = System.currentTimeMillis().toString()
 
         searchResultAdapter.onSongClick = { (song, bitmap) ->
             val currentIndex = songResults.indexOfFirst { it.id == song.id }
@@ -188,15 +207,14 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
                 putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                 putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.SEARCH) // <-- Contexto: home random
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId) // <-- id único para esta cola (puede ser fijo o dinámico)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.SEARCH)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
             }
 
             requireContext().startService(playIntent)
         }
 
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
-
         favoritesViewModel.loadFavoriteSongs()
 
         favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
@@ -208,15 +226,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         }
 
         searchResultAdapter.onFavoriteClick = { song, wasFavorite ->
-            // Le decimos al ViewModel que se encargue de la lógica.
-            // Es exactamente la misma llamada que hicimos desde el BottomSheet.
             favoritesViewModel.toggleFavoriteSong(song)
         }
 
         searchResultAdapter.onSettingsClick = { song ->
-            val service = ApiClient.getService(requireContext())
             lifecycleScope.launch {
-                val artistList = service.getArtistsBySongId(song.id)
+                // Usamos ArtistService para obtener detalles
+                val artistList = artistService.getArtistsBySongId(song.id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
@@ -254,7 +270,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
             override fun afterTextChanged(s: Editable?) {
                 if (restoringState) return
                 if (s.isNullOrBlank()) {
-                    // Reset limpio
                     searchJob?.cancel()
                     lastResults = emptyList()
                     searchResultAdapter.submitList(emptyList())
@@ -275,10 +290,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 val query = newText?.toString()?.trim().orEmpty()
                 searchJob?.cancel()
 
-                if (query.isEmpty()) {
-                    // Ya manejado en afterTextChanged
-                    return
-                }
+                if (query.isEmpty()) return
 
                 noSongsFounded.visibility = View.GONE
                 resultsRecyclerView.visibility = View.INVISIBLE
@@ -286,15 +298,12 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 loadingAnimation.visibility = View.VISIBLE
 
                 searchJob = viewLifecycleOwner.lifecycleScope.launch {
-                    delay(500) // debounce
-
-                    val service = ApiClient.getService(requireContext())
+                    delay(200)
 
                     try {
-                        // ✅ Ejecutamos las 3 búsquedas paralelas: usando SongManager solo para canciones
-                        val songsDeferred = async { SongManager.searchSongs(requireContext(), query) }
-                        val albumsDeferred = async { service.searchAlbumsByQuery(query) }
-                        val artistsDeferred = async { service.searchArtistsByQuery(query) }
+                        val songsDeferred = async { songManager.searchSongs(query) }
+                        val albumsDeferred = async { albumService.searchAlbumsByQuery(query) }
+                        val artistsDeferred = async { artistService.searchArtistsByQuery(query) }
 
                         val songsResponse = songsDeferred.await()
                         val albumsResponse = albumsDeferred.await()
@@ -311,45 +320,17 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             query
                         )
 
-                        // === ARTISTAS ===
-                        val artistFileNames = artists.mapNotNull { it.fileName?.takeIf { fn -> fn.isNotBlank() } }
-                        val artistUrls = if (artistFileNames.isNotEmpty())
-                            service.getMultipleArtistUrls(artistFileNames)
-                        else emptyList()
-                        val artistUrlMap = artistUrls.associateBy { it.fileName }
-                        val artistsPrepared = artists.map { artist ->
-                            val url = artist.fileName?.let { artistUrlMap[it]?.url }.orEmpty()
-                            artist.copy(
-                                url = url,
-                                description = artist.description ?: ""
-                            )
-                        }
-
-                        // === ÁLBUMES ===
                         albums.forEach { album ->
-                            val albumArtists = service.getArtistsByAlbumId(album.id)
-                            album.artistName = albumArtists.filterNotNull()
-                                .map { it.name ?: "Desconocido" }
-                                .joinToString(", ")
+                            val albumArtists = artistService.getArtistsByAlbumId(album.id)
+                            album.artistName =
+                                albumArtists.joinToString(", ") { it.name }
                         }
 
-                        val albumSafeNames = albums.map { a ->
-                            a.fileName = a.fileName?.takeIf { it.isNotBlank() } ?: "${a.id}.jpg"
-                            a.fileName!!
-                        }
-
-                        if (albumSafeNames.isNotEmpty()) {
-                            val albumUrls = service.getMultipleAlbumUrls(albumSafeNames)
-                            val albumUrlMap = albumSafeNames.zip(albumUrls.map { it.url }).toMap()
-                            albums.forEach { a -> a.url = albumUrlMap[a.fileName] }
-                        }
-
-                        // === COMBINAR Y MOSTRAR RESULTADOS ===
-                        val combinedResults = intercalateAndSortResults(songs, albums, artistsPrepared, query)
+                        val combinedResults = intercalateAndSortResults(songs, albums, artists, query)
 
                         songResults.clear(); songResults.addAll(songs)
                         albumResults.clear(); albumResults.addAll(albums)
-                        artistResults.clear(); artistResults.addAll(artistsPrepared)
+                        artistResults.clear(); artistResults.addAll(artists)
                         lastResults = combinedResults
 
                         val finalList = applyActiveFilters(lastResults)
@@ -358,7 +339,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
                         when {
                             finalList.isNotEmpty() -> {
-                                // ✅ Mostrar resultados
                                 resultsRecyclerView.visibility = View.VISIBLE
                                 suggestionsRecyclerView.visibility = View.GONE
                                 noSongsFounded.visibility = View.GONE
@@ -366,7 +346,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             }
 
                             combinedSuggestions.isNotEmpty() -> {
-                                // ✅ Mostrar sugerencias
                                 resultsRecyclerView.visibility = View.GONE
                                 suggestionsRecyclerView.visibility = View.VISIBLE
                                 noSongsFounded.visibility = View.GONE
@@ -374,7 +353,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             }
 
                             else -> {
-                                // 🚫 Nada
                                 resultsRecyclerView.visibility = View.GONE
                                 suggestionsRecyclerView.visibility = View.GONE
                                 noSongsFounded.visibility = View.VISIBLE
@@ -396,6 +374,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         return view
     }
+
+    // ... (Resto de métodos intercalateAndSortResults, intercalateAndSortSuggestions, etc. IGUALES) ...
 
     private fun intercalateAndSortResults(
         songs: List<Song>,

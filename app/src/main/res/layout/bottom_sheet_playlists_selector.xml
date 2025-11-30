@@ -115,12 +115,13 @@
         android:gravity="start|center_vertical"
         android:text="No tienes ninguna lista todavía ¡Crea una!"
         android:textColor="@color/white"
+        android:drawableTint="@color/white"
         android:textSize="15sp"
         android:visibility="visible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/playlistList"
-        android:drawableStart="@drawable/ic_add"
+        android:drawableStart="@drawable/ic_menu_add_selected"
         android:drawablePadding="10dp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

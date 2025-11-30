@@ -14,7 +14,7 @@ import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.data.models.Song
-import com.example.resonant.data.network.ApiClient
+// 1. Borramos ApiClient, ya no hace falta aquí
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.ui.adapters.PlaylistAdapter
@@ -36,15 +36,14 @@ class SelectPlaylistBottomSheet(
     private lateinit var noPlaylistTextView: TextView
     private lateinit var selectPlaylistText: TextView
 
-    // ✅ 1. OBTENEMOS AMBOS VIEWMODELS CON ALCANCE DE ACTIVITY
+    // ✅ 1. CORREGIDO: Inicialización de PlaylistManager pasando solo el Context
     private val playlistsListViewModel: PlaylistsListViewModel by viewModels {
-        val service = ApiClient.getService(requireContext())
-        val playlistManager = PlaylistManager(service)
+        val playlistManager = PlaylistManager(requireContext()) // <--- CAMBIO
         PlaylistsListViewModelFactory(playlistManager)
     }
+
     private val playlistDetailViewModel: PlaylistDetailViewModel by viewModels {
-        val service = ApiClient.getService(requireContext())
-        val playlistManager = PlaylistManager(service)
+        val playlistManager = PlaylistManager(requireContext()) // <--- CAMBIO
         PlaylistDetailViewModelFactory(playlistManager)
     }
 
@@ -54,20 +53,28 @@ class SelectPlaylistBottomSheet(
     ): View {
         val view = inflater.inflate(R.layout.bottom_sheet_playlists_selector, container, false)
 
-        // --- Inicialización de vistas ---
         val songImage: ShapeableImageView = view.findViewById(R.id.songImage)
         val songTitle: TextView = view.findViewById(R.id.songTitle)
         val songArtist: TextView = view.findViewById(R.id.songArtist)
+        val songStreams: TextView = view.findViewById(R.id.songStreams)
+
         noPlaylistTextView = view.findViewById(R.id.noPlaylistTextView)
         selectPlaylistText = view.findViewById(R.id.selectPlaylistText)
         playlistRecyclerView = view.findViewById(R.id.playlistList)
 
-        // --- Configuración de la información de la canción (parte superior) ---
         songTitle.text = song.title
         songArtist.text = song.artistName
+
+        if(song.streams == 0){
+            songStreams.text = "Sin reproducciones"
+        }else if (song.streams == 1){
+            songStreams.text = "${song.streams} reproducción"
+        }else{
+            songStreams.text = "${song.streams} reproducciones"
+        }
+
         Glide.with(songImage).load(song.coverUrl ?: song.imageFileName).placeholder(R.drawable.ic_disc).into(songImage)
 
-        // --- Configuración del RecyclerView ---
         setupRecyclerView()
 
         return view
@@ -76,18 +83,19 @@ class SelectPlaylistBottomSheet(
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // ✅ 2. OBSERVAMOS LA LISTA DE PLAYLISTS DESDE EL VIEWMODEL
         playlistsListViewModel.playlists.observe(viewLifecycleOwner) { playlists ->
             playlistAdapter.submitList(playlists ?: emptyList())
             updateEmptyState(playlists.isEmpty())
         }
 
-        // ✅ 3. PEDIMOS AL VIEWMODEL QUE CARGUE LAS PLAYLISTS
-        val userId = UserManager.getUserId(requireContext())
+        // ✅ 2. CORREGIDO: UserManager ahora se instancia
+        val userManager = UserManager(requireContext()) // <--- INSTANCIA
+        val userId = userManager.getUserId()            // <--- LLAMADA
+
         if (userId != null) {
             playlistsListViewModel.getPlaylistsByUserId(userId)
         } else {
-            updateEmptyState(true) // No hay usuario, por tanto no hay playlists
+            updateEmptyState(true)
         }
     }
 
@@ -95,7 +103,6 @@ class SelectPlaylistBottomSheet(
         playlistAdapter = PlaylistAdapter(
             PlaylistAdapter.Companion.VIEW_TYPE_LIST,
             onClick = { selectedPlaylist ->
-                // ✅ 4. AL HACER CLICK, USAMOS EL VIEWMODEL DE DETALLE PARA LA ACCIÓN
                 lifecycleScope.launch {
                     try {
                         val alreadyInPlaylist = playlistDetailViewModel.checkSongInPlaylist(
@@ -109,36 +116,32 @@ class SelectPlaylistBottomSheet(
                                 iconRes = R.drawable.ic_information
                             )
                         } else {
+                            // Nota: requireContext() aquí es redundante si el método
+                            // addSongToPlaylist ya no lo pide (depende de cómo dejaste el VM),
+                            // pero si lo pide, está bien dejarlo.
                             playlistDetailViewModel.addSongToPlaylist(
                                 song.id,
-                                selectedPlaylist.id!!,
-                                requireContext()
+                                selectedPlaylist.id!!
                             )
                             showResonantSnackbar(
                                 text = "¡Canción añadida a '${selectedPlaylist.name}'!",
                                 colorRes = R.color.successColor,
                                 iconRes = R.drawable.ic_success
                             )
-                            // 2. ¡AQUÍ ESTÁ LA MAGIA!
-                            // Forzamos al adapter a olvidar la portada vieja
+
                             playlistAdapter.clearCacheForPlaylist(selectedPlaylist.id!!)
-
-                            // Forzamos al ViewModel de listas a recargar todo
                             playlistsListViewModel.refreshPlaylists()
-
-                            // 3. Cerramos el BottomSheet
                             dismiss()
                         }
                         dismiss()
                     } catch (e: Exception) {
-                        Log.i(
-                            "SelectPlaylistBS",
-                            "Hubo un error al añadir la canción: ${e.message}"
-                        )
+                        Log.i("SelectPlaylistBS", "Hubo un error al añadir la canción: ${e.message}")
                         dismiss()
                     }
                 }
-            }
+            },
+            onPlaylistLongClick = { _, _ -> },
+            onSettingsClick = { }
         )
         playlistRecyclerView.adapter = playlistAdapter
         playlistRecyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -151,9 +154,6 @@ class SelectPlaylistBottomSheet(
             selectPlaylistText.visibility = View.GONE
             noPlaylistTextView.setOnClickListener {
                 onNoPlaylistsFound()
-                // El dismiss() no es estrictamente necesario aquí,
-                // ya que la lambda probablemente cerrará toda la pila de diálogos.
-                // Pero no hace daño dejarlo.
                 dismiss()
             }
         } else {

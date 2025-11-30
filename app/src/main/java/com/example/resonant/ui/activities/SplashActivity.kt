@@ -28,15 +28,15 @@ class SplashActivity : ComponentActivity() {
             val minDurationMs = 900L
             val start = System.currentTimeMillis()
 
-            val token = session.getValidAccessToken(thresholdSeconds = 60)
+            val isLoggedIn = session.hasLocalCredentials()
 
             val elapsed = System.currentTimeMillis() - start
             if (elapsed < minDurationMs) delay(minDurationMs - elapsed)
 
-            if (token.isNullOrBlank()) {
-                startActivity(Intent(this@SplashActivity, LoginActivity::class.java))
-            } else {
+            if (isLoggedIn) {
                 startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+            } else {
+                startActivity(Intent(this@SplashActivity, LoginActivity::class.java))
             }
             finish()
         }

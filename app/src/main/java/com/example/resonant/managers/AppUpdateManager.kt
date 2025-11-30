@@ -6,25 +6,27 @@ import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.getSystemService
-import com.example.resonant.services.ApiResonantService
 import com.example.resonant.data.models.UpdateDecision
 import com.example.resonant.utils.Utils
 import com.example.resonant.utils.VersionProvider
 import com.example.resonant.data.models.AppUpdate
+import com.example.resonant.data.network.services.AppService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class AppUpdateManager(
     private val context: Context,
-    private val api: ApiResonantService,
-    private val baseUrl: String // se inyecta desde ApiClient.baseUrl()
+    private val appService: AppService, // <--- CAMBIO: Antes ApiResonantService
+    private val baseUrl: String
 ) {
     private val platform = "Android"
 
     suspend fun checkForUpdate(): UpdateDecision = withContext(Dispatchers.IO) {
         try {
-            val latest = api.getLatestAppVersion(platform)
+            // Usamos appService
+            val latest = appService.getLatestAppVersion(platform)
+
             val current = VersionProvider.appVersionName(context).trim()
             val latestV = latest.version.trim()
             val cmp = Utils.compareSemver(latestV, current)
@@ -65,7 +67,9 @@ class AppUpdateManager(
     }
 
     suspend fun getPresignedDownloadUrl(version: String): String = withContext(Dispatchers.IO) {
-        val resp = api.getPresignedDownloadUrl(version = version, platform = platform)
+        // Usamos appService aquí también
+        val resp = appService.getPresignedDownloadUrl(version = version, platform = platform)
+
         if (!resp.isSuccessful) {
             throw IllegalStateException("Download endpoint failed: HTTP ${resp.code()}")
         }

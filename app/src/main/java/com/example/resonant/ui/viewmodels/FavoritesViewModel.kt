@@ -18,6 +18,8 @@ sealed class FavoriteItem {
 }
 
 class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
+
+    // Instancia del Manager
     private val repo = FavoriteManager(app.applicationContext)
 
     private val _favorites = MutableLiveData<List<FavoriteItem>>(emptyList())
@@ -38,15 +40,13 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
             val isCurrentlyFavorite = currentFavorites.contains(song.id)
 
             if (isCurrentlyFavorite) {
-                // 🔻 Si ya es favorito, lo eliminamos
                 val result = repo.deleteFavoriteSong(song.id)
                 if (result) loadFavoriteSongs()
-                onResult(result, false) // (éxito, ahora no es favorito)
+                onResult(result, false)
             } else {
-                // 🔺 Si no es favorito, lo añadimos
                 val result = repo.addFavoriteSong(song.id)
                 if (result) loadFavoriteSongs()
-                onResult(result, true) // (éxito, ahora sí es favorito)
+                onResult(result, true)
             }
         }
     }
@@ -54,13 +54,17 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     // ---- CARGA GENERAL ----
     fun loadAllFavorites() {
         viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs(getApplication())
+            val favSongs = repo.getFavoritesSongs()
             val favArtists = repo.getFavoriteArtists()
             val favAlbums = repo.getFavoriteAlbums()
+
             val items = mutableListOf<FavoriteItem>()
-            items += favSongs.map { FavoriteItem.SongItem(it) }
-            items += favArtists.map { FavoriteItem.ArtistItem(it) }
-            items += favAlbums.map { FavoriteItem.AlbumItem(it) }
+
+            // CORRECCIÓN: Usamos nombres explícitos (song, artist, album) en lugar de 'it'
+            items += favSongs.map { song -> FavoriteItem.SongItem(song) }
+            items += favArtists.map { artist -> FavoriteItem.ArtistItem(artist) }
+            items += favAlbums.map { album -> FavoriteItem.AlbumItem(album) }
+
             _favorites.value = items
             updateFavoriteIds()
         }
@@ -69,9 +73,13 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     // ---- SONGS ----
     fun loadFavoriteSongs() {
         viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs(getApplication())
-            val current = _favorites.value.orEmpty().filterNot { it is FavoriteItem.SongItem }
-            _favorites.value = current + favSongs.map { FavoriteItem.SongItem(it) }
+            val favSongs = repo.getFavoritesSongs()
+
+            // CORRECCIÓN: Nombres explícitos para evitar error de inferencia
+            val current = _favorites.value.orEmpty().filterNot { item -> item is FavoriteItem.SongItem }
+            val newItems = favSongs.map { song -> FavoriteItem.SongItem(song) }
+
+            _favorites.value = current + newItems
             updateFavoriteIds()
         }
     }
@@ -96,8 +104,12 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     fun loadFavoriteArtists() {
         viewModelScope.launch {
             val favArtists = repo.getFavoriteArtists()
-            val current = _favorites.value.orEmpty().filterNot { it is FavoriteItem.ArtistItem }
-            _favorites.value = current + favArtists.map { FavoriteItem.ArtistItem(it) }
+
+            // CORRECCIÓN: Nombres explícitos
+            val current = _favorites.value.orEmpty().filterNot { item -> item is FavoriteItem.ArtistItem }
+            val newItems = favArtists.map { artist -> FavoriteItem.ArtistItem(artist) }
+
+            _favorites.value = current + newItems
             updateFavoriteIds()
         }
     }
@@ -122,8 +134,12 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     fun loadFavoriteAlbums() {
         viewModelScope.launch {
             val favAlbums = repo.getFavoriteAlbums()
-            val current = _favorites.value.orEmpty().filterNot { it is FavoriteItem.AlbumItem }
-            _favorites.value = current + favAlbums.map { FavoriteItem.AlbumItem(it) }
+
+            // CORRECCIÓN: Nombres explícitos
+            val current = _favorites.value.orEmpty().filterNot { item -> item is FavoriteItem.AlbumItem }
+            val newItems = favAlbums.map { album -> FavoriteItem.AlbumItem(album) }
+
+            _favorites.value = current + newItems
             updateFavoriteIds()
         }
     }

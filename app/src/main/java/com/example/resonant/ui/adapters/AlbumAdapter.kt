@@ -19,6 +19,7 @@ import com.example.resonant.utils.MiniPlayerColorizer
 import com.example.resonant.R
 import com.example.resonant.utils.Utils
 import com.example.resonant.data.models.Album
+import java.util.Calendar
 
 class AlbumAdapter(
     private var albums: List<Album>,
@@ -29,6 +30,7 @@ class AlbumAdapter(
         const val VIEW_TYPE_SIMPLE = 0
         const val VIEW_TYPE_DETAILED = 1
         const val VIEW_TYPE_FAVORITE = 2
+        const val VIEW_TYPE_FEATURED = 3
     }
 
     override fun getItemViewType(position: Int): Int = viewType
@@ -43,6 +45,10 @@ class AlbumAdapter(
                 val view = LayoutInflater.from(parent.context).inflate(R.layout.item_album, parent, false)
                 SimpleAlbumViewHolder(view)
             }
+            VIEW_TYPE_FEATURED -> { // <--- INFLAMOS TU XML NUEVO
+                val view = LayoutInflater.from(parent.context).inflate(R.layout.item_featured_album, parent, false)
+                FeaturedAlbumViewHolder(view)
+            }
             else -> {
                 val view = LayoutInflater.from(parent.context).inflate(R.layout.item_favorite_album, parent, false)
                 FavoriteAlbumViewHolder(view)
@@ -55,7 +61,8 @@ class AlbumAdapter(
         when (holder) {
             is SimpleAlbumViewHolder -> holder.bind(album)
             is DetailedAlbumViewHolder -> holder.bind(album)
-            is FavoriteAlbumViewHolder -> holder.bind(album) // <-- FALTA ESTO
+            is FavoriteAlbumViewHolder -> holder.bind(album)
+            is FeaturedAlbumViewHolder -> holder.bind(album) // <--- BINDING NUEVO
         }
     }
 
@@ -67,6 +74,7 @@ class AlbumAdapter(
             is SimpleAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
             is DetailedAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
             is FavoriteAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
+            is FeaturedAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
         }
     }
 
@@ -80,7 +88,7 @@ class AlbumAdapter(
         val albumImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val albumName: TextView = itemView.findViewById(R.id.albumName)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
-        private val container: View = itemView.findViewById(R.id.itemContainer) // ConstraintLayout
+        private val container: View = itemView.findViewById(R.id.itemContainer)
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
@@ -92,25 +100,27 @@ class AlbumAdapter(
                 val bundle = Bundle().apply { putString("albumId", album.id) }
                 itemView.postDelayed({
                     itemView.findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
-                }, 200) // 200ms de delay
+                }, 200)
             }
         }
     }
 
     // ViewHolder detallado (lista con más datos)
     inner class DetailedAlbumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val albumImage: ImageView = itemView.findViewById(R.id.artistImage)
+        val albumImage: ImageView = itemView.findViewById(R.id.albumCover)
         private val albumTitle: TextView = itemView.findViewById(R.id.albumTitle)
-        private val albumYear: TextView = itemView.findViewById(R.id.albumReleaseYear)
-        private val albumTracks: TextView = itemView.findViewById(R.id.albumNumberOfSongs)
-        private val albumDuration: TextView = itemView.findViewById(R.id.albumDuration)
+        private val artistName: TextView = itemView.findViewById(R.id.artistName)
+        private val albumType: TextView = itemView.findViewById(R.id.albumType)
+        val albumYear: TextView = itemView.findViewById(R.id.albumYear)
+        val albumTracks: TextView = itemView.findViewById(R.id.albumTrackCount)
 
         fun bind(album: Album) {
             albumTitle.text = album.title ?: "Not found"
+            artistName.text = album.artistName ?: "Unknown Artist"
             albumYear.text = album.releaseYear?.toString() ?: "-"
-            albumTracks.text = album.numberOfTracks?.toString() ?: "-"
-            albumDuration.text = Utils.formatDuration(album.duration)
-
+            val trackCount = album.numberOfTracks ?: 0
+            albumTracks.text = "$trackCount canciones"
+            albumType.text = if (trackCount > 6) "Álbum" else "EP/Single"
             loadAlbumCover(album.url, albumImage)
 
             itemView.setOnClickListener {
@@ -122,6 +132,7 @@ class AlbumAdapter(
         }
     }
 
+    // ViewHolder FAVORITO
     inner class FavoriteAlbumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val albumImage: ImageView = itemView.findViewById(R.id.albumImage)
         private val albumName: TextView = itemView.findViewById(R.id.albumTitle)
@@ -130,7 +141,6 @@ class AlbumAdapter(
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
             artistName.text = album.artistName ?: "Unknown"
-
             loadAlbumCover(album.url, albumImage)
 
             itemView.setOnClickListener {
@@ -142,9 +152,45 @@ class AlbumAdapter(
         }
     }
 
+    // --- NUEVO: FEATURED ALBUM VIEWHOLDER ---
+    // Usamos los IDs de tu nuevo XML item_features_album.xml
+    inner class FeaturedAlbumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val albumImage: ImageView = itemView.findViewById(R.id.artistImage) // El ID en tu XML es artistImage
+        private val albumName: TextView = itemView.findViewById(R.id.albumName)
+        private val trackCount: TextView = itemView.findViewById(R.id.textView) // El ID de "0" en tu XML
+        private val featuredTag: TextView = itemView.findViewById(R.id.featuredTag) // El ID añadido al primer TextView
+
+        fun bind(album: Album) {
+            albumName.text = album.title ?: "Sin título"
+            trackCount.text = (album.numberOfTracks ?: 0).toString()
+
+            // Lógica simple para la etiqueta: Si es de este año o anterior = Nuevo
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val isNew = (album.releaseYear ?: 0) >= (currentYear - 1)
+
+            if (isNew) {
+                featuredTag.text = "Último lanzamiento"
+                // Opcional: Cambiar background tint si tienes drawables distintos
+                // featuredTag.setBackgroundResource(R.drawable.bg_rounded_secondary)
+            } else {
+                featuredTag.text = "Álbum destacado"
+                // featuredTag.setBackgroundResource(R.drawable.bg_rounded_gold) // Ejemplo si tuvieras otro color
+            }
+
+            // Usamos carga normal (sin Palette) para mejor rendimiento en items grandes
+            loadAlbumCover(album.url, albumImage)
+
+            itemView.setOnClickListener {
+                val bundle = Bundle().apply { putString("albumId", album.id) }
+                itemView.findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
+            }
+        }
+    }
+
+    // --- HELPERS DE CARGA ---
+
     private fun loadAlbumCover(url: String?, imageView: ImageView) {
         val placeholderRes = R.drawable.ic_album_stack
-
         Glide.with(imageView).clear(imageView)
 
         if (url.isNullOrBlank()) {
@@ -157,7 +203,7 @@ class AlbumAdapter(
         Glide.with(imageView)
             .load(model)
             .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .timeout(10_000) // evita “carga infinita”
+            .timeout(10_000)
             .dontAnimate()
             .placeholder(placeholderRes)
             .error(placeholderRes)
@@ -167,24 +213,18 @@ class AlbumAdapter(
     private fun loadAlbumCoverPalette(
         url: String?,
         imageView: ImageView,
-        container: View, // El ConstraintLayout, no el CardView
+        container: View,
         albumName: TextView,
         artistName: TextView
     ) {
         val placeholderRes = R.drawable.ic_album_stack
-
         Glide.with(imageView).clear(imageView)
 
         if (url.isNullOrBlank()) {
             imageView.setImageResource(placeholderRes)
-            // Aplica el colorizer con el fallback
             MiniPlayerColorizer.applyFromImageView(
                 imageView,
-                MiniPlayerColorizer.Targets(
-                    container = container,
-                    title = albumName,
-                    subtitle = artistName
-                ),
+                MiniPlayerColorizer.Targets(container = container, title = albumName, subtitle = artistName),
                 fallbackColor = imageView.context.getColor(R.color.appBackgroundTheme),
                 animateMillis = 400L
             )
@@ -204,14 +244,9 @@ class AlbumAdapter(
             .into(object : CustomTarget<Bitmap>() {
                 override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                     imageView.setImageBitmap(resource)
-                    // Aplica el colorizer con el bitmap real
                     MiniPlayerColorizer.applyFromImageView(
                         imageView,
-                        MiniPlayerColorizer.Targets(
-                            container = container,
-                            title = albumName,
-                            subtitle = artistName
-                        ),
+                        MiniPlayerColorizer.Targets(container = container, title = albumName, subtitle = artistName),
                         fallbackColor = imageView.context.getColor(R.color.appBackgroundTheme),
                         animateMillis = 400L
                     )
@@ -222,4 +257,8 @@ class AlbumAdapter(
             })
     }
 
+    fun updateList(newList: List<Album>) {
+        this.albums = newList
+        notifyDataSetChanged()
+    }
 }

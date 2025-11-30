@@ -1,11 +1,17 @@
 package com.example.resonant.utils
 
+import com.example.resonant.R
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Bundle
 import android.util.Log
+import android.widget.ImageView
+import androidx.annotation.IdRes
 import androidx.core.content.FileProvider
+import androidx.navigation.NavController
+import com.example.resonant.ui.activities.MainActivity
 import java.io.File
 import java.io.FileOutputStream
 
@@ -104,4 +110,44 @@ object Utils {
         if (a2 != b2) return a2 - b2
         return a3 - b3
     }
+
+    fun loadUserProfile(context: Context, userProfileImage: ImageView) {
+        val localFileName = "profile_user.png"
+        val file = File(context.filesDir, localFileName)
+
+        // 1. Intentar cargar la imagen
+        if (file.exists()) {
+            try {
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                userProfileImage.setImageBitmap(bitmap)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                userProfileImage.setImageResource(R.drawable.ic_user)
+            }
+        } else {
+            userProfileImage.setImageResource(R.drawable.ic_user)
+        }
+
+        // 2. Configurar el Clic para abrir el Drawer
+        userProfileImage.setOnClickListener {
+            // Verificamos si el contexto es MainActivity (o envuelto en una)
+            val activity = getActivityFromContext(context)
+            if (activity is MainActivity) {
+                activity.openDrawer()
+            }
+        }
+    }
+
+    // Función auxiliar para obtener la Activity desde cualquier Context (a veces el context es un wrapper)
+    private fun getActivityFromContext(context: Context): android.app.Activity? {
+        var ctx = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) {
+                return ctx
+            }
+            ctx = ctx.baseContext
+        }
+        return null
+    }
+
 }

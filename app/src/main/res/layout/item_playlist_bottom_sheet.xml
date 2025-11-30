@@ -8,14 +8,14 @@
     android:padding="10dp"
     android:background="@color/pointersTheme">
 
-    <include
-        android:id="@+id/playlistCollageContainer"
-        layout="@layout/playlist_list_cover"
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/playlistCoverImage"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_gravity="center"
+        android:src="@drawable/ic_playlist_stack"
+        android:scaleType="fitCenter"
+        tools:ignore="ContentDescription" />
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -23,7 +23,7 @@
         android:orientation="vertical"
         android:layout_marginStart="15dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/playlistCollageContainer"
+        app:layout_constraintStart_toEndOf="@+id/playlistCoverImage"
         app:layout_constraintTop_toTopOf="parent">
 
         <TextView

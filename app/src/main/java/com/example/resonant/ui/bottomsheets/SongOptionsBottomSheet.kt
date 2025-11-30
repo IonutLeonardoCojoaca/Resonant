@@ -84,7 +84,7 @@ class SongOptionsBottomSheet(
         } else {
             // --- MODO: "Añadir a una lista" ---
             addToPlaylistButton.text = "Añadir a lista"
-            addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add, 0, 0, 0)
+            addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_menu_add_selected, 0, 0, 0)
 
             addToPlaylistButton.setOnClickListener {
                 // Ahora, simplemente llama a la nueva lambda y cierra

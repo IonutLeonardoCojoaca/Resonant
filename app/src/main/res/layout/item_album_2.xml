@@ -1,116 +1,120 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="130dp"
-    android:layout_marginTop="5dp"
-    android:layout_marginBottom="20dp">
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="12dp">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/bg_item_album_shimmer"
-        android:layout_centerHorizontal="true"/>
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/albumCover"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_album_stack"
+        app:shapeAppearanceOverlay="@style/PremiumSquareImage"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
+    <TextView
+        android:id="@+id/albumTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:letterSpacing="0.01"
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="17sp"
+        tools:text="Future Nostalgia"
+        app:layout_constraintBottom_toTopOf="@+id/artistName"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/albumCover"
+        app:layout_constraintTop_toTopOf="@+id/albumCover"
+        app:layout_constraintVertical_chainStyle="packed" />
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/artistImage"
-            android:layout_width="130dp"
-            android:layout_height="match_parent"
-            android:layout_centerVertical="true"
-            android:src="@drawable/ic_album_stack"
-            app:shapeAppearanceOverlay="@style/RoundedCornersAlbumImage"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintDimensionRatio="1:1"/>
+    <TextView
+        android:id="@+id/artistName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_medium"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#E6FFFFFF"
+        android:textSize="15sp"
+        tools:text="Dua Lipa"
+        app:layout_constraintBottom_toTopOf="@+id/metaDataContainer"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@+id/albumTitle"
+        app:layout_constraintTop_toBottomOf="@+id/albumTitle" />
+
+    <LinearLayout
+        android:id="@+id/metaDataContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintBottom_toBottomOf="@+id/albumCover"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@+id/albumTitle"
+        app:layout_constraintTop_toBottomOf="@+id/artistName">
 
         <TextView
-            android:id="@+id/albumTitle"
-            android:layout_width="0dp"
+            android:id="@+id/albumType"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="15dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_bold"
-            android:maxLines="2"
-            android:text=""
-            android:textColor="@color/white"
-            android:textSize="15sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/artistImage"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <TextView
-            android:id="@+id/albumReleaseYear"
-            android:layout_width="50dp"
-            android:layout_height="20dp"
-            android:layout_marginLeft="15dp"
-            android:layout_marginTop="10dp"
-            android:layout_below="@id/albumTitle"
             android:fontFamily="@font/unageo_medium"
-            android:text=""
-            android:textColor="@color/white"
-            android:textSize="15sp"
-            android:visibility="invisible"
-            app:layout_constraintStart_toEndOf="@+id/artistImage"
-            app:layout_constraintTop_toBottomOf="@+id/albumTitle" />
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp"
+            android:includeFontPadding="false"
+            tools:text="Álbum" />
 
-        <RelativeLayout
-            android:layout_width="0dp"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentBottom="true"
-            android:layout_margin="15dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/artistImage">
+            android:paddingHorizontal="4dp"
+            android:text="●"
+            android:textColor="#66FFFFFF"
+            android:textSize="10sp" />
 
-            <View
-                android:id="@+id/backgroundNumberOfTracks"
-                android:layout_width="70dp"
-                android:layout_height="35dp"
-                android:layout_alignParentStart="true"
-                android:layout_centerVertical="true"
-                android:background="@drawable/bg_item_shimmer_gray" />
+        <TextView
+            android:id="@+id/albumYear"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp"
+            android:includeFontPadding="false"
+            tools:text="2024" />
 
-            <ImageView
-                android:id="@+id/albumCoverDisc"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentStart="true"
-                android:layout_centerVertical="true"
-                android:paddingLeft="8dp"
-                android:src="@drawable/ic_disc" />
+        <TextView
+            android:id="@+id/dotSeparator2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="4dp"
+            android:text="●"
+            android:textColor="#66FFFFFF"
+            android:textSize="10sp" />
 
-            <TextView
-                android:id="@+id/albumNumberOfSongs"
-                android:layout_width="30dp"
-                android:layout_height="wrap_content"
-                android:layout_toRightOf="@id/albumCoverDisc"
-                android:layout_centerVertical="true"
-                android:layout_marginLeft="5dp"
-                android:fontFamily="@font/unageo_medium"
-                android:text=""
-                android:textColor="@color/white"
-                android:textSize="15sp" />
+        <TextView
+            android:id="@+id/albumTrackCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp"
+            android:includeFontPadding="false"
+            tools:text="12 canciones" />
 
-            <TextView
-                android:id="@+id/albumDuration"
-                android:layout_width="70dp"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:fontFamily="@font/unageo_medium"
-                android:text=""
-                android:textAlignment="center"
-                android:textColor="@color/white"
-                android:textSize="15sp" />
+    </LinearLayout>
 
-        </RelativeLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

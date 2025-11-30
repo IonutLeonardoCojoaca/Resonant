@@ -6,4 +6,5 @@ import com.example.resonant.data.models.User
 
 class UserViewModel(app: Application) : AndroidViewModel(app) {
     var user: User? = null
+    val profileImageUpdated = androidx.lifecycle.MutableLiveData<Boolean>()
 }

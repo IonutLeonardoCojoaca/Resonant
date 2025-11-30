@@ -3,6 +3,7 @@ package com.example.resonant.data.models
 import android.os.Parcelable
 import com.google.gson.annotations.SerializedName
 import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
 
 @Parcelize
 data class AudioAnalysis(
@@ -28,16 +29,22 @@ data class AudioAnalysis(
     @SerializedName("bpmNormalized")
     val bpmNormalized: Double = 0.0,
 
-    @SerializedName("beatGridJson")
-    val beatGridJson: List<Int> = emptyList(), // Lista de timestamps de los beats
-
     @SerializedName("optimalStartPointMs")
-    val optimalStartPointMs: Int? = null, // Punto óptimo de entrada para mezclas
+    val optimalStartPointMs: Int? = null,
 
     @SerializedName("optimalExitPointMs")
-    val optimalExitPointMs: Int? = null, // Punto óptimo de salida para mezclas
+    val optimalExitPointMs: Int? = null,
 
     @SerializedName("musicalKey")
-    val musicalKey: String? = null // Tonalidad de la canción (ej. "Am", "C")
+    val musicalKey: String? = null,
+
+    @SerializedName("sectionsJson")
+    val sectionsJson: @RawValue Any? = null,
+
+    @SerializedName("segmentsUrl")
+    val segmentsUrl: String? = null,
+
+    @SerializedName("segmentsFileName")
+    val segmentsFileName: String? = null
 
 ) : Parcelable

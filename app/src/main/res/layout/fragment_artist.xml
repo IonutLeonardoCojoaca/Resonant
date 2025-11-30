@@ -60,6 +60,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@color/black"
+                android:paddingBottom="160dp"
                 android:layout_below="@id/artistBanner">
 
                 <RelativeLayout
@@ -82,7 +83,7 @@
                             android:fontFamily="@font/unageo_medium"
                             android:text="Canciones populares"
                             android:textColor="@color/white"
-                            android:textSize="20sp"
+                            android:textSize="18sp"
                             android:layout_gravity="center_vertical|left"/>
 
                     </FrameLayout>
@@ -102,10 +103,48 @@
                 </RelativeLayout>
 
                 <RelativeLayout
-                    android:id="@+id/listAlbums"
+                    android:id="@+id/albumFeatured"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_below="@id/listSongsContainer">
+
+                    <FrameLayout
+                        android:id="@+id/titleFeaturedAlbumContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="10dp">
+
+                        <TextView
+                            android:id="@+id/titleFeaturedAlbum"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Destacado"
+                            android:textColor="@color/white"
+                            android:textSize="18sp"
+                            android:layout_gravity="center_vertical|left"/>
+
+                    </FrameLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/featuredAlbumList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/titleFeaturedAlbumContainer"
+                        android:paddingHorizontal="10dp"
+                        android:nestedScrollingEnabled="false"
+                        android:scrollbars="none">
+
+                    </androidx.recyclerview.widget.RecyclerView>
+
+                </RelativeLayout>
+
+                <RelativeLayout
+                    android:id="@+id/listAlbums"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/albumFeatured">
 
                     <FrameLayout
                         android:id="@+id/titleAlbumsContainer"
@@ -121,7 +160,7 @@
                             android:fontFamily="@font/unageo_medium"
                             android:text="Álbumes del artista"
                             android:textColor="@color/white"
-                            android:textSize="20sp"
+                            android:textSize="18sp"
                             android:layout_gravity="center_vertical|left"/>
 
                     </FrameLayout>
@@ -133,18 +172,12 @@
                         android:layout_below="@id/titleAlbumsContainer"
                         android:nestedScrollingEnabled="false"
                         android:scrollbars="none"
-                        android:paddingHorizontal="20dp"
-                        android:layout_marginVertical="10dp">
+                        android:paddingHorizontal="5dp"
+                        android:clipToPadding="true">
 
                     </androidx.recyclerview.widget.RecyclerView>
 
                 </RelativeLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="140dp"
-                    android:background="@android:color/transparent"
-                    android:layout_below="@id/listAlbums"/>
 
             </RelativeLayout>
 

@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide // <--- IMPORTANTE: Importar Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.network.ApiClient
@@ -16,7 +17,7 @@ import kotlinx.coroutines.launch
 
 class PlaylistOptionsBottomSheet(
     private val playlist: Playlist,
-    private val playlistImageBitmap: Bitmap?, // <-- Nuevo parámetro
+    private val playlistImageBitmap: Bitmap?,
     private val onDeleteClick: (Playlist) -> Unit
 ) : BottomSheetDialogFragment() {
 
@@ -34,24 +35,41 @@ class PlaylistOptionsBottomSheet(
         val deleteBtn = view.findViewById<TextView>(R.id.deletePlaylistButton)
         val cancelButton = view.findViewById<TextView>(R.id.cancelButton)
 
-        // Setear la imagen si existe
-// Setear la imagen si existe
-        if (playlistImageBitmap != null) {
+        // --- CAMBIO PRINCIPAL AQUÍ ---
+        val imageUrl = playlist.imageUrl
+
+        if (!imageUrl.isNullOrEmpty()) {
+            // 1. Si hay URL del backend, usamos Glide
+            Glide.with(this)
+                .load(imageUrl)
+                .placeholder(R.drawable.ic_playlist_stack)
+                .error(R.drawable.ic_playlist_stack)
+                .centerCrop()
+                .into(playlistImage)
+        } else if (playlistImageBitmap != null) {
+            // 2. Si llega un Bitmap (sistema antiguo), lo usamos
             playlistImage.setImageBitmap(playlistImageBitmap)
         } else {
+            // 3. Si no hay nada, ponemos el placeholder
             playlistImage.setImageResource(R.drawable.ic_playlist_stack)
         }
+        // -----------------------------
 
-        // Setear datos básicos
         playlistName.text = playlist.name
         playlistTracks.text = "${playlist.numberOfTracks ?: 0} canciones"
 
-        // Consultar el nombre del usuario por su id
-        val service = ApiClient.getService(requireContext())
+        val userService = ApiClient.getUserService(requireContext())
+
         lifecycleScope.launch {
             try {
-                val user = service.getUserById(playlist.userId ?: "")
-                playlistOwner.text = user.name
+                // Si el ID del usuario es nulo, evitamos la llamada
+                val userId = playlist.userId
+                if (!userId.isNullOrEmpty()) {
+                    val user = userService.getUserById(userId)
+                    playlistOwner.text = user.name
+                } else {
+                    playlistOwner.text = "Desconocido"
+                }
             } catch (e: Exception) {
                 playlistOwner.text = "Desconocido"
             }

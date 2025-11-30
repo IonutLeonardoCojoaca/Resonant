@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
-    android:id="@+id/rootConstraint"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootConstraint"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.fragments.DetailedSongFragment"
-    android:background="@color/appBackgroundTheme">
+    android:background="@color/appBackgroundTheme"
+    tools:context=".ui.fragments.DetailedSongFragment">
 
     <View
         android:id="@+id/view4"
@@ -19,170 +19,151 @@
         app:layout_constraintHeight_percent="1.25"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <RelativeLayout
-        android:id="@+id/songHeaderContainer"
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:padding="20dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:paddingBottom="100dp">
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/songImage"
-            android:layout_width="160dp"
-            android:layout_height="160dp"
-            app:shapeAppearanceOverlay="@style/RoundedCornersDetailedSong"
-            android:scaleType="centerCrop">
-            
-        </com.google.android.material.imageview.ShapeableImageView>
-        
-        <TextView
-            android:id="@+id/songTitle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:text=""
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:textColor="@color/white"
-            android:fontFamily="@font/unageo_bold"
-            android:textSize="18sp"
-            android:layout_toRightOf="@id/songImage"/>
-        
-        <TextView
-            android:id="@+id/itemType"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:layout_marginTop="8dp"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="3dp"
-            android:text="Canción"
-            android:textColor="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:textSize="14sp"
-            android:layout_toRightOf="@id/songImage"
-            android:layout_below="@id/songTitle"
-            android:background="@drawable/bg_border_item_type"/>
+            android:orientation="vertical"
+            android:layout_marginBottom="150dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/playButton"
-            android:layout_width="53dp"
-            android:layout_height="60dp"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentBottom="true"
-            app:iconTint="@color/white"
-            app:icon="@drawable/ic_play"
-            app:iconSize="40dp"
-            app:iconGravity="textStart"
-            app:iconPadding="0dp"
-            app:cornerRadius="40dp"
-            android:backgroundTint="@color/secondaryColorTheme"/>
+            <RelativeLayout
+                android:id="@+id/songHeaderContainer"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:padding="20dp">
 
-    </RelativeLayout>
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/songImage"
+                    android:layout_width="160dp"
+                    android:layout_height="160dp"
+                    android:scaleType="centerCrop"
+                    app:shapeAppearanceOverlay="@style/RoundedCornersDetailedSong" />
 
-    <TextView
-        android:id="@+id/artistText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Artistas y colaboradores"
-        android:fontFamily="@font/unageo_medium"
-        android:textColor="@color/white"
-        android:layout_marginHorizontal="20dp"
-        android:textSize="18sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/songHeaderContainer" />
+                <TextView
+                    android:id="@+id/songTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_toRightOf="@id/songImage"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
+                    android:maxLines="2"
+                    android:text=""
+                    android:textColor="@color/white"
+                    android:textSize="18sp" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/artistList"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/artistText"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="10dp">
+                <TextView
+                    android:id="@+id/itemType"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/songTitle"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_toRightOf="@id/songImage"
+                    android:background="@drawable/bg_border_item_type"
+                    android:fontFamily="@font/unageo_regular"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="3dp"
+                    android:text="Canción"
+                    android:textColor="@color/white"
+                    android:textSize="14sp" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/playButton"
+                    android:layout_width="53dp"
+                    android:layout_height="60dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_alignParentBottom="true"
+                    android:backgroundTint="@color/secondaryColorTheme"
+                    app:cornerRadius="40dp"
+                    app:icon="@drawable/ic_play"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="40dp"
+                    app:iconTint="@color/white" />
 
-    </androidx.recyclerview.widget.RecyclerView>
+            </RelativeLayout>
 
-    <TextView
-        android:id="@+id/informationText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Información detallada"
-        android:textSize="18sp"
-        android:textColor="@color/white"
-        android:fontFamily="@font/unageo_medium"
-        android:paddingTop="5dp"
-        android:paddingBottom="15dp"
-        android:layout_marginHorizontal="20dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/artistList" />
+            <TextView
+                android:id="@+id/artistText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="20dp"
+                android:fontFamily="@font/unageo_medium"
+                android:text="Artistas y colaboradores"
+                android:textColor="@color/white"
+                android:textSize="18sp" />
 
-    <TextView
-        android:id="@+id/songDuration"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingVertical="10dp"
-        android:textSize="15sp"
-        android:textColor="@color/white"
-        android:fontFamily="@font/unageo_medium"
-        android:layout_marginHorizontal="20dp"
-        android:text="Duración"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/informationText"
-        android:drawableStart="@drawable/ic_duration"
-        android:drawablePadding="10dp"
-        android:gravity="center_vertical"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/artistList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="10dp" />
 
-    <TextView
-        android:id="@+id/songStreams"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Reproducciones"
-        android:textSize="15sp"
-        android:textColor="@color/white"
-        android:fontFamily="@font/unageo_medium"
-        android:paddingVertical="10dp"
-        android:layout_marginHorizontal="20dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/songDuration"
-        android:drawableStart="@drawable/ic_song"
-        android:drawablePadding="10dp"
-        android:gravity="center_vertical"/>
+            <TextView
+                android:id="@+id/informationText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="20dp"
+                android:fontFamily="@font/unageo_medium"
+                android:paddingTop="5dp"
+                android:paddingBottom="15dp"
+                android:text="Información detallada"
+                android:textColor="@color/white"
+                android:textSize="18sp" />
 
-    <TextView
-        android:id="@+id/songAlbum"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="20dp"
-        android:paddingVertical="10dp"
-        android:textSize="15sp"
-        android:textColor="@color/white"
-        android:fontFamily="@font/unageo_medium"
-        android:text="Álbum"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/songStreams"
-        android:drawableStart="@drawable/ic_album"
-        android:drawablePadding="10dp"
-        android:gravity="center_vertical"/>
+            <TextView
+                android:id="@+id/songDuration"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="20dp"
+                android:drawableStart="@drawable/ic_duration"
+                android:drawablePadding="10dp"
+                android:fontFamily="@font/unageo_medium"
+                android:gravity="center_vertical"
+                android:paddingVertical="10dp"
+                android:text="Duración"
+                android:textColor="@color/white"
+                android:textSize="15sp" />
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="150dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/songAlbum">
+            <TextView
+                android:id="@+id/songStreams"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="20dp"
+                android:drawableStart="@drawable/ic_song"
+                android:drawablePadding="10dp"
+                android:fontFamily="@font/unageo_medium"
+                android:gravity="center_vertical"
+                android:paddingVertical="10dp"
+                android:text="Reproducciones"
+                android:textColor="@color/white"
+                android:textSize="15sp" />
 
+            <TextView
+                android:id="@+id/songAlbum"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="20dp"
+                android:drawableStart="@drawable/ic_album"
+                android:drawablePadding="10dp"
+                android:fontFamily="@font/unageo_medium"
+                android:gravity="center_vertical"
+                android:paddingVertical="10dp"
+                android:text="Álbum"
+                android:textColor="@color/white"
+                android:textSize="15sp" />
 
-    </FrameLayout>
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

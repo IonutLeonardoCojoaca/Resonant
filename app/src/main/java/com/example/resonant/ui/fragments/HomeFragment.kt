@@ -1,109 +1,282 @@
 package com.example.resonant.ui.fragments
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AnimationUtils
-import android.widget.ImageButton
-import android.widget.Toast
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.resonant.data.network.ApiClient
-import com.example.resonant.ui.viewmodels.FavoriteItem
-import com.example.resonant.ui.viewmodels.FavoritesViewModel
-import com.example.resonant.ui.views.GridSpacingItemDecoration
-import com.example.resonant.services.MusicPlaybackService
-import com.example.resonant.playback.QueueSource
 import com.example.resonant.R
-import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
-import com.example.resonant.ui.viewmodels.SongViewModel
-import com.example.resonant.ui.adapters.SongAdapter
-import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
-import com.example.resonant.utils.Utils
-import com.example.resonant.data.models.Album
-import com.example.resonant.data.models.Artist
-import com.example.resonant.data.models.Song
-import com.example.resonant.managers.SongManager
+import com.example.resonant.data.network.ApiClient
+import com.example.resonant.data.network.services.ArtistService
+import com.example.resonant.managers.UserManager
+import com.example.resonant.playback.QueueSource
+import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.AlbumAdapter
 import com.example.resonant.ui.adapters.ArtistAdapter
+import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
+import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.viewmodels.FavoriteItem
+import com.example.resonant.ui.viewmodels.FavoritesViewModel
+import com.example.resonant.ui.viewmodels.HomeViewModel
+import com.example.resonant.ui.viewmodels.SongViewModel
+import com.example.resonant.ui.viewmodels.UserViewModel
+import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.collections.get
 
-class HomeFragment : BaseFragment(R.layout.fragment_home){
+class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
+    // --- UI Components ---
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
-    private var artistasCargados: List<Artist>? = null
-    private var artistsList: MutableList<Artist> = mutableListOf()
 
     private lateinit var recyclerViewAlbums: RecyclerView
     private lateinit var albumsAdapter: AlbumAdapter
-    private var albumsCargados: List<Album>? = null
-    private var albumList: MutableList<Album> = mutableListOf()
 
-    lateinit var recyclerViewSongs: RecyclerView
-    lateinit var songAdapter: SongAdapter
-    private var songList: List<Song>? = null
+    private lateinit var recyclerViewSongs: RecyclerView
+    private lateinit var songAdapter: SongAdapter
 
-    private lateinit var rechargeSongs: ImageButton
-    private lateinit var shimmerLayout: ShimmerFrameLayout
+    private lateinit var songsFeaturedTitle: TextView
+    private lateinit var songsFeaturedTitleAlbums: TextView
+    private lateinit var songsFeaturedTitleArtists: TextView
 
+    // Shimmer & Error Layouts
+    private lateinit var shimmerSongLayout: ShimmerFrameLayout
+    private lateinit var shimmerArtistLayout: ShimmerFrameLayout
+    private lateinit var shimmerAlbumLayout: ShimmerFrameLayout
+    private lateinit var layoutErrorSongs: LinearLayout
+    private lateinit var layoutErrorArtists: LinearLayout
+    private lateinit var layoutErrorAlbums: LinearLayout
+    private lateinit var tvErrorSongs: TextView
+    private lateinit var tvErrorArtists: TextView
+    private lateinit var tvErrorAlbums: TextView
+
+    private lateinit var userProfileImage: ImageView
+
+    // ViewModels
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
+    private lateinit var userViewModel: UserViewModel
+    private lateinit var homeViewModel: HomeViewModel
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        checkSongs()
-        checkAlbums()
-        checkArtists()
-    }
+    // Necesitamos ArtistService solo para el BottomSheet de opciones
+    private lateinit var artistService: ArtistService
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
+        initViews(view)
+        setupRecyclerViews()
 
-        shimmerLayout = view.findViewById(R.id.shimmerLayout)
-        rechargeSongs = view.findViewById(R.id.rechargeSongs)
+        // Inicializamos el servicio auxiliar para los click listeners
+        artistService = ApiClient.getArtistService(requireContext())
 
+        setupViewModels()
+        return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Obtener ID de usuario
+        val userId = UserManager(requireContext()).getUserId() ?: ""
+
+        // INICIAR CARGA DE DATOS (El ViewModel decide si usa caché o red)
+        homeViewModel.loadSongs(userId)
+        homeViewModel.loadArtists(userId)
+        homeViewModel.loadAlbums(userId)
+    }
+
+    private fun initViews(view: View) {
+        shimmerSongLayout = view.findViewById(R.id.shimmerSongLayout)
+        shimmerArtistLayout = view.findViewById(R.id.shimmerArtist)
+        shimmerAlbumLayout = view.findViewById(R.id.shimmerAlbum)
+        songsFeaturedTitle = view.findViewById(R.id.songsFeatured)
+        songsFeaturedTitleAlbums = view.findViewById(R.id.albumsFeatured)
+        songsFeaturedTitleArtists = view.findViewById(R.id.artistFeatured)
+        layoutErrorSongs = view.findViewById(R.id.layoutErrorSongs)
+        layoutErrorArtists = view.findViewById(R.id.layoutErrorArtists)
+        layoutErrorAlbums = view.findViewById(R.id.layoutErrorAlbums)
+        tvErrorSongs = view.findViewById(R.id.tvErrorSongs)
+        tvErrorArtists = view.findViewById(R.id.tvErrorArtists)
+        tvErrorAlbums = view.findViewById(R.id.tvErrorAlbums)
         recyclerViewArtists = view.findViewById(R.id.listArtistsRecycler)
-        recyclerViewArtists.layoutManager = GridLayoutManager(context, 3)
-        artistAdapter = ArtistAdapter(artistsList)
-        recyclerViewArtists.adapter = artistAdapter
-        artistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_GRID)
-
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
-        recyclerViewAlbums.layoutManager = GridLayoutManager(context, 3)
-        albumsAdapter = AlbumAdapter(albumList, 0)
-        recyclerViewAlbums.adapter = albumsAdapter
-        val spacing = resources.getDimensionPixelSize(R.dimen.grid_spacing)
-        recyclerViewAlbums.addItemDecoration(GridSpacingItemDecoration(3, spacing, true))
-
         recyclerViewSongs = view.findViewById(R.id.allSongList)
+        userProfileImage = view.findViewById(R.id.userProfile)
+        Utils.loadUserProfile(requireContext(), userProfileImage)
+    }
+
+    private fun setupRecyclerViews() {
+        // Artists
+        recyclerViewArtists.layoutManager = GridLayoutManager(context, 3)
+        artistAdapter = ArtistAdapter(mutableListOf())
+        artistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_GRID)
+        recyclerViewArtists.adapter = artistAdapter
+
+        // Albums
+        recyclerViewAlbums.layoutManager = GridLayoutManager(context, 3)
+        albumsAdapter = AlbumAdapter(mutableListOf(), 0)
+        recyclerViewAlbums.adapter = albumsAdapter
+
+        // Songs
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         recyclerViewSongs.adapter = songAdapter
 
-        songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
+        setupSongClickListeners()
+    }
 
-        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let {
-                songAdapter.setCurrentPlayingSong(it.id)
-            }
+    private fun setupViewModels() {
+        songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
+        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+        userViewModel = ViewModelProvider(requireActivity())[UserViewModel::class.java]
+
+        // Usamos requireActivity() para que los datos persistan si cambiamos de tab y volvemos
+        homeViewModel = ViewModelProvider(requireActivity())[HomeViewModel::class.java]
+
+        setupHomeObservers() // Nueva función para organizar mejor el código
+        setupOtherObservers()
+    }
+
+    private fun setupHomeObservers() {
+        // --- OBSERVAR CANCIONES ---
+        homeViewModel.songs.observe(viewLifecycleOwner) { songs ->
+            songAdapter.submitList(songs)
+            updateSectionState(false, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
+        }
+        homeViewModel.songsTitle.observe(viewLifecycleOwner) { title ->
+            songsFeaturedTitle.text = title
+        }
+        homeViewModel.songsLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) updateSectionState(
+                true,
+                false,
+                recyclerViewSongs,
+                shimmerSongLayout,
+                layoutErrorSongs
+            )
+        }
+        homeViewModel.songsError.observe(viewLifecycleOwner) { error ->
+            if (error != null) updateSectionState(
+                false,
+                true,
+                recyclerViewSongs,
+                shimmerSongLayout,
+                layoutErrorSongs,
+                tvErrorSongs,
+                error
+            )
         }
 
-        var currentHomeQueueId: String = System.currentTimeMillis().toString() // o UUID.randomUUID().toString()
+        // --- OBSERVAR ARTISTAS ---
+        homeViewModel.artists.observe(viewLifecycleOwner) { artists ->
+            artistAdapter.submitArtists(artists)
+            updateSectionState(
+                false,
+                false,
+                recyclerViewArtists,
+                shimmerArtistLayout,
+                layoutErrorArtists
+            )
+        }
+        homeViewModel.artistsTitle.observe(viewLifecycleOwner) { title ->
+            songsFeaturedTitleArtists.text = title
+        }
+        homeViewModel.artistsLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) updateSectionState(
+                true,
+                false,
+                recyclerViewArtists,
+                shimmerArtistLayout,
+                layoutErrorArtists
+            )
+        }
+        homeViewModel.artistsError.observe(viewLifecycleOwner) { error ->
+            if (error != null) updateSectionState(
+                false,
+                true,
+                recyclerViewArtists,
+                shimmerArtistLayout,
+                layoutErrorArtists,
+                tvErrorArtists,
+                error
+            )
+        }
+
+        // --- OBSERVAR ÁLBUMES ---
+        homeViewModel.albums.observe(viewLifecycleOwner) { albums ->
+            albumsAdapter.updateList(albums)
+            updateSectionState(
+                false,
+                false,
+                recyclerViewAlbums,
+                shimmerAlbumLayout,
+                layoutErrorAlbums
+            )
+        }
+        homeViewModel.albumsTitle.observe(viewLifecycleOwner) { title ->
+            songsFeaturedTitleAlbums.text = title
+        }
+        homeViewModel.albumsLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) updateSectionState(
+                true,
+                false,
+                recyclerViewAlbums,
+                shimmerAlbumLayout,
+                layoutErrorAlbums
+            )
+        }
+        homeViewModel.albumsError.observe(viewLifecycleOwner) { error ->
+            if (error != null) updateSectionState(
+                false,
+                true,
+                recyclerViewAlbums,
+                shimmerAlbumLayout,
+                layoutErrorAlbums,
+                tvErrorAlbums,
+                error
+            )
+        }
+    }
+
+    private fun setupOtherObservers() {
+        // Song playing
+        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
+            currentSong?.let { songAdapter.setCurrentPlayingSong(it.id) }
+        }
+
+        // User Profile
+        userViewModel.profileImageUpdated.observe(viewLifecycleOwner) { isUpdated ->
+            if (isUpdated) Utils.loadUserProfile(requireContext(), userProfileImage)
+        }
+
+        // Favorites
+        favoritesViewModel.loadFavoriteSongs()
+        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
+            val songIds =
+                favorites.filterIsInstance<FavoriteItem.SongItem>().map { it.song.id }.toSet()
+            songAdapter.favoriteSongIds = songIds
+            if (songAdapter.currentList.isNotEmpty()) {
+                songAdapter.notifyDataSetChanged()
+            }
+        }
+    }
+
+    private fun setupSongClickListeners() {
+        var currentHomeQueueId: String = System.currentTimeMillis().toString()
 
         songAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
@@ -117,296 +290,75 @@ class HomeFragment : BaseFragment(R.layout.fragment_home){
                 putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                 putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId) // id único por recarga
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
             }
             requireContext().startService(playIntent)
         }
 
-        favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
-
-        favoritesViewModel.loadFavoriteSongs()
-
-        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val songIds = favorites
-                .filterIsInstance<FavoriteItem.SongItem>()
-                .map { it.song.id }
-                .toSet()
-            songAdapter.favoriteSongIds = songIds
-            songAdapter.submitList(songAdapter.currentList)
-        }
-
-        songAdapter.onFavoriteClick = { song, wasFavorite ->
-            favoritesViewModel.toggleFavoriteSong(song)
-        }
+        songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
 
         songAdapter.onSettingsClick = { song ->
-            val service = ApiClient.getService(requireContext())
             lifecycleScope.launch {
-                val artistList = service.getArtistsBySongId(song.id)
+                val artistList = artistService.getArtistsBySongId(song.id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
                     song = song,
                     onSeeSongClick = { selectedSong ->
-                        val bundle = Bundle().apply {
-                            putParcelable("song", selectedSong)
-                        }
+                        val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                         findNavController().navigate(
                             R.id.action_homeFragment_to_detailedSongFragment,
                             bundle
                         )
                     },
                     onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(toggledSong)
+                        favoritesViewModel.toggleFavoriteSong(
+                            toggledSong
+                        )
                     },
                     onAddToPlaylistClick = { songToAdd ->
-                        val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                        val sheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
-                            onNoPlaylistsFound = {
-                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
-                            }
+                            onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
                         )
-                        selectPlaylistBottomSheet.show(
-                            parentFragmentManager,
-                            "SelectPlaylistBottomSheet"
-                        )
+                        sheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
-
-        rechargeSongs.setOnClickListener {
-            lifecycleScope.launch {
-                showShimmer(true)
-                recyclerViewSongs.visibility = View.GONE
-
-                val shimmerStart = System.currentTimeMillis()
-
-                val nuevas = SongManager.getRandomSongs(requireContext(), count = 7)
-
-                if (nuevas.isNotEmpty()) {
-                    songList = nuevas
-                    currentHomeQueueId = System.currentTimeMillis().toString() // <-- NUEVO id por cada recarga
-                    songAdapter.submitList(nuevas) {
-                        val elapsed = System.currentTimeMillis() - shimmerStart
-                        val remaining = (1200 - elapsed).coerceAtLeast(0)
-
-                        lifecycleScope.launch {
-                            delay(remaining)
-                            hideShimmer()
-
-                            val controller = AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_animation_fade_slide)
-                            recyclerViewSongs.layoutAnimation = controller
-                            recyclerViewSongs.scheduleLayoutAnimation()
-
-                            recyclerViewSongs.visibility = View.VISIBLE
-
-                        }
-                    }
-
-
-                } else {
-                    hideShimmer()
-                    recyclerViewSongs.visibility = View.VISIBLE
-                    Toast.makeText(requireContext(), "Error al recargar", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        return view
     }
 
-    suspend fun getRandomArtists(context: Context, count: Int = 6): List<Artist> {
-        return try {
-            val service = ApiClient.getService(context)
+    private fun updateSectionState(
+        isLoading: Boolean,
+        isError: Boolean,
+        recyclerView: RecyclerView,
+        shimmer: ShimmerFrameLayout,
+        errorView: View? = null,        // El contenedor del error (LinearLayout)
+        errorMessageView: TextView? = null, // El TextView del error
+        message: String = ""            // El mensaje a mostrar
+    ) {
+        if (isLoading) {
+            // ESTADO: CARGANDO
+            recyclerView.visibility = View.INVISIBLE
+            errorView?.visibility = View.GONE
+            shimmer.visibility = View.VISIBLE
+            shimmer.startShimmer()
+        } else if (isError) {
+            // ESTADO: ERROR
+            shimmer.stopShimmer()
+            shimmer.visibility = View.GONE
+            recyclerView.visibility = View.GONE
 
-            // 1. Obtenemos todos los IDs y los barajamos para procesarlos en orden aleatorio.
-            val shuffledIds = service.getAllArtistIds().shuffled().toMutableList()
-            val artistsWithPhoto = mutableListOf<Artist>()
-
-            // 2. Iteramos sobre los IDs aleatorios HASTA que encontremos 'count' artistas
-            //    con foto, o hasta que nos quedemos sin IDs.
-            while (artistsWithPhoto.size < count && shuffledIds.isNotEmpty()) {
-                val artistId = shuffledIds.removeAt(0) // Tomamos un ID de la lista
-                val artist = service.getArtistById(artistId)
-
-                // 3. Añadimos el artista a la lista SOLO si tiene un 'fileName'.
-                if (artist.fileName != null) {
-                    artistsWithPhoto.add(artist)
-                }
-            }
-
-            // Si al final del bucle no encontramos ningún artista con foto, terminamos.
-            if (artistsWithPhoto.isEmpty()) {
-                return emptyList()
-            }
-
-            // 4. Ahora, obtenemos las URLs únicamente para los artistas que ya hemos validado.
-            val fileNames = artistsWithPhoto.mapNotNull { it.fileName }
-            val urlList = service.getMultipleArtistUrls(fileNames)
-            val urlMap = urlList.associateBy { it.fileName }
-
-            artistsWithPhoto.forEach { artist ->
-                artist.url = urlMap[artist.fileName]?.url ?: ""
-            }
-
-            artistsWithPhoto // Devolvemos la lista final
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-
-    suspend fun getRandomAlbums(context: Context, count: Int = 3, albumsAnteriores: List<Album>? = null): List<Album> {
-        return try {
-            val service = ApiClient.getService(context)
-            val allIds = service.getAllAlbumIds()
-
-            if (allIds.size < count) return emptyList()
-
-            val randomIds = allIds.shuffled().take(count)
-            val albumsNuevos = mutableListOf<Album>()
-
-            for (id in randomIds) {
-                val album = service.getAlbumById(id)
-
-                // Obtener artista
-                val artistas = service.getArtistsByAlbumId(album.id)
-                album.artistName = artistas.firstOrNull()?.name ?: "Desconocido"
-
-                // Restaurar caché de imagen
-                val albumCache = albumsAnteriores?.find { it.id == album.id }
-                if (albumCache != null) {
-                    album.fileName = albumCache.fileName
-                    album.url = albumCache.url
-                }
-
-                albumsNuevos.add(album)
-            }
-
-            val albumsSinUrl = albumsNuevos.filter { it.url.isNullOrEmpty() }
-
-            if (albumsSinUrl.isNotEmpty()) {
-                // Crear lista de fileNames no nulos para la API
-                val fileNames = albumsSinUrl.map { album ->
-                    val fileName = album.fileName
-                    fileName.takeIf { it?.isNotBlank() == true } ?: "${album.id}.jpg"
-                }
-
-                val urlList = service.getMultipleAlbumUrls(fileNames)
-                val urlMap = urlList.associateBy { it.fileName }
-
-                albumsSinUrl.forEach { album ->
-                    val fileName = album.fileName.takeIf { it?.isNotBlank() == true } ?: "${album.id}.jpg"
-                    album.fileName = fileName
-                    album.url = urlMap[fileName]?.url
-                }
-            }
-
-            albumsNuevos
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-
-    fun checkSongs() {
-        // ✅ PASO 1: SIEMPRE muestra el estado de carga al principio.
-        showShimmer(true)
-        recyclerViewSongs.visibility = View.GONE // Oculta la lista explícitamente
-
-        if (songList != null) {
-            // Si ya tenemos las canciones, las mostramos.
-            songAdapter.submitList(songList)
-            hideShimmer() // Oculta el shimmer y muestra la lista.
+            errorView?.visibility = View.VISIBLE
+            errorMessageView?.text = message
         } else {
-            // Si no tenemos canciones, las descargamos.
-            lifecycleScope.launch {
-                val canciones = SongManager.getRandomSongs(requireContext(), count = 7)
+            // ESTADO: ÉXITO (Mostrar contenido)
+            shimmer.stopShimmer()
+            shimmer.visibility = View.GONE
+            errorView?.visibility = View.GONE
 
-                if (!isAdded) return@launch // Comprobación de seguridad
-
-                if (canciones.isNotEmpty()) {
-                    songList = canciones
-                    songAdapter.submitList(canciones)
-                } else {
-                    Toast.makeText(requireContext(), "No se encontraron canciones", Toast.LENGTH_SHORT).show()
-                }
-
-                // ✅ PASO 2: SIEMPRE oculta el shimmer al final, haya canciones o no.
-                hideShimmer()
-            }
+            recyclerView.visibility = View.VISIBLE
         }
     }
-
-    fun checkAlbums () {
-        if (albumsCargados != null) {
-            albumList.clear()
-            albumList.addAll(albumsCargados!!)
-            albumsAdapter.notifyDataSetChanged()
-        } else {
-            lifecycleScope.launch {
-                // Solo accede a context si el fragmento sigue attached
-                val ctx = context ?: return@launch
-                val albums = getRandomAlbums(ctx, albumsAnteriores = albumList)
-                if (!isAdded || context == null) return@launch
-
-                if (albums.isNotEmpty()) {
-                    albumsCargados = albums
-                    albumList.clear()
-                    albumList.addAll(albums)
-                    albumsAdapter.notifyDataSetChanged()
-                } else {
-                    // Usa context?.let para mostrar el Toast de forma segura
-                    context?.let { safeContext ->
-                        Toast.makeText(
-                            safeContext,
-                            "No se encontraron álbumes",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            }
-        }
-    }
-
-    fun checkArtists () {
-        if (artistasCargados != null) {
-            artistsList.clear()
-            artistsList.addAll(artistasCargados!!)
-            artistAdapter.notifyDataSetChanged()
-        } else {
-            lifecycleScope.launch {
-                val ctx = context ?: return@launch
-                val artistas = getRandomArtists(ctx)
-                if (!isAdded || context == null) return@launch
-
-                if (artistas.isNotEmpty()) {
-                    artistasCargados = artistas
-                    artistsList.clear()
-                    artistsList.addAll(artistas)
-                    artistAdapter.notifyDataSetChanged()
-                }
-            }
-        }
-    }
-
-    fun showShimmer(show: Boolean) {
-        if (show) {
-            shimmerLayout.visibility = View.VISIBLE
-            shimmerLayout.startShimmer()
-        } else {
-            shimmerLayout.stopShimmer()
-            shimmerLayout.visibility = View.GONE
-        }
-    }
-
-    private fun hideShimmer() {
-        shimmerLayout.stopShimmer()
-        shimmerLayout.visibility = View.GONE
-        recyclerViewSongs.visibility = View.VISIBLE
-    }
-
 }

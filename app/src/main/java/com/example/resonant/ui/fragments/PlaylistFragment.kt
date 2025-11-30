@@ -1,11 +1,12 @@
 package com.example.resonant.ui.fragments
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -15,22 +16,23 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
-import com.example.resonant.ui.views.NonScrollableLinearLayoutManager
-import com.example.resonant.ui.viewmodels.PlaylistDetailViewModel
-import com.example.resonant.ui.viewmodels.PlaylistDetailViewModelFactory
+import com.bumptech.glide.Glide
+import com.example.resonant.R
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.playback.QueueSource
-import com.example.resonant.R
-import com.example.resonant.ui.viewmodels.SongViewModel
-import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
-import com.example.resonant.ui.adapters.SongAdapter
-import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
-import com.example.resonant.utils.Utils
-import com.example.resonant.data.network.ApiClient
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.bottomsheets.PlaylistOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.ui.viewmodels.FavoriteItem
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
-import com.google.android.material.imageview.ShapeableImageView
+import com.example.resonant.ui.viewmodels.PlaylistDetailViewModel
+import com.example.resonant.ui.viewmodels.PlaylistDetailViewModelFactory
+import com.example.resonant.ui.viewmodels.PlaylistScreenState
+import com.example.resonant.ui.viewmodels.SongViewModel
+import com.example.resonant.ui.views.NonScrollableLinearLayoutManager
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.utils.Utils
 import kotlinx.coroutines.launch
 
 class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
@@ -45,20 +47,16 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private lateinit var playlistDuration: TextView
     private lateinit var recyclerView: RecyclerView
     private lateinit var playlistLoader: LottieAnimationView
+    private lateinit var playlistCoverImage: ImageView
 
-    private var img0: ShapeableImageView? = null
-    private var img1: ShapeableImageView? = null
-    private var img2: ShapeableImageView? = null
-    private var img3: ShapeableImageView? = null
-
-    private lateinit var songViewModel : SongViewModel
+    private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
 
     private var firstRenderDone = false
+    private lateinit var settingsButtonContainer: FrameLayout
 
     private val playlistViewModel: PlaylistDetailViewModel by viewModels {
-        val service = ApiClient.getService(requireContext())
-        val playlistManager = PlaylistManager(service)
+        val playlistManager = PlaylistManager(requireContext())
         PlaylistDetailViewModelFactory(playlistManager)
     }
 
@@ -69,61 +67,8 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         setupRecyclerView()
         setupViewModels()
 
-        // En PlaylistFragment.kt, dentro de onViewCreated -> playlistViewModel.screenState.observe
-
         playlistViewModel.screenState.observe(viewLifecycleOwner) { state ->
-            Log.d("PlaylistFragment", "Nuevo estado: isLoading=${state.isLoading}, songs=${state.songs.size}")
-
-            // --- Lógica de Visibilidad ---
-            val collageContainer = view.findViewById<View>(R.id.playlistCollageContainer)
-
-            val isInitialLoad = state.isLoading && state.songs.isEmpty() && state.playlistDetails == null
-            if (isInitialLoad) {
-                playlistLoader.visibility = View.VISIBLE
-                playlistLoader.playAnimation()
-                recyclerView.visibility = View.GONE
-                noSongsInPlaylistText.visibility = View.GONE
-                collageContainer.visibility = View.GONE // Ocultar collage durante la carga inicial
-            } else {
-                playlistLoader.cancelAnimation()
-                playlistLoader.visibility = View.GONE
-
-                // ✅ --- INICIO DE LA CORRECCIÓN ---
-                // Una vez que la carga termina, el collage SIEMPRE es visible.
-                collageContainer.visibility = View.VISIBLE
-                // Y siempre intentamos actualizarlo. El ViewModel ya nos dará los placeholders si es necesario.
-                updateCollage(state.collageBitmaps)
-                // --- FIN DE LA CORRECCIÓN ---
-            }
-
-            val showEmptyState = !state.isLoading && state.songs.isEmpty()
-            if (showEmptyState) {
-                noSongsInPlaylistText.visibility = View.VISIBLE
-                recyclerView.visibility = View.GONE
-            } else {
-                noSongsInPlaylistText.visibility = View.GONE
-                recyclerView.visibility = View.VISIBLE
-            }
-
-            // --- Actualización de Datos (resto del código igual) ---
-            state.playlistDetails?.let { details ->
-                playlistName.text = details.name
-                playlistText.text = details.name
-                details.numberOfTracks?.let { count ->
-                    playlistNumberOfTracks.text = "$count canciones"
-                }
-                details.duration?.let { seconds ->
-                    playlistDuration.text = Utils.formatDuration(seconds.toInt())
-                }
-            }
-            playlistOwner.text = state.ownerName
-
-            songAdapter.submitList(state.songs.toList()) {
-                val playingId = songViewModel.currentSongLiveData.value?.id
-                songAdapter.setCurrentPlayingSong(playingId)
-            }
-
-            if (!firstRenderDone && state.songs.isNotEmpty()) firstRenderDone = true
+            updateUI(state)
         }
 
         val playlistId = arguments?.getString("playlistId")
@@ -131,9 +76,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             val current = playlistViewModel.screenState.value
             val hasDataCached = (current?.playlistDetails != null) || !(current?.songs.isNullOrEmpty())
             if (!hasDataCached) {
-                playlistLoader.visibility = View.VISIBLE
-                playlistLoader.playAnimation()
-                playlistViewModel.loadPlaylistScreenData(playlistId, requireContext())
+                playlistViewModel.loadPlaylistScreenData(playlistId)
             }
         } else {
             Toast.makeText(requireContext(), "No se encontró la playlist", Toast.LENGTH_SHORT).show()
@@ -143,7 +86,54 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
 
+        settingsButtonContainer.setOnClickListener {
+            showPlaylistOptions()
+        }
+
         setupAdapterClickListeners(playlistId)
+    }
+
+    // En PlaylistFragment.kt
+
+    private fun showPlaylistOptions() {
+        val playlist = playlistViewModel.screenState.value?.playlistDetails
+
+        if (playlist == null || playlist.id.isNullOrEmpty()) {
+            Toast.makeText(requireContext(), "Error: No se ha cargado la información.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val bottomSheet = PlaylistOptionsBottomSheet(
+            playlist = playlist,
+            playlistImageBitmap = null,
+            onDeleteClick = { playlistToDelete ->
+                // Aquí llamamos a la función DEL VIEWMODEL DE DETALLE
+                playlistViewModel.deleteCurrentPlaylist(
+                    playlistId = playlistToDelete.id!!,
+                    onSuccess = {
+                        // 1. Mostrar feedback visual
+                        showResonantSnackbar(
+                            text = "Playlist eliminada correctamente",
+                            colorRes = R.color.successColor,
+                            iconRes = R.drawable.ic_success
+                        )
+
+                        // 2. Avisar a la pantalla anterior (SavedFragment) que debe recargar
+                        findNavController().previousBackStackEntry?.savedStateHandle?.set(
+                            "PLAYLIST_UPDATED_ID",
+                            "DELETED" // Enviamos una señal
+                        )
+
+                        // 3. Salir de la pantalla actual (volver atrás)
+                        findNavController().popBackStack()
+                    },
+                    onError = { errorMsg ->
+                        Toast.makeText(requireContext(), "Error: $errorMsg", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        )
+        bottomSheet.show(parentFragmentManager, bottomSheet.tag)
     }
 
     private fun initViews(view: View) {
@@ -155,11 +145,68 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         playlistNumberOfTracks = view.findViewById(R.id.playlistNumberOfTracks)
         recyclerView = view.findViewById(R.id.songList)
         playlistLoader = view.findViewById(R.id.lottieLoader)
+        settingsButtonContainer = view.findViewById(R.id.settingsBackground)
+        playlistCoverImage = view.findViewById(R.id.playlistCoverImage)
+    }
 
-        img0 = view.findViewById(R.id.img0)
-        img1 = view.findViewById(R.id.img1)
-        img2 = view.findViewById(R.id.img2)
-        img3 = view.findViewById(R.id.img3)
+    private fun updateUI(state: PlaylistScreenState) {
+        // 1. Manejo del Loader
+        val isInitialLoad = state.isLoading && state.songs.isEmpty() && state.playlistDetails == null
+        if (isInitialLoad) {
+            playlistLoader.visibility = View.VISIBLE
+            playlistLoader.playAnimation()
+            recyclerView.visibility = View.GONE
+            noSongsInPlaylistText.visibility = View.GONE
+            playlistCoverImage.visibility = View.GONE // Ocultamos imagen mientras carga
+        } else {
+            playlistLoader.cancelAnimation()
+            playlistLoader.visibility = View.GONE
+            playlistCoverImage.visibility = View.VISIBLE
+        }
+
+        // 2. Estado de lista vacía
+        val showEmptyState = !state.isLoading && state.songs.isEmpty()
+        if (showEmptyState) {
+            noSongsInPlaylistText.visibility = View.VISIBLE
+            recyclerView.visibility = View.GONE
+        } else {
+            noSongsInPlaylistText.visibility = View.GONE
+            recyclerView.visibility = View.VISIBLE
+        }
+
+        // 3. Detalles de la Playlist y CARGA DE IMAGEN
+        state.playlistDetails?.let { details ->
+            playlistName.text = details.name
+            playlistText.text = details.name
+
+            val count = details.numberOfTracks ?: state.songs.size
+            playlistNumberOfTracks.text = "$count canciones"
+
+            details.duration?.let { seconds ->
+                playlistDuration.text = Utils.formatDuration(seconds.toInt())
+            }
+
+            val imageUrl = details.imageUrl
+            if (!imageUrl.isNullOrEmpty()) {
+                Glide.with(this)
+                    .load(imageUrl)
+                    .error(R.drawable.ic_playlist_stack)
+                    .centerCrop()
+                    .into(playlistCoverImage)
+            } else {
+                playlistCoverImage.setImageResource(R.drawable.ic_playlist_stack)
+            }
+        }
+
+        playlistOwner.text = state.ownerName
+
+        // 4. Lista de canciones
+        songAdapter.submitList(state.songs.toList()) {
+            val playingId = songViewModel.currentSongLiveData.value?.id
+            songAdapter.setCurrentPlayingSong(playingId)
+        }
+
+        if (!firstRenderDone && state.songs.isNotEmpty()) firstRenderDone = true
     }
 
     private fun setupRecyclerView() {
@@ -174,27 +221,11 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         }
     }
 
-    private fun updateCollage(bitmaps: List<Bitmap?>) {
-        val placeholder = ContextCompat.getDrawable(requireContext(), R.drawable.ic_playlist_stack)
-        val imgViews = listOfNotNull(img0, img1, img2, img3)
-
-        imgViews.forEachIndexed { index, imageView ->
-            val bitmapToShow = bitmaps.getOrNull(index)
-
-            if (bitmapToShow != null) {
-                imageView.setImageBitmap(bitmapToShow)
-            } else {
-                imageView.setImageDrawable(placeholder)
-            }
-        }
-    }
-
     private fun setupViewModels() {
         songViewModel = ViewModelProvider(requireActivity())[SongViewModel::class.java]
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             currentSong?.let {
-                val playingId = currentSong?.id
-                Log.i("Reproduciendo", "PlaylistFragment: $playingId")
+                val playingId = currentSong.id
                 songAdapter.setCurrentPlayingSong(playingId)
             }
         }

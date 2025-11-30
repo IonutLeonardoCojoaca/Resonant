@@ -5,12 +5,20 @@
         android:icon="@drawable/selector_menu_home"
         android:title="Inicio"
         android:iconTint="@null"/>
+
     <item
         android:id="@+id/searchFragment"
         android:icon="@drawable/selector_menu_search"
         android:title="Buscar" />
+
     <item
         android:id="@+id/savedFragment"
-        android:icon="@drawable/ic_menu_saved"
-        android:title="Guardado"/>
+        android:icon="@drawable/selector_menu_saved"
+        android:title="Biblioteca"/>
+
+    <item
+        android:id="@+id/createPlaylistFragment"
+        android:icon="@drawable/ic_menu_add"
+        android:title="Crear" />
+
 </menu>

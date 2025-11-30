@@ -31,6 +31,7 @@ import com.example.resonant.managers.UserManager
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.managers.MediaSessionManager
+import com.example.resonant.managers.SongManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -401,10 +402,8 @@ class MusicPlaybackService : Service(), PlayerController {
                         pendingDeletionSongIds.clear()
 
                         serviceScope.launch {
-                            val playlistManager =
-                                PlaylistManager(ApiClient.getService(applicationContext))
-                            val newSongs = playlistManager.getSongsByPlaylistId(applicationContext, activeQueue.sourceId)
-
+                            val playlistManager = PlaylistManager(applicationContext)
+                            val newSongs = playlistManager.getSongsByPlaylistId(activeQueue.sourceId)
                             withContext(Dispatchers.Main) {
                                 updateSongs(newSongs)
                             }
@@ -596,7 +595,8 @@ class MusicPlaybackService : Service(), PlayerController {
     private fun reportStream(songId: String, durationInSeconds: Int, wasSkipped: Boolean, playSource: String) {
         serviceScope.launch {
             try {
-                val userId = UserManager.getUserId(applicationContext)
+                val userManager = UserManager(applicationContext)
+                val userId = userManager.getUserId()
 
                 if (userId.isNullOrEmpty()) {
                     Log.e("StreamAPI", "❌ Error al reportar stream: UserId no encontrado. Abortando.")
@@ -614,8 +614,8 @@ class MusicPlaybackService : Service(), PlayerController {
 
                 Log.i("StreamAPI", "Reportando stream: $streamData")
 
-                val api = ApiClient.getService(applicationContext)
-                api.addStream(streamData)
+                val songManager = SongManager(applicationContext)
+                songManager.addStream(streamData)
 
                 Log.d("StreamAPI", "✅ Stream reportado para $songId")
 
@@ -697,15 +697,10 @@ class MusicPlaybackService : Service(), PlayerController {
                 if (activeQueue?.sourceType == QueueSource.PLAYLIST && activeQueue.sourceId == modifiedPlaylistId) {
                     Log.d("MusicService", "La playlist activa ($modifiedPlaylistId) ha sido modificada. Sincronizando...")
 
-                    serviceScope.launch { // La corrutina empieza en un hilo secundario (Dispatchers.IO)
-                        // 1. Hacemos el trabajo pesado en el hilo secundario (esto está bien)
-                        val playlistManager =
-                            PlaylistManager(ApiClient.getService(applicationContext))
-                        val newSongs = playlistManager.getSongsByPlaylistId(applicationContext, modifiedPlaylistId)
-
-                        // 2. Antes de tocar ExoPlayer, saltamos de vuelta al hilo principal
+                    serviceScope.launch {
+                        val playlistManager = PlaylistManager(applicationContext)
+                        val newSongs = playlistManager.getSongsByPlaylistId(modifiedPlaylistId)
                         withContext(Dispatchers.Main) {
-                            // Esta llamada ahora es segura porque se ejecuta en el 'main thread'
                             updateSongs(newSongs)
                         }
                     }

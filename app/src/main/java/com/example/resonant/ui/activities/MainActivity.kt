@@ -55,10 +55,14 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.data.models.User
 import com.example.resonant.ui.fragments.HomeFragment
 import com.example.resonant.managers.AppUpdateManager
+import com.example.resonant.ui.fragments.CreationMenuDialog
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.URL
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -68,7 +72,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private val REQUEST_NOTIFICATION_PERMISSION = 123
 
     private lateinit var prefs: SharedPreferences
-    private lateinit var userPhotoImage: ImageView
     private lateinit var seekBar: SeekBar
     private lateinit var songDataPlayer: ConstraintLayout
     private lateinit var playPauseButton: ImageButton
@@ -77,21 +80,25 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var songImage: ImageView
     private lateinit var songName: TextView
     private lateinit var songArtist: TextView
+    private var lastDialogDismissTime: Long = 0
 
-    private var currentSongBitmap: Bitmap? = null
     private lateinit var homeFragment: HomeFragment
     private lateinit var drawerLayout: DrawerLayout
 
+    private lateinit var dimOverlay: View // Variable para la sombra
     private var musicService: MusicPlaybackService? = null
     private var isBound = false
     private lateinit var miniPlayer: View
     private var shouldShowMiniPlayer = true
 
-    private val api by lazy { ApiClient.getService(this) }
-    private val updateManager by lazy { AppUpdateManager(this, api, ApiClient.baseUrl()) }
+    private val userService by lazy { ApiClient.getUserService(this) } // <-- NUEVO
+    private val appService by lazy { ApiClient.getAppService(this) }
+    private val updateManager by lazy { AppUpdateManager(this, appService, ApiClient.baseUrl()) }
 
     private lateinit var songViewModel: SongViewModel
     private lateinit var navController: NavController
+
+    private var activeCreationDialog: CreationMenuDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,7 +134,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         bottomNavigationView.setupWithNavController(navController)
         bottomNavigationView.itemIconTintList = null
 
-        val superiorToolbar = findViewById<View>(R.id.superiorToolbar)
         val bottomNavigation = findViewById<View>(R.id.bottom_navigation)
         val gradientBottom = findViewById<View>(R.id.gradientBottom)
 
@@ -146,8 +152,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songName = findViewById(R.id.songTitle)
         songArtist = findViewById(R.id.songArtist)
         miniPlayer = findViewById(R.id.mini_player)
-
-        userPhotoImage = findViewById(R.id.userProfile)
+        dimOverlay = findViewById(R.id.dim_overlay)
         drawerLayout = findViewById(R.id.drawerLayout)
         seekBar = findViewById(R.id.seekbarPlayer)
         seekBar.max = 100
@@ -186,24 +191,16 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songViewModel = ViewModelProvider(this).get(SongViewModel::class.java)
         setupViewModelObservers()
 
-        userPhotoImage.setOnClickListener {
-            drawerLayout.openDrawer(GravityCompat.START)
-        }
-
         val miniPlayerContainer = findViewById<ConstraintLayout>(R.id.miniPlayerContainer) // Asegúrate de tener la referencia
 
         miniPlayerContainer.setOnClickListener {
-            // ✅ OBTENEMOS TODO DESDE LA ÚNICA FUENTE DE VERDAD: el ViewModel
             val currentSong = songViewModel.currentSongLiveData.value
             val bitmap = songViewModel.currentSongBitmapLiveData.value
 
-            // Ahora la comprobación es fiable y está sincronizada
             if (currentSong != null && bitmap != null) {
                 val fileName = "cover_${currentSong.id}.png"
-                // Guardamos el bitmap en un archivo para pasárselo al SongFragment
                 Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
 
-                // El resto de tu código para crear el Bundle y mostrar el fragmento está perfecto
                 val bundle = Bundle().apply {
                     putString("title", currentSong.title)
                     putString("artist", currentSong.artistName)
@@ -216,7 +213,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
                 songFragment.show(supportFragmentManager, "SongFragment")
             } else {
-                // (Opcional) Añade un log para depurar si sigue fallando
                 Log.w("MiniPlayerClick", "No se pudo abrir SongFragment: currentSong is ${if(currentSong == null) "null" else "OK"}, bitmap is ${if(bitmap == null) "null" else "OK"}")
             }
         }
@@ -227,61 +223,84 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.savedFragment,
             R.id.favoriteSongsFragment,
             R.id.favoriteArtistsFragment,
-            R.id.favoriteAlbumsFragment
+            R.id.favoriteAlbumsFragment,
         )
 
         val fragmentsNoToolbar = setOf(
             R.id.artistFragment,
             R.id.albumFragment,
             R.id.detailedSongFragment,
-            R.id.playlistFragment
+            R.id.playlistFragment,
+            R.id.createPlaylistFragment
         )
 
         val fragmentsNoToolbarNoBottomNav = setOf(
-            R.id.songFragment,
-            R.id.createPlaylistFragment
+            R.id.songFragment
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
 
+            // 1. LÓGICA DE SELECCIÓN DE TABS NORMALES
+            // Esto asegura que si navegas, el tab se actualice solo.
             when (destination.id) {
                 R.id.homeFragment -> bottomNavigationView.menu.findItem(R.id.homeFragment).isChecked = true
                 R.id.searchFragment -> bottomNavigationView.menu.findItem(R.id.searchFragment).isChecked = true
                 R.id.savedFragment -> bottomNavigationView.menu.findItem(R.id.savedFragment).isChecked = true
             }
 
+            // 2. GESTIÓN DEL ICONO "CREAR"
+            val createItemView = bottomNavigationView.findViewById<View>(R.id.createPlaylistFragment)
+            val createIconView = createItemView?.findViewById<View>(com.google.android.material.R.id.navigation_bar_item_icon_view)
+            val createMenuItem = bottomNavigationView.menu.findItem(R.id.createPlaylistFragment)
+
+            if (destination.id == R.id.createPlaylistFragment) {
+                // Estamos en la pantalla de crear playlist
+                createMenuItem.isChecked = true
+                createMenuItem.setIcon(R.drawable.ic_menu_add_selected)
+
+                // Aseguramos la rotación (45 grados)
+                createIconView?.animate()?.rotation(45f)?.setDuration(100)?.start()
+            } else {
+                // NO estamos en crear playlist
+                // Solo revertimos la animación si NO hay un diálogo activo.
+                // Si hay diálogo, el control de la X lo tiene el diálogo, no la navegación.
+                if (activeCreationDialog == null || activeCreationDialog?.isVisible == false) {
+                    if (createIconView != null && createIconView.rotation != 0f) {
+                        createIconView.animate().rotation(0f).setDuration(300).start()
+                    }
+                    createMenuItem.setIcon(R.drawable.ic_menu_add)
+                }
+            }
+
+            // 3. VISIBILIDAD UI (Tu código original, sin cambios)
             when (destination.id) {
                 R.id.settingsFragment -> {
-                    superiorToolbar.visibility = View.VISIBLE
-                    bottomNavigation.visibility = View.GONE // Ocultamos la navegación inferior
+                    bottomNavigation.visibility = View.GONE
                     gradientBottom.visibility = View.GONE
                     shouldShowMiniPlayer = false
                 }
                 in fragmentsWithToolbar -> {
-                    superiorToolbar.visibility = View.VISIBLE
                     bottomNavigation.visibility = View.VISIBLE
                     gradientBottom.visibility = View.VISIBLE
                     shouldShowMiniPlayer = true
                 }
                 in fragmentsNoToolbar -> {
-                    superiorToolbar.visibility = View.GONE
                     bottomNavigation.visibility = View.VISIBLE
                     gradientBottom.visibility = View.VISIBLE
                     shouldShowMiniPlayer = true
                 }
                 in fragmentsNoToolbarNoBottomNav -> {
-                    superiorToolbar.visibility = View.GONE
                     shouldShowMiniPlayer = false
                     bottomNavigation.visibility = View.GONE
                     gradientBottom.visibility = View.GONE
                 }
                 else -> {
-                    superiorToolbar.visibility = View.GONE
                     shouldShowMiniPlayer = false
                     bottomNavigation.visibility = View.GONE
                 }
             }
 
+            // 4. GESTIÓN HOME (Tu código original)
             if (destination.id == R.id.homeFragment) {
                 val currentFragment = navHostFragment.childFragmentManager.primaryNavigationFragment
                 if (currentFragment is HomeFragment) {
@@ -289,6 +308,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 }
             }
 
+            // 5. GESTIÓN MINIPLAYER (Tu código original)
             val currentSong = musicService?.currentSongLiveData?.value
             if (shouldShowMiniPlayer && currentSong != null && !currentSong.title.isNullOrEmpty()) {
                 AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
@@ -300,25 +320,85 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         bottomNavigationView.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.homeFragment -> {
-                    navController.popBackStack(R.id.homeFragment, false)
                     if (navController.currentDestination?.id != R.id.homeFragment) {
                         navController.navigate(R.id.homeFragment)
                     }
                     true
                 }
                 R.id.searchFragment -> {
-                    navController.popBackStack(R.id.searchFragment, false)
                     if (navController.currentDestination?.id != R.id.searchFragment) {
                         navController.navigate(R.id.searchFragment)
                     }
                     true
                 }
                 R.id.savedFragment -> {
-                    navController.popBackStack(R.id.savedFragment, false)
                     if (navController.currentDestination?.id != R.id.savedFragment) {
                         navController.navigate(R.id.savedFragment)
                     }
                     true
+                }
+                R.id.createPlaylistFragment -> {
+                    val itemView = bottomNavigationView.findViewById<View>(R.id.createPlaylistFragment)
+                    val iconView = itemView.findViewById<View>(com.google.android.material.R.id.navigation_bar_item_icon_view)
+
+                    if (System.currentTimeMillis() - lastDialogDismissTime < 300) {
+                        return@setOnItemSelectedListener false
+                    }
+
+                    // Si ya está abierto, lo cerramos
+                    if (activeCreationDialog != null && activeCreationDialog?.isVisible == true) {
+                        activeCreationDialog?.dismiss()
+                        activeCreationDialog = null
+                        return@setOnItemSelectedListener false // IMPORTANTE: false
+                    } else {
+                        // Abrimos el menú
+
+                        // 1. Animación visual manual (ya que devolveremos false)
+                        iconView?.animate()?.rotation(45f)?.setDuration(300)?.start()
+                        item.setIcon(R.drawable.ic_menu_add_selected)
+
+                        // 2. Dim Overlay
+                        dimOverlay.visibility = View.VISIBLE
+                        dimOverlay.animate().alpha(1f).setDuration(300).start()
+
+                        // 3. Crear Diálogo
+                        val menuDialog = CreationMenuDialog()
+                        activeCreationDialog = menuDialog
+
+                        menuDialog.onDismissListener = {
+                            lastDialogDismissTime = System.currentTimeMillis()
+
+                            bottomNavigationView.post {
+                                val currentDestId = navController.currentDestination?.id
+                                val menuItem = bottomNavigationView.menu.findItem(R.id.createPlaylistFragment)
+
+                                // Solo revertimos la animación si NO hemos navegado a "Crear Playlist"
+                                if (currentDestId != R.id.createPlaylistFragment) {
+                                    iconView?.animate()?.rotation(0f)?.setDuration(300)?.start()
+                                    menuItem.setIcon(R.drawable.ic_menu_add)
+
+                                    // Forzamos visualmente que el ícono correcto esté marcado
+                                    // basado estrictamente en dónde estamos AHORA.
+                                    if (currentDestId != null) {
+                                        bottomNavigationView.menu.findItem(currentDestId)?.isChecked = true
+                                    }
+                                }
+                            }
+
+                            // Ocultar Overlay
+                            dimOverlay.animate()
+                                .alpha(0f)
+                                .setDuration(300)
+                                .withEndAction { dimOverlay.visibility = View.GONE }
+                                .start()
+
+                            activeCreationDialog = null
+                        }
+
+                        menuDialog.show(supportFragmentManager, "CreationMenuDialog")
+
+                        false
+                    }
                 }
                 else -> false
             }
@@ -484,6 +564,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songArtist.text = song.artistName ?: "Desconocido"
     }
 
+    fun openDrawer() {
+        if (::drawerLayout.isInitialized) {
+            drawerLayout.openDrawer(GravityCompat.START)
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         Intent(this, MusicPlaybackService::class.java).also { intent ->
@@ -624,6 +710,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private fun checkBanStatus() {
         val userViewModel = ViewModelProvider(this)[UserViewModel::class.java]
         val email = userViewModel.user?.email
+
         if (email == null) {
             userViewModel.user = null
             FirebaseAuth.getInstance().signOut()
@@ -636,61 +723,114 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         lifecycleScope.launch {
-            val service = ApiClient.getService(this@MainActivity)
-            val userData = service.getUserByEmail(email)
-            userViewModel.user = userData // Actualiza el ViewModel
-            if (userData.isBanned == true) {
-                Toast.makeText(this@MainActivity, "Tu cuenta ha sido restringida.", Toast.LENGTH_LONG).show()
-                userViewModel.user = null
-                FirebaseAuth.getInstance().signOut()
-                val prefs = getSharedPreferences("user_data", MODE_PRIVATE)
-                prefs.edit().clear().apply()
-                val intent = Intent(this@MainActivity, LoginActivity::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                startActivity(intent)
-                finish()
+            try {
+                val userData = userService.getUserByEmail(email)
+                userViewModel.user = userData
+
+                if (userData.isBanned == true) {
+                    Toast.makeText(this@MainActivity, "Tu cuenta ha sido restringida.", Toast.LENGTH_LONG).show()
+                    userViewModel.user = null
+                    FirebaseAuth.getInstance().signOut()
+                    getSharedPreferences("user_data", MODE_PRIVATE).edit().clear().apply()
+                    val intent = Intent(this@MainActivity, LoginActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    startActivity(intent)
+                    finish()
+                }
+                // Si no está baneado, no hace nada.
+
+            } catch (e: Exception) {
+                // 4. Tu manejo de errores offline está perfecto, no se toca.
+                Log.w("MainActivity", "No se pudo verificar el ban status (offline?): ${e.message}")
             }
         }
     }
 
     private fun getProfileImage() {
+        // Aseguramos que el drawer esté listo
+        if (!::drawerLayout.isInitialized) return
+
         val headerUserName = drawerLayout.findViewById<TextView>(R.id.headerUserName)
         val headerUserPhoto = drawerLayout.findViewById<ShapeableImageView>(R.id.headerUserPhoto)
 
-        var name = prefs.getString("name", null)
-        var urlPhoto = prefs.getString("urlPhoto", null)
+        // Referencia al archivo local
+        val localFileName = "profile_user.png"
+        val file = File(filesDir, localFileName)
 
-        if (name == null || urlPhoto == null) {
-            val user = FirebaseAuth.getInstance().currentUser
-            if (user != null) {
-                name = user.displayName
-                urlPhoto = user.photoUrl?.toString()
+        val user = FirebaseAuth.getInstance().currentUser
 
-                prefs.edit()
-                    .putString("name", name)
-                    .putString("urlPhoto", urlPhoto)
-                    .apply()
-            }
+        // 1. Gestionar el Nombre
+        val name = user?.displayName ?: prefs.getString("name", "Invitado")
+        headerUserName.text = name
+        if (user?.displayName != null) {
+            prefs.edit().putString("name", name).apply()
         }
 
-        headerUserName.text = name ?: "Invitado"
-
-        if (!urlPhoto.isNullOrEmpty()) {
-            thread {
+        // 2. Gestionar la Foto con Corrutinas
+        lifecycleScope.launch(Dispatchers.IO) {
+            // PASO A: CARGA RÁPIDA (Caché)
+            // Si ya tenemos una foto guardada, la mostramos inmediatamente mientras cargamos la nueva
+            if (file.exists()) {
                 try {
-                    val inputStream = URL(urlPhoto).openStream()
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
-                    runOnUiThread {
-                        userPhotoImage.setImageBitmap(bitmap)
-                        headerUserPhoto.setImageBitmap(bitmap)
+                    val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                    if (bitmap != null) {
+                        withContext(Dispatchers.Main) {
+                            headerUserPhoto.setImageBitmap(bitmap)
+                        }
+                    } else {
+                        // El archivo existe pero está corrupto (bitmap null), lo borramos
+                        file.delete()
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e("ProfileImage", "Error leyendo caché local", e)
                 }
             }
-        } else {
-            userPhotoImage.setImageResource(R.drawable.ic_user)
-            headerUserPhoto.setImageResource(R.drawable.ic_user)
+
+            // PASO B: SINCRONIZACIÓN (Red)
+            val urlPhoto = user?.photoUrl?.toString()
+            Log.d("ProfileImage", "URL de foto: $urlPhoto")
+
+            if (!urlPhoto.isNullOrEmpty()) {
+                try {
+                    // Descargamos SIEMPRE para asegurar que tenemos la última versión
+                    // (Opcional: Podrías guardar la URL en prefs y comparar si cambió para ahorrar datos)
+                    val inputStream = URL(urlPhoto).openStream()
+                    val bitmapNetwork = BitmapFactory.decodeStream(inputStream)
+
+                    if (bitmapNetwork != null) {
+                        // 1. Guardar/Sobrescribir en memoria interna
+                        val fos = openFileOutput(localFileName, MODE_PRIVATE)
+                        bitmapNetwork.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                        fos.close()
+                        Log.d("ProfileImage", "Imagen descargada y guardada correctamente")
+
+                        // 2. Actualizar la UI con la imagen fresca
+                        withContext(Dispatchers.Main) {
+                            headerUserPhoto.setImageBitmap(bitmapNetwork)
+                            val userViewModel = ViewModelProvider(this@MainActivity)[UserViewModel::class.java]
+                            userViewModel.profileImageUpdated.value = true
+                        }
+                    } else {
+                        Log.e("ProfileImage", "La imagen descargada es null")
+                    }
+                } catch (e: Exception) {
+                    Log.e("ProfileImage", "Error descargando imagen: ${e.message}")
+                    e.printStackTrace()
+                    // Si falló la descarga y no tenemos archivo local, ponemos el default
+                    if (!file.exists()) {
+                        withContext(Dispatchers.Main) {
+                            headerUserPhoto.setImageResource(R.drawable.ic_user)
+                        }
+                    }
+                }
+            } else {
+                // No hay URL de foto (usuario sin foto)
+                if (!file.exists()) {
+                    withContext(Dispatchers.Main) {
+                        headerUserPhoto.setImageResource(R.drawable.ic_user)
+                    }
+                }
+            }
         }
     }
 

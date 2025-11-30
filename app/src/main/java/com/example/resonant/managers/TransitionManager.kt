@@ -1190,31 +1190,17 @@ class TransitionManager(
             else -> 1.2f           // Lento - mezcla más larga (Baladas, Ambient)
         }
 
-        // ✅ AJUSTE POR COMPLEJIDAD RÍTMICA (basado en beat grid)
-        val oldBeats = oldAnalysis.beatGridJson.size
-        val newBeats = newAnalysis.beatGridJson.size
-        val rhythmicComplexity = if (oldBeats > 0 && newBeats > 0) {
-            val avgBeats = (oldBeats + newBeats) / 2.0
-            val duration = max(oldAnalysis.durationMs, newAnalysis.durationMs)
-            val beatsPerMinute = (avgBeats / duration) * 60000.0
-
-            when {
-                beatsPerMinute > 300 -> 1.2f  // Muy complejo (breakbeats, polyrhythms)
-                beatsPerMinute > 200 -> 1.1f  // Complejo (syncopation)
-                beatsPerMinute > 120 -> 1.0f  // Estándar
-                else -> 0.9f                  // Simple
-            }
-        } else {
-            1.0f
+        val rhythmicComplexity = when {
+            avgBpm > 170 -> 1.2f  // Drum & Bass / Hardcore (Mucha info rítmica)
+            avgBpm > 135 -> 1.1f  // Dubstep / Techno rápido
+            avgBpm > 115 -> 1.0f  // House / Pop estándar
+            avgBpm > 90  -> 0.9f  // Hip Hop / Reggaeton (Beats más espaciados)
+            else -> 0.85f         // R&B / Baladas (Poca complejidad rítmica)
         }
 
+        // Calculamos duración final
         val calculatedDuration = (baseDuration * bpmDiffAdjustment * speedAdjustment * rhythmicComplexity).toLong()
-        val finalDuration = calculatedDuration.coerceIn(4000L, 12000L)
-
-        Log.d("IntelligentCrossfade", "⏱️ Duración rítmica calculada: ${finalDuration}ms")
-        Log.d("IntelligentCrossfade", "📊 Factores - Base: ${baseDuration}ms, BPM Diff x${"%.2f".format(bpmDiffAdjustment)}, Speed x${"%.2f".format(speedAdjustment)}, Complexity x${"%.2f".format(rhythmicComplexity)}")
-
-        return finalDuration
+        return calculatedDuration.coerceIn(4000L, 12000L)
     }
 
     private fun verifyPlayersState(oldPlayer: ExoPlayer, newPlayer: ExoPlayer): Boolean {
@@ -1503,25 +1489,46 @@ class TransitionManager(
 
     private fun syncTempo(oldPlayer: ExoPlayer, oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis, newPlayer: ExoPlayer) {
         try {
+            // 1. Cálculo de velocidad base (Igual que antes)
             val speedAdjustment = (oldAnalysis.bpmNormalized / newAnalysis.bpmNormalized).toFloat()
             val clampedSpeed = speedAdjustment.coerceIn(0.92f, 1.08f)
-
-            // 🔥 DECLARAMOS la variable finalSpeed aquí
             var finalSpeed = clampedSpeed
 
-            val beatAlignment = calculateBeatAlignment(oldAnalysis.beatGridJson, newAnalysis.beatGridJson, oldPlayer.currentPosition)
-            if (abs(beatAlignment) > 100) {
-                val fineTune = (beatAlignment / 1000f).coerceIn(-0.05f, 0.05f)
-                finalSpeed += fineTune
-                Log.d("IntelligentCrossfade", "⏱️ Ajuste fino: ${"%.3f".format(fineTune)}x, Alineación: ${beatAlignment}ms")
+            // 2. 🔥 NUEVA LÓGICA DE ALINEACIÓN DE FASE (Sin beatGridJson) 🔥
+            // Calculamos cuánto dura un beat en ms en la canción nueva
+            val newBeatDurationMs = 60000.0 / newAnalysis.bpmNormalized
+
+            // Obtenemos la posición actual
+            val currentPos = oldPlayer.currentPosition
+
+            // Calculamos dónde estamos dentro del "ciclo" del beat (0.0 a 1.0)
+            // Esto asume que el primer beat es en 0ms (o consistente).
+            // Para mayor precisión, necesitarías solo un valor: 'firstBeatOffset' del backend.
+            val phaseOffset = (currentPos % newBeatDurationMs)
+
+            // Si el desfase es grande (> 50% del beat), significa que estamos "adelantados" o "atrasados"
+            // Intentamos empujar la velocidad ligeramente para alinear el downbeat matemáticamente.
+            val phaseError = if (phaseOffset > (newBeatDurationMs / 2)) {
+                phaseOffset - newBeatDurationMs // Estamos adelantados, frenar
+            } else {
+                phaseOffset // Estamos atrasados, acelerar
+            }
+
+            // Aplicamos corrección solo si el error es perceptible (> 20ms) pero corregible (< 200ms)
+            if (abs(phaseError) > 20 && abs(phaseError) < 200) {
+                // Factor de corrección suave (0.01x a 0.05x)
+                val fineTune = (phaseError / 1000f).toFloat().coerceIn(-0.03f, 0.03f)
+                // Invertimos el signo: si estamos atrasados (+), necesitamos ir más rápido
+                finalSpeed -= fineTune
+                Log.d("IntelligentCrossfade", "⏱️ Ajuste matemático: ${"%.3f".format(fineTune)}x, PhaseError: ${phaseError.toLong()}ms")
             }
 
             val playbackParameters = PlaybackParameters(finalSpeed)
             newPlayer.playbackParameters = playbackParameters
             Log.d("IntelligentCrossfade", "⏱️ Sincronizando tempo. Ajuste final: ${"%.3f".format(finalSpeed)}x")
 
-        } catch (e: Exception) { // <-- 🔥 AÑADIMOS EL BLOQUE CATCH QUE FALTABA
-            Log.e("IntelligentCrossfade", "Error al ajustar playback rate en ExoPlayer", e)
+        } catch (e: Exception) {
+            Log.e("IntelligentCrossfade", "Error al ajustar playback rate", e)
         }
     }
 

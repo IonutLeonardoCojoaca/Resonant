@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.example.resonant.data.network.RefreshTokenDTO
-import com.example.resonant.services.ApiResonantService
+import com.example.resonant.data.network.services.AuthService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -18,15 +18,15 @@ class SessionManager(private val context: Context, private val baseUrl: String) 
 
     private val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
 
-    // Retrofit “limpio” para refresh (sin AuthInterceptor ni Authenticator)
-    private val authService: ApiResonantService by lazy {
-        val ok = OkHttpClient.Builder().build()
+    private val authService: AuthService by lazy {
+        val cleanOkHttpClient = OkHttpClient.Builder().build()
+
         Retrofit.Builder()
             .baseUrl(baseUrl)
-            .client(ok)
+            .client(cleanOkHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(ApiResonantService::class.java)
+            .create(AuthService::class.java)
     }
 
     private val mutex = Mutex()
@@ -104,4 +104,11 @@ class SessionManager(private val context: Context, private val baseUrl: String) 
             }
         }
     }
+
+    fun hasLocalCredentials(): Boolean {
+        val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
+        val token = prefs.getString("ACCESS_TOKEN", null)
+        return !token.isNullOrBlank()
+    }
+
 }
