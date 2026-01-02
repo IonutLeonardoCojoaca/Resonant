@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,6 +19,7 @@ import android.util.Log
 import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -66,6 +68,13 @@ import java.io.File
 import java.net.URL
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
+import androidx.core.graphics.toColorInt
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import com.example.resonant.managers.DownloadStatus
+import com.example.resonant.ui.viewmodels.DownloadViewModel
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.progressindicator.LinearProgressIndicator
 
 class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListener {
 
@@ -73,7 +82,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private lateinit var prefs: SharedPreferences
     private lateinit var seekBar: SeekBar
-    private lateinit var songDataPlayer: ConstraintLayout
+    private lateinit var songDataPlayer: LinearLayout
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
@@ -81,6 +90,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var songName: TextView
     private lateinit var songArtist: TextView
     private var lastDialogDismissTime: Long = 0
+
+    private lateinit var downloadViewModel: DownloadViewModel // Asegúrate de inicializarlo
+    private lateinit var downloadProgressCard: View
+    private lateinit var downloadProgressBar: LinearProgressIndicator
+    private lateinit var downloadText: TextView
+    private lateinit var downloadPercentText: TextView
 
     private lateinit var homeFragment: HomeFragment
     private lateinit var drawerLayout: DrawerLayout
@@ -162,6 +177,70 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songName.isSelected = true
         songArtist.isSelected = true
 
+        downloadViewModel = ViewModelProvider(this)[DownloadViewModel::class.java]
+
+        downloadProgressCard = findViewById(R.id.downloadProgressCard)
+        downloadProgressBar = findViewById(R.id.downloadProgressBar)
+        downloadText = findViewById(R.id.downloadText)
+        downloadPercentText = findViewById(R.id.downloadPercentText)
+
+        lifecycleScope.launch {
+            // Usamos repeatOnLifecycle para evitar actualizaciones en background
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadStatus.collect { status ->
+                    when (status) {
+                        is DownloadStatus.Idle -> {
+                            // Tu lógica de salida (está bien)
+                            if (downloadProgressCard.visibility == View.VISIBLE) {
+                                downloadProgressCard.animate()
+                                    .alpha(0f)
+                                    .translationY(20f)
+                                    .withEndAction { downloadProgressCard.visibility = View.GONE }
+                                    .start()
+                            }
+                        }
+                        is DownloadStatus.Started -> {
+                            // 1. Resetear visuales ANTES de animar entrada
+                            downloadProgressCard.animate().cancel() // Cancelar animaciones previas
+                            downloadProgressCard.alpha = 1f
+                            downloadProgressCard.translationY = 0f
+                            downloadProgressCard.visibility = View.VISIBLE
+
+                            downloadText.text = "Iniciando descarga..."
+                            downloadPercentText.text = "0%"
+
+                            // 2. LA CLAVE: Desactivar indeterminado y forzar 0 sin animación
+                            downloadProgressBar.isIndeterminate = false
+                            downloadProgressBar.setProgressCompat(0, false)
+
+                            // Resetear color por si hubo error antes (opcional pero bueno)
+                            // downloadProgressBar.setIndicatorColor(getColor(R.color.secondaryColorTheme))
+                        }
+                        is DownloadStatus.Progress -> {
+                            downloadProgressCard.visibility = View.VISIBLE
+                            downloadProgressBar.isIndeterminate = false // Asegurar
+
+                            downloadPercentText.text = "${status.percent}%"
+                            downloadText.text = "Descargando..."
+
+                            // Animación suave solo si ya avanzó algo
+                            downloadProgressBar.setProgressCompat(status.percent, true)
+                        }
+                        is DownloadStatus.Success -> {
+                            downloadPercentText.text = "100%"
+                            downloadText.text = "¡Descarga completada!"
+                            downloadProgressBar.setProgressCompat(100, true)
+                        }
+                        is DownloadStatus.Error -> {
+                            downloadText.text = "Error: ${status.message}"
+                            downloadProgressBar.setIndicatorColor(Color.RED)
+                            downloadProgressBar.setProgressCompat(0, false)
+                        }
+                    }
+                }
+            }
+        }
+
         playPauseButton.setOnClickListener {
             val intent = Intent(this, MusicPlaybackService::class.java)
             if (musicService?.isPlaying() == true) {
@@ -191,7 +270,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songViewModel = ViewModelProvider(this).get(SongViewModel::class.java)
         setupViewModelObservers()
 
-        val miniPlayerContainer = findViewById<ConstraintLayout>(R.id.miniPlayerContainer) // Asegúrate de tener la referencia
+        val miniPlayerContainer = findViewById<MaterialCardView>(R.id.miniPlayerContainer)
 
         miniPlayerContainer.setOnClickListener {
             val currentSong = songViewModel.currentSongLiveData.value
@@ -224,6 +303,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.favoriteSongsFragment,
             R.id.favoriteArtistsFragment,
             R.id.favoriteAlbumsFragment,
+            R.id.downloadedSongsFragment
         )
 
         val fragmentsNoToolbar = setOf(
@@ -258,17 +338,23 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 createMenuItem.isChecked = true
                 createMenuItem.setIcon(R.drawable.ic_menu_add_selected)
 
+                // --- APLICAR COLOR ROJO ---
+                createMenuItem.icon?.setTint(Color.parseColor("#E21616")) // <--- NUEVO
+                // --------------------------
+
                 // Aseguramos la rotación (45 grados)
                 createIconView?.animate()?.rotation(45f)?.setDuration(100)?.start()
             } else {
                 // NO estamos en crear playlist
-                // Solo revertimos la animación si NO hay un diálogo activo.
-                // Si hay diálogo, el control de la X lo tiene el diálogo, no la navegación.
                 if (activeCreationDialog == null || activeCreationDialog?.isVisible == false) {
                     if (createIconView != null && createIconView.rotation != 0f) {
                         createIconView.animate().rotation(0f).setDuration(300).start()
                     }
                     createMenuItem.setIcon(R.drawable.ic_menu_add)
+
+                    // --- QUITAR COLOR ROJO ---
+                    createMenuItem.icon?.setTintList(null) // <--- NUEVO: Asegura que al salir se limpie el color
+                    // -------------------------
                 }
             }
 
@@ -345,17 +431,20 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         return@setOnItemSelectedListener false
                     }
 
-                    // Si ya está abierto, lo cerramos
                     if (activeCreationDialog != null && activeCreationDialog?.isVisible == true) {
                         activeCreationDialog?.dismiss()
                         activeCreationDialog = null
-                        return@setOnItemSelectedListener false // IMPORTANTE: false
+                        return@setOnItemSelectedListener false
                     } else {
                         // Abrimos el menú
 
-                        // 1. Animación visual manual (ya que devolveremos false)
+                        // 1. Animación visual
                         iconView?.animate()?.rotation(45f)?.setDuration(300)?.start()
                         item.setIcon(R.drawable.ic_menu_add_selected)
+
+                        // --- APLICAR COLOR ROJO ---
+                        item.icon?.setTint("#E21616".toColorInt()) // <--- NUEVO: Pinta el icono de rojo
+                        // --------------------------
 
                         // 2. Dim Overlay
                         dimOverlay.visibility = View.VISIBLE
@@ -372,13 +461,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                                 val currentDestId = navController.currentDestination?.id
                                 val menuItem = bottomNavigationView.menu.findItem(R.id.createPlaylistFragment)
 
-                                // Solo revertimos la animación si NO hemos navegado a "Crear Playlist"
                                 if (currentDestId != R.id.createPlaylistFragment) {
                                     iconView?.animate()?.rotation(0f)?.setDuration(300)?.start()
                                     menuItem.setIcon(R.drawable.ic_menu_add)
 
-                                    // Forzamos visualmente que el ícono correcto esté marcado
-                                    // basado estrictamente en dónde estamos AHORA.
+                                    // --- QUITAR COLOR ROJO (RESETEAR) ---
+                                    menuItem.icon?.setTintList(null) // <--- NUEVO: Elimina el tinte para volver al color original
+                                    // ------------------------------------
+
                                     if (currentDestId != null) {
                                         bottomNavigationView.menu.findItem(currentDestId)?.isChecked = true
                                     }
@@ -444,10 +534,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         params.width = drawerWidth
         drawer.layoutParams = params
 
+        // Referencias a los botones del menú lateral
         val settingsButton = findViewById<TextView>(R.id.settingsButton)
         val searchButton = findViewById<TextView>(R.id.searchButton)
         val savedButton = findViewById<TextView>(R.id.savedButton)
         val favoriteSongsButton = findViewById<TextView>(R.id.favoriteSongsButton)
+
+        // 🔥 AÑADIMOS EL BOTÓN DE DESCARGAS
+        val downloadsButton = findViewById<TextView>(R.id.downloadsButton)
 
         settingsButton.setOnClickListener {
             navController.navigate(R.id.settingsFragment)
@@ -466,6 +560,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         favoriteSongsButton.setOnClickListener {
             navController.navigate(R.id.favoriteSongsFragment)
+            drawerLayout.closeDrawers()
+        }
+
+        // 🔥 LÓGICA DE NAVEGACIÓN A DESCARGAS
+        downloadsButton.setOnClickListener {
+            navController.navigate(R.id.downloadedSongsFragment)
             drawerLayout.closeDrawers()
         }
     }
@@ -494,6 +594,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songViewModel.currentSongBitmapLiveData.observe(this) { bitmap ->
             if (bitmap != null) {
                 songImage.setImageBitmap(bitmap)
+
                 MiniPlayerColorizer.applyFromImageView(
                     imageView = songImage,
                     targets = MiniPlayerColorizer.Targets(
@@ -502,7 +603,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         subtitle = songArtist,
                         iconButtons = listOf(previousSongButton, playPauseButton, nextSongButton),
                         seekBar = seekBar,
-                        gradientOverlay = findViewById(R.id.gradientText)
                     ),
                     fallbackColor = getColor(R.color.secondaryColorTheme)
                 )
@@ -591,8 +691,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     override fun onDestroy() {
         super.onDestroy()
-        // 3. Solo nos desvinculamos cuando la actividad está siendo destruida permanentemente.
-        //    Esto previene fugas de memoria.
         if (isBound) {
             unbindService(serviceConnection)
             isBound = false
@@ -626,10 +724,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_NOTIFICATION_PERMISSION) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permiso concedido, iniciar el servicio
                 startMusicService()
             } else {
-                // Permiso denegado, mostrar mensaje o manejar el caso
                 Toast.makeText(this, "Necesitas permitir notificaciones para usar la app", Toast.LENGTH_LONG).show()
             }
         }
@@ -737,10 +833,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     startActivity(intent)
                     finish()
                 }
-                // Si no está baneado, no hace nada.
 
             } catch (e: Exception) {
-                // 4. Tu manejo de errores offline está perfecto, no se toca.
                 Log.w("MainActivity", "No se pudo verificar el ban status (offline?): ${e.message}")
             }
         }
@@ -753,23 +847,18 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val headerUserName = drawerLayout.findViewById<TextView>(R.id.headerUserName)
         val headerUserPhoto = drawerLayout.findViewById<ShapeableImageView>(R.id.headerUserPhoto)
 
-        // Referencia al archivo local
         val localFileName = "profile_user.png"
         val file = File(filesDir, localFileName)
 
         val user = FirebaseAuth.getInstance().currentUser
 
-        // 1. Gestionar el Nombre
         val name = user?.displayName ?: prefs.getString("name", "Invitado")
         headerUserName.text = name
         if (user?.displayName != null) {
             prefs.edit().putString("name", name).apply()
         }
 
-        // 2. Gestionar la Foto con Corrutinas
         lifecycleScope.launch(Dispatchers.IO) {
-            // PASO A: CARGA RÁPIDA (Caché)
-            // Si ya tenemos una foto guardada, la mostramos inmediatamente mientras cargamos la nueva
             if (file.exists()) {
                 try {
                     val bitmap = BitmapFactory.decodeFile(file.absolutePath)
@@ -792,8 +881,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
             if (!urlPhoto.isNullOrEmpty()) {
                 try {
-                    // Descargamos SIEMPRE para asegurar que tenemos la última versión
-                    // (Opcional: Podrías guardar la URL en prefs y comparar si cambió para ahorrar datos)
                     val inputStream = URL(urlPhoto).openStream()
                     val bitmapNetwork = BitmapFactory.decodeStream(inputStream)
 

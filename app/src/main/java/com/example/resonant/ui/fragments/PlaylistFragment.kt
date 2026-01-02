@@ -3,7 +3,9 @@ package com.example.resonant.ui.fragments
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -24,7 +26,7 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.PlaylistOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
-import com.example.resonant.ui.viewmodels.FavoriteItem
+import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.PlaylistDetailViewModel
 import com.example.resonant.ui.viewmodels.PlaylistDetailViewModelFactory
@@ -55,6 +57,8 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private var firstRenderDone = false
     private lateinit var settingsButtonContainer: FrameLayout
 
+    private lateinit var downloadViewModel: DownloadViewModel
+
     private val playlistViewModel: PlaylistDetailViewModel by viewModels {
         val playlistManager = PlaylistManager(requireContext())
         PlaylistDetailViewModelFactory(playlistManager)
@@ -82,6 +86,20 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             Toast.makeText(requireContext(), "No se encontró la playlist", Toast.LENGTH_SHORT).show()
         }
 
+        // --- CAMBIO IMPORTANTE ---
+        // Usamos requireActivity() para acceder al ViewModel global de descargas
+        downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
+
+        lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                songAdapter.downloadedSongIds = downloadedIds
+                // Refrescamos visualmente si ya hay canciones cargadas
+                if (songAdapter.currentList.isNotEmpty()) {
+                    songAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+
         view.findViewById<ImageButton>(R.id.arrowGoBackButton).setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
@@ -92,8 +110,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         setupAdapterClickListeners(playlistId)
     }
-
-    // En PlaylistFragment.kt
 
     private fun showPlaylistOptions() {
         val playlist = playlistViewModel.screenState.value?.playlistDetails
@@ -107,30 +123,32 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             playlist = playlist,
             playlistImageBitmap = null,
             onDeleteClick = { playlistToDelete ->
-                // Aquí llamamos a la función DEL VIEWMODEL DE DETALLE
                 playlistViewModel.deleteCurrentPlaylist(
                     playlistId = playlistToDelete.id!!,
                     onSuccess = {
-                        // 1. Mostrar feedback visual
                         showResonantSnackbar(
                             text = "Playlist eliminada correctamente",
                             colorRes = R.color.successColor,
                             iconRes = R.drawable.ic_success
                         )
 
-                        // 2. Avisar a la pantalla anterior (SavedFragment) que debe recargar
                         findNavController().previousBackStackEntry?.savedStateHandle?.set(
                             "PLAYLIST_UPDATED_ID",
-                            "DELETED" // Enviamos una señal
+                            "DELETED"
                         )
 
-                        // 3. Salir de la pantalla actual (volver atrás)
                         findNavController().popBackStack()
                     },
                     onError = { errorMsg ->
                         Toast.makeText(requireContext(), "Error: $errorMsg", Toast.LENGTH_SHORT).show()
                     }
                 )
+            },
+            onEditClick = { playlistToEdit ->
+                val bundle = Bundle().apply {
+                    putParcelable("playlist", playlistToEdit)
+                }
+                findNavController().navigate(R.id.action_playlistFragment_to_editPlaylistFragment, bundle)
             }
         )
         bottomSheet.show(parentFragmentManager, bottomSheet.tag)
@@ -150,21 +168,19 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     }
 
     private fun updateUI(state: PlaylistScreenState) {
-        // 1. Manejo del Loader
         val isInitialLoad = state.isLoading && state.songs.isEmpty() && state.playlistDetails == null
         if (isInitialLoad) {
             playlistLoader.visibility = View.VISIBLE
             playlistLoader.playAnimation()
             recyclerView.visibility = View.GONE
             noSongsInPlaylistText.visibility = View.GONE
-            playlistCoverImage.visibility = View.GONE // Ocultamos imagen mientras carga
+            playlistCoverImage.visibility = View.GONE
         } else {
             playlistLoader.cancelAnimation()
             playlistLoader.visibility = View.GONE
             playlistCoverImage.visibility = View.VISIBLE
         }
 
-        // 2. Estado de lista vacía
         val showEmptyState = !state.isLoading && state.songs.isEmpty()
         if (showEmptyState) {
             noSongsInPlaylistText.visibility = View.VISIBLE
@@ -174,7 +190,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             recyclerView.visibility = View.VISIBLE
         }
 
-        // 3. Detalles de la Playlist y CARGA DE IMAGEN
         state.playlistDetails?.let { details ->
             playlistName.text = details.name
             playlistText.text = details.name
@@ -200,10 +215,10 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         playlistOwner.text = state.ownerName
 
-        // 4. Lista de canciones
         songAdapter.submitList(state.songs.toList()) {
             val playingId = songViewModel.currentSongLiveData.value?.id
             songAdapter.setCurrentPlayingSong(playingId)
+            songAdapter.notifyDataSetChanged()
         }
 
         if (!firstRenderDone && state.songs.isNotEmpty()) firstRenderDone = true
@@ -232,8 +247,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         favoritesViewModel.loadFavoriteSongs()
-        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val songIds = favorites.filterIsInstance<FavoriteItem.SongItem>().map { it.song.id }.toSet()
+        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
         }
     }
@@ -308,6 +322,12 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                                 )
                             }
                         }
+                    },
+                    onDownloadClick = { songToDownload ->
+                        downloadViewModel.downloadSong(songToDownload)
+                    },
+                    onRemoveDownloadClick = { songToDelete ->
+                        downloadViewModel.deleteSong(songToDelete)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")

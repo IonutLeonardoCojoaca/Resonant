@@ -16,6 +16,9 @@ interface PlaylistService {
     @GET("api/Playlist/GetById")
     suspend fun getPlaylistById(@Query("id") id: String): Playlist
 
+    @PUT("api/Playlist/Update")
+    suspend fun updatePlaylist(@Body playlist: Playlist): Response<Unit>
+
     @GET("api/Playlist/GetByUserId")
     suspend fun getPlaylistByUserId(@Query("userId") userId: String): List<Playlist>
 

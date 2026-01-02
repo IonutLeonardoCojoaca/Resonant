@@ -50,294 +50,230 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <androidx.core.widget.NestedScrollView
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/superiorToolbar"
-        android:fillViewport="true">
+        android:layout_below="@id/superiorToolbar">
 
-        <RelativeLayout
-            android:id="@+id/mainPrincipalContainer"
+        <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:fillViewport="true">
 
             <RelativeLayout
-                android:id="@+id/artistPrincipalContainer"
+                android:id="@+id/mainPrincipalContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <FrameLayout
-                    android:id="@+id/artistTextContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="20dp"
-                    android:paddingVertical="10dp">
-
-                    <TextView
-                        android:id="@+id/artistFeatured"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Artistas altamente compatibles"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:layout_gravity="start"/>
-
-                </FrameLayout>
+                android:layout_height="match_parent">
 
                 <RelativeLayout
+                    android:id="@+id/artistPrincipalContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_below="@id/artistTextContainer">
+                    android:orientation="vertical">
 
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/listArtistsRecycler"
+                    <FrameLayout
+                        android:id="@+id/artistTextContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:clipToPadding="false"
-                        android:nestedScrollingEnabled="false"
-                        android:scrollbars="none">
-                    </androidx.recyclerview.widget.RecyclerView>
-
-                    <com.facebook.shimmer.ShimmerFrameLayout
-                        android:id="@+id/shimmerArtist"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-
-                        <LinearLayout
-                            android:id="@+id/shimmerArtistItems"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal">
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                            </LinearLayout>
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal">
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </LinearLayout>
-                    </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    <LinearLayout
-                        android:id="@+id/layoutErrorArtists"
-                        android:layout_width="match_parent"
-                        android:layout_height="150dp"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:visibility="gone">
-
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:src="@android:drawable/ic_dialog_alert"
-                            app:tint="#808080" />
-
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="10dp">
                         <TextView
-                            android:id="@+id/tvErrorArtists"
+                            android:id="@+id/artistFeatured"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
                             android:fontFamily="@font/unageo_medium"
-                            android:text="No se pudieron cargar"
-                            android:textColor="#808080"
-                            android:textSize="14sp"/>
+                            android:text=""
+                            android:textColor="@color/white"
+                            android:textSize="18sp"
+                            android:layout_gravity="start"/>
+                    </FrameLayout>
 
-                    </LinearLayout>
-
-                </RelativeLayout>
-
-            </RelativeLayout>
-
-            <RelativeLayout
-                android:id="@+id/albumsPrincipalContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/artistPrincipalContainer"
-                android:orientation="vertical">
-
-                <FrameLayout
-                    android:id="@+id/albumTextContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="20dp"
-                    android:paddingVertical="10dp">
-
-                    <TextView
-                        android:id="@+id/albumsFeatured"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text=""
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:layout_gravity="center_vertical|left"/>
-
-                </FrameLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/albumTextContainer"
-                    android:paddingHorizontal="5dp"
-                    android:paddingVertical="10dp">
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/listAlbumsRecycler"
+                    <RelativeLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        android:scrollbars="none">
-                    </androidx.recyclerview.widget.RecyclerView>
+                        android:layout_below="@id/artistTextContainer">
 
-                    <com.facebook.shimmer.ShimmerFrameLayout
-                        android:id="@+id/shimmerAlbum"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-
-                        <LinearLayout
-                            android:id="@+id/shimmerAlbumItems"
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/listArtistsRecycler"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-                            <include layout="@layout/item_album_shimmer_placeholder" />
-                            <include layout="@layout/item_album_shimmer_placeholder" />
-                            <include layout="@layout/item_album_shimmer_placeholder" />
-                        </LinearLayout>
-                    </com.facebook.shimmer.ShimmerFrameLayout>
+                            android:clipToPadding="false"
+                            android:nestedScrollingEnabled="false"
+                            android:scrollbars="none"/>
 
-                    <LinearLayout
-                        android:id="@+id/layoutErrorAlbums"
-                        android:layout_width="match_parent"
-                        android:layout_height="150dp"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:visibility="gone">
-
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:src="@android:drawable/ic_dialog_alert"
-                            app:tint="#808080" />
-
-                        <TextView
-                            android:id="@+id/tvErrorAlbums"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:fontFamily="@font/unageo_medium"
-                            android:text="No disponible"
-                            android:textColor="#808080"
-                            android:textSize="14sp"/>
-                    </LinearLayout>
-
-                </RelativeLayout>
-
-            </RelativeLayout>
-
-            <RelativeLayout
-                android:id="@+id/songsPrincipalContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/albumsPrincipalContainer">
-
-                <FrameLayout
-                    android:id="@+id/titleSongsContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="20dp"
-                    android:paddingVertical="10dp">
-
-                    <TextView
-                        android:id="@+id/songsFeatured"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text=""
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        android:layout_gravity="center_vertical|left"/>
-
-                </FrameLayout>
-
-                <RelativeLayout
-                    android:id="@+id/listSongs"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/titleSongsContainer"
-                    android:paddingHorizontal="5dp">
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/allSongList"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:clipToPadding="false"
-                        android:scrollbars="none"
-                        android:nestedScrollingEnabled="false"
-                        android:paddingBottom="250dp">
-                    </androidx.recyclerview.widget.RecyclerView>
-
-                    <com.facebook.shimmer.ShimmerFrameLayout
-                        android:id="@+id/shimmerSongLayout"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
+                        <com.facebook.shimmer.ShimmerFrameLayout
+                            android:id="@+id/shimmerArtist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                android:id="@+id/shimmerArtistItems"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical">
+                                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                                </LinearLayout>
+                                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                                </LinearLayout>
+                            </LinearLayout>
+                        </com.facebook.shimmer.ShimmerFrameLayout>
 
                         <LinearLayout
-                            android:id="@+id/shimmerSongItems"
+                            android:id="@+id/layoutErrorArtists"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
+                            android:layout_height="150dp"
+                            android:gravity="center"
                             android:orientation="vertical"
-                            android:paddingBottom="250dp">
-                            <include layout="@layout/item_song_shimmer_placeholder" />
-                            <include layout="@layout/item_song_shimmer_placeholder" />
-                            <include layout="@layout/item_song_shimmer_placeholder" />
-                            <include layout="@layout/item_song_shimmer_placeholder" />
-                            <include layout="@layout/item_song_shimmer_placeholder" />
-                            <include layout="@layout/item_song_shimmer_placeholder" />
-                            <include layout="@layout/item_song_shimmer_placeholder" />
+                            android:visibility="gone">
+                            <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
+                            <TextView android:id="@+id/tvErrorArtists" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No se pudieron cargar" android:textColor="#808080" android:textSize="14sp"/>
                         </LinearLayout>
-                    </com.facebook.shimmer.ShimmerFrameLayout>
+                    </RelativeLayout>
+                </RelativeLayout>
 
-                    <LinearLayout
-                        android:id="@+id/layoutErrorSongs"
+                <RelativeLayout
+                    android:id="@+id/albumsPrincipalContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/artistPrincipalContainer"
+                    android:orientation="vertical">
+
+                    <FrameLayout
+                        android:id="@+id/albumTextContainer"
                         android:layout_width="match_parent"
-                        android:layout_height="300dp"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:visibility="gone"
-                        android:paddingBottom="50dp"> <ImageView
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:src="@android:drawable/ic_dialog_alert"
-                        app:tint="#808080" />
-
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="10dp">
                         <TextView
-                            android:id="@+id/tvErrorSongs"
+                            android:id="@+id/albumsFeatured"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="10dp"
                             android:fontFamily="@font/unageo_medium"
-                            android:text="No se encontraron canciones"
-                            android:textColor="#808080"
-                            android:textSize="16sp"/>
-                    </LinearLayout>
+                            android:text=""
+                            android:textColor="@color/white"
+                            android:textSize="18sp"
+                            android:layout_gravity="center_vertical|left"/>
+                    </FrameLayout>
 
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/albumTextContainer"
+                        android:paddingHorizontal="5dp"
+                        android:paddingVertical="5dp">
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/listAlbumsRecycler"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:nestedScrollingEnabled="false"
+                            android:scrollbars="none"/>
+
+                        <com.facebook.shimmer.ShimmerFrameLayout
+                            android:id="@+id/shimmerAlbum"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                android:id="@+id/shimmerAlbumItems"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+                                <include layout="@layout/item_album_shimmer_placeholder" />
+                                <include layout="@layout/item_album_shimmer_placeholder" />
+                                <include layout="@layout/item_album_shimmer_placeholder" />
+                            </LinearLayout>
+                        </com.facebook.shimmer.ShimmerFrameLayout>
+
+                        <LinearLayout
+                            android:id="@+id/layoutErrorAlbums"
+                            android:layout_width="match_parent"
+                            android:layout_height="150dp"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+                            <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
+                            <TextView android:id="@+id/tvErrorAlbums" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No disponible" android:textColor="#808080" android:textSize="14sp"/>
+                        </LinearLayout>
+                    </RelativeLayout>
+                </RelativeLayout>
+
+                <RelativeLayout
+                    android:id="@+id/songsPrincipalContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/albumsPrincipalContainer">
+
+                    <FrameLayout
+                        android:id="@+id/titleSongsContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="10dp">
+                        <TextView
+                            android:id="@+id/songsFeatured"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text=""
+                            android:textColor="@color/white"
+                            android:textSize="18sp"
+                            android:layout_gravity="center_vertical|left"/>
+                    </FrameLayout>
+
+                    <RelativeLayout
+                        android:id="@+id/listSongs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/titleSongsContainer"
+                        android:paddingHorizontal="5dp">
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/allSongList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipToPadding="false"
+                            android:scrollbars="none"
+                            android:nestedScrollingEnabled="false"
+                            android:paddingBottom="250dp"/>
+
+                        <com.facebook.shimmer.ShimmerFrameLayout
+                            android:id="@+id/shimmerSongLayout"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                android:id="@+id/shimmerSongItems"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:paddingBottom="250dp">
+                                <include layout="@layout/item_song_shimmer_placeholder" />
+                                <include layout="@layout/item_song_shimmer_placeholder" />
+                                <include layout="@layout/item_song_shimmer_placeholder" />
+                                <include layout="@layout/item_song_shimmer_placeholder" />
+                            </LinearLayout>
+                        </com.facebook.shimmer.ShimmerFrameLayout>
+
+                        <LinearLayout
+                            android:id="@+id/layoutErrorSongs"
+                            android:layout_width="match_parent"
+                            android:layout_height="300dp"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            android:paddingBottom="50dp">
+                            <ImageView android:layout_width="50dp" android:layout_height="50dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
+                            <TextView android:id="@+id/tvErrorSongs" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:fontFamily="@font/unageo_medium" android:text="No se encontraron canciones" android:textColor="#808080" android:textSize="16sp"/>
+                        </LinearLayout>
+                    </RelativeLayout>
                 </RelativeLayout>
 
             </RelativeLayout>
-
-        </RelativeLayout>
-
-    </androidx.core.widget.NestedScrollView>
-
+        </androidx.core.widget.NestedScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 </RelativeLayout>

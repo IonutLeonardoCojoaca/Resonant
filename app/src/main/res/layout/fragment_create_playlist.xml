@@ -72,13 +72,13 @@
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp">
+                android:layout_marginTop="20dp">
 
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     app:cardBackgroundColor="#222222"
-                    app:cardCornerRadius="15dp"
+                    app:cardCornerRadius="20dp"
                     app:cardElevation="10dp"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintDimensionRatio="1:1"
@@ -90,57 +90,74 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:scaleType="centerCrop"
-                        android:src="@drawable/ic_playlist_stack" />
+                        android:src="@drawable/ic_playlist_stack"
+                        />
 
                 </androidx.cardview.widget.CardView>
 
             </androidx.constraintlayout.widget.ConstraintLayout>
 
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/inputNameLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginVertical="10dp"
-                android:textColorHint="#9B9B9B"
-                app:boxBackgroundMode="none"
-                app:hintEnabled="true"
-                app:hintTextColor="@color/secondaryColorTheme">
+                android:layout_marginTop="30dp"
+                android:hint="Nombre de la lista"
+                app:hintTextColor="@color/secondaryColorTheme"
+                app:boxStrokeColor="@color/secondaryColorTheme"
+                app:boxBackgroundColor="@color/appBackgroundTheme"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:counterEnabled="true"
+                app:counterMaxLength="20"
+                app:counterTextColor="@color/white"
+                app:boxCornerRadiusBottomEnd="20dp"
+                app:boxCornerRadiusBottomStart="20dp"
+                app:boxCornerRadiusTopEnd="20dp"
+                app:boxCornerRadiusTopStart="20dp">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/playlistName"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_rounded_pointers"
-                    android:fontFamily="@font/unageo_medium"
-                    android:gravity="center"
-                    android:hint="Nombre de la lista"
-                    android:imeOptions="actionNext"
-                    android:inputType="textCapSentences"
-                    android:maxLines="1"
-                    android:padding="16dp"
                     android:textColor="@color/white"
-                    android:textSize="16sp" />
+                    android:inputType="textCapSentences"
+                    android:imeOptions="actionDone"
+                    android:maxLines="1"
+                    android:fontFamily="@font/unageo_regular"/>
 
             </com.google.android.material.textfield.TextInputLayout>
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/createPlaylistButton"
                 android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:layout_marginTop="5dp"
-                android:backgroundTint="@color/secondaryColorTheme"
-                android:elevation="4dp"
-                android:fontFamily="@font/unageo_medium"
-                android:stateListAnimator="@null"
+                android:layout_height="60dp"
+                android:layout_marginTop="40dp"
                 android:text="Crear Playlist"
+                android:fontFamily="@font/unageo_bold"
                 android:textColor="@color/white"
                 android:textSize="16sp"
-                app:cornerRadius="28dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent" />
+                app:cornerRadius="30dp"
+                app:backgroundTint="@color/secondaryColorTheme"
+                android:elevation="4dp"
+                android:stateListAnimator="@null"/>
 
         </LinearLayout>
 
-
     </androidx.core.widget.NestedScrollView>
+
+    <FrameLayout
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/secondaryColorTheme"/>
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

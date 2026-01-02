@@ -13,6 +13,7 @@ materialVersion = "1.11.0"
 navigationFragmentKtx = "2.9.0"
 picasso = "2.71828"
 recyclerview = "1.4.0"
+swiperefreshlayout = "1.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,6 +30,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
 material-v1110 = { module = "com.google.android.material:material", version.ref = "materialVersion" }
 picasso = { module = "com.squareup.picasso:picasso", version.ref = "picasso" }
+androidx-swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefreshlayout" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

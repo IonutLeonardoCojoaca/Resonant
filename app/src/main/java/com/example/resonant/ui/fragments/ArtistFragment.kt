@@ -9,9 +9,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.RelativeLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.ViewModelProvider
@@ -20,21 +20,22 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.resonant.data.network.ApiClient
-import com.example.resonant.ui.viewmodels.FavoriteItem
-import com.example.resonant.ui.viewmodels.FavoritesViewModel
-import com.example.resonant.services.MusicPlaybackService
-import com.example.resonant.playback.QueueSource
 import com.example.resonant.R
+import com.example.resonant.data.models.Artist
+import com.example.resonant.data.network.ApiClient
+import com.example.resonant.playback.QueueSource
+import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.adapters.AlbumAdapter
+import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
+import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.viewmodels.ArtistViewModel
+import com.example.resonant.ui.viewmodels.DownloadViewModel
+import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
-import com.example.resonant.ui.adapters.SongAdapter
-import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.utils.Utils
-import com.example.resonant.data.models.Artist
-import com.example.resonant.ui.adapters.AlbumAdapter
-import com.example.resonant.ui.viewmodels.ArtistViewModel
+import com.google.android.material.button.MaterialButton // Importamos el botón
 import kotlinx.coroutines.launch
 
 class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
@@ -49,7 +50,6 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     private lateinit var nestedScroll: NestedScrollView
     private lateinit var topBar: ConstraintLayout
 
-    // --- SECCIONES ---
     private lateinit var recyclerViewAlbums: RecyclerView
     private lateinit var albumsAdapter: AlbumAdapter
     private lateinit var titleAlbumSongs: TextView
@@ -62,12 +62,15 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     private lateinit var topSongsAdapter: SongAdapter
     private lateinit var topSongsTitle: TextView
 
-    // ViewModels
+    // --- NUEVO: Variables del Botón Play ---
+    private lateinit var playButton: MaterialButton
+    private var isPlaying: Boolean = false
+
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var songViewModel: SongViewModel
-    private lateinit var artistViewModel: ArtistViewModel // ViewModel dedicado
+    private lateinit var artistViewModel: ArtistViewModel
+    private lateinit var downloadViewModel: DownloadViewModel
 
-    // Variable auxiliar para el botón de favoritos (se llena desde el VM)
     private var currentArtist: Artist? = null
 
     override fun onCreateView(
@@ -81,16 +84,15 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         val artistId = arguments?.getString("artistId") ?: return view
 
-        // Animación inicial
         startEnterAnimation()
         setupScrollListener()
-
-        // Inicializar ViewModels
         setupViewModels(artistId)
 
-        // Cargar datos (El ViewModel decide si usa caché o red)
+        // Cargar datos
         artistViewModel.loadData(artistId)
 
+        // --- NUEVO: Configuración del botón Play ---
+        setupPlayButtonLogic()
         setupClickListeners()
 
         return view
@@ -105,15 +107,23 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         nestedScroll = view.findViewById(R.id.nested_scroll)
         favoriteIcon = view.findViewById(R.id.favoriteButton)
         topBar = view.findViewById(R.id.topBar)
+
         topSongsTitle = view.findViewById(R.id.titleTopSongs)
         recyclerViewTopSongs = view.findViewById(R.id.topSongsList)
+
         titleAlbumSongs = view.findViewById(R.id.titleAlbumSongs)
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
+
         layoutFeaturedAlbum = view.findViewById(R.id.albumFeatured)
         recyclerViewFeaturedAlbum = view.findViewById(R.id.featuredAlbumList)
+
+        // --- Inicializamos el botón Play ---
+        playButton = view.findViewById(R.id.playButton)
     }
 
     private fun setupAdapters() {
+        // Mantenemos tus adapters originales tal cual estaban
+
         // Featured
         featuredAlbumAdapter = AlbumAdapter(mutableListOf(), AlbumAdapter.VIEW_TYPE_FEATURED)
         recyclerViewFeaturedAlbum.layoutManager = LinearLayoutManager(requireContext())
@@ -165,13 +175,12 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     }
 
     private fun setupViewModels(artistId: String) {
-        // 1. Song ViewModel (Reproducción actual)
         songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
-        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let { topSongsAdapter.setCurrentPlayingSong(it.id) }
-        }
+        // Eliminado el observer simple que tenías aquí porque ahora lo manejamos en setupPlayButtonLogic
+        // para controlar tanto el adapter como el botón grande.
 
-        // 2. Favorites ViewModel
+        downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
+
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         favoritesViewModel.loadAllFavorites()
 
@@ -180,18 +189,15 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             updateFavoriteIcon(isFavorite)
         }
 
-        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val songIds = favorites.filterIsInstance<FavoriteItem.SongItem>().map { it.song.id }.toSet()
+        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             topSongsAdapter.favoriteSongIds = songIds
         }
 
-        // 3. Artist ViewModel (DATOS PRINCIPALES)
         artistViewModel = ViewModelProvider(this)[ArtistViewModel::class.java]
 
-        // Observer: Artista Info
         artistViewModel.artist.observe(viewLifecycleOwner) { artist ->
             if (artist != null) {
-                currentArtist = artist // Guardamos referencia para el click de favorito
+                currentArtist = artist
                 artistNameTextView.text = artist.name
                 artistNameTopBar.text = artist.name
                 if (!artist.url.isNullOrEmpty()) {
@@ -229,7 +235,12 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             if (list.isNotEmpty()) {
                 topSongsTitle.visibility = View.VISIBLE
                 recyclerViewTopSongs.visibility = View.VISIBLE
-                topSongsAdapter.submitList(list)
+
+                // Actualizamos lista y verificamos estado del botón Play
+                topSongsAdapter.submitList(list) {
+                    topSongsAdapter.notifyDataSetChanged()
+                    if (isAdded) checkPlayButtonState()
+                }
             } else {
                 topSongsTitle.visibility = View.GONE
                 recyclerViewTopSongs.visibility = View.GONE
@@ -242,13 +253,74 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         }
     }
 
+    // --- NUEVO: Lógica de Estado del Botón Play ---
+    private fun setupPlayButtonLogic() {
+        // Observamos cambios en la canción actual
+        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
+            // Actualizamos el adapter (las barritas animadas en la canción individual)
+            currentSong?.let { topSongsAdapter.setCurrentPlayingSong(it.id) }
+            // Actualizamos el botón grande
+            checkPlayButtonState()
+        }
+
+        // Observamos si está en Play o Pause
+        songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) {
+            checkPlayButtonState()
+        }
+    }
+
+    private fun checkPlayButtonState() {
+        val serviceIsPlaying = songViewModel.isPlayingLiveData.value ?: false
+        val currentSongId = songViewModel.currentSongLiveData.value?.id
+
+        // Verificamos si la canción que suena está en la lista de Top Songs
+        val isSongInList = topSongsAdapter.currentList.any { it.id == currentSongId }
+
+        this.isPlaying = serviceIsPlaying && isSongInList
+        updatePlayPauseIcon(this.isPlaying)
+    }
+
+    private fun updatePlayPauseIcon(isPlaying: Boolean) {
+        val iconRes = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+        playButton.setIconResource(iconRes)
+    }
+    // ----------------------------------------------
+
     private fun setupClickListeners() {
         arrowGoBackButton.setOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
 
-        // Lógica de reproducción
-        val currentHomeQueueId = System.currentTimeMillis().toString()
+        // --- NUEVO: Listener del Botón Play Grande ---
+        playButton.setOnClickListener {
+            val currentList = ArrayList(topSongsAdapter.currentList)
+            if (currentList.isEmpty()) return@setOnClickListener
+
+            if (isPlaying) {
+                // Si está sonando esta lista, pausamos
+                val intent = Intent(requireContext(), MusicPlaybackService::class.java)
+                intent.action = MusicPlaybackService.Companion.ACTION_PAUSE
+                requireContext().startService(intent)
+            } else {
+                // Si no, reproducimos desde el principio (index 0)
+                val firstSong = currentList[0]
+                val queueId = currentArtist?.id ?: "ARTIST_UNKNOWN"
+
+                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, firstSong)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, currentList)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+                }
+                requireContext().startService(playIntent)
+            }
+        }
+        // ---------------------------------------------
+
+        // Listener canciones individuales (Tu lógica original)
+        val currentHomeQueueId = System.currentTimeMillis().toString() // Nota: Quizás quieras usar el ID del artista aquí, pero dejé tu lógica original.
         topSongsAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = topSongsAdapter.currentList.indexOfFirst { it.url == song.url }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
@@ -266,12 +338,18 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             requireContext().startService(playIntent)
         }
 
+        lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                topSongsAdapter.downloadedSongIds = downloadedIds
+                if (topSongsAdapter.currentList.isNotEmpty()) {
+                    topSongsAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+
         topSongsAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
 
         topSongsAdapter.onSettingsClick = { song ->
-            // Nota: Esta pequeña llamada de red para obtener el artista del bottom sheet
-            // se puede quedar aquí o moverse al VM si quieres ser muy estricto,
-            // pero por simplicidad está bien dejarla aquí en una coroutine pequeña.
             lifecycleScope.launch {
                 try {
                     val artistService = ApiClient.getArtistService(requireContext())
@@ -291,6 +369,11 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                                 onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
                             )
                             sheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                        },onDownloadClick = { songToDownload ->
+                            downloadViewModel.downloadSong(songToDownload)
+                        },
+                        onRemoveDownloadClick = { songToDelete ->
+                            downloadViewModel.deleteSong(songToDelete)
                         }
                     )
                     bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -300,7 +383,6 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             }
         }
 
-        // Botón Favorito Artista (Usando la variable currentArtist actualizada por el VM)
         favoriteButton.setOnClickListener {
             currentArtist?.let { artist ->
                 val isFavorite = favoritesViewModel.favoriteArtistIds.value?.contains(artist.id) ?: false

@@ -63,6 +63,12 @@
         <action
             android:id="@+id/action_savedFragment_to_favoriteAlbumsFragment"
             app:destination="@id/favoriteAlbumsFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_editPlaylistFragment"
+            app:destination="@id/editPlaylistFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_downloadedSongsFragment"
+            app:destination="@id/downloadedSongsFragment" />
     </fragment>
 
     <fragment
@@ -135,6 +141,9 @@
         <action
             android:id="@+id/action_playlistFragment_to_detailedSongFragment"
             app:destination="@id/detailedSongFragment" />
+        <action
+            android:id="@+id/action_playlistFragment_to_editPlaylistFragment"
+            app:destination="@id/editPlaylistFragment" />
     </fragment>
 
     <fragment
@@ -171,6 +180,33 @@
         <action
             android:id="@+id/action_favoriteAlbumsFragment_to_albumFragment"
             app:destination="@id/albumFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/editPlaylistFragment"
+        android:name="com.example.resonant.ui.fragments.EditPlaylistFragment"
+        android:label="Editar Playlist"
+        tools:layout="@layout/fragment_edit_playlist">
+
+        <argument
+            android:name="playlist"
+            app:argType="com.example.resonant.data.models.Playlist" />
+        <action
+            android:id="@+id/action_editPlaylistFragment_to_savedFragment"
+            app:destination="@id/savedFragment" />
+        <action
+            android:id="@+id/action_editPlaylistFragment_to_playlistFragment"
+            app:destination="@id/playlistFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/downloadedSongsFragment"
+        android:name="com.example.resonant.ui.fragments.DownloadedSongsFragment"
+        android:label="Descargas"
+        tools:layout="@layout/fragment_downloaded_songs" >
+        <action
+            android:id="@+id/action_downloadedSongsFragment_to_savedFragment"
+            app:destination="@id/savedFragment" />
     </fragment>
 
     <action

@@ -24,7 +24,7 @@
             android:layout_height="wrap_content"
             android:background="@color/transparent">
 
-            <RelativeLayout
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/artistBanner"
                 android:layout_width="match_parent"
                 android:layout_height="360dp">
@@ -32,17 +32,21 @@
                 <View
                     android:id="@+id/gradientOverlay"
                     android:layout_width="match_parent"
-                    android:layout_height="150dp"
+                    android:layout_height="170dp"
                     android:layout_alignParentBottom="true"
-                    android:background="@drawable/bg_gradient_artist" />
+                    android:background="@drawable/bg_gradient_artist"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent" />
 
                 <TextView
                     android:id="@+id/artistName"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_alignParentStart="true"
                     android:layout_alignParentBottom="true"
-                    android:layout_margin="20dp"
+                    android:layout_margin="15dp"
+                    android:paddingEnd="10dp"
                     android:breakStrategy="simple"
                     android:ellipsize="end"
                     android:fontFamily="@font/unageo_bold"
@@ -50,10 +54,30 @@
                     android:maxLines="2"
                     android:text=""
                     android:textColor="@android:color/white"
-                    android:textSize="45sp"
-                    android:textStyle="bold" />
+                    android:textSize="42sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@+id/playButton"
+                    app:layout_constraintStart_toStartOf="parent" />
 
-            </RelativeLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/playButton"
+                    android:layout_width="54dp"
+                    android:layout_height="54dp"
+                    android:layout_margin="15dp"
+                    android:backgroundTint="@color/secondaryColorTheme"
+                    app:cornerRadius="40dp"
+                    app:icon="@drawable/ic_play"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:iconSize="40dp"
+                    app:iconTint="@color/white"
+                    android:insetBottom="0dp"
+                    android:insetTop="0dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <RelativeLayout
                 android:id="@+id/artistDataContainer"
@@ -95,8 +119,8 @@
                         android:layout_below="@id/titleTopSongsContainer"
                         android:nestedScrollingEnabled="false"
                         android:scrollbars="none"
-                        android:paddingHorizontal="10dp"
-                        android:layout_marginVertical="10dp">
+                        android:paddingHorizontal="5dp"
+                        android:layout_marginVertical="5dp">
 
                     </androidx.recyclerview.widget.RecyclerView>
 
@@ -132,7 +156,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_below="@id/titleFeaturedAlbumContainer"
-                        android:paddingHorizontal="10dp"
+                        android:paddingHorizontal="8dp"
                         android:nestedScrollingEnabled="false"
                         android:scrollbars="none">
 
@@ -222,7 +246,7 @@
             android:fontFamily="@font/unageo_bold"
             android:text=""
             android:textColor="@color/white"
-            android:textSize="18sp"
+            android:textSize="16sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"

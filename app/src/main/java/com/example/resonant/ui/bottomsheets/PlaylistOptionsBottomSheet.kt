@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.lifecycle.lifecycleScope
-import com.bumptech.glide.Glide // <--- IMPORTANTE: Importar Glide
+import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.network.ApiClient
@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 class PlaylistOptionsBottomSheet(
     private val playlist: Playlist,
     private val playlistImageBitmap: Bitmap?,
-    private val onDeleteClick: (Playlist) -> Unit
+    private val onDeleteClick: (Playlist) -> Unit,
+    private val onEditClick: (Playlist) -> Unit
 ) : BottomSheetDialogFragment() {
 
     override fun onCreateView(
@@ -32,37 +33,28 @@ class PlaylistOptionsBottomSheet(
         val playlistName = view.findViewById<TextView>(R.id.playlistName)
         val playlistOwner = view.findViewById<TextView>(R.id.playlistOwner)
         val playlistTracks = view.findViewById<TextView>(R.id.playlistNumberOfTracks)
+
+        // Referencias a botones
+        val editBtn = view.findViewById<TextView>(R.id.editPlaylistButton) // 👇 REFERENCIA
         val deleteBtn = view.findViewById<TextView>(R.id.deletePlaylistButton)
         val cancelButton = view.findViewById<TextView>(R.id.cancelButton)
 
-        // --- CAMBIO PRINCIPAL AQUÍ ---
+        // ... (Tu código de carga de imagen existente va aquí) ...
         val imageUrl = playlist.imageUrl
-
         if (!imageUrl.isNullOrEmpty()) {
-            // 1. Si hay URL del backend, usamos Glide
-            Glide.with(this)
-                .load(imageUrl)
-                .placeholder(R.drawable.ic_playlist_stack)
-                .error(R.drawable.ic_playlist_stack)
-                .centerCrop()
-                .into(playlistImage)
+            Glide.with(this).load(imageUrl).placeholder(R.drawable.ic_playlist_stack).into(playlistImage)
         } else if (playlistImageBitmap != null) {
-            // 2. Si llega un Bitmap (sistema antiguo), lo usamos
             playlistImage.setImageBitmap(playlistImageBitmap)
         } else {
-            // 3. Si no hay nada, ponemos el placeholder
             playlistImage.setImageResource(R.drawable.ic_playlist_stack)
         }
-        // -----------------------------
 
         playlistName.text = playlist.name
         playlistTracks.text = "${playlist.numberOfTracks ?: 0} canciones"
 
         val userService = ApiClient.getUserService(requireContext())
-
         lifecycleScope.launch {
             try {
-                // Si el ID del usuario es nulo, evitamos la llamada
                 val userId = playlist.userId
                 if (!userId.isNullOrEmpty()) {
                     val user = userService.getUserById(userId)
@@ -73,6 +65,12 @@ class PlaylistOptionsBottomSheet(
             } catch (e: Exception) {
                 playlistOwner.text = "Desconocido"
             }
+        }
+
+        // 👇 2. LISTENER PARA EDITAR
+        editBtn.setOnClickListener {
+            dismiss() // Cerramos el bottom sheet primero
+            onEditClick(playlist) // Navegamos
         }
 
         deleteBtn.setOnClickListener {

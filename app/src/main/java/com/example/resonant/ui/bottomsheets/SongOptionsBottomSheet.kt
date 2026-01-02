@@ -1,9 +1,13 @@
 package com.example.resonant.ui.bottomsheets
 
+import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -21,6 +25,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
 import java.io.File
 import java.io.FileOutputStream
+import androidx.core.graphics.toColorInt
 
 class SongOptionsBottomSheet(
     private val song: Song,
@@ -28,11 +33,13 @@ class SongOptionsBottomSheet(
     private val onFavoriteToggled: ((Song) -> Unit)? = null,
     private val playlistId: String? = null,
     private val onRemoveFromPlaylistClick: ((Song, String) -> Unit)? = null,
-    private val onAddToPlaylistClick: ((Song) -> Unit)? = null
+    private val onAddToPlaylistClick: ((Song) -> Unit)? = null,
+    private val onDownloadClick: ((Song) -> Unit)? = null,
+    // 🔥 NUEVO CALLBACK: Acción para borrar la descarga
+    private val onRemoveDownloadClick: ((Song) -> Unit)? = null
 
 ) : BottomSheetDialogFragment() {
 
-    // AÑADE ESTE MÉTODO PARA APLICAR EL TEMA PERSONALIZADO
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme
     }
@@ -47,15 +54,18 @@ class SongOptionsBottomSheet(
         val songTitle: TextView = view.findViewById(R.id.songTitle)
         val songArtist: TextView = view.findViewById(R.id.songArtist)
         val songStreams: TextView = view.findViewById(R.id.songStreams)
+
+        // Botones de acción
         val seeSongButton: TextView = view.findViewById(R.id.seeSongButton)
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
         val addToPlaylistButton: TextView = view.findViewById(R.id.addToPlaylistButton)
-        val cancelButton: TextView = view.findViewById(R.id.cancelButton)
+        val downloadSongButton: TextView = view.findViewById(R.id.downloadSongButton)
         val shareSongButton: TextView = view.findViewById(R.id.shareSongButton)
+        val cancelButton: TextView = view.findViewById(R.id.cancelButton)
 
+        // Rellenar datos básicos
         songTitle.text = song.title
         songArtist.text = song.artistName
-
         if(song.streams == 0){
             songStreams.text = "Sin reproducciones"
         }else if (song.streams == 1){
@@ -64,138 +74,148 @@ class SongOptionsBottomSheet(
             songStreams.text = "${song.streams} reproducciones"
         }
 
-        if (playlistId != null) {
-            // --- MODO: "Eliminar de la lista actual" ---
-            addToPlaylistButton.text = "Eliminar de la lista"
-            addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_delete, 0, 0, 0)
-            addToPlaylistButton.setTextColor(Color.parseColor("#F44336"))
-
-            addToPlaylistButton.setOnClickListener {
-                // Usamos el ViewModel de DETALLE para eliminar la canción
-                onRemoveFromPlaylistClick?.invoke(song, playlistId)
-
-                // Mostramos feedback al usuario
-                showResonantSnackbar(
-                    text = "Canción eliminada de la playlist",
-                    colorRes = R.color.successColor, iconRes = R.drawable.ic_success
-                )
-                dismiss()
-            }
-        } else {
-            // --- MODO: "Añadir a una lista" ---
-            addToPlaylistButton.text = "Añadir a lista"
-            addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_menu_add_selected, 0, 0, 0)
-
-            addToPlaylistButton.setOnClickListener {
-                // Ahora, simplemente llama a la nueva lambda y cierra
-                onAddToPlaylistClick?.invoke(song)
-                dismiss()
-            }
-        }
-
+        // Carga de Imagen
         val placeholderRes = R.drawable.ic_disc
         val errorRes = R.drawable.ic_disc
-
         val urlToLoad = song.coverUrl ?: song.imageFileName
         if (!urlToLoad.isNullOrBlank()) {
-            Glide.with(songImage)
-                .load(urlToLoad)
-                .placeholder(placeholderRes)
-                .error(errorRes)
-                .into(songImage)
+            Glide.with(songImage).load(urlToLoad).placeholder(placeholderRes).error(errorRes).into(songImage)
         } else {
             songImage.setImageResource(placeholderRes)
         }
 
+        // --- DETECCIÓN DE RED ---
+        val isNetworkAvailable = isInternetAvailable(requireContext())
+        val disabledAlpha = 0.4f
+        val disabledColor = Color.GRAY
 
-        // 1. Obtenemos el ViewModel
-        val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+        // -----------------------------------------------------------------------
+        // 1. LÓGICA DE DESCARGA / ELIMINAR (Híbrida)
+        // -----------------------------------------------------------------------
+        val localFile = File(requireContext().filesDir, "${song.id}.mp3")
 
-        // 2. Observamos el LiveData de IDs para saber el estado real y actualizar la UI del botón
-        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { favoriteIds ->
-            val isFavorite = favoriteIds.contains(song.id)
-            updateFavoriteButtonUI(addToFavoriteButton, isFavorite)
-        }
+        // Hacemos visible el botón siempre, pero cambiamos su función
+        downloadSongButton.visibility = View.VISIBLE
 
-        // 3. El OnClickListener ahora es mucho más simple
-        addToFavoriteButton.setOnClickListener {
-            // A. Simplemente llamamos a la lambda para notificar al Fragment.
-            onFavoriteToggled?.invoke(song)
+        if (localFile.exists()) {
+            // --- MODO ELIMINAR ---
+            downloadSongButton.text = "Eliminar descarga"
+            // Icono de papelera (asegúrate de tener ic_delete o ic_cancel)
+            downloadSongButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_download_delete, 0, 0, 0)
 
-            // B. (Opcional) Mostramos un snackbar de éxito inmediatamente (actualización optimista del feedback)
-            val isCurrentlyFavorite = favoritesViewModel.favoriteSongIds.value?.contains(song.id) ?: false
-            if (!isCurrentlyFavorite) {
-                showResonantSnackbar(
-                    text = "¡Añadida a favoritos!",
-                    colorRes = R.color.successColor, iconRes = R.drawable.ic_success
-                )
+            // Color ROJO para indicar acción destructiva
+            val redColor = "#F44336".toColorInt()
+            downloadSongButton.setTextColor(redColor)
+            downloadSongButton.compoundDrawableTintList = ColorStateList.valueOf(redColor)
+
+            downloadSongButton.setOnClickListener {
+                onRemoveDownloadClick?.invoke(song)
+                dismiss()
+            }
+        } else {
+            // --- MODO DESCARGAR ---
+            downloadSongButton.text = "Descargar"
+            // Icono de descarga
+            downloadSongButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_download_done, 0, 0, 0)
+
+            // Color BLANCO estándar
+            downloadSongButton.setTextColor(Color.WHITE)
+            downloadSongButton.compoundDrawableTintList = ColorStateList.valueOf(Color.WHITE)
+
+            if (isNetworkAvailable) {
+                downloadSongButton.setOnClickListener {
+                    onDownloadClick?.invoke(song)
+                    dismiss()
+                }
             } else {
-                showResonantSnackbar(
-                    text = "Eliminada de favoritos",
-                    colorRes = R.color.successColor, iconRes = R.drawable.ic_success
-                )
+                disableButton(downloadSongButton, disabledAlpha, disabledColor)
             }
-
-            // C. Cerramos el BottomSheet.
-            dismiss()
         }
 
-        seeSongButton.setOnClickListener {
-            dismiss()
-            onSeeSongClick?.invoke(song)
-        }
-
-        shareSongButton.setOnClickListener {
-            // Si tienes el bitmap cargado (por ejemplo, de Glide o tu propio loader)
-            val bitmap = songImage.drawable?.let { drawable ->
-                (drawable as? BitmapDrawable)?.bitmap
-            }
-
-            val shareText = buildShareText(song)
-
-            if (bitmap != null) {
-                // Guarda el bitmap como archivo temporal
-                val imageFile = File(requireContext().cacheDir, "shared_song_${song.id}.png")
-                FileOutputStream(imageFile).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        // 2. PLAYLIST
+        if (isNetworkAvailable) {
+            if (playlistId != null) {
+                addToPlaylistButton.text = "Eliminar de la lista"
+                addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_delete, 0, 0, 0)
+                val redColor = "#F44336".toColorInt()
+                addToPlaylistButton.setTextColor(redColor)
+                addToPlaylistButton.compoundDrawableTintList = ColorStateList.valueOf(redColor)
+                addToPlaylistButton.setOnClickListener {
+                    onRemoveFromPlaylistClick?.invoke(song, playlistId)
+                    showResonantSnackbar(text = "Canción eliminada de la playlist", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                    dismiss()
                 }
-
-                // Usa FileProvider para obtener el Uri
-                val imageUri: Uri = FileProvider.getUriForFile(
-                    requireContext(),
-                    "${requireContext().packageName}.fileprovider", // Debes definir esto en el Manifest
-                    imageFile
-                )
-
-                val shareIntent = Intent().apply {
-                    // 👇 CORREGIDO
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, shareText)
-                    putExtra(Intent.EXTRA_STREAM, imageUri)
-                    // 👇 CORREGIDO
-                    type = "image/png"
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Esto SÍ está bien, porque es una llamada a un método, no una asignación de propiedad
-                }
-                startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
             } else {
-                // Solo texto si no hay imagen
-                val shareIntent = Intent().apply {
-                    // 👇 CORREGIDO
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, shareText)
-                    // 👇 CORREGIDO
-                    type = "text/plain"
+                addToPlaylistButton.text = "Añadir a lista"
+                addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_menu_add_selected, 0, 0, 0)
+                addToPlaylistButton.setTextColor(Color.WHITE)
+                addToPlaylistButton.compoundDrawableTintList = ColorStateList.valueOf(Color.WHITE)
+                addToPlaylistButton.setOnClickListener {
+                    onAddToPlaylistClick?.invoke(song)
+                    dismiss()
                 }
-                startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
             }
-            dismiss()
+        } else {
+            disableButton(addToPlaylistButton, disabledAlpha, disabledColor)
         }
 
-        cancelButton.setOnClickListener {
-            dismiss()
+        // 3. FAVORITOS
+        if (isNetworkAvailable) {
+            val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
+            favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { favoriteIds ->
+                val isFavorite = favoriteIds.contains(song.id)
+                updateFavoriteButtonUI(addToFavoriteButton, isFavorite)
+            }
+            addToFavoriteButton.setOnClickListener {
+                onFavoriteToggled?.invoke(song)
+                val isCurrentlyFavorite = favoritesViewModel.favoriteSongIds.value?.contains(song.id) ?: false
+                if (!isCurrentlyFavorite) {
+                    showResonantSnackbar(text = "¡Añadida a favoritos!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                } else {
+                    showResonantSnackbar(text = "Eliminada de favoritos", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                }
+                dismiss()
+            }
+        } else {
+            disableButton(addToFavoriteButton, disabledAlpha, disabledColor)
+            addToFavoriteButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
         }
+
+        // 4. VER CANCIÓN
+        if (isNetworkAvailable) {
+            seeSongButton.setOnClickListener {
+                dismiss()
+                onSeeSongClick?.invoke(song)
+            }
+        } else {
+            disableButton(seeSongButton, disabledAlpha, disabledColor)
+        }
+
+        // 5. COMPARTIR
+        if (isNetworkAvailable) {
+            shareSongButton.setOnClickListener {
+                shareSongLogic(song, songImage)
+                dismiss()
+            }
+        } else {
+            disableButton(shareSongButton, disabledAlpha, disabledColor)
+        }
+
+        cancelButton.setOnClickListener { dismiss() }
 
         return view
+    }
+
+    // ... (El resto de métodos disableButton, updateFavoriteButtonUI, etc., siguen igual)
+    private fun disableButton(button: TextView, alpha: Float, color: Int) {
+        button.isEnabled = false
+        button.alpha = alpha
+        button.setTextColor(color)
+        button.compoundDrawableTintList = ColorStateList.valueOf(color)
+        val currentText = button.text.toString()
+        if (!currentText.contains("(Offline)")) {
+            button.text = "$currentText (Offline)"
+        }
     }
 
     private fun updateFavoriteButtonUI(button: TextView, isFavorite: Boolean) {
@@ -210,10 +230,44 @@ class SongOptionsBottomSheet(
         }
     }
 
-    private fun buildShareText(song: Song): String {
-        // Usa el dominio público del Worker
-        val songLink = "https://workers-playground-odd-fire-9bf1.resonant-app-service.workers.dev/shared/android/song/${song.id}"
+    private fun shareSongLogic(song: Song, songImage: ShapeableImageView) {
+        val bitmap = songImage.drawable?.let { drawable -> (drawable as? BitmapDrawable)?.bitmap }
+        val shareText = buildShareText(song)
 
+        if (bitmap != null) {
+            try {
+                val imageFile = File(requireContext().cacheDir, "shared_song_${song.id}.png")
+                FileOutputStream(imageFile).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+                val imageUri: Uri = FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.fileprovider", imageFile)
+
+                val shareIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, shareText)
+                    putExtra(Intent.EXTRA_STREAM, imageUri)
+                    type = "image/png"
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
+            } catch (e: Exception) {
+                val shareIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, shareText)
+                    type = "text/plain"
+                }
+                startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
+            }
+        } else {
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_TEXT, shareText)
+                type = "text/plain"
+            }
+            startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
+        }
+    }
+
+    private fun buildShareText(song: Song): String {
+        val songLink = "https://workers-playground-odd-fire-9bf1.resonant-app-service.workers.dev/shared/android/song/${song.id}"
         return """
         ¡Escucha esta canción en Resonant!
         🎵 ${song.title}
@@ -222,4 +276,15 @@ class SongOptionsBottomSheet(
     """.trimIndent()
     }
 
+    private fun isInternetAvailable(context: Context): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return when {
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
+            else -> false
+        }
+    }
 }

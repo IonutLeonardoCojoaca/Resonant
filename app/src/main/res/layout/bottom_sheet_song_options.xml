@@ -99,7 +99,7 @@
             android:gravity="start|center_vertical"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
-            android:text="Ver"
+            android:text="Ver información"
             android:textColor="@color/white"
             android:textSize="16sp"/>
 
@@ -115,6 +115,20 @@
             android:text="Compartir"
             android:textColor="@color/white"
             android:textSize="16sp"/>
+
+        <TextView
+            android:id="@+id/downloadSongButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_download_done"
+            android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
+            android:fontFamily="@font/unageo_regular"
+            android:padding="16dp"
+            android:gravity="start|center_vertical"
+            android:text="Descargar"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/addToFavoriteButton"
@@ -135,7 +149,6 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_menu_add_selected"
             android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
             android:gravity="start|center_vertical"

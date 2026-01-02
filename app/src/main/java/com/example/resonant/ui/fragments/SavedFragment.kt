@@ -29,6 +29,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private lateinit var songsButton: MaterialButton
     private lateinit var artistsButton: MaterialButton
     private lateinit var albumsButton: MaterialButton
+    private lateinit var downloadsButton: MaterialButton
     private lateinit var emptyTextView: TextView
     private lateinit var playlistRecyclerView: RecyclerView
     private lateinit var playlistAdapter: PlaylistAdapter
@@ -85,6 +86,12 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                     colorRes = R.color.successColor,
                     iconRes = R.drawable.ic_success
                 )
+            },
+            onEditClick = { playlistToEdit ->
+                val bundle = Bundle().apply {
+                    putParcelable("playlist", playlistToEdit)
+                }
+                findNavController().navigate(R.id.action_savedFragment_to_editPlaylistFragment, bundle)
             }
         )
         bottomSheet.show(childFragmentManager, bottomSheet.tag)
@@ -94,6 +101,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         songsButton = view.findViewById(R.id.songsButton)
         artistsButton = view.findViewById(R.id.artistsButton)
         albumsButton = view.findViewById(R.id.albumsButton)
+        downloadsButton = view.findViewById(R.id.downloadsButton)
         playlistRecyclerView = view.findViewById(R.id.playlistList)
         emptyTextView = view.findViewById(R.id.noPlaylistText)
         userProfileImage = view.findViewById(R.id.userProfile)
@@ -161,14 +169,29 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     }
 
     private fun setupClickListeners() {
+        // Función auxiliar para navegar de forma segura
+        fun safeNavigate(actionId: Int) {
+            val currentId = findNavController().currentDestination?.id
+            // Solo navegamos si seguimos en la pantalla de origen (SavedFragment)
+            if (currentId == R.id.savedFragment) {
+                findNavController().navigate(actionId)
+            }
+        }
+
         songsButton.setOnClickListener {
-            findNavController().navigate(R.id.action_savedFragment_to_favoriteSongsFragment)
+            safeNavigate(R.id.action_savedFragment_to_favoriteSongsFragment)
         }
+
         artistsButton.setOnClickListener {
-            findNavController().navigate(R.id.action_savedFragment_to_favoriteArtistsFragment)
+            safeNavigate(R.id.action_savedFragment_to_favoriteArtistsFragment)
         }
+
         albumsButton.setOnClickListener {
-            findNavController().navigate(R.id.action_savedFragment_to_favoriteAlbumsFragment)
+            safeNavigate(R.id.action_savedFragment_to_favoriteAlbumsFragment)
+        }
+
+        downloadsButton.setOnClickListener {
+            safeNavigate(R.id.action_savedFragment_to_downloadedSongsFragment)
         }
     }
 }

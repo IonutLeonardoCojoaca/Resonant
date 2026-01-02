@@ -29,6 +29,14 @@ import java.util.Locale
 
 class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.ViewHolder>(SongDiffCallback()) {
 
+    init {
+        setHasStableIds(true)
+    }
+
+    override fun getItemId(position: Int): Long {
+        return getItem(position).id.hashCode().toLong()
+    }
+
     companion object {
         const val VIEW_TYPE_FULL = 1
         const val VIEW_TYPE_TOP_SONG = 2
@@ -54,6 +62,13 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                     notifyItemChanged(index, "silent") // "silent" es un payload opcional que ya usas
                 }
             }
+        }
+
+    var downloadedSongIds: Set<String> = emptySet()
+        set(value) {
+            field = value
+            // Notificamos cambios para refrescar los iconos
+            notifyDataSetChanged()
         }
 
     // CORRECCIÓN 2: Añadido el método getItemViewType que faltaba
@@ -106,17 +121,21 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         }
     }
 
+    // Optimization: Cache formatter to avoid expensive creation in onBind
+    private val numberFormatter by lazy { NumberFormat.getInstance(Locale.getDefault()) }
+
     inner class SongViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
         private val nameTextView: TextView = itemView.findViewById(R.id.songTitle)
         private val artistTextView: TextView = itemView.findViewById(R.id.songArtist)
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
         private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
+        private val downloadedIcon: ImageView = itemView.findViewById(R.id.downloadedIcon)
+
         val albumArtImageView: ImageView = itemView.findViewById(R.id.songImage)
         var albumArtAnimator: ObjectAnimator? = null
 
         private var artworkJob: Job? = null
-        private val ioScope = CoroutineScope(Dispatchers.IO)
 
         fun cancelJobs() {
             artworkJob?.cancel()
@@ -124,6 +143,15 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         }
 
         fun bind(song: Song, partial: Boolean = false) {
+
+            val isDownloaded = downloadedSongIds.contains(song.id)
+
+            if (isDownloaded) {
+                downloadedIcon.visibility = View.VISIBLE
+            } else {
+                downloadedIcon.visibility = View.GONE
+            }
+
             nameTextView.text = song.title ?: "Desconocido"
             artistTextView.text = song.artistName ?: "Desconocido"
 
@@ -157,6 +185,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                     Glide.with(albumArtImageView.context)
                         .asBitmap()
                         .load(url)
+                        .override(200, 200) // OPTIMIZATION: Downsample image
+                        .dontAnimate()
                         .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                         .placeholder(placeholderRes)
                         .error(placeholderRes)
@@ -213,13 +243,22 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         private val streams: TextView = itemView.findViewById(R.id.songStreams)
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
         private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
+        private val downloadedIcon: ImageView = itemView.findViewById(R.id.downloadedIcon)
+
 
         fun bind(song: Song, itemPosition: Int, partial: Boolean = false) {
             position.text = (itemPosition + 1).toString()
             title.text = song.title
 
-            val formatter = NumberFormat.getInstance(Locale.getDefault())
-            streams.text = "${formatter.format(song.streams)} reproducciones"
+            val isDownloaded = downloadedSongIds.contains(song.id)
+            if (isDownloaded) {
+                downloadedIcon.visibility = View.VISIBLE
+            } else {
+                downloadedIcon.visibility = View.GONE
+            }
+
+            // OPTIMIZATION: Use cached formatter
+            streams.text = "${numberFormatter.format(song.streams)} reproducciones"
 
             val isFavorite = favoriteSongIds.contains(song.id)
             likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
@@ -242,6 +281,7 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                     Glide.with(coverImageView.context)
                         .asBitmap()
                         .load(url)
+                        .override(200, 200) // OPTIMIZATION: Downsample image
                         .dontAnimate() // <--- IMPORTANTE: Evita el parpadeo blanco
                         .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                         .placeholder(placeholderRes)

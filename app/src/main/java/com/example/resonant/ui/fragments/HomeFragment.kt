@@ -14,6 +14,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.resonant.R
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.ArtistService
@@ -25,7 +26,6 @@ import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
-import com.example.resonant.ui.viewmodels.FavoriteItem
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.HomeViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -33,10 +33,13 @@ import com.example.resonant.ui.viewmodels.UserViewModel
 import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.launch
+import com.example.resonant.ui.viewmodels.DownloadViewModel
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     // --- UI Components ---
+    private lateinit var swipeRefresh: SwipeRefreshLayout // NUEVO
+
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
 
@@ -69,8 +72,9 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     private lateinit var userViewModel: UserViewModel
     private lateinit var homeViewModel: HomeViewModel
 
-    // Necesitamos ArtistService solo para el BottomSheet de opciones
     private lateinit var artistService: ArtistService
+
+    private lateinit var downloadViewModel: DownloadViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -80,26 +84,39 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         initViews(view)
         setupRecyclerViews()
 
-        // Inicializamos el servicio auxiliar para los click listeners
         artistService = ApiClient.getArtistService(requireContext())
-
         setupViewModels()
+
         return view
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Obtener ID de usuario
         val userId = UserManager(requireContext()).getUserId() ?: ""
 
-        // INICIAR CARGA DE DATOS (El ViewModel decide si usa caché o red)
         homeViewModel.loadSongs(userId)
         homeViewModel.loadArtists(userId)
         homeViewModel.loadAlbums(userId)
+
+        swipeRefresh.setOnRefreshListener {
+            homeViewModel.refreshAll(userId)
+        }
+
+        lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                songAdapter.downloadedSongIds = downloadedIds
+            }
+        }
+
+        swipeRefresh.setColorSchemeResources(R.color.white)
+        swipeRefresh.setProgressViewOffset(false, 0, 200)
+        swipeRefresh.setProgressBackgroundColorSchemeResource(R.color.black)
     }
 
     private fun initViews(view: View) {
+        swipeRefresh = view.findViewById(R.id.swipeRefresh) // Inicializar
+
         shimmerSongLayout = view.findViewById(R.id.shimmerSongLayout)
         shimmerArtistLayout = view.findViewById(R.id.shimmerArtist)
         shimmerAlbumLayout = view.findViewById(R.id.shimmerAlbum)
@@ -125,16 +142,19 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         artistAdapter = ArtistAdapter(mutableListOf())
         artistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_GRID)
         recyclerViewArtists.adapter = artistAdapter
+        recyclerViewArtists.isNestedScrollingEnabled = false // <--- AÑADIR ESTO
 
         // Albums
         recyclerViewAlbums.layoutManager = GridLayoutManager(context, 3)
         albumsAdapter = AlbumAdapter(mutableListOf(), 0)
         recyclerViewAlbums.adapter = albumsAdapter
+        recyclerViewAlbums.isNestedScrollingEnabled = false // <--- AÑADIR ESTO
 
         // Songs
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         recyclerViewSongs.adapter = songAdapter
+        recyclerViewSongs.isNestedScrollingEnabled = false // <--- AÑADIR ESTO
 
         setupSongClickListeners()
     }
@@ -143,11 +163,10 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         userViewModel = ViewModelProvider(requireActivity())[UserViewModel::class.java]
-
-        // Usamos requireActivity() para que los datos persistan si cambiamos de tab y volvemos
         homeViewModel = ViewModelProvider(requireActivity())[HomeViewModel::class.java]
+        downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
 
-        setupHomeObservers() // Nueva función para organizar mejor el código
+        setupHomeObservers()
         setupOtherObservers()
     }
 
@@ -156,98 +175,63 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         homeViewModel.songs.observe(viewLifecycleOwner) { songs ->
             songAdapter.submitList(songs)
             updateSectionState(false, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
+
+            // Si terminaron de cargar las canciones, paramos el SwipeRefresh
+            if (swipeRefresh.isRefreshing) swipeRefresh.isRefreshing = false
         }
         homeViewModel.songsTitle.observe(viewLifecycleOwner) { title ->
             songsFeaturedTitle.text = title
         }
         homeViewModel.songsLoading.observe(viewLifecycleOwner) { isLoading ->
-            if (isLoading) updateSectionState(
-                true,
-                false,
-                recyclerViewSongs,
-                shimmerSongLayout,
-                layoutErrorSongs
-            )
+            // Solo mostramos Shimmer si NO es un swipe manual (para no tener doble loader)
+            if (isLoading && !swipeRefresh.isRefreshing) {
+                updateSectionState(true, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
+            }
         }
         homeViewModel.songsError.observe(viewLifecycleOwner) { error ->
+            // Si hay error, paramos el swipe
+            if (swipeRefresh.isRefreshing) swipeRefresh.isRefreshing = false
+
             if (error != null) updateSectionState(
-                false,
-                true,
-                recyclerViewSongs,
-                shimmerSongLayout,
-                layoutErrorSongs,
-                tvErrorSongs,
-                error
+                false, true, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs, tvErrorSongs, error
             )
         }
 
         // --- OBSERVAR ARTISTAS ---
         homeViewModel.artists.observe(viewLifecycleOwner) { artists ->
             artistAdapter.submitArtists(artists)
-            updateSectionState(
-                false,
-                false,
-                recyclerViewArtists,
-                shimmerArtistLayout,
-                layoutErrorArtists
-            )
+            updateSectionState(false, false, recyclerViewArtists, shimmerArtistLayout, layoutErrorArtists)
         }
         homeViewModel.artistsTitle.observe(viewLifecycleOwner) { title ->
             songsFeaturedTitleArtists.text = title
         }
         homeViewModel.artistsLoading.observe(viewLifecycleOwner) { isLoading ->
-            if (isLoading) updateSectionState(
-                true,
-                false,
-                recyclerViewArtists,
-                shimmerArtistLayout,
-                layoutErrorArtists
-            )
+            if (isLoading && !swipeRefresh.isRefreshing) {
+                updateSectionState(true, false, recyclerViewArtists, shimmerArtistLayout, layoutErrorArtists)
+            }
         }
         homeViewModel.artistsError.observe(viewLifecycleOwner) { error ->
             if (error != null) updateSectionState(
-                false,
-                true,
-                recyclerViewArtists,
-                shimmerArtistLayout,
-                layoutErrorArtists,
-                tvErrorArtists,
-                error
+                false, true, recyclerViewArtists, shimmerArtistLayout, layoutErrorArtists, tvErrorArtists, error
             )
         }
 
         // --- OBSERVAR ÁLBUMES ---
         homeViewModel.albums.observe(viewLifecycleOwner) { albums ->
             albumsAdapter.updateList(albums)
-            updateSectionState(
-                false,
-                false,
-                recyclerViewAlbums,
-                shimmerAlbumLayout,
-                layoutErrorAlbums
-            )
+            updateSectionState(false, false, recyclerViewAlbums, shimmerAlbumLayout, layoutErrorAlbums)
         }
         homeViewModel.albumsTitle.observe(viewLifecycleOwner) { title ->
             songsFeaturedTitleAlbums.text = title
         }
         homeViewModel.albumsLoading.observe(viewLifecycleOwner) { isLoading ->
-            if (isLoading) updateSectionState(
-                true,
-                false,
-                recyclerViewAlbums,
-                shimmerAlbumLayout,
-                layoutErrorAlbums
-            )
+            if (isLoading && !swipeRefresh.isRefreshing) {
+                updateSectionState(true, false, recyclerViewAlbums, shimmerAlbumLayout, layoutErrorAlbums)
+            }
         }
         homeViewModel.albumsError.observe(viewLifecycleOwner) { error ->
             if (error != null) updateSectionState(
-                false,
-                true,
-                recyclerViewAlbums,
-                shimmerAlbumLayout,
-                layoutErrorAlbums,
-                tvErrorAlbums,
-                error
+                false, true, recyclerViewAlbums, shimmerAlbumLayout, layoutErrorAlbums, tvErrorAlbums, error
             )
         }
     }
@@ -265,9 +249,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
         // Favorites
         favoritesViewModel.loadFavoriteSongs()
-        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val songIds =
-                favorites.filterIsInstance<FavoriteItem.SongItem>().map { it.song.id }.toSet()
+        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
             if (songAdapter.currentList.isNotEmpty()) {
                 songAdapter.notifyDataSetChanged()
@@ -306,22 +288,21 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                     song = song,
                     onSeeSongClick = { selectedSong ->
                         val bundle = Bundle().apply { putParcelable("song", selectedSong) }
-                        findNavController().navigate(
-                            R.id.action_homeFragment_to_detailedSongFragment,
-                            bundle
-                        )
+                        findNavController().navigate(R.id.action_homeFragment_to_detailedSongFragment, bundle)
                     },
-                    onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(
-                            toggledSong
-                        )
-                    },
+                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
                     onAddToPlaylistClick = { songToAdd ->
                         val sheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
                             onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
                         )
                         sheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                    },
+                    onDownloadClick = { songToDownload ->
+                        downloadViewModel.downloadSong(songToDownload)
+                    },
+                    onRemoveDownloadClick = { songToDelete ->
+                        downloadViewModel.deleteSong(songToDelete)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -334,30 +315,25 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         isError: Boolean,
         recyclerView: RecyclerView,
         shimmer: ShimmerFrameLayout,
-        errorView: View? = null,        // El contenedor del error (LinearLayout)
-        errorMessageView: TextView? = null, // El TextView del error
-        message: String = ""            // El mensaje a mostrar
+        errorView: View? = null,
+        errorMessageView: TextView? = null,
+        message: String = ""
     ) {
         if (isLoading) {
-            // ESTADO: CARGANDO
             recyclerView.visibility = View.INVISIBLE
             errorView?.visibility = View.GONE
             shimmer.visibility = View.VISIBLE
             shimmer.startShimmer()
         } else if (isError) {
-            // ESTADO: ERROR
             shimmer.stopShimmer()
             shimmer.visibility = View.GONE
             recyclerView.visibility = View.GONE
-
             errorView?.visibility = View.VISIBLE
             errorMessageView?.text = message
         } else {
-            // ESTADO: ÉXITO (Mostrar contenido)
             shimmer.stopShimmer()
             shimmer.visibility = View.GONE
             errorView?.visibility = View.GONE
-
             recyclerView.visibility = View.VISIBLE
         }
     }

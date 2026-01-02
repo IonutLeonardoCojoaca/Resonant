@@ -63,16 +63,29 @@
                     android:maxLines="1"
                     android:ellipsize="end"/>
 
+                <ImageView
+                    android:id="@+id/downloadedIcon"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_below="@id/songTitle"
+                    android:layout_alignParentStart="true"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginEnd="6dp"
+                    android:src="@drawable/ic_download_done"
+                    android:visibility="gone"
+                    app:tint="@color/secondaryColorTheme" />
+
                 <TextView
                     android:id="@+id/songStreams"
                     android:layout_width="match_parent"
                     android:layout_height="18dp"
+                    android:layout_below="@id/songTitle"
+                    android:layout_toEndOf="@id/downloadedIcon"
                     android:layout_toLeftOf="@id/likeButton"
                     android:textColor="#BDBDBD"
                     android:text="0 reproducciones"
                     android:textSize="12sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:layout_below="@id/songTitle"/>
+                    android:fontFamily="@font/unageo_medium" />
 
                 <ImageButton
                     android:id="@+id/likeButton"

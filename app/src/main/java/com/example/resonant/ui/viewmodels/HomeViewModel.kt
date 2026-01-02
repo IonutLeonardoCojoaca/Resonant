@@ -15,10 +15,16 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Instancias de Managers
     private val songManager = SongManager(application)
-    // Asumiendo que has convertido ArtistManager y AlbumManager en 'object' (Singleton)
-    // Si no, usa: private val artistManager = ArtistManager(application)
+
+    // --- CONFIGURACIÓN DE EXPIRACIÓN ---
+    // 15 minutos en milisegundos. Ajusta esto según cuánto duren tus URLs firmadas.
+    // Si tus URLs duran 1 hora, ponlo en 45 minutos.
+    private val DATA_EXPIRATION_TIME = 15 * 60 * 1000L
+
+    private var lastSongsFetchTime: Long = 0
+    private var lastArtistsFetchTime: Long = 0
+    private var lastAlbumsFetchTime: Long = 0
 
     // --- SECCIÓN CANCIONES ---
     private val _songs = MutableLiveData<List<Song>>()
@@ -51,81 +57,107 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val albumsError: LiveData<String?> get() = _albumsError
 
 
-    // --- FUNCIONES DE CARGA ---
+    // --- FUNCIONES DE CARGA ROBUSTAS ---
 
-    fun loadSongs(userId: String) {
-        // CACHÉ: Si ya hay canciones cargadas, no hacemos nada
-        if (_songs.value != null) return
+    // Añadimos el parámetro 'forceRefresh' para permitir al usuario recargar manualmente (SwipeToRefresh)
+    fun loadSongs(userId: String, forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastSongsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _songs.value != null
 
-        _songsLoading.value = true
+        // LÓGICA CLAVE: Si hay datos, NO es forzado y NO han expirado, no hacemos nada.
+        if (hasData && !forceRefresh && !isExpired) return
+
+        // Si ya tenemos datos pero han expirado, recargamos en "silencio" (sin loading a pantalla completa)
+        // a menos que sea la primera carga o no tengamos datos.
+        val showLoading = !hasData
+
+        if (showLoading) _songsLoading.value = true
         _songsError.value = null
 
         viewModelScope.launch {
             try {
-                // Llamada al Manager
-                val result = songManager.getRecommendedSongs(userId, count = 7)
+                val result = songManager.getRecommendedSongs(userId, count = 25)
 
                 if (result != null && result.items.isNotEmpty()) {
-                    _songsTitle.value = result.title
+                    _songsTitle.value = result.title ?: "Recomendado para ti"
                     _songs.value = result.items
+                    // Actualizamos el tiempo SOLO si fue exitoso
+                    lastSongsFetchTime = System.currentTimeMillis()
                 } else {
-                    _songsError.value = "No se encontraron canciones"
+                    // Si falla y no teníamos nada, mostramos error. Si teníamos algo viejo, lo mantenemos.
+                    if (!hasData) _songsError.value = "No se encontraron canciones"
                 }
             } catch (e: Exception) {
-                _songsError.value = "Error de conexión"
+                if (!hasData) _songsError.value = "Error de conexión"
             } finally {
                 _songsLoading.value = false
             }
         }
     }
 
-    fun loadArtists(userId: String) {
-        if (_artists.value != null) return // CACHÉ
+    fun loadArtists(userId: String, forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastArtistsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _artists.value != null
 
-        _artistsLoading.value = true
+        if (hasData && !forceRefresh && !isExpired) return
+
+        val showLoading = !hasData
+        if (showLoading) _artistsLoading.value = true
         _artistsError.value = null
 
         viewModelScope.launch {
             try {
-                // Usamos el Manager Singleton o instanciado
                 val result = ArtistManager.getRecommendedArtists(getApplication(), userId, count = 6)
-
                 if (result != null && result.items.isNotEmpty()) {
-                    _artistsTitle.value = result.title
+                    _artistsTitle.value = result.title ?: "Recomendado para ti"
                     _artists.value = result.items
+                    lastArtistsFetchTime = System.currentTimeMillis()
                 } else {
-                    _artistsError.value = "No se encontraron artistas"
+                    if (!hasData) _artistsError.value = "No se encontraron artistas"
                 }
             } catch (e: Exception) {
-                _artistsError.value = "Error al cargar artistas"
+                if (!hasData) _artistsError.value = "Error al cargar artistas"
             } finally {
                 _artistsLoading.value = false
             }
         }
     }
 
-    fun loadAlbums(userId: String) {
-        if (_albums.value != null) return // CACHÉ
+    fun loadAlbums(userId: String, forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastAlbumsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _albums.value != null
 
-        _albumsLoading.value = true
+        if (hasData && !forceRefresh && !isExpired) return
+
+        val showLoading = !hasData
+        if (showLoading) _albumsLoading.value = true
         _albumsError.value = null
 
         viewModelScope.launch {
             try {
-                // Suponiendo que AlbumManager es similar a ArtistManager
                 val result = AlbumManager.getRecommendedAlbums(getApplication(), userId, count = 3)
-
                 if (result != null && result.items.isNotEmpty()) {
                     _albumsTitle.value = result.title
                     _albums.value = result.items
+                    lastAlbumsFetchTime = System.currentTimeMillis()
                 } else {
-                    _albumsError.value = "No se encontraron álbumes"
+                    if (!hasData) _albumsError.value = "No se encontraron álbumes"
                 }
             } catch (e: Exception) {
-                _albumsError.value = "Error al cargar álbumes"
+                if (!hasData) _albumsError.value = "Error al cargar álbumes"
             } finally {
                 _albumsLoading.value = false
             }
         }
+    }
+
+    // Función auxiliar para refrescar todo de golpe (útil para SwipeRefreshLayout)
+    fun refreshAll(userId: String) {
+        loadSongs(userId, forceRefresh = true)
+        loadArtists(userId, forceRefresh = true)
+        loadAlbums(userId, forceRefresh = true)
     }
 }

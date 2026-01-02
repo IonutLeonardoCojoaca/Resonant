@@ -16,35 +16,38 @@ import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
-import com.example.resonant.utils.AnimationsUtils
-import com.example.resonant.data.models.DataType
-import com.example.resonant.playback.QueueSource
 import com.example.resonant.R
-import com.example.resonant.ui.adapters.SearchResult
-import com.example.resonant.ui.adapters.SearchResultAdapter
-import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
-import com.example.resonant.ui.viewmodels.SongViewModel
-import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
-import com.example.resonant.ui.adapters.SuggestionAdapter
-import com.example.resonant.data.models.SuggestionItem
-import com.example.resonant.utils.Utils
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
+import com.example.resonant.data.models.DataType
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.models.SuggestionItem
 import com.example.resonant.data.network.ApiClient
-import com.example.resonant.managers.SongManager
-import com.example.resonant.services.MusicPlaybackService
-import com.example.resonant.ui.viewmodels.FavoriteItem
-import com.example.resonant.ui.viewmodels.FavoritesViewModel
-import com.google.android.material.chip.Chip
-// Importamos los servicios específicos
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.StorageService
+import com.example.resonant.managers.SearchHistoryManager
+import com.example.resonant.managers.SongManager
+import com.example.resonant.playback.QueueSource
+import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.adapters.SearchHistoryAdapter
+import com.example.resonant.ui.adapters.SearchResult
+import com.example.resonant.ui.adapters.SearchResultAdapter
+import com.example.resonant.ui.adapters.SuggestionAdapter
+import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
+import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.viewmodels.DownloadViewModel
+import com.example.resonant.ui.viewmodels.FavoritesViewModel
+import com.example.resonant.ui.viewmodels.SongViewModel
+import com.example.resonant.utils.AnimationsUtils
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.utils.Utils
+import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -69,6 +72,10 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
     private lateinit var suggestionAdapter: SuggestionAdapter
     private lateinit var suggestionsRecyclerView: RecyclerView
 
+    private lateinit var searchHistoryManager: SearchHistoryManager
+    private lateinit var historyAdapter: SearchHistoryAdapter
+    private lateinit var historyRecyclerView: RecyclerView
+
     private lateinit var chipSongs: Chip
     private lateinit var chipAlbums: Chip
     private lateinit var chipArtists: Chip
@@ -83,11 +90,12 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private var lastResults: List<SearchResult> = emptyList()
 
-    // --- 1. SERVICIOS Y MANAGER ---
     private lateinit var albumService: AlbumService
     private lateinit var artistService: ArtistService
     private lateinit var storageService: StorageService
     private lateinit var songManager: SongManager
+
+    private lateinit var downloadViewModel: DownloadViewModel
 
     override fun onResume() {
         super.onResume()
@@ -102,12 +110,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_search, container, false)
 
-        // --- 2. INICIALIZACIÓN DE DEPENDENCIAS ---
         val context = requireContext()
         albumService = ApiClient.getAlbumService(context)
         artistService = ApiClient.getArtistService(context)
         storageService = ApiClient.getStorageService(context)
-        songManager = SongManager(context) // Instancia
+        songManager = SongManager(context)
+
+        searchHistoryManager = SearchHistoryManager(requireContext())
 
         chipSongs = view.findViewById(R.id.chipSongs)
         chipSongs.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
@@ -121,14 +130,34 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         resultsRecyclerView.layoutManager = LinearLayoutManager(context)
         searchResultAdapter = SearchResultAdapter()
         resultsRecyclerView.adapter = searchResultAdapter
+
         editTextQuery = view.findViewById(R.id.editTextQuery)
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         userProfileImage = view.findViewById(R.id.userProfile)
         Utils.loadUserProfile(requireContext(), userProfileImage)
 
+        // --- SETUP HISTORIAL ---
+        historyRecyclerView = view.findViewById(R.id.historyRecyclerView)
+        historyRecyclerView.layoutManager = LinearLayoutManager(context)
+        historyAdapter = SearchHistoryAdapter(
+            onItemClick = { query ->
+                searchHistoryManager.addSearch(query)
+                editTextQuery?.setText(query)
+                editTextQuery?.setSelection(query.length)
+            },
+            onDeleteClick = { query ->
+                searchHistoryManager.removeSearch(query)
+                loadHistory()
+            }
+        )
+        historyRecyclerView.adapter = historyAdapter
+
+        // --- SETUP SUGERENCIAS ---
         suggestionsRecyclerView = view.findViewById(R.id.suggestionsRecyclerView)
         suggestionAdapter = SuggestionAdapter { suggestion ->
+            // Guardamos historial al clickar sugerencia
+            searchHistoryManager.addSearch(suggestion.text)
             editTextQuery?.setText(suggestion.text)
             editTextQuery?.setSelection(suggestion.text.length)
         }
@@ -151,6 +180,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         chipAlbums.isChecked = showAlbums
         chipArtists.isChecked = showArtists
 
+        // --- RESTAURAR ESTADO ---
         val restoredQuery = savedInstanceState?.getString("query")
         val restoredResults = savedInstanceState?.getParcelableArrayList<SearchResult>("results")
         if (!restoredQuery.isNullOrBlank() && !restoredResults.isNullOrEmpty()) {
@@ -175,6 +205,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
             restoringState = false
         }
 
+        // --- LISTENERS CHIPS ---
         chipSongs.setOnCheckedChangeListener { chip, isChecked ->
             showSongs = isChecked
             updateFilteredResults()
@@ -196,7 +227,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         var currentHomeQueueId: String = System.currentTimeMillis().toString()
 
+        // --- LISTENERS ADAPTER RESULTADOS ---
+
+        // 1. CLIC EN CANCIÓN
         searchResultAdapter.onSongClick = { (song, bitmap) ->
+            // Guardamos historial
+            searchHistoryManager.addSearch(song.title)
+
             val currentIndex = songResults.indexOfFirst { it.id == song.id }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songResults)
@@ -210,18 +247,46 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.SEARCH)
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
             }
-
             requireContext().startService(playIntent)
+        }
+
+        // 2. CLIC EN ÁLBUM (Implementado en Fragment para guardar historial)
+        searchResultAdapter.onAlbumClick = { album ->
+            // Guardamos historial
+            searchHistoryManager.addSearch(album.title ?: "")
+
+            // Navegamos
+            val bundle = Bundle().apply { putString("albumId", album.id) }
+            findNavController().navigate(R.id.action_searchFragment_to_albumFragment, bundle)
+        }
+
+        // 3. CLIC EN ARTISTA (Implementado en Fragment para guardar historial)
+        searchResultAdapter.onArtistClick = { artist, imageView ->
+            // Guardamos historial
+            searchHistoryManager.addSearch(artist.name)
+
+            // Navegamos con animación
+            val bundle = Bundle().apply {
+                putString("artistId", artist.id)
+                putString("artistName", artist.name)
+                putString("artistImageUrl", artist.url)
+                putString("artistImageTransitionName", imageView.transitionName)
+            }
+            val extras = FragmentNavigatorExtras(imageView to imageView.transitionName)
+            findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle, null, extras)
+        }
+
+        downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
+        lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                searchResultAdapter.downloadedSongIds = downloadedIds
+            }
         }
 
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         favoritesViewModel.loadFavoriteSongs()
 
-        favoritesViewModel.favorites.observe(viewLifecycleOwner) { favorites ->
-            val songIds = favorites
-                .filterIsInstance<FavoriteItem.SongItem>()
-                .map { it.song.id }
-                .toSet()
+        favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             searchResultAdapter.favoriteSongIds = songIds
         }
 
@@ -231,41 +296,35 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         searchResultAdapter.onSettingsClick = { song ->
             lifecycleScope.launch {
-                // Usamos ArtistService para obtener detalles
                 val artistList = artistService.getArtistsBySongId(song.id)
                 song.artistName = artistList.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
                     song = song,
                     onSeeSongClick = { selectedSong ->
-                        val bundle = Bundle().apply {
-                            putParcelable("song", selectedSong)
-                        }
-                        findNavController().navigate(
-                            R.id.action_searchFragment_to_detailedSongFragment,
-                            bundle
-                        )
+                        val bundle = Bundle().apply { putParcelable("song", selectedSong) }
+                        findNavController().navigate(R.id.action_searchFragment_to_detailedSongFragment, bundle)
                     },
-                    onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(toggledSong)
-                    },
+                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
                     onAddToPlaylistClick = { songToAdd ->
                         val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
-                            onNoPlaylistsFound = {
-                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
-                            }
+                            onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
                         )
-                        selectPlaylistBottomSheet.show(
-                            parentFragmentManager,
-                            "SelectPlaylistBottomSheet"
-                        )
+                        selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                    },
+                    onDownloadClick = { songToDownload ->
+                        downloadViewModel.downloadSong(songToDownload)
+                    },
+                    onRemoveDownloadClick = { songToDelete ->
+                        downloadViewModel.deleteSong(songToDelete)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
 
+        // --- TEXT WATCHER ---
         editTextQuery?.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 if (restoringState) return
@@ -278,7 +337,11 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     artistResults.clear()
                     loadingAnimation.visibility = View.INVISIBLE
                     resultsRecyclerView.visibility = View.INVISIBLE
+                    suggestionsRecyclerView.visibility = View.GONE
                     noSongsFounded.visibility = View.GONE
+
+                    // Mostrar historial si está vacío
+                    loadHistory()
                 }
             }
 
@@ -288,8 +351,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 if (restoringState) return
 
                 val query = newText?.toString()?.trim().orEmpty()
-                searchJob?.cancel()
 
+                // Ocultar historial al escribir
+                if (query.isNotEmpty()) {
+                    historyRecyclerView.visibility = View.GONE
+                }
+
+                searchJob?.cancel()
                 if (query.isEmpty()) return
 
                 noSongsFounded.visibility = View.GONE
@@ -322,8 +390,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
                         albums.forEach { album ->
                             val albumArtists = artistService.getArtistsByAlbumId(album.id)
-                            album.artistName =
-                                albumArtists.joinToString(", ") { it.name }
+                            album.artistName = albumArtists.joinToString(", ") { it.name }
                         }
 
                         val combinedResults = intercalateAndSortResults(songs, albums, artists, query)
@@ -344,14 +411,12 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                                 noSongsFounded.visibility = View.GONE
                                 searchResultAdapter.submitList(finalList)
                             }
-
                             combinedSuggestions.isNotEmpty() -> {
                                 resultsRecyclerView.visibility = View.GONE
                                 suggestionsRecyclerView.visibility = View.VISIBLE
                                 noSongsFounded.visibility = View.GONE
                                 suggestionAdapter.submitList(combinedSuggestions)
                             }
-
                             else -> {
                                 resultsRecyclerView.visibility = View.GONE
                                 suggestionsRecyclerView.visibility = View.GONE
@@ -372,107 +437,72 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
             }
         })
 
+        // Carga inicial del historial
+        if (editTextQuery?.text.isNullOrBlank()) {
+            loadHistory()
+        }
+
         return view
     }
 
-    // ... (Resto de métodos intercalateAndSortResults, intercalateAndSortSuggestions, etc. IGUALES) ...
+    private fun loadHistory() {
+        val list = searchHistoryManager.getHistory()
+        // historyAdapter ahora espera List<HistoryItem>, así que esto funciona directo:
+        if (list.isNotEmpty()) {
+            historyAdapter.submitList(list)
+            historyRecyclerView.visibility = View.VISIBLE
+        } else {
+            historyRecyclerView.visibility = View.GONE
+        }
+    }
 
-    private fun intercalateAndSortResults(
-        songs: List<Song>,
-        albums: List<Album>,
-        artists: List<Artist>,
-        query: String
-    ): List<SearchResult> {
+    // ... (Tus funciones de ordenamiento e intercalado se mantienen igual) ...
+    private fun intercalateAndSortResults(songs: List<Song>, albums: List<Album>, artists: List<Artist>, query: String): List<SearchResult> {
         val lowerQuery = query.lowercase()
-
-        // Ordenar por relevancia por tipo
         val sortedSongs = songs.sortedByDescending { song ->
-            val t = song.title.lowercase()
-            val a = song.artistName?.lowercase()
-            when {
-                t == lowerQuery -> 40
-                a == lowerQuery -> 35
-                t.contains(lowerQuery) -> 30
-                a?.contains(lowerQuery) == true -> 20
-                else -> 0
-            }
+            val t = song.title.lowercase(); val a = song.artistName?.lowercase()
+            when { t == lowerQuery -> 40; a == lowerQuery -> 35; t.contains(lowerQuery) -> 30; a?.contains(lowerQuery) == true -> 20; else -> 0 }
         }.map { SearchResult.SongItem(it) }
-
         val sortedAlbums = albums.sortedByDescending { album ->
             val t = album.title?.lowercase()
-            when {
-                t == lowerQuery -> 70
-                t?.startsWith(lowerQuery) == true -> 60
-                t?.contains(lowerQuery) == true -> 50
-                else -> 0
-            }
+            when { t == lowerQuery -> 70; t?.startsWith(lowerQuery) == true -> 60; t?.contains(lowerQuery) == true -> 50; else -> 0 }
         }.map { SearchResult.AlbumItem(it) }
-
         val sortedArtists = artists.sortedByDescending { artist ->
             val n = artist.name.lowercase()
-            when {
-                n == lowerQuery -> 100
-                n.startsWith(lowerQuery) -> 90
-                n.contains(lowerQuery) -> 80
-                else -> 0
-            }
+            when { n == lowerQuery -> 100; n.startsWith(lowerQuery) -> 90; n.contains(lowerQuery) -> 80; else -> 0 }
         }.map { SearchResult.ArtistItem(it) }
 
-        // Intercalado round-robin
         val lists = mutableListOf(sortedArtists, sortedSongs, sortedAlbums)
         val combined = mutableListOf<SearchResult>()
         while (lists.any { it.isNotEmpty() }) {
             lists.forEachIndexed { index, list ->
-                if (list.isNotEmpty()) {
-                    combined.add(list.first())
-                    lists[index] = list.drop(1)
-                }
+                if (list.isNotEmpty()) { combined.add(list.first()); lists[index] = list.drop(1) }
             }
         }
         return combined
     }
 
-    private fun intercalateAndSortSuggestions(
-        songSuggestions: List<String>,
-        albumSuggestions: List<String>,
-        artistSuggestions: List<String>,
-        query: String
-    ): List<SuggestionItem> {
+    private fun intercalateAndSortSuggestions(songSuggestions: List<String>, albumSuggestions: List<String>, artistSuggestions: List<String>, query: String): List<SuggestionItem> {
         val lowerQuery = query.lowercase()
-
         fun scoreSuggestion(text: String, baseWeight: Int): Int {
             val t = text.lowercase()
-            return when {
-                t == lowerQuery -> baseWeight + 100
-                t.startsWith(lowerQuery) -> baseWeight + 80
-                t.contains(lowerQuery) -> baseWeight + 60
-                else -> baseWeight
-            }
+            return when { t == lowerQuery -> baseWeight + 100; t.startsWith(lowerQuery) -> baseWeight + 80; t.contains(lowerQuery) -> baseWeight + 60; else -> baseWeight }
         }
-
         val scoredSongs = songSuggestions.map { SuggestionItem(it, DataType.SONG) to scoreSuggestion(it, 40) }
         val scoredAlbums = albumSuggestions.map { SuggestionItem(it, DataType.ALBUM) to scoreSuggestion(it, 60) }
         val scoredArtists = artistSuggestions.map { SuggestionItem(it, DataType.ARTIST) to scoreSuggestion(it, 80) }
-
         val sortedSongs = scoredSongs.sortedByDescending { it.second }.map { it.first }
         val sortedAlbums = scoredAlbums.sortedByDescending { it.second }.map { it.first }
         val sortedArtists = scoredArtists.sortedByDescending { it.second }.map { it.first }
-
         val lists = mutableListOf(sortedArtists, sortedSongs, sortedAlbums)
         val combined = mutableListOf<SuggestionItem>()
-
         while (lists.any { it.isNotEmpty() }) {
             lists.forEachIndexed { index, list ->
-                if (list.isNotEmpty()) {
-                    combined.add(list.first())
-                    lists[index] = list.drop(1)
-                }
+                if (list.isNotEmpty()) { combined.add(list.first()); lists[index] = list.drop(1) }
             }
         }
-
         return combined.distinctBy { it.text }
     }
-
 
     private fun applyActiveFilters(results: List<SearchResult>): List<SearchResult> {
         return results.filter { item ->
@@ -494,11 +524,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private fun updateAdapterList(list: List<SearchResult>) {
         searchResultAdapter.submitList(list)
-        songViewModel.currentSongLiveData.value?.let { currentSong ->
-            searchResultAdapter.setCurrentPlayingSong(currentSong.id)
-        }
-
-        // Actualiza la visibilidad de los elementos de la UI
+        songViewModel.currentSongLiveData.value?.let { currentSong -> searchResultAdapter.setCurrentPlayingSong(currentSong.id) }
         val resultsAreEmpty = list.isEmpty()
         noSongsFounded.visibility = if (resultsAreEmpty && editTextQuery?.text?.isNotEmpty() == true) View.VISIBLE else View.GONE
         resultsRecyclerView.visibility = if (!resultsAreEmpty) View.VISIBLE else View.INVISIBLE
@@ -507,13 +533,10 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        view?.let {
-            outState.putString("query", editTextQuery?.text?.toString() ?: "")
-        }
+        view?.let { outState.putString("query", editTextQuery?.text?.toString() ?: "") }
         outState.putParcelableArrayList("results", ArrayList(lastResults))
         outState.putBoolean("showSongs", showSongs)
         outState.putBoolean("showAlbums", showAlbums)
         outState.putBoolean("showArtists", showArtists)
     }
-
 }

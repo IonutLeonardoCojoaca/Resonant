@@ -65,7 +65,7 @@
             android:id="@+id/inputSearchContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
+            android:paddingHorizontal="10dp"
             android:paddingVertical="10dp">
 
             <com.google.android.material.textfield.TextInputLayout
@@ -81,14 +81,14 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:startIconDrawable="@drawable/ic_search"
-                app:startIconTint="@color/white">
+                app:startIconTint="#AAAAAA">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/editTextQuery"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:fontFamily="@font/unageo_medium"
-                    android:hint="Canción, artista, álbum . . ."
+                    android:hint="Busca canciones, artistas, álbumes . . ."
                     android:imeOptions="actionSearch"
                     android:inputType="text"
                     android:maxLines="1"
@@ -111,7 +111,7 @@
             android:layout_below="@id/inputSearchContainer"
             android:layout_marginHorizontal="5dp"
             android:overScrollMode="never"
-            android:paddingHorizontal="15dp"
+            android:paddingHorizontal="10dp"
             android:scrollbars="none">
 
             <LinearLayout
@@ -182,10 +182,10 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_below="@id/inputSearchContainer"
-            android:paddingHorizontal="10dp">
+            android:paddingHorizontal="5dp">
 
             <View
-                android:layout_width="40dp"
+                android:layout_width="30dp"
                 android:layout_height="match_parent"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
@@ -204,6 +204,15 @@
             app:layout_constraintTop_toBottomOf="@id/filterContainer">
 
             <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/historyRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingHorizontal="14dp"
+                android:paddingBottom="160dp"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/suggestionsRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -219,7 +228,7 @@
                 android:clipToPadding="false"
                 android:fadeScrollbars="false"
                 android:nestedScrollingEnabled="false"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="5dp"
                 android:paddingBottom="160dp"
                 android:scrollbarThumbVertical="@drawable/bg_scrollbar_thumb"
                 android:scrollbars="vertical"

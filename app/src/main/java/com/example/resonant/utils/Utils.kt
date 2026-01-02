@@ -20,7 +20,10 @@ object Utils {
     fun formatTime(millis: Int): String {
         val seconds = (millis / 1000) % 60
         val minutes = (millis / 1000) / 60
-        return String.format("%02d:%02d", minutes, seconds)
+        if (minutes < 10 && seconds < 10) return "0$minutes:0$seconds"
+        if (minutes < 10) return "0$minutes:$seconds"
+        if (seconds < 10) return "$minutes:0$seconds"
+        return "$minutes:$seconds"
     }
 
     fun saveBitmapToCache(context: Context, bitmap: Bitmap, songId: String): String {

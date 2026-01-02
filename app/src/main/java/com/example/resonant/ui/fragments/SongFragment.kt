@@ -38,6 +38,7 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import kotlinx.coroutines.launch
@@ -64,6 +65,8 @@ class SongFragment : DialogFragment() {
     private var isPlaying : Boolean = false
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var favoriteButton: ImageButton
+
+    private lateinit var downloadViewModel: DownloadViewModel
 
     lateinit var bottomSheet: SongOptionsBottomSheet
 
@@ -140,6 +143,16 @@ class SongFragment : DialogFragment() {
         songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
+        downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
+        lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                songAdapter.downloadedSongIds = downloadedIds
+                if (songAdapter.currentList.isNotEmpty()) {
+                    songAdapter.notifyDataSetChanged()
+                }
+            }
+        }
+
         setupViewModelObservers()
 
         val blurEffect = RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP)
@@ -211,6 +224,12 @@ class SongFragment : DialogFragment() {
                                 parentFragmentManager,
                                 "SelectPlaylistBottomSheet"
                             )
+                        },
+                        onDownloadClick = { songToDownload ->
+                            downloadViewModel.downloadSong(songToDownload)
+                        },
+                        onRemoveDownloadClick = { songToDelete ->
+                            downloadViewModel.deleteSong(songToDelete)
                         }
                     )
                     bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")

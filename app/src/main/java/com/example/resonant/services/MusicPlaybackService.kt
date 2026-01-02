@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
@@ -38,6 +39,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class MusicPlaybackService : Service(), PlayerController {
 
@@ -530,7 +532,41 @@ class MusicPlaybackService : Service(), PlayerController {
         PlaybackStateRepository.setCurrentSong(songToPlay)
         loadArtworkForSong(songToPlay)
 
-        val mediaItems = queue.songs.map { MediaItem.fromUri(it.url ?: "") }
+        val url = songToPlay.url ?: ""
+        if (!url.startsWith("http")) {
+            val file = java.io.File(url)
+            if (file.exists()) {
+                Log.e("MusicService", "📁 DATOS DEL ARCHIVO LOCAL:")
+                Log.e("MusicService", "   Ruta: ${file.absolutePath}")
+                Log.e("MusicService", "   Tamaño: ${file.length()} bytes") // <--- ¿Es muy pequeño?
+
+                // Leemos los primeros 50 caracteres para ver si es un error HTML/JSON
+                try {
+                    val header = file.inputStream().use { input ->
+                        val buffer = ByteArray(50)
+                        input.read(buffer)
+                        String(buffer)
+                    }
+                    Log.e("MusicService", "   Cabecera (Texto): $header")
+                } catch (e: Exception) {
+                    Log.e("MusicService", "   No se pudo leer la cabecera.")
+                }
+            } else {
+                Log.e("MusicService", "❌ EL ARCHIVO NO EXISTE FÍSICAMENTE")
+            }
+        }
+
+        // 🔥 CORRECCIÓN AQUÍ: Detectar si es archivo local o URL web
+        val mediaItems = queue.songs.map { song ->
+            val url = song.url ?: ""
+            val uri = if (url.startsWith("http") || url.startsWith("https")) {
+                Uri.parse(url) // Streaming
+            } else {
+                Uri.fromFile(File(url)) // Local (añade file://)
+            }
+            MediaItem.fromUri(uri)
+        }
+
         exoPlayer?.setMediaItems(mediaItems, queue.currentIndex, 0L)
         exoPlayer?.prepare()
         exoPlayer?.play()
@@ -549,7 +585,17 @@ class MusicPlaybackService : Service(), PlayerController {
         val queue = PlaybackStateRepository.activeQueue ?: return
         val player = exoPlayer ?: return
 
-        val newMediaItems = queue.songs.map { MediaItem.fromUri(it.url ?: "") }
+        // 🔥 CORRECCIÓN AQUÍ TAMBIÉN
+        val newMediaItems = queue.songs.map { song ->
+            val url = song.url ?: ""
+            val uri = if (url.startsWith("http") || url.startsWith("https")) {
+                Uri.parse(url)
+            } else {
+                Uri.fromFile(File(url))
+            }
+            MediaItem.fromUri(uri)
+        }
+
         val newIndex = queue.currentIndex
 
         val currentPosition = if (player.currentMediaItemIndex == newIndex) player.currentPosition else 0L

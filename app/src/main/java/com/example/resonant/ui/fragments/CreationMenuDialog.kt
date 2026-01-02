@@ -7,7 +7,6 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -29,6 +28,19 @@ class CreationMenuDialog : DialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // 1. CERRAR AL TOCAR EL FONDO OSCURO
+        // El ID 'viewBackground' debe estar en tu XML raíz (ver abajo)
+        view.findViewById<View>(R.id.viewBackground).setOnClickListener {
+            dismiss()
+        }
+
+        // 2. EVITAR QUE EL CLIC EN LA TARJETA CIERRE EL DIÁLOGO
+        view.findViewById<View>(R.id.cardContent).setOnClickListener {
+            // Consumimos el evento
+        }
+
+        // Tu botón de acción
         view.findViewById<LinearLayout>(R.id.optionCreatePlaylist).setOnClickListener {
             dismiss()
             findNavController().navigate(R.id.createPlaylistFragment)
@@ -39,49 +51,42 @@ class CreationMenuDialog : DialogFragment() {
         super.onStart()
         val window = dialog?.window ?: return
         val params = window.attributes
+        val view = view ?: return
 
-        // --- 1. LÓGICA DE POSICIONAMIENTO (Igual que antes) ---
+        // --- 1. OBTENER ALTURA SEGURA DEL NAV ---
         val density = Resources.getSystem().displayMetrics.density
         val bottomNav = requireActivity().findViewById<View>(R.id.bottom_navigation)
 
-        // Altura del nav o fallback
+        // Si bottomNav.height es 0 (común), usamos 80dp como fallback estándar
         val navHeight = if (bottomNav != null && bottomNav.height > 0) {
             bottomNav.height
         } else {
             (80 * density).toInt()
         }
 
-        // Margen estético
-        val margin = (density).toInt()
+        // --- 2. APLICAR MARGEN VISUAL AL CONTENIDO ---
+        // Esto fuerza a tu tarjeta a subir, independientemente de la ventana
+        val menuContainer = view.findViewById<View>(R.id.menuContainer) // El LinearLayout que envuelve la Card
+        val layoutParams = menuContainer.layoutParams as ViewGroup.MarginLayoutParams
+        // Mantenemos el padding que pusiste en XML (12dp) y LE SUMAMOS la altura del nav
+        layoutParams.bottomMargin = navHeight
+        menuContainer.layoutParams = layoutParams
 
-        params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        // --- 3. CONFIGURACIÓN DE LA VENTANA (PARA LOS CLICS) ---
+        params.gravity = Gravity.BOTTOM
         params.width = WindowManager.LayoutParams.MATCH_PARENT
-        params.y = navHeight + margin
-        // -------------------------------------------------------
+        params.height = WindowManager.LayoutParams.MATCH_PARENT
 
-        // --- 2. CONFIGURACIÓN DE INTERACCIÓN Y CIERRE ---
+        // IMPORTANTE:
+        // Aunque hemos subido la vista visualmente con margin,
+        // también subimos la ventana lógica para liberar los clics del BottomNav.
+        params.y = navHeight
 
-        // Quitamos la oscuridad del fondo
+        // Quitamos la sombra del sistema (usaremos la nuestra del XML)
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
 
-        // Permitimos que los clics pasen a la actividad de fondo (BottomNav)
+        // Permitimos clics en lo que quede "fuera" de la ventana (el BottomNav)
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-
-        // Pedimos al sistema que nos avise si tocan fuera
-        window.addFlags(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
-
-        // Detectamos ese aviso "fuera" para cerrar el diálogo
-        window.decorView.setOnTouchListener { v, event ->
-            if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                dismiss()
-                true // Consumimos el evento del listener (no el del sistema)
-            } else {
-                // Si tocan DENTRO del diálogo, dejamos que el sistema lo maneje normal
-                // (para que funcionen tus botones internos como 'Crear Playlist')
-                v.performClick() // Buena práctica para accesibilidad
-                false
-            }
-        }
 
         window.attributes = params
         window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -89,7 +94,6 @@ class CreationMenuDialog : DialogFragment() {
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        // Esto se ejecutará tanto si pulsas la opción como si pulsas fuera (en la X)
         onDismissListener?.invoke()
     }
 }

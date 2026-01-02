@@ -11,20 +11,21 @@ import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Song
 import kotlinx.coroutines.launch
 
-sealed class FavoriteItem {
-    data class SongItem(val song: Song) : FavoriteItem()
-    data class ArtistItem(val artist: Artist) : FavoriteItem()
-    data class AlbumItem(val album: Album) : FavoriteItem()
-}
-
 class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
 
-    // Instancia del Manager
     private val repo = FavoriteManager(app.applicationContext)
 
-    private val _favorites = MutableLiveData<List<FavoriteItem>>(emptyList())
-    val favorites: LiveData<List<FavoriteItem>> get() = _favorites
+    // --- LiveData ---
+    private val _favoriteSongs = MutableLiveData<List<Song>>(emptyList())
+    val favoriteSongs: LiveData<List<Song>> get() = _favoriteSongs
 
+    private val _favoriteArtists = MutableLiveData<List<Artist>>(emptyList())
+    val favoriteArtists: LiveData<List<Artist>> get() = _favoriteArtists
+
+    private val _favoriteAlbums = MutableLiveData<List<Album>>(emptyList())
+    val favoriteAlbums: LiveData<List<Album>> get() = _favoriteAlbums
+
+    // --- IDs para chequeo rápido ---
     private val _favoriteArtistIds = MutableLiveData<Set<String>>(emptySet())
     val favoriteArtistIds: LiveData<Set<String>> get() = _favoriteArtistIds
 
@@ -34,16 +35,66 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     private val _favoriteAlbumIds = MutableLiveData<Set<String>>(emptySet())
     val favoriteAlbumIds: LiveData<Set<String>> get() = _favoriteAlbumIds
 
+
+    // =========================================================================
+    //                            CARGA DE DATOS
+    // =========================================================================
+
+    fun loadAllFavorites() {
+        viewModelScope.launch {
+            // Lanzamos en paralelo para mayor velocidad
+            launch { loadFavoriteSongs() }
+            launch { loadFavoriteArtists() }
+            launch { loadFavoriteAlbums() }
+        }
+    }
+
+    fun loadFavoriteSongs() {
+        viewModelScope.launch {
+            val favSongs = repo.getFavoritesSongs()
+            _favoriteSongs.value = favSongs
+            _favoriteSongIds.value = favSongs.map { it.id }.toSet()
+        }
+    }
+
+    fun loadFavoriteArtists() {
+        viewModelScope.launch {
+            val favArtists = repo.getFavoriteArtists()
+            _favoriteArtists.value = favArtists
+            _favoriteArtistIds.value = favArtists.map { it.id }.toSet()
+        }
+    }
+
+    fun loadFavoriteAlbums() {
+        viewModelScope.launch {
+            val favAlbums = repo.getFavoriteAlbums()
+            _favoriteAlbums.value = favAlbums
+            _favoriteAlbumIds.value = favAlbums.map { it.id }.toSet()
+        }
+    }
+
+
+    // =========================================================================
+    //                            CANCIONES (SONGS)
+    // =========================================================================
+
     fun toggleFavoriteSong(song: Song, onResult: (Boolean, Boolean) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
-            val currentFavorites = _favoriteSongIds.value.orEmpty()
-            val isCurrentlyFavorite = currentFavorites.contains(song.id)
+            val currentFavoritesIds = _favoriteSongIds.value.orEmpty()
+            val isCurrentlyFavorite = currentFavoritesIds.contains(song.id)
 
             if (isCurrentlyFavorite) {
+                // 🚀 OPTIMISTA: Borrar de la UI inmediatamente
+                val updatedList = _favoriteSongs.value.orEmpty().filter { it.id != song.id }
+                _favoriteSongs.value = updatedList
+                _favoriteSongIds.value = updatedList.map { it.id }.toSet()
+
+                // Llamada a BD/Red
                 val result = repo.deleteFavoriteSong(song.id)
-                if (result) loadFavoriteSongs()
+                if (!result) loadFavoriteSongs() // Revertir si falla
                 onResult(result, false)
             } else {
+                // Agregar
                 val result = repo.addFavoriteSong(song.id)
                 if (result) loadFavoriteSongs()
                 onResult(result, true)
@@ -51,68 +102,10 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- CARGA GENERAL ----
-    fun loadAllFavorites() {
-        viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs()
-            val favArtists = repo.getFavoriteArtists()
-            val favAlbums = repo.getFavoriteAlbums()
 
-            val items = mutableListOf<FavoriteItem>()
-
-            // CORRECCIÓN: Usamos nombres explícitos (song, artist, album) en lugar de 'it'
-            items += favSongs.map { song -> FavoriteItem.SongItem(song) }
-            items += favArtists.map { artist -> FavoriteItem.ArtistItem(artist) }
-            items += favAlbums.map { album -> FavoriteItem.AlbumItem(album) }
-
-            _favorites.value = items
-            updateFavoriteIds()
-        }
-    }
-
-    // ---- SONGS ----
-    fun loadFavoriteSongs() {
-        viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs()
-
-            // CORRECCIÓN: Nombres explícitos para evitar error de inferencia
-            val current = _favorites.value.orEmpty().filterNot { item -> item is FavoriteItem.SongItem }
-            val newItems = favSongs.map { song -> FavoriteItem.SongItem(song) }
-
-            _favorites.value = current + newItems
-            updateFavoriteIds()
-        }
-    }
-
-    fun addFavoriteSong(song: Song, onResult: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            val result = repo.addFavoriteSong(song.id)
-            if (result) loadFavoriteSongs()
-            onResult(result)
-        }
-    }
-
-    fun deleteFavoriteSong(songId: String, onResult: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            val result = repo.deleteFavoriteSong(songId)
-            if (result) loadFavoriteSongs()
-            onResult(result)
-        }
-    }
-
-    // ---- ARTISTS ----
-    fun loadFavoriteArtists() {
-        viewModelScope.launch {
-            val favArtists = repo.getFavoriteArtists()
-
-            // CORRECCIÓN: Nombres explícitos
-            val current = _favorites.value.orEmpty().filterNot { item -> item is FavoriteItem.ArtistItem }
-            val newItems = favArtists.map { artist -> FavoriteItem.ArtistItem(artist) }
-
-            _favorites.value = current + newItems
-            updateFavoriteIds()
-        }
-    }
+    // =========================================================================
+    //                            ARTISTAS (ARTISTS)
+    // =========================================================================
 
     fun addFavoriteArtist(artist: Artist, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
@@ -122,27 +115,31 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // 🔥 MODIFICADO PARA SER ROBUSTO (OPTIMISTA)
     fun deleteFavoriteArtist(artistId: String, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // 1. UI UPDATE INMEDIATO
+            val currentList = _favoriteArtists.value.orEmpty()
+            val updatedList = currentList.filter { it.id != artistId }
+
+            _favoriteArtists.value = updatedList
+            _favoriteArtistIds.value = updatedList.map { it.id }.toSet()
+
+            // 2. NETWORK CALL
             val result = repo.deleteFavoriteArtist(artistId)
-            if (result) loadFavoriteArtists()
+
+            // 3. FALLBACK (Si falla, recargamos la lista real)
+            if (!result) {
+                loadFavoriteArtists()
+            }
             onResult(result)
         }
     }
 
-    // ---- ALBUMS ----
-    fun loadFavoriteAlbums() {
-        viewModelScope.launch {
-            val favAlbums = repo.getFavoriteAlbums()
 
-            // CORRECCIÓN: Nombres explícitos
-            val current = _favorites.value.orEmpty().filterNot { item -> item is FavoriteItem.AlbumItem }
-            val newItems = favAlbums.map { album -> FavoriteItem.AlbumItem(album) }
-
-            _favorites.value = current + newItems
-            updateFavoriteIds()
-        }
-    }
+    // =========================================================================
+    //                            ÁLBUMES (ALBUMS)
+    // =========================================================================
 
     fun addFavoriteAlbum(album: Album, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
@@ -152,18 +149,24 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // 🔥 MODIFICADO PARA SER ROBUSTO (OPTIMISTA)
     fun deleteFavoriteAlbum(albumId: String, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
+            // 1. UI UPDATE INMEDIATO
+            val currentList = _favoriteAlbums.value.orEmpty()
+            val updatedList = currentList.filter { it.id != albumId }
+
+            _favoriteAlbums.value = updatedList
+            _favoriteAlbumIds.value = updatedList.map { it.id }.toSet()
+
+            // 2. NETWORK CALL
             val result = repo.deleteFavoriteAlbum(albumId)
-            if (result) loadFavoriteAlbums()
+
+            // 3. FALLBACK
+            if (!result) {
+                loadFavoriteAlbums()
+            }
             onResult(result)
         }
-    }
-
-    private fun updateFavoriteIds() {
-        val favoritesList = _favorites.value.orEmpty()
-        _favoriteArtistIds.value = favoritesList.filterIsInstance<FavoriteItem.ArtistItem>().map { it.artist.id }.toSet()
-        _favoriteSongIds.value = favoritesList.filterIsInstance<FavoriteItem.SongItem>().map { it.song.id }.toSet()
-        _favoriteAlbumIds.value = favoritesList.filterIsInstance<FavoriteItem.AlbumItem>().map { it.album.id }.toSet()
     }
 }

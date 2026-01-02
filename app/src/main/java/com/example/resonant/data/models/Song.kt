@@ -28,6 +28,8 @@ data class Song(
     @SerializedName("audioAnalysis")
     val audioAnalysis: AudioAnalysis? = null,
 
+    var sizeBytes: Long = 0L,
+
     var artistName: String? = null
 
 ) : Parcelable

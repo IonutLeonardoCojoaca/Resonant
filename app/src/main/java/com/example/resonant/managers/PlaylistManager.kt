@@ -15,12 +15,19 @@ class PlaylistManager(private val context: Context) {
     private val playlistService: PlaylistService = ApiClient.getPlaylistService(context)
     private val artistService: ArtistService = ApiClient.getArtistService(context)
     private val userService: UserService = ApiClient.getUserService(context)
-
-    // CAMBIO IMPORTANTE: Creamos una instancia de SongManager aquí
     private val songManager = SongManager(context)
 
     suspend fun createPlaylist(playlist: Playlist): Playlist {
         return playlistService.createPlaylist(playlist)
+    }
+
+    suspend fun updatePlaylist(playlist: Playlist) {
+        val response = playlistService.updatePlaylist(playlist)
+
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
+            throw Exception("Error ${response.code()}: $errorMsg")
+        }
     }
 
     suspend fun getPlaylistById(id: String): Playlist {
@@ -61,13 +68,7 @@ class PlaylistManager(private val context: Context) {
     }
 
     // --- OTROS ---
-
-    suspend fun getSongsByPlaylistId(
-        // Ya no necesitamos pasar 'context' aquí porque la clase ya lo tiene
-        playlistId: String
-    ): List<Song> {
-        // CAMBIO: Usamos la instancia 'songManager'
-        // Y ya no le pasamos el contexto, porque SongManager ya lo tiene.
+    suspend fun getSongsByPlaylistId(playlistId: String): List<Song> {
         return songManager.getSongsFromPlaylist(playlistId)
     }
 }

@@ -76,8 +76,8 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/playButton"
-                    android:layout_width="53dp"
-                    android:layout_height="60dp"
+                    android:layout_width="54dp"
+                    android:layout_height="54dp"
                     android:layout_alignParentEnd="true"
                     android:layout_alignParentBottom="true"
                     android:backgroundTint="@color/secondaryColorTheme"
@@ -86,6 +86,8 @@
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
                     app:iconSize="40dp"
+                    android:insetBottom="0dp"
+                    android:insetTop="0dp"
                     app:iconTint="@color/white" />
 
             </RelativeLayout>

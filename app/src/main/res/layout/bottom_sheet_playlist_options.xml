@@ -92,13 +92,29 @@
         app:layout_constraintTop_toBottomOf="@+id/relativeLayout">
 
         <TextView
+            android:id="@+id/editPlaylistButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_edit"
+            android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
+            android:fontFamily="@font/unageo_regular"
+            android:padding="16dp"
+            android:gravity="center_vertical"
+            android:text="Editar lista"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
+
+        <TextView
             android:id="@+id/deletePlaylistButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_delete"
             android:drawablePadding="10dp"
+            android:drawableTint="@android:color/holo_red_light"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
+            android:gravity="center_vertical"
             android:text="Borrar lista"
             android:textColor="@android:color/holo_red_light"
             android:textSize="16sp" />
@@ -111,6 +127,7 @@
             android:drawablePadding="10dp"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
+            android:gravity="center_vertical"
             android:text="Cancelar"
             android:textColor="@android:color/holo_red_light"
             android:textSize="16sp" />
@@ -118,5 +135,3 @@
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-
-

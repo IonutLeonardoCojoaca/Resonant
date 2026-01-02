@@ -47,7 +47,7 @@
                 android:layout_marginHorizontal="8dp"
                 android:descendantFocusability="blocksDescendants">
 
-            <TextView
+                <TextView
                     android:id="@+id/songTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -62,6 +62,18 @@
                     android:maxLines="1"
                     android:ellipsize="end"/>
 
+                <ImageView
+                    android:id="@+id/downloadedIcon"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_alignParentBottom="true"
+                    android:layout_marginBottom="2dp"
+                    android:layout_marginEnd="4dp"
+                    android:src="@drawable/ic_download_done"
+                    android:visibility="gone"
+                    app:tint="@color/secondaryColorTheme" />
+
                 <TextView
                     android:id="@+id/dataType"
                     android:layout_width="wrap_content"
@@ -71,7 +83,7 @@
                     android:fontFamily="@font/unageo_medium"
                     android:textColor="#BDBDBD"
                     android:layout_alignParentBottom="true"
-                    android:layout_alignParentStart="true"/>
+                    android:layout_toRightOf="@id/downloadedIcon"/>
 
                 <TextView
                     android:id="@+id/separator"

@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fillViewport="true"
     tools:context=".ui.fragments.FavoriteAlbumsFragment"
     android:background="@color/black">
 
@@ -30,7 +32,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_bold"
-            android:text="Favoritos"
+            android:text="Álbumes"
             android:textColor="@color/white"
             android:textSize="25sp"
             android:layout_marginStart="15dp"
@@ -50,61 +52,44 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <RelativeLayout
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/loadingAnimation"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar"
+        app:lottie_autoPlay="true"
+        app:lottie_fileName="loader.json"
+        app:lottie_loop="true" />
+
+    <TextView
+        android:id="@+id/noLikedAlbumsText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="50dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="No tienes ningún álbum en favoritos"
+        android:textColor="#B0B0B0"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/favoriteAlbumsList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:background="@color/black"
-        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar">
+        android:clipToPadding="false"
+        android:paddingHorizontal="5dp"
+        android:paddingBottom="160dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
-        <FrameLayout
-            android:id="@+id/containerFavoriteAlbums"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="10dp">
-
-            <TextView
-                android:id="@+id/favoriteSongsText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Tus álbumes favoritos"
-                android:textColor="@color/white"
-                android:textSize="18sp" />
-
-        </FrameLayout>
-
-        <com.airbnb.lottie.LottieAnimationView
-            android:id="@+id/loadingAnimation"
-            android:layout_width="240dp"
-            android:layout_height="240dp"
-            android:layout_centerInParent="true"
-            android:visibility="gone"
-            app:lottie_autoPlay="true"
-            app:lottie_fileName="loader.json"
-            app:lottie_loop="true" />
-
-        <TextView
-            android:id="@+id/noLikedAlbumsText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:layout_marginTop="5dp"
-            android:fontFamily="@font/unageo_medium"
-            android:text="No tienes ningún álbum favorito"
-            android:visibility="gone" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/favoriteAlbumsList"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_below="@id/containerFavoriteAlbums"
-            android:clipToPadding="false"
-            android:nestedScrollingEnabled="false"
-            android:paddingHorizontal="14dp"
-            android:paddingBottom="250dp"
-            android:scrollbars="none"
-            android:visibility="gone" />
-
-    </RelativeLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
