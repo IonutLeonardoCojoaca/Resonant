@@ -1,45 +1,66 @@
 package com.example.resonant.data.network.services
 
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.data.models.Song
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface PlaylistService {
-    @POST("api/Playlist/Create")
+    @POST("api/playlists")
     suspend fun createPlaylist(@Body playlist: Playlist): Playlist
 
-    @GET("api/Playlist/GetById")
-    suspend fun getPlaylistById(@Query("id") id: String): Playlist
+    @GET("api/playlists/{id}")
+    suspend fun getPlaylistById(@Path("id") id: String): Playlist
 
-    @PUT("api/Playlist/Update")
-    suspend fun updatePlaylist(@Body playlist: Playlist): Response<Unit>
+    @PUT("api/playlists/{id}")
+    suspend fun updatePlaylist(@Path("id") id: String, @Body playlist: Playlist): Response<Unit>
 
-    @GET("api/Playlist/GetByUserId")
-    suspend fun getPlaylistByUserId(@Query("userId") userId: String): List<Playlist>
+    @GET("api/playlists/mine")
+    suspend fun getMyPlaylists(): List<Playlist>
 
-    @DELETE("api/Playlist/Delete")
-    suspend fun deletePlaylist(@Query("id") id: String): Response<Unit>
+    @GET("api/playlists/public")
+    suspend fun getAllPublicPlaylists(): List<Playlist>
 
-    @PUT("api/Playlist/AddToPlaylist")
+    @DELETE("api/playlists/{id}")
+    suspend fun deletePlaylist(@Path("id") id: String): Response<Unit>
+
+    @GET("api/playlists/{id}/songs")
+    suspend fun getPlaylistSongs(@Path("id") playlistId: String): List<Song>
+
+    @POST("api/playlists/{id}/songs")
     suspend fun addSongToPlaylist(
-        @Query("songId") songId: String,
-        @Query("playlistId") playlistId: String
+        @Path("id") playlistId: String,
+        @Body songId: String
     ): Response<Void>
 
-    @GET("api/Playlist/IsSongInPlaylist")
+    @GET("api/playlists/{id}/songs/{songId}/exists")
     suspend fun isSongInPlaylist(
-        @Query("songId") songId: String,
-        @Query("playlistId") playlistId: String
+        @Path("id") playlistId: String,
+        @Path("songId") songId: String
     ): Boolean
 
-    @DELETE("api/Playlist/DeleteFromPlaylist")
+    @DELETE("api/playlists/{id}/songs/{songId}")
     suspend fun deleteSongFromPlaylist(
-        @Query("songId") songId: String,
-        @Query("playlistId") playlistId: String
+        @Path("id") playlistId: String,
+        @Path("songId") songId: String
     )
+
+    @PATCH("api/playlists/{id}/name")
+    suspend fun updatePlaylistName(
+        @Path("id") id: String,
+        @Query("name") name: String
+    ): Response<Unit>
+
+    @PATCH("api/playlists/{id}/visibility")
+    suspend fun updatePlaylistVisibility(
+        @Path("id") id: String,
+        @Query("isPublic") isPublic: Boolean
+    ): Response<Unit>
 }

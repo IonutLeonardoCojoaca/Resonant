@@ -30,7 +30,6 @@ import com.example.resonant.data.models.SuggestionItem
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.ArtistService
-import com.example.resonant.data.network.services.StorageService
 import com.example.resonant.managers.SearchHistoryManager
 import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.QueueSource
@@ -52,12 +51,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.collections.get
 
 class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private lateinit var sharedPref: SharedPreferences
-    private var searchJob: Job? = null
+    private val queryFlow = MutableStateFlow("")
     private var restoringState = false
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
@@ -92,7 +98,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private lateinit var albumService: AlbumService
     private lateinit var artistService: ArtistService
-    private lateinit var storageService: StorageService
     private lateinit var songManager: SongManager
 
     private lateinit var downloadViewModel: DownloadViewModel
@@ -113,7 +118,6 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         val context = requireContext()
         albumService = ApiClient.getAlbumService(context)
         artistService = ApiClient.getArtistService(context)
-        storageService = ApiClient.getStorageService(context)
         songManager = SongManager(context)
 
         searchHistoryManager = SearchHistoryManager(requireContext())
@@ -296,8 +300,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         searchResultAdapter.onSettingsClick = { song ->
             lifecycleScope.launch {
-                val artistList = artistService.getArtistsBySongId(song.id)
-                song.artistName = artistList.joinToString(", ") { it.name }
+                // Use artists already embedded in the song from the API
+                song.artistName = song.artists.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
                     song = song,
@@ -318,18 +322,96 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     },
                     onRemoveDownloadClick = { songToDelete ->
                         downloadViewModel.deleteSong(songToDelete)
+                    },
+                    onGoToAlbumClick = { albumId ->
+                        val bundle = Bundle().apply { putString("albumId", albumId) }
+                        findNavController().navigate(R.id.action_searchFragment_to_albumFragment, bundle)
+                    },
+                    onGoToArtistClick = { artist ->
+                         val bundle = Bundle().apply { 
+                             putString("artistId", artist.id)
+                             putString("artistName", artist.name)
+                             putString("artistImageUrl", artist.url)
+                        }
+                        findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
 
+        searchResultAdapter.onAlbumSettingsClick = { album ->
+             val bottomSheet = com.example.resonant.ui.bottomsheets.AlbumOptionsBottomSheet(
+                 album = album,
+                onGoToAlbumClick = {
+                    val bundle = Bundle().apply { putString("albumId", it.id) }
+                    findNavController().navigate(R.id.action_searchFragment_to_albumFragment, bundle)
+                },
+                onGoToArtistClick = {
+                    val artists = it.artists
+                     if (artists.isNotEmpty()) {
+                        if (artists.size > 1) {
+                            val selector = com.example.resonant.ui.bottomsheets.ArtistSelectorBottomSheet(artists) { selectedArtist ->
+                                val bundle = Bundle().apply { 
+                                     putString("artistId", selectedArtist.id)
+                                     putString("artistName", selectedArtist.name)
+                                     putString("artistImageUrl", selectedArtist.url)
+                                }
+                                findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                            }
+                            selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
+                        } else {
+                            val artist = artists[0]
+                             val bundle = Bundle().apply { 
+                                 putString("artistId", artist.id)
+                                 putString("artistName", artist.name)
+                                 putString("artistImageUrl", artist.url)
+                            }
+                            findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                        }
+                    }
+                },
+                onViewDetailsClick = {
+                     val bundle = Bundle().apply { 
+                         putParcelable("album", it)
+                         putString("albumId", it.id)
+                     }
+                     findNavController().navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
+                }
+             )
+             bottomSheet.show(parentFragmentManager, "AlbumOptionsBottomSheet")
+        }
+
+        searchResultAdapter.onArtistSettingsClick = { artist ->
+            val bottomSheet = com.example.resonant.ui.bottomsheets.ArtistOptionsBottomSheet(
+                artist = artist,
+                onGoToArtistClick = { selectedArtist ->
+                    val bundle = Bundle().apply { 
+                         putString("artistId", selectedArtist.id)
+                         putString("artistName", selectedArtist.name)
+                         putString("artistImageUrl", selectedArtist.url)
+                    }
+                    findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                },
+                onViewDetailsClick = {
+                     val bundle = Bundle().apply { 
+                         putParcelable("artist", it)
+                         putString("artistId", it.id)
+                     }
+                     findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
+                }
+            )
+            bottomSheet.show(parentFragmentManager, "ArtistOptionsBottomSheet")
+        }
+
+        // --- TEXT WATCHER ---
+
         // --- TEXT WATCHER ---
         editTextQuery?.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 if (restoringState) return
                 if (s.isNullOrBlank()) {
-                    searchJob?.cancel()
+
                     lastResults = emptyList()
                     searchResultAdapter.submitList(emptyList())
                     songResults.clear()
@@ -357,85 +439,114 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     historyRecyclerView.visibility = View.GONE
                 }
 
-                searchJob?.cancel()
-                if (query.isEmpty()) return
 
-                noSongsFounded.visibility = View.GONE
-                resultsRecyclerView.visibility = View.INVISIBLE
-                suggestionsRecyclerView.visibility = View.GONE
-                loadingAnimation.visibility = View.VISIBLE
 
-                searchJob = viewLifecycleOwner.lifecycleScope.launch {
-                    delay(200)
+                queryFlow.value = query
 
-                    try {
-                        val songsDeferred = async { songManager.searchSongs(query) }
-                        val albumsDeferred = async { albumService.searchAlbumsByQuery(query) }
-                        val artistsDeferred = async { artistService.searchArtistsByQuery(query) }
-
-                        val songsResponse = songsDeferred.await()
-                        val albumsResponse = albumsDeferred.await()
-                        val artistsResponse = artistsDeferred.await()
-
-                        val songs = songsResponse.results
-                        val albums = albumsResponse.results
-                        val artists = artistsResponse.results
-
-                        val combinedSuggestions = intercalateAndSortSuggestions(
-                            songsResponse.suggestions,
-                            albumsResponse.suggestions,
-                            artistsResponse.suggestions,
-                            query
-                        )
-
-                        albums.forEach { album ->
-                            val albumArtists = artistService.getArtistsByAlbumId(album.id)
-                            album.artistName = albumArtists.joinToString(", ") { it.name }
-                        }
-
-                        val combinedResults = intercalateAndSortResults(songs, albums, artists, query)
-
-                        songResults.clear(); songResults.addAll(songs)
-                        albumResults.clear(); albumResults.addAll(albums)
-                        artistResults.clear(); artistResults.addAll(artists)
-                        lastResults = combinedResults
-
-                        val finalList = applyActiveFilters(lastResults)
-
-                        loadingAnimation.visibility = View.INVISIBLE
-
-                        when {
-                            finalList.isNotEmpty() -> {
-                                resultsRecyclerView.visibility = View.VISIBLE
-                                suggestionsRecyclerView.visibility = View.GONE
-                                noSongsFounded.visibility = View.GONE
-                                searchResultAdapter.submitList(finalList)
-                            }
-                            combinedSuggestions.isNotEmpty() -> {
-                                resultsRecyclerView.visibility = View.GONE
-                                suggestionsRecyclerView.visibility = View.VISIBLE
-                                noSongsFounded.visibility = View.GONE
-                                suggestionAdapter.submitList(combinedSuggestions)
-                            }
-                            else -> {
-                                resultsRecyclerView.visibility = View.GONE
-                                suggestionsRecyclerView.visibility = View.GONE
-                                noSongsFounded.visibility = View.VISIBLE
-                                searchResultAdapter.submitList(emptyList())
-                            }
-                        }
-
-                    } catch (e: Exception) {
-                        loadingAnimation.visibility = View.INVISIBLE
-                        resultsRecyclerView.visibility = View.INVISIBLE
-                        suggestionsRecyclerView.visibility = View.GONE
-                        noSongsFounded.visibility = View.VISIBLE
-                        searchResultAdapter.submitList(emptyList())
-                        Log.e("SearchFragment", "Error during search", e)
-                    }
-                }
+                // Removed old coroutine logic, now handled by Flow collection below
             }
         })
+
+        // --- SEARCH FLOW COLLECTOR ---
+        viewLifecycleOwner.lifecycleScope.launch {
+            queryFlow
+                .debounce(300)
+                .filter { it.isNotEmpty() }
+                .collectLatest { query ->
+                    withContext(Dispatchers.Main) {
+                        if (editTextQuery?.text?.toString() != query) return@withContext
+                        noSongsFounded.visibility = View.GONE
+                        resultsRecyclerView.visibility = View.INVISIBLE
+                        suggestionsRecyclerView.visibility = View.GONE
+                        loadingAnimation.visibility = View.VISIBLE
+                    }
+
+                    try {
+                        val results = withContext(Dispatchers.IO) {
+                            val songsDeferred = async { songManager.searchSongs(query, limit = 30) }
+                            val albumsDeferred = async { albumService.searchAlbumsByQuery(query) }
+                            val artistsDeferred = async { artistService.searchArtistsByQuery(query) }
+
+                            val songsResponse = songsDeferred.await()
+                            val albumsResponse = albumsDeferred.await()
+                            val artistsResponse = artistsDeferred.await()
+
+                            Triple(songsResponse, albumsResponse, artistsResponse)
+                        }
+
+                        val songsResponse = results.first
+                        val albumsResponse = results.second
+                        val artistsResponse = results.third
+
+                        val processedData = withContext(Dispatchers.Default) {
+                            val combinedSuggestions = intercalateAndSortSuggestions(
+                                songsResponse.suggestions,
+                                albumsResponse.suggestions,
+                                artistsResponse.suggestions,
+                                query
+                            )
+
+                            val albums = albumsResponse.results
+                            albums.forEach { album ->
+                                album.artistName = album.artists.joinToString(", ") { it.name }
+                            }
+
+                            val combinedResults = intercalateAndSortResults(
+                                songsResponse.results,
+                                albums,
+                                artistsResponse.results,
+                                query
+                            )
+                            
+                            Triple(combinedSuggestions, combinedResults, Triple(songsResponse.results, albums, artistsResponse.results))
+                        }
+
+                        val combinedSuggestions = processedData.first
+                        val combinedResults = processedData.second
+                        val (songs, albums, artists) = processedData.third
+
+                        withContext(Dispatchers.Main) {
+                            songResults.clear(); songResults.addAll(songs)
+                            albumResults.clear(); albumResults.addAll(albums)
+                            artistResults.clear(); artistResults.addAll(artists)
+                            lastResults = combinedResults
+
+                            val finalList = applyActiveFilters(lastResults)
+                            loadingAnimation.visibility = View.INVISIBLE
+
+                            when {
+                                finalList.isNotEmpty() -> {
+                                    resultsRecyclerView.visibility = View.VISIBLE
+                                    suggestionsRecyclerView.visibility = View.GONE
+                                    noSongsFounded.visibility = View.GONE
+                                    searchResultAdapter.submitList(finalList)
+                                }
+                                combinedSuggestions.isNotEmpty() -> {
+                                    resultsRecyclerView.visibility = View.GONE
+                                    suggestionsRecyclerView.visibility = View.VISIBLE
+                                    noSongsFounded.visibility = View.GONE
+                                    suggestionAdapter.submitList(combinedSuggestions)
+                                }
+                                else -> {
+                                    resultsRecyclerView.visibility = View.GONE
+                                    suggestionsRecyclerView.visibility = View.GONE
+                                    noSongsFounded.visibility = View.VISIBLE
+                                    searchResultAdapter.submitList(emptyList())
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            loadingAnimation.visibility = View.INVISIBLE
+                            resultsRecyclerView.visibility = View.INVISIBLE
+                            suggestionsRecyclerView.visibility = View.GONE
+                            noSongsFounded.visibility = View.VISIBLE
+                            searchResultAdapter.submitList(emptyList())
+                            Log.e("SearchFragment", "Error during search", e)
+                        }
+                    }
+                }
+        }
 
         // Carga inicial del historial
         if (editTextQuery?.text.isNullOrBlank()) {

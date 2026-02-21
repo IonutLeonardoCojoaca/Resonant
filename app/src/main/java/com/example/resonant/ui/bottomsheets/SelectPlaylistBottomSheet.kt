@@ -16,7 +16,6 @@ import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.data.models.Song
 // 1. Borramos ApiClient, ya no hace falta aquí
 import com.example.resonant.managers.PlaylistManager
-import com.example.resonant.managers.UserManager
 import com.example.resonant.ui.adapters.PlaylistAdapter
 import com.example.resonant.ui.viewmodels.PlaylistDetailViewModel
 import com.example.resonant.ui.viewmodels.PlaylistDetailViewModelFactory
@@ -88,15 +87,8 @@ class SelectPlaylistBottomSheet(
             updateEmptyState(playlists.isEmpty())
         }
 
-        // ✅ 2. CORREGIDO: UserManager ahora se instancia
-        val userManager = UserManager(requireContext()) // <--- INSTANCIA
-        val userId = userManager.getUserId()            // <--- LLAMADA
-
-        if (userId != null) {
-            playlistsListViewModel.getPlaylistsByUserId(userId)
-        } else {
-            updateEmptyState(true)
-        }
+        // No userId needed, JWT handles authentication
+        playlistsListViewModel.loadMyPlaylists()
     }
 
     private fun setupRecyclerView() {

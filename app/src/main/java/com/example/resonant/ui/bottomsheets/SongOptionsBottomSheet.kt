@@ -26,6 +26,7 @@ import com.google.android.material.imageview.ShapeableImageView
 import java.io.File
 import java.io.FileOutputStream
 import androidx.core.graphics.toColorInt
+import com.example.resonant.data.models.Artist
 
 class SongOptionsBottomSheet(
     private val song: Song,
@@ -36,7 +37,9 @@ class SongOptionsBottomSheet(
     private val onAddToPlaylistClick: ((Song) -> Unit)? = null,
     private val onDownloadClick: ((Song) -> Unit)? = null,
     // 🔥 NUEVO CALLBACK: Acción para borrar la descarga
-    private val onRemoveDownloadClick: ((Song) -> Unit)? = null
+    private val onRemoveDownloadClick: ((Song) -> Unit)? = null,
+    private val onGoToAlbumClick: ((String) -> Unit)? = null,
+    private val onGoToArtistClick: ((Artist) -> Unit)? = null
 
 ) : BottomSheetDialogFragment() {
 
@@ -57,6 +60,8 @@ class SongOptionsBottomSheet(
 
         // Botones de acción
         val seeSongButton: TextView = view.findViewById(R.id.seeSongButton)
+        val goToAlbumButton: TextView = view.findViewById(R.id.goToAlbumButton) // NEW
+        val goToArtistButton: TextView = view.findViewById(R.id.goToArtistButton) // NEW
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
         val addToPlaylistButton: TextView = view.findViewById(R.id.addToPlaylistButton)
         val downloadSongButton: TextView = view.findViewById(R.id.downloadSongButton)
@@ -65,7 +70,7 @@ class SongOptionsBottomSheet(
 
         // Rellenar datos básicos
         songTitle.text = song.title
-        songArtist.text = song.artistName
+        songArtist.text = song.artistName ?: song.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Desconocido"
         if(song.streams == 0){
             songStreams.text = "Sin reproducciones"
         }else if (song.streams == 1){
@@ -88,6 +93,49 @@ class SongOptionsBottomSheet(
         val isNetworkAvailable = isInternetAvailable(requireContext())
         val disabledAlpha = 0.4f
         val disabledColor = Color.GRAY
+
+        // ============================
+        //  NAVEGACIÓN (ÁLBUM / ARTISTA)
+        // ============================
+
+        // Ir al Álbum
+        // Ir al Álbum
+        val albumId = song.album?.id
+        if (!albumId.isNullOrBlank()) {
+            goToAlbumButton.visibility = View.VISIBLE
+            goToAlbumButton.setOnClickListener {
+                dismiss()
+                onGoToAlbumClick?.invoke(albumId)
+            }
+        } else {
+            goToAlbumButton.visibility = View.GONE
+        }
+
+        // Ir al Artista
+        goToArtistButton.setOnClickListener {
+           val artists = song.artists.map { it.toArtist() }
+           if (artists.isNotEmpty()) {
+               if (artists.size > 1) {
+                   val selector = ArtistSelectorBottomSheet(artists) { selectedArtist ->
+                       dismiss()
+                       onGoToArtistClick?.invoke(selectedArtist)
+                   }
+                   selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
+               } else {
+                   dismiss()
+                   onGoToArtistClick?.invoke(artists[0])
+               }
+           } else {
+               // Fallback if no artist objects but we have specific instructions to treat single artist scenario
+               // For now, simple dismiss if no data
+               dismiss()
+           }
+        }
+        
+        if (song.artists.isEmpty()) {
+             // Optional: hide logic 
+        }
+
 
         // -----------------------------------------------------------------------
         // 1. LÓGICA DE DESCARGA / ELIMINAR (Híbrida)
@@ -194,7 +242,7 @@ class SongOptionsBottomSheet(
         // 5. COMPARTIR
         if (isNetworkAvailable) {
             shareSongButton.setOnClickListener {
-                shareSongLogic(song, songImage)
+                shareSongLogic(song)
                 dismiss()
             }
         } else {
@@ -230,49 +278,26 @@ class SongOptionsBottomSheet(
         }
     }
 
-    private fun shareSongLogic(song: Song, songImage: ShapeableImageView) {
-        val bitmap = songImage.drawable?.let { drawable -> (drawable as? BitmapDrawable)?.bitmap }
+    private fun shareSongLogic(song: Song) {
         val shareText = buildShareText(song)
 
-        if (bitmap != null) {
-            try {
-                val imageFile = File(requireContext().cacheDir, "shared_song_${song.id}.png")
-                FileOutputStream(imageFile).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
-                val imageUri: Uri = FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.fileprovider", imageFile)
-
-                val shareIntent = Intent().apply {
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, shareText)
-                    putExtra(Intent.EXTRA_STREAM, imageUri)
-                    type = "image/png"
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
-            } catch (e: Exception) {
-                val shareIntent = Intent().apply {
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, shareText)
-                    type = "text/plain"
-                }
-                startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
-            }
-        } else {
-            val shareIntent = Intent().apply {
-                action = Intent.ACTION_SEND
-                putExtra(Intent.EXTRA_TEXT, shareText)
-                type = "text/plain"
-            }
-            startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
+        val shareIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, shareText)
+            type = "text/plain"
         }
+        startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
     }
 
     private fun buildShareText(song: Song): String {
-        val songLink = "https://workers-playground-odd-fire-9bf1.resonant-app-service.workers.dev/shared/android/song/${song.id}"
+        val songLink = "https://resonantapp.ddns.net/song/${song.id}"
+
         return """
         ¡Escucha esta canción en Resonant!
         🎵 ${song.title}
-        👤 ${song.artistName}
-        🔗 $songLink
+        👤 ${song.artistName ?: song.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Desconocido"}
+        
+        $songLink
     """.trimIndent()
     }
 

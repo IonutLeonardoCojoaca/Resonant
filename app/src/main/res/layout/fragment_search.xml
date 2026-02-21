@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".ui.fragments.SearchFragment"
-    android:background="@color/black">
+    android:background="@color/primaryColorTheme">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/superiorToolbar"
@@ -54,7 +54,7 @@
         android:id="@+id/main"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:background="@color/appBackgroundTheme"
+        android:background="@color/primaryColorTheme"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

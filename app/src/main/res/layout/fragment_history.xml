@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/primaryColorTheme">
+
+    <!-- AppBar con header colapsable -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:id="@+id/collapsingToolbar"
+            android:layout_width="match_parent"
+            android:layout_height="260dp"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed"
+            app:contentScrim="@color/primaryColorTheme"
+            app:expandedTitleTextAppearance="@android:style/TextAppearance.Small">
+
+            <!-- Fondo degradado morado-azul oscuro -->
+            <View
+                android:id="@+id/viewHeaderGradient"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#1a0030"
+                app:layout_collapseMode="parallax" />
+
+            <!-- Overlay oscuro desde abajo -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_gradient_header_overlay"
+                app:layout_collapseMode="parallax" />
+
+            <!-- Icono decorativo grande reloj -->
+            <ImageView
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="end|top"
+                android:layout_marginTop="30dp"
+                android:layout_marginEnd="24dp"
+                android:alpha="0.08"
+                android:src="@drawable/ic_recent"
+                app:tint="@color/white"
+                app:layout_collapseMode="parallax" />
+
+            <!-- Contenido del header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_gravity="bottom"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="16dp"
+                app:layout_collapseMode="parallax">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Historial"
+                    android:textColor="@color/white"
+                    android:textSize="36sp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:layout_marginBottom="6dp"/>
+
+                <!-- Fila: contador + chips de límite -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tvSongCount"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="0 canciones"
+                        android:textColor="#AAFFFFFF"
+                        android:textSize="13sp"
+                        android:fontFamily="@font/unageo_medium" />
+
+                    <!-- Chips de cantidad -->
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupLimit"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:singleSelection="true"
+                        app:selectionRequired="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip20"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="20"
+                            android:textColor="#FFFFFF"
+                            android:textSize="14sp"
+                            android:checkable="true"
+                            app:checkedIconVisible="false"
+                            app:chipBackgroundColor="@color/chip_background_selector"
+                            app:chipCornerRadius="35dp"
+                            app:chipStrokeColor="@android:color/transparent"
+                            app:fontFamily="@font/unageo_medium"
+                            app:rippleColor="@android:color/transparent"
+                            app:useMaterialThemeColors="false" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip50"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="50"
+                            android:textColor="#FFFFFF"
+                            android:textSize="14sp"
+                            android:checkable="true"
+                            android:checked="true"
+                            app:checkedIconVisible="false"
+                            app:chipBackgroundColor="@color/chip_background_selector"
+                            app:chipCornerRadius="35dp"
+                            app:chipStrokeColor="@android:color/transparent"
+                            app:fontFamily="@font/unageo_medium"
+                            app:rippleColor="@android:color/transparent"
+                            app:useMaterialThemeColors="false" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chip100"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="100"
+                            android:textColor="#FFFFFF"
+                            android:textSize="14sp"
+                            android:checkable="true"
+                            app:checkedIconVisible="false"
+                            app:chipBackgroundColor="@color/chip_background_selector"
+                            app:chipCornerRadius="35dp"
+                            app:chipStrokeColor="@android:color/transparent"
+                            app:fontFamily="@font/unageo_medium"
+                            app:rippleColor="@android:color/transparent"
+                            app:useMaterialThemeColors="false" />
+
+                    </com.google.android.material.chip.ChipGroup>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Toolbar con botón atrás -->
+            <androidx.appcompat.widget.Toolbar
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                app:layout_collapseMode="pin"
+                app:contentInsetStart="0dp">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <ImageButton
+                        android:id="@+id/btnBack"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="start|center_vertical"
+                        android:layout_marginStart="8dp"
+                        android:src="@drawable/ic_arrow_back"
+                        app:tint="@color/white"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:scaleX="0.8"
+                        android:scaleY="0.8" />
+
+                    <TextView
+                        android:id="@+id/tvToolbarTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:gravity="center"
+                        android:text="Historial"
+                        android:textColor="@color/white"
+                        android:textSize="17sp"
+                        android:fontFamily="@font/unageo_bold"
+                        android:alpha="0"
+                        android:paddingStart="48dp"
+                        android:paddingEnd="48dp" />
+
+                </FrameLayout>
+
+            </androidx.appcompat.widget.Toolbar>
+
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvHistory"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingHorizontal="10dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="200dp"
+        android:clipToPadding="false"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <!-- Estado vacío -->
+    <LinearLayout
+        android:id="@+id/emptyStateLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        android:padding="40dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        tools:visibility="gone">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/ic_recent"
+            android:alpha="0.3"
+            app:tint="@color/white"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/tvEmptyTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sin historial aún"
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Las canciones que escuches aparecerán aquí"
+            android:textColor="#80FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/unageo_regular"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- Loader Lottie -->
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/lottieLoader"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_gravity="center"
+        app:lottie_fileName="loader.json"
+        app:lottie_autoPlay="false"
+        app:lottie_loop="true"
+        app:lottie_repeatCount="-1"
+        app:lottie_enableMergePathsForKitKatAndAbove="true"
+        android:visibility="gone" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

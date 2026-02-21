@@ -158,29 +158,37 @@ class PlaylistDetailViewModel(private val playlistManager: PlaylistManager) : Vi
     fun deleteCurrentPlaylist(playlistId: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                // Usamos el mismo manager que ya tienes inyectado
                 playlistManager.deletePlaylist(playlistId)
-
-                // Volvemos al hilo principal para avisar a la vista
-                withContext(Dispatchers.Main) {
-                    onSuccess()
-                }
+                withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 Log.e("PlaylistDetailVM", "Error deleting playlist", e)
-                withContext(Dispatchers.Main) {
-                    onError(e.message ?: "Error desconocido al borrar")
-                }
+                withContext(Dispatchers.Main) { onError(e.message ?: "Error desconocido al borrar") }
             }
         }
     }
 
-    suspend fun getArtistsForSong(songId: String): String {
-        return try {
-            val artists = withContext(Dispatchers.IO) { playlistManager.getArtistsBySongId(songId) }
-            artists.joinToString(", ") { it.name }
-        } catch (e: Exception) {
-            Log.e("PlaylistDetailVM", "Error obteniendo artistas para la canción $songId", e)
-            ""
+    fun toggleVisibility(
+        playlistId: String,
+        currentIsPublic: Boolean,
+        onSuccess: (newIsPublic: Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val newVisibility = !currentIsPublic
+                withContext(Dispatchers.IO) {
+                    playlistManager.updatePlaylistVisibility(playlistId, newVisibility)
+                }
+                // Update local state
+                val updated = _screenState.value?.playlistDetails?.copy(isPublic = newVisibility)
+                _screenState.postValue(
+                    _screenState.value?.copy(playlistDetails = updated)
+                )
+                withContext(Dispatchers.Main) { onSuccess(newVisibility) }
+            } catch (e: Exception) {
+                Log.e("PlaylistDetailVM", "Error toggling visibility", e)
+                withContext(Dispatchers.Main) { onError(e.message ?: "Error al cambiar visibilidad") }
+            }
         }
     }
 }

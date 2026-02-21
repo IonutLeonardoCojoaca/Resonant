@@ -42,6 +42,7 @@ import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import kotlinx.coroutines.launch
+import com.example.resonant.playback.PlaybackStateRepository
 import java.io.File
 
 class SongFragment : DialogFragment() {
@@ -54,9 +55,13 @@ class SongFragment : DialogFragment() {
     private lateinit var totalTimeText: TextView
 
     private lateinit var replayButton: ImageButton
+    private lateinit var shuffleButton: ImageButton
     private lateinit var playPauseButton: ImageButton
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
+    
+    private lateinit var nextSongContainer: View
+    private lateinit var nextSongInfo: TextView
 
     private lateinit var sharedPref: SharedPreferences
 
@@ -70,7 +75,6 @@ class SongFragment : DialogFragment() {
 
     lateinit var bottomSheet: SongOptionsBottomSheet
 
-    private var musicService: MusicPlaybackService? = null
     private lateinit var albumService: AlbumService
     private lateinit var albumTypeView: TextView
     private lateinit var albumNameView: TextView
@@ -126,13 +130,17 @@ class SongFragment : DialogFragment() {
         previousSongButton = view.findViewById(R.id.previousSongButton)
         nextSongButton = view.findViewById(R.id.nextSongButton)
         replayButton = view.findViewById(R.id.replay_button)
+        shuffleButton = view.findViewById(R.id.shuffleButton)
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         blurrySongImageBackground = view.findViewById(R.id.blurrySongImageBackground)
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
         settingsButton = view.findViewById(R.id.settingsBackground)
         favoriteButton = view.findViewById(R.id.likeButton)
         albumTypeView = view.findViewById(R.id.songAlbumType)
+        albumTypeView = view.findViewById(R.id.songAlbumType)
         albumNameView = view.findViewById(R.id.songAlbumName)
+        nextSongContainer = view.findViewById(R.id.nextSongContainer)
+        nextSongInfo = view.findViewById(R.id.nextSongInfo)
 
         arguments?.getString("coverFileName")?.let { fileName ->
             val file = File(requireContext().cacheDir, fileName)
@@ -194,9 +202,8 @@ class SongFragment : DialogFragment() {
             val currentSong = songViewModel.currentSongLiveData.value
             currentSong?.let { song ->
                 lifecycleScope.launch {
-                    // 3. Usamos artistService para obtener los nombres
-                    val artistList = artistService.getArtistsBySongId(song.id)
-                    song.artistName = artistList.joinToString(", ") { it.name }
+                    // Use artists already embedded in the song from the API
+                    song.artistName = song.artists.joinToString(", ") { it.name }
 
                     bottomSheet = SongOptionsBottomSheet(
                         song = song,
@@ -230,6 +237,23 @@ class SongFragment : DialogFragment() {
                         },
                         onRemoveDownloadClick = { songToDelete ->
                             downloadViewModel.deleteSong(songToDelete)
+                        },
+                        onGoToAlbumClick = { albumId ->
+                            val bundle = Bundle().apply { putString("albumId", albumId) }
+                            // Using direct ID navigation as action might not be defined for SongFragment -> AlbumFragment
+                            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
+                            bottomSheet.dismiss()
+                            this@SongFragment.dismiss()
+                        },
+                        onGoToArtistClick = { artist ->
+                             val bundle = Bundle().apply { 
+                                 putString("artistId", artist.id)
+                                 putString("artistName", artist.name)
+                                 putString("artistImageUrl", artist.url)
+                            }
+                            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
+                            bottomSheet.dismiss()
+                            this@SongFragment.dismiss()
                         }
                     )
                     bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -260,20 +284,18 @@ class SongFragment : DialogFragment() {
             requireContext().startService(intent)
         }
 
-        sharedPref = requireContext().getSharedPreferences("music_experience", Context.MODE_PRIVATE)
-        var isLooping = sharedPref.getBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, false)
-
-        replayButton.setImageResource(
-            if (isLooping) R.drawable.ic_replay_selected else R.drawable.ic_replay
-        )
-
         replayButton.setOnClickListener {
-            isLooping = !isLooping
-            sharedPref.edit().putBoolean(PreferenceKeys.IS_LOOP_ACTIVATED, isLooping).apply()
-            musicService?.setLooping(isLooping)
-            replayButton.setImageResource(
-                if (isLooping) R.drawable.ic_replay_selected else R.drawable.ic_replay
-            )
+            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_TOGGLE_REPEAT
+            }
+            requireContext().startService(intent)
+        }
+
+        shuffleButton.setOnClickListener {
+            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_TOGGLE_SHUFFLE
+            }
+            requireContext().startService(intent)
         }
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -314,7 +336,7 @@ class SongFragment : DialogFragment() {
 
         lifecycleScope.launch {
             try {
-                val albumId = song.albumId
+                val albumId = song.album!!.id
 
                 // Si no hay albumId, es un Single (o archivo local suelto)
                 if (albumId == null) {
@@ -362,6 +384,7 @@ class SongFragment : DialogFragment() {
 
     private fun setupViewModelObservers() {
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
+            updateNextSongInfo()
             currentSong?.let { song ->
                 view?.findViewById<TextView>(R.id.song_title)?.text = song.title ?: "Desconocido"
                 view?.findViewById<TextView>(R.id.songArtist)?.text = song.artistName ?: "Desconocido"
@@ -372,6 +395,7 @@ class SongFragment : DialogFragment() {
                 val isFavorite = song.id.let { favoriteIds?.contains(it) } ?: false
                 updateFavoriteButtonUI(isFavorite)
 
+                // Carga de imagen con Glide y animaciones
                 val albumCoverRes = R.drawable.ic_disc
                 val url = song.coverUrl
 
@@ -392,7 +416,13 @@ class SongFragment : DialogFragment() {
                                 } else {
                                     isAnimatingCover = true
                                     AnimationsUtils.animateBlurryBackground(blurrySongImageBackground, resource)
-                                    AnimationsUtils.animateSongImage(view!!.findViewById(R.id.song_image), resource, lastDirection) {
+                                    // Asegurar que song_image existe
+                                    val songImage = view?.findViewById<ImageView>(R.id.song_image)
+                                    if (songImage != null) {
+                                        AnimationsUtils.animateSongImage(songImage, resource, lastDirection) {
+                                            isAnimatingCover = false
+                                        }
+                                    } else {
                                         isAnimatingCover = false
                                     }
                                 }
@@ -404,6 +434,11 @@ class SongFragment : DialogFragment() {
                     val bitmap = BitmapFactory.decodeResource(resources, albumCoverRes)
                     blurrySongImageBackground.setImageBitmap(bitmap)
                     view?.findViewById<ImageView>(R.id.song_image)?.setImageBitmap(bitmap)
+                }
+                
+                // Reset UI elements for new song (if logic requires)
+                if (song.id != lastSongId) {
+                     // Podríamos resetear seekbar aquí, pero el observer de position lo hará
                 }
             }
         }
@@ -423,14 +458,28 @@ class SongFragment : DialogFragment() {
                 totalTimeText.text = Utils.formatTime(positionInfo.duration.toInt())
             }
         }
+
+        songViewModel.repeatModeLiveData.observe(viewLifecycleOwner) { mode ->
+            updateNextSongInfo()
+            when (mode) {
+                PlaybackStateRepository.REPEAT_MODE_OFF -> replayButton.setImageResource(R.drawable.ic_replay)
+                PlaybackStateRepository.REPEAT_MODE_ALL -> replayButton.setImageResource(R.drawable.ic_replay_selected)
+                PlaybackStateRepository.REPEAT_MODE_ONE -> replayButton.setImageResource(R.drawable.ic_replay_one_selected)
+            }
+        }
+
+        songViewModel.isShuffleEnabledLiveData.observe(viewLifecycleOwner) { isEnabled ->
+            updateNextSongInfo()
+            shuffleButton.setBackgroundResource(
+                if (isEnabled) R.drawable.ic_random_selected else R.drawable.ic_random
+            )
+        }
     }
 
     private fun updateFavoriteButtonUI(isFavorite: Boolean) {
-        if (isFavorite) {
-            favoriteButton.setBackgroundResource(R.drawable.ic_favorite)
-        } else {
-            favoriteButton.setBackgroundResource(R.drawable.ic_favorite_border)
-        }
+        favoriteButton.setBackgroundResource(
+            if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border
+        )
     }
 
     private fun updatePlayPauseButton(isPlaying: Boolean) {
@@ -440,7 +489,7 @@ class SongFragment : DialogFragment() {
     }
 
     private fun setSongImage(imageView: ImageView, file: File) {
-        if (file.exists()) {
+         if (file.exists()) {
             val bitmap = BitmapFactory.decodeFile(file.absolutePath)
             if (bitmap != null) {
                 imageView.setImageBitmap(bitmap)
@@ -448,5 +497,51 @@ class SongFragment : DialogFragment() {
             }
         }
         imageView.setImageResource(R.drawable.ic_disc)
+    }
+
+    private fun updateNextSongInfo() {
+        val queue = PlaybackStateRepository.activeQueue
+        val songs = queue?.songs ?: emptyList()
+        val currentSong = songViewModel.currentSongLiveData.value ?: PlaybackStateRepository.currentSong
+        
+        // Robustez: Buscar el índice real por ID, ya que currentIndex podría no estar sincronizado aún
+        val currentIndex = if (currentSong != null) {
+            songs.indexOfFirst { it.id == currentSong.id }
+        } else {
+            queue?.currentIndex ?: -1
+        }
+
+        val repeatMode = songViewModel.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+
+        if (songs.isEmpty() || currentIndex == -1) {
+            nextSongContainer.visibility = View.INVISIBLE
+            return
+        }
+
+        var nextIndex = currentIndex + 1
+        var showNext = true
+
+        if (repeatMode == PlaybackStateRepository.REPEAT_MODE_ONE) {
+            nextIndex = currentIndex
+        } else if (nextIndex >= songs.size) {
+            if (repeatMode == PlaybackStateRepository.REPEAT_MODE_ALL) {
+                nextIndex = 0
+            } else {
+                showNext = false
+            }
+        }
+
+        if (showNext) {
+            val nextSong = songs.getOrNull(nextIndex)
+            if (nextSong != null) {
+                val artist = nextSong.artistName ?: nextSong.artists.joinToString(", ") { it.name }
+                nextSongInfo.text = "${nextSong.title} • $artist"
+                nextSongContainer.visibility = View.VISIBLE
+            } else {
+                nextSongContainer.visibility = View.INVISIBLE
+            }
+        } else {
+            nextSongContainer.visibility = View.INVISIBLE
+        }
     }
 }

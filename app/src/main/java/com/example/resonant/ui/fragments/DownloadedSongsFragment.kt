@@ -327,6 +327,18 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
                         colorRes = R.color.successColor,
                         iconRes = R.drawable.ic_success
                     )
+                },
+                onGoToAlbumClick = { albumId ->
+                    val bundle = Bundle().apply { putString("albumId", albumId) }
+                    findNavController().navigate(R.id.albumFragment, bundle)
+                },
+                onGoToArtistClick = { artist ->
+                     val bundle = Bundle().apply { 
+                         putString("artistId", artist.id)
+                         putString("artistName", artist.name)
+                         putString("artistImageUrl", artist.url)
+                    }
+                    findNavController().navigate(R.id.artistFragment, bundle)
                 }
             )
             bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")

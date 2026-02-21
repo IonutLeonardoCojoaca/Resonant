@@ -21,6 +21,7 @@ class SettingsManager(private val context: Context) {
         val CROSSFADE_DURATION_KEY = intPreferencesKey("crossfade_duration_seconds")
         val CROSSFADE_MODE_KEY = stringPreferencesKey("crossfade_mode")
         val AUTOMIX_ENABLED_KEY = booleanPreferencesKey("automix_enabled")
+        val LOUDNESS_NORMALIZATION_KEY = booleanPreferencesKey("loudness_normalization_enabled")
     }
 
     val automixEnabledFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -29,6 +30,14 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setAutomixEnabled(isEnabled: Boolean) {
         context.dataStore.edit { it[AUTOMIX_ENABLED_KEY] = isEnabled }
+    }
+
+    val loudnessNormalizationFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[LOUDNESS_NORMALIZATION_KEY] ?: true // Activado por defecto
+    }
+
+    suspend fun setLoudnessNormalizationEnabled(isEnabled: Boolean) {
+        context.dataStore.edit { it[LOUDNESS_NORMALIZATION_KEY] = isEnabled }
     }
 
 

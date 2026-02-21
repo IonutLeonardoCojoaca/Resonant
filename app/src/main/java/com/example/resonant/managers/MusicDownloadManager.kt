@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.resonant.data.local.dao.DownloadedSongDao
 import com.example.resonant.data.local.entities.DownloadedSong
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.ApiClient
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -33,19 +34,36 @@ class MusicDownloadManager(
     private val gson = Gson()
 
     fun downloadSong(song: Song): Flow<DownloadStatus> = flow {
-        if (song.url.isNullOrBlank()) {
-            emit(DownloadStatus.Error("URL vacía"))
-            return@flow
-        }
+        var downloadUrl = song.url
 
-        // 1. Emitir Started y FORZAR 0% inmediatamente para limpiar la UI anterior
+        // 1. Emitir Started y FORZAR 0% inmediatamente
         emit(DownloadStatus.Started)
         emit(DownloadStatus.Progress(0))
+
+        // 2. Si no hay URL, intentamos obtenerla del backend (Endpoints protegidos/dinámicos)
+        if (downloadUrl.isNullOrBlank()) {
+            try {
+                Log.d("DownloadManager", "URL vacía, solicitando playback info para ${song.title}...")
+                val songService = ApiClient.getSongService(context)
+                val playbackInfo = songService.getSongPlaybackInfo(song.id)
+                downloadUrl = playbackInfo.streamUrl
+                
+                if (downloadUrl.isNullOrBlank()) {
+                    emit(DownloadStatus.Error("No se pudo obtener URL de descarga"))
+                    return@flow
+                }
+                Log.d("DownloadManager", "URL obtenida: $downloadUrl")
+            } catch (e: Exception) {
+                Log.e("DownloadManager", "Error obteniendo playback info", e)
+                emit(DownloadStatus.Error("Error obt. URL: ${e.message}"))
+                return@flow
+            }
+        }
 
         try {
             Log.d("DownloadManager", "⬇️ Iniciando: ${song.title}")
 
-            val request = Request.Builder().url(song.url!!).build()
+            val request = Request.Builder().url(downloadUrl!!).build()
             val response = client.newCall(request).execute()
 
             if (!response.isSuccessful || response.body == null) {
@@ -94,9 +112,7 @@ class MusicDownloadManager(
             inputStream.close()
 
             // Asegurar que llegue al 100% si el cálculo falló o fue muy rápido
-            if (lastProgress < 100) {
-                emit(DownloadStatus.Progress(100))
-            }
+            if (lastProgress < 100) emit(DownloadStatus.Progress(100))
 
             // Descargar portada (sin cambios aquí)
             var localImageName: String? = null
@@ -118,7 +134,8 @@ class MusicDownloadManager(
                 songId = song.id,
                 title = song.title,
                 artistName = song.artistName ?: "Desconocido",
-                albumId = song.albumId,
+                // Si song.album es null, guardamos nulo o string vacío
+                album = song.album, 
                 duration = song.duration,
                 localAudioPath = fileName,
                 localImagePath = localImageName,
@@ -134,7 +151,10 @@ class MusicDownloadManager(
 
         } catch (e: Exception) {
             Log.e("DownloadManager", "Error crítico", e)
-            try { File(context.filesDir, "${song.id}.mp3").delete() } catch (_: Exception) {}
+            try { 
+                // Limpiar archivo parcial corrupto
+                File(context.filesDir, "${song.id}.mp3").delete() 
+            } catch (_: Exception) {}
             emit(DownloadStatus.Error(e.message ?: "Error desconocido"))
         }
     }.flowOn(Dispatchers.IO)

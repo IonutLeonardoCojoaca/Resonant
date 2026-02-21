@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".ui.fragments.SongFragment"
-    android:background="@color/appBackgroundTheme">
+    android:background="@color/primaryColorTheme">
 
     <ImageView
         android:id="@+id/blurrySongImageBackground"
@@ -42,8 +42,8 @@
 
         <FrameLayout
             android:id="@+id/arrowGoBackBackground"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:layout_marginVertical="10dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -103,8 +103,8 @@
 
         <FrameLayout
             android:id="@+id/settingsBackground"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:layout_marginVertical="10dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -115,7 +115,7 @@
                 android:layout_width="35dp"
                 android:layout_height="35dp"
                 android:layout_gravity="center"
-                android:background="@drawable/ic_song_settings_vertical"
+                android:background="@drawable/ic_item_settings_vertical"
                 android:clickable="false"
                 android:focusable="false" />
 
@@ -147,7 +147,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingHorizontal="20dp"
-            android:paddingBottom="20dp"
+            android:paddingBottom="10dp"
             android:paddingTop="10dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -220,6 +220,7 @@
                 android:paddingBottom="5dp">
 
                 <ImageButton
+                    android:id="@+id/shuffleButton"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
                     android:layout_gravity="center_vertical|start"
@@ -233,6 +234,7 @@
                     android:layout_gravity="center_vertical|end"
                     android:background="@android:color/transparent"
                     android:scaleType="centerCrop"
+                    android:padding="0dp"
                     android:src="@drawable/ic_replay" />
 
             </FrameLayout>
@@ -289,11 +291,74 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/seekbarActionsContainer">
 
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/nextSongContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_above="@+id/playerActions"
+                android:layout_centerHorizontal="true"
+                android:layout_marginHorizontal="30dp"
+                android:layout_marginBottom="25dp"
+                app:cardBackgroundColor="#26FFFFFF"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#1AFFFFFF"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="10dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_skip_next"
+                        app:tint="#CCFFFFFF"
+                        android:layout_marginEnd="12dp"/>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="SIGUIENTE"
+                            android:textColor="#99FFFFFF"
+                            android:textSize="9sp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:letterSpacing="0.1"/>
+
+                        <TextView
+                            android:id="@+id/nextSongInfo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Cargando..."
+                            android:textColor="@color/white"
+                            android:textSize="13sp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:ellipsize="end"
+                            android:maxLines="1"/>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
             <RelativeLayout
                 android:id="@+id/playerActions"
                 android:layout_width="240dp"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
+                android:layout_centerHorizontal="true"
+                android:layout_marginBottom="20dp"
                 android:orientation="horizontal"
                 android:paddingHorizontal="18dp">
 

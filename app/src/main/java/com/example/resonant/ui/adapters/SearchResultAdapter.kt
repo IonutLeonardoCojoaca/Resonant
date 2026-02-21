@@ -58,12 +58,18 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
     var onSongClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     var onAlbumClick: ((Album) -> Unit)? = null
     var onArtistClick: ((Artist, ImageView) -> Unit)? = null
+    
+    // Settings callbacks
+    var onAlbumSettingsClick: ((Album) -> Unit)? = null
+    var onArtistSettingsClick: ((Artist) -> Unit)? = null
 
     // --- FAVORITOS ---
-    var favoriteSongIds: Set<String> = emptySet()
+    private var _favoriteSongIds: Set<String> = emptySet()
+    var favoriteSongIds: Set<String>
+        get() = _favoriteSongIds
         set(newFavoriteIds) {
-            val oldFavoriteIds = field
-            field = newFavoriteIds
+            val oldFavoriteIds = _favoriteSongIds
+            _favoriteSongIds = newFavoriteIds
             val changedIds = (oldFavoriteIds - newFavoriteIds) + (newFavoriteIds - oldFavoriteIds)
             if (changedIds.isEmpty()) return
             changedIds.forEach { songId ->
@@ -106,6 +112,18 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             is SearchResult.ArtistItem -> (holder as ArtistViewHolder).bind(item.artist)
         }
     }
+    
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.isNotEmpty()) {
+             when (val item = getItem(position)) {
+                is SearchResult.SongItem -> (holder as SongViewHolder).bind(item.song, partial = true)
+                else -> onBindViewHolder(holder, position)
+            }
+        } else {
+            onBindViewHolder(holder, position)
+        }
+    }
+
 
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
@@ -113,7 +131,6 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             is SongViewHolder -> {
                 holder.cancelJobs()
                 Glide.with(holder.itemView).clear(holder.albumArtImageView)
-                holder.albumArtAnimator?.cancel()
                 holder.albumArtImageView.rotation = 0f
             }
             is AlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
@@ -139,11 +156,11 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
 
         private var artworkJob: Job? = null
         private val ioScope = CoroutineScope(Dispatchers.IO)
-        var albumArtAnimator: ObjectAnimator? = null
+
 
         fun cancelJobs() { artworkJob?.cancel(); artworkJob = null }
 
-        fun bind(song: Song) {
+        fun bind(song: Song, partial: Boolean = false) {
             // --- 3. LÓGICA DE VISIBILIDAD DE DESCARGA ---
             val isDownloaded = downloadedSongIds.contains(song.id)
             if (isDownloaded) {
@@ -152,47 +169,43 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
                 downloadedIcon.visibility = View.GONE
             }
 
-            // ... Resto del bind original ...
-            val isFavorite = favoriteSongIds.contains(song.id)
+            val isFavorite = _favoriteSongIds.contains(song.id)
             likeButton.visibility = if (isFavorite) View.VISIBLE else View.INVISIBLE
             likeButton.setImageResource(if (isFavorite) R.drawable.ic_favorite else 0)
 
-            cancelJobs()
-            Glide.with(itemView).clear(albumArtImageView)
-            albumArtAnimator?.cancel()
-            albumArtImageView.rotation = 0f
-            albumArtImageView.visibility = View.VISIBLE
-
-            nameTextView.text = song.title
-            artistTextView.text = song.artistName ?: "Desconocido"
             nameTextView.setTextColor(ContextCompat.getColor(itemView.context, if (song.id == currentPlayingId) R.color.titleSongColorWhilePlaying else R.color.white))
 
-            val placeholderRes = R.drawable.ic_disc
+            if (!partial) {
+                nameTextView.text = song.title ?: "Desconocido"
+                artistTextView.text = song.artistName ?: "Desconocido"
 
-            bitmapCache[song.id]?.let { cached -> albumArtImageView.setImageBitmap(cached) } ?: run {
-                val albumImageUrl = song.coverUrl
-                if (!albumImageUrl.isNullOrBlank()) {
-                    albumArtAnimator = ObjectAnimator.ofFloat(albumArtImageView, "rotation", 0f, 360f).apply {
-                        duration = 3000; repeatCount = ObjectAnimator.INFINITE; interpolator = LinearInterpolator(); start()
-                    }
-                    Glide.with(itemView).asBitmap().load(albumImageUrl).diskCacheStrategy(DiskCacheStrategy.AUTOMATIC).timeout(10_000).dontAnimate().placeholder(placeholderRes).error(placeholderRes)
-                        .listener(object : RequestListener<Bitmap> {
-                            override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Bitmap>, isFirstResource: Boolean): Boolean {
-                                albumArtAnimator?.cancel(); albumArtImageView.rotation = 0f; return false
-                            }
-                            override fun onResourceReady(resource: Bitmap, model: Any, target: Target<Bitmap>?, dataSource: DataSource, isFirstResource: Boolean): Boolean {
-                                albumArtAnimator?.cancel(); albumArtImageView.rotation = 0f; bitmapCache[song.id] = resource
-                                ioScope.launch { runCatching { Utils.saveBitmapToCache(itemView.context, resource, song.id) } }
-                                return false
-                            }
-                        }).into(albumArtImageView)
-                } else { albumArtImageView.setImageResource(placeholderRes) }
+                cancelJobs()
+                albumArtImageView.visibility = View.VISIBLE
+
+                Glide.with(itemView).clear(albumArtImageView)
+
+                val placeholderRes = R.drawable.ic_disc
+                val url = song.coverUrl
+
+                if (!url.isNullOrBlank()) {
+                    Glide.with(itemView.context)
+                        .asBitmap()
+                        .load(url)
+                        .override(200, 200) // Optimization: resize
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                        .placeholder(placeholderRes)
+                        .error(placeholderRes)
+                        .into(albumArtImageView)
+                } else {
+                    albumArtImageView.setImageResource(placeholderRes)
+                }
             }
 
             settingsButton.setOnClickListener { onSettingsClick?.invoke(song) }
             likeButton.setOnClickListener {
-                val newState = !favoriteSongIds.contains(song.id)
-                favoriteSongIds = if (newState) favoriteSongIds + song.id else favoriteSongIds - song.id
+                val newState = !_favoriteSongIds.contains(song.id)
+                _favoriteSongIds = if (newState) _favoriteSongIds + song.id else _favoriteSongIds - song.id
                 notifyItemChanged(bindingAdapterPosition, "silent")
                 onFavoriteClick?.invoke(song, newState)
             }
@@ -210,6 +223,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         private val albumTitle: TextView = itemView.findViewById(R.id.albumTitle)
         private val albumArtistName: TextView = itemView.findViewById(R.id.albumArtistName)
         val albumImage: ImageView = itemView.findViewById(R.id.albumImage)
+        private val settingsButton: ImageButton = itemView.findViewById(R.id.settingsButton)
 
         fun bind(album: Album) {
             albumTitle.text = album.title ?: "Not found"
@@ -223,6 +237,13 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
                 Glide.with(itemView).load(model).diskCacheStrategy(DiskCacheStrategy.AUTOMATIC).timeout(10_000).dontAnimate().placeholder(placeholderRes).error(placeholderRes).into(albumImage)
             }
 
+            settingsButton.setOnClickListener {
+                onAlbumSettingsClick?.invoke(album)
+            }
+            itemView.setOnLongClickListener {
+                onAlbumSettingsClick?.invoke(album)
+                true
+            }
             itemView.setOnClickListener {
                 onAlbumClick?.invoke(album)
             }
@@ -234,6 +255,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
         val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
+        private val settingsButton: ImageButton = itemView.findViewById(R.id.settingsButton)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
@@ -257,6 +279,13 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
                     }).into(artistImage)
             }
 
+            settingsButton.setOnClickListener {
+                onArtistSettingsClick?.invoke(artist)
+            }
+            itemView.setOnLongClickListener {
+                onArtistSettingsClick?.invoke(artist)
+                true
+            }
             itemView.setOnClickListener {
                 onArtistClick?.invoke(artist, artistImage)
             }
@@ -287,5 +316,7 @@ private class SearchResultDiffCallback : DiffUtil.ItemCallback<SearchResult>() {
             else -> false
         }
     }
-    override fun areContentsTheSame(oldItem: SearchResult, newItem: SearchResult): Boolean { return oldItem == newItem }
+    override fun areContentsTheSame(oldItem: SearchResult, newItem: SearchResult): Boolean {
+        return oldItem == newItem
+    }
 }

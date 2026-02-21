@@ -9,18 +9,22 @@ data class Playlist(
     val id: String? = null,
     val userId: String? = null,
     var name: String,
-    val description: String,
-    val numberOfTracks: Int,
-    val duration: Int,
+    val description: String? = null,
+    val numberOfTracks: Int = 0,
+    val duration: Int = 0,
 
     @SerializedName("fileName")
     val fileName: String? = null,
 
-    val isPublic: Boolean,
+    val isPublic: Boolean? = null,
 
     @SerializedName("imageUrl")
     val imageUrl: String? = null,
 
     @SerializedName("songsHash")
-    var songsHash: String? = null
+    var songsHash: String? = null,
+
+    // Campo local no serializado: se rellena tras obtener info del usuario
+    @Transient
+    var ownerName: String? = null
 ) : Parcelable

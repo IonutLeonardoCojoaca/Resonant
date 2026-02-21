@@ -1,15 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:gravity="center"
-    app:cardBackgroundColor="@color/black">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="10dp">
+    android:padding="6dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackground">
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/artistImage"
@@ -23,16 +21,28 @@
         app:shapeAppearanceOverlay="@style/CircularUserImage"
         android:adjustViewBounds="true"/>
 
+    <ImageButton
+        android:id="@+id/btnSettings"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:background="@drawable/background_circle_transparent"
+        android:src="@drawable/ic_item_settings"
+        android:padding="6dp"
+        app:tint="@color/white"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@id/artistImage"
+        app:layout_constraintEnd_toEndOf="@id/artistImage"
+        android:layout_margin="4dp"/>
+
     <TextView
         android:id="@+id/artistName"
-        android:layout_width="wrap_content"
-        android:layout_height="18dp"
-        android:layout_centerHorizontal="true"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/artistImage"
-        android:text=""
+        android:text="Artist Name"
         android:textAlignment="center"
         android:textColor="@color/white"
         android:fontFamily="@font/unageo_medium"
@@ -40,6 +50,4 @@
         android:maxLines="1"
         android:ellipsize="end"/>
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-</androidx.cardview.widget.CardView>
+</androidx.constraintlayout.widget.ConstraintLayout>

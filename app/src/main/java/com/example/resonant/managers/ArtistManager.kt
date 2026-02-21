@@ -13,32 +13,35 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
-// CAMBIO 1: Usamos 'object' en lugar de 'class'.
-// Esto hace que 'ArtistManager' sea ÚNICO en toda la app y siempre esté vivo.
 object ArtistManager {
 
     // CAMBIO 2: La MEMORIA (Caché). Aquí se guardan los datos.
     private val artistDetailsCache = mutableMapOf<String, Artist>()
     private val albumsCache = mutableMapOf<String, List<Album>>()
     private val topSongsCache = mutableMapOf<String, List<Song>>()
+    private val cacheTimestamps = mutableMapOf<String, Long>() // Para controlar caducidad
+    
+    private const val CACHE_DURATION_MS = 20 * 60 * 1000L // 20 Minutos
 
-    // Variable para guardar la última recomendación y no recargarla si vuelves atrás
     private var cachedRecommendation: RecommendationResult<Artist>? = null
 
-    // --- NUEVA FUNCIÓN: Para tu ArtistFragment (Con Caché) ---
-    // Esta es la función que debes llamar desde tu ArtistViewModel
     suspend fun getFullArtistData(
         context: Context,
         artistId: String,
         songManager: SongManager // Necesitamos songManager para las canciones top
     ): Triple<Artist, List<Album>, List<Song>> = withContext(Dispatchers.IO) {
 
-        // A. REVISAR CACHÉ: ¿Ya tenemos los datos de este artista?
-        if (artistDetailsCache.containsKey(artistId) &&
+        val now = System.currentTimeMillis()
+        val lastUpdate = cacheTimestamps[artistId] ?: 0L
+        val isExpired = (now - lastUpdate) > CACHE_DURATION_MS
+
+        // A. REVISAR CACHÉ
+        if (!isExpired &&
+            artistDetailsCache.containsKey(artistId) &&
             albumsCache.containsKey(artistId) &&
             topSongsCache.containsKey(artistId)) {
 
-            Log.d("ArtistManager", "Recuperando artista $artistId desde CACHÉ (Sin Internet)")
+            Log.d("ArtistManager", "Recuperando artista $artistId desde CACHÉ (Válido, < 20 min)")
             return@withContext Triple(
                 artistDetailsCache[artistId]!!,
                 albumsCache[artistId]!!,
@@ -46,25 +49,30 @@ object ArtistManager {
             )
         }
 
-        // B. SI NO ESTÁ, DESCARGAR (Internet)
-        Log.d("ArtistManager", "Descargando artista $artistId desde INTERNET")
+        // B. SI NO ESTÁ O CADUCÓ, DESCARGAR (Internet)
+        if (isExpired && artistDetailsCache.containsKey(artistId)) {
+            Log.d("ArtistManager", "Cache expirado para $artistId. Descargando nuevo...")
+        } else {
+            Log.d("ArtistManager", "Descargando artista $artistId desde INTERNET")
+        }
 
         val artistService = ApiClient.getArtistService(context)
-        val albumService = ApiClient.getAlbumService(context)
 
-        // Llamadas en paralelo
+        // Llamadas en paralelo usando los nuevos endpoints
         val artistDeferred = async { artistService.getArtistById(artistId) }
-        val albumsDeferred = async { albumService.getByArtistId(artistId) }
-        val topSongsDeferred = async { songManager.getMostStreamedSongsByArtist(artistId, 5) }
+        // Nuevo endpoint: api/artists/{id}/albums (sub-recurso de Artist)
+        val albumsDeferred = async { artistService.getArtistAlbums(artistId) }
+        val topSongsDeferred = async { songManager.getMostStreamedSongsByArtist(artistId, 10) }
 
         val artist = artistDeferred.await()
         val albums = albumsDeferred.await()
         val topSongs = topSongsDeferred.await()
 
-        // C. GUARDAR EN CACHÉ
+        // C. GUARDAR EN CACHÉ Y ACTUALIZAR TIMESTAMP
         artistDetailsCache[artistId] = artist
         albumsCache[artistId] = albums
         topSongsCache[artistId] = topSongs
+        cacheTimestamps[artistId] = System.currentTimeMillis()
 
         return@withContext Triple(artist, albums, topSongs)
     }
@@ -72,20 +80,14 @@ object ArtistManager {
 
     // --- TUS FUNCIONES EXISTENTES (Adaptadas al Singleton) ---
 
-    // Función para recomendaciones (Ahora con caché opcional)
-    suspend fun getRecommendedArtists(context: Context, userId: String, count: Int): RecommendationResult<Artist>? {
-        // Opción: Si ya tenemos una recomendación cargada, la devolvemos?
-        // Descomenta esto si quieres que las recomendaciones no cambien al rotar pantalla o volver:
-        /* if (cachedRecommendation != null) {
-            return cachedRecommendation
-        }
-        */
+    // Recomendaciones (sin userId, extraído del JWT)
+    suspend fun getRecommendedArtists(context: Context, count: Int): RecommendationResult<Artist>? {
 
         val artistService = ApiClient.getArtistService(context)
 
         try {
-            // 1. Intentar recomendaciones
-            val response = artistService.getRecommendedArtists(userId, count)
+            // 1. Intentar recomendaciones (sin userId)
+            val response = artistService.getRecommendedArtists(count)
 
             if (response.isEmpty()) throw Exception("No recs")
 
@@ -94,55 +96,52 @@ object ArtistManager {
 
             val result = RecommendationResult(artists, title)
 
-            // Guardamos en caché también los artistas individuales por si luego entras en su perfil
+            // Guardamos en caché también los artistas individuales
             artists.forEach { artistDetailsCache[it.id] = it }
-            cachedRecommendation = result // Guardamos la recomendación global
+            cachedRecommendation = result
 
             return result
 
         } catch (e: Exception) {
-            Log.w("ArtistManager", "Fallo en recomendaciones. Usando aleatorios.")
-
-            // Pasamos 'context' porque getRandomArtists ahora lo necesita
-            val randomArtists = getRandomArtists(context, count)
-
-            return if (randomArtists.isNotEmpty()) {
-                val result = RecommendationResult(randomArtists, "Descubre artistas")
-                cachedRecommendation = result
-                result
-            } else {
-                null
-            }
+            Log.w("ArtistManager", "Fallo en recomendaciones: ${e.message}")
+            return null
         }
     }
 
-    private suspend fun getRandomArtists(context: Context, count: Int): List<Artist> {
-        val artistService = ApiClient.getArtistService(context)
+    suspend fun getArtistSmartPlaylists(context: Context, artistId: String): List<com.example.resonant.data.models.ArtistSmartPlaylist> {
         return try {
-            val allIds = artistService.getAllArtistIds()
-            if (allIds.size < count) return emptyList()
-
-            val randomIds = allIds.shuffled().take(count)
-
-            coroutineScope {
-                randomIds.map { id ->
-                    async {
-                        // Intentamos coger de caché primero, si no, descargamos
-                        if (artistDetailsCache.containsKey(id)) {
-                            artistDetailsCache[id]
-                        } else {
-                            try {
-                                val artist = artistService.getArtistById(id)
-                                artistDetailsCache[id] = artist // Guardamos para el futuro
-                                artist
-                            } catch (e: Exception) { null }
-                        }
-                    }
-                }.awaitAll().filterNotNull()
-            }
+            ApiClient.getArtistService(context).getArtistSmartPlaylists(artistId)
         } catch (e: Exception) {
-            Log.e("ArtistManager", "Error getting random artists", e)
+            Log.e("ArtistManager", "Error fetching playlists for $artistId", e)
             emptyList()
+        }
+    }
+
+    suspend fun getEssentials(context: Context, artistId: String): List<Song> {
+        return try {
+            ApiClient.getArtistService(context).getEssentials(artistId)
+        } catch (e: Exception) {
+             Log.e("ArtistManager", "Error fetching Essentials for $artistId", e)
+             emptyList()
+        }
+    }
+
+    suspend fun getRadios(context: Context, artistId: String): List<Song> {
+        return try {
+            ApiClient.getArtistService(context).getRadios(artistId)
+        } catch (e: Exception) {
+             Log.e("ArtistManager", "Error fetching Radios for $artistId", e)
+             emptyList()
+        }
+    }
+
+    suspend fun getArtistImages(context: Context, artistId: String): List<String> {
+        return try {
+            val response = ApiClient.getArtistService(context).getArtistImages(artistId)
+            response.galleryImageUrls ?: emptyList()
+        } catch (e: Exception) {
+             Log.e("ArtistManager", "Error fetching images for $artistId", e)
+             emptyList()
         }
     }
 }

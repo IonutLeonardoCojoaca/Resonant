@@ -5,10 +5,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/black"
-    android:fillViewport="true"
+    android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.SavedFragment">
 
+    <!-- TOOLBAR -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/superiorToolbar"
         android:layout_width="match_parent"
@@ -52,191 +52,255 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <androidx.core.widget.NestedScrollView
+    <!-- CHIPS FILTER -->
+    <HorizontalScrollView
+        android:id="@+id/chipsScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingHorizontal="15dp"
+        android:paddingBottom="10dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            android:theme="@style/Theme.MaterialComponents.Light">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipPlaylists"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:checkable="true"
+                android:checked="true"
+                android:text="Listas"
+                android:textColor="#FFFFFF"
+                app:checkedIconVisible="false"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipCornerRadius="35dp"
+                app:chipStrokeColor="@android:color/transparent"
+                app:fontFamily="@font/unageo_medium"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipSongs"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:checkable="true"
+                android:text="Canciones"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:checkedIconVisible="false"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipCornerRadius="35dp"
+                app:chipStrokeColor="@android:color/transparent"
+                app:fontFamily="@font/unageo_medium"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipArtists"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:checkable="true"
+                android:text="Artistas"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:checkedIconVisible="false"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipCornerRadius="35dp"
+                app:chipStrokeColor="@android:color/transparent"
+                app:fontFamily="@font/unageo_medium"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipAlbums"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:checkable="true"
+                android:text="Álbumes"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:checkedIconVisible="false"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipCornerRadius="35dp"
+                app:chipStrokeColor="@android:color/transparent"
+                app:fontFamily="@font/unageo_medium"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
+        </com.google.android.material.chip.ChipGroup>
+
+    </HorizontalScrollView>
+
+    <!-- PLAYLISTS VIEW (Visible by default) -->
+    <LinearLayout
+        android:id="@+id/playlistsContainerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:fillViewport="true"
+        android:orientation="vertical"
+        android:visibility="visible"
+        app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar">
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <LinearLayout
+        <!-- DOWNLOADS ITEM (WhatsApp Style) -->
+        <RelativeLayout
+            android:id="@+id/downloadsItemContainer"
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:paddingHorizontal="15dp"
+            android:layout_marginVertical="5dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <FrameLayout
+                android:id="@+id/iconContainer"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_centerVertical="true"
+                android:background="@drawable/bg_circle_secondary_20">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_download"
+                    app:tint="@color/white" />
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_toEndOf="@id/iconContainer"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="15dp"
+                android:text="Descargas"
+                android:fontFamily="@font/unageo_bold"
+                android:textSize="17sp"
+                android:textColor="@color/white" />
+
+        </RelativeLayout>
+
+        <!-- Separator -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="20dp"
+            android:background="#1AFFFFFF"/>
+
+        <FrameLayout
+            android:id="@+id/playlistTextContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:padding="15dp">
 
-            <FrameLayout
-                android:id="@+id/favoritesTextContainer"
-                android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/playlistText"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingHorizontal="20dp"
-                android:paddingVertical="10dp">
+                android:layout_gravity="center_vertical|start"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Listas de canciones"
+                android:textColor="@color/white"
+                android:textSize="20sp" />
 
-                <TextView
-                    android:id="@+id/favoriteText"
+        </FrameLayout>
+
+        <RelativeLayout
+            android:id="@+id/containerPlaylistsUser"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"> <!-- Fills remaining space in LinearLayout -->
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/playlistList"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingHorizontal="10dp"
+                android:paddingBottom="200dp" />
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/noPlaylistContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="visible">
+
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="start"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Favoritos"
-                    android:textColor="@color/white"
-                    android:textSize="18sp" />
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_bias="0.4">
 
-            </FrameLayout>
+                    <FrameLayout
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:background="@drawable/bg_circle_secondary_20">
 
-            <GridLayout
-                android:id="@+id/buttonFavoriteContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:columnCount="2"
-                android:paddingHorizontal="10dp">
+                        <ImageView
+                            android:layout_width="35dp"
+                            android:layout_height="35dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_menu_add"
+                            app:tint="@color/white" />
+                    </FrameLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/songsButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="5dp"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    android:fontFamily="@font/unageo_medium"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="20dp"
-                    android:text="Canciones"
-                    android:textAlignment="textStart"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    app:backgroundTint="@color/transparent"
-                    app:cornerRadius="10dp"
-                    app:icon="@drawable/ic_song"
-                    app:iconGravity="start"
-                    app:iconPadding="15dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/white"
-                    app:rippleColor="@color/ripple_white" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Crea tu primera playlist"
+                        android:textColor="@color/white"
+                        android:textSize="20sp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/artistsButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="5dp"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    android:fontFamily="@font/unageo_medium"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="20dp"
-                    android:text="Artistas"
-                    android:textAlignment="textStart"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    app:backgroundTint="@color/transparent"
-                    app:cornerRadius="10dp"
-                    app:icon="@drawable/ic_artist"
-                    app:iconGravity="start"
-                    app:iconPadding="15dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/white"
-                    app:rippleColor="@color/ripple_white" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Organiza tu música a tu manera"
+                        android:textColor="#80FFFFFF"
+                        android:textSize="15sp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/albumsButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="5dp"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    android:fontFamily="@font/unageo_medium"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="20dp"
-                    android:text="Álbumes"
-                    android:textAlignment="textStart"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    app:backgroundTint="@color/transparent"
-                    app:cornerRadius="10dp"
-                    app:icon="@drawable/ic_album"
-                    app:iconGravity="start"
-                    app:iconPadding="15dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/white"
-                    app:rippleColor="@color/ripple_white" />
+                </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/downloadsButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_margin="5dp"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    android:fontFamily="@font/unageo_medium"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:padding="20dp"
-                    android:text="Descargas"
-                    android:textAlignment="textStart"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    app:backgroundTint="@color/transparent"
-                    app:cornerRadius="10dp"
-                    app:icon="@drawable/ic_download"
-                    app:iconGravity="start"
-                    app:iconPadding="15dp"
-                    app:iconSize="20dp"
-                    app:iconTint="@color/white"
-                    app:rippleColor="@color/ripple_white" />
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
-            </GridLayout>
+        </RelativeLayout>
 
-            <FrameLayout
-                android:id="@+id/playlistTextContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="20dp">
+    </LinearLayout>
 
-                <TextView
-                    android:id="@+id/playlistText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_vertical|start"
-                    android:layout_marginVertical="10dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Listas de canciones"
-                    android:textColor="@color/white"
-                    android:textSize="18sp" />
-
-            </FrameLayout>
-
-            <RelativeLayout
-                android:id="@+id/containerPlaylistsUser"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/playlistList"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:nestedScrollingEnabled="false"
-                    android:paddingHorizontal="5dp"
-                    android:paddingBottom="200dp" />
-
-                <TextView
-                    android:id="@+id/noPlaylistText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_centerInParent="true"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="No tienes ninguna playlist guardada"
-                    android:visibility="visible" />
-
-            </RelativeLayout>
-
-        </LinearLayout>
-
-    </androidx.core.widget.NestedScrollView>
+    <!-- FAVORITES VIEW (RecyclerView for Songs, Artists, Albums) -->
+    <!-- Direct child of ConstraintLayout, filling remaining space -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/favoritesRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:paddingHorizontal="10dp"
+        android:paddingBottom="200dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 

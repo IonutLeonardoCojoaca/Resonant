@@ -7,10 +7,10 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface AppService {
-    @GET("api/App/LatestVersion")
+    @GET("api/updates/latest")
     suspend fun getLatestAppVersion(@Query("platform") platform: String): AppUpdate
 
-    @GET("api/App/Download")
+    @GET("api/updates/download")
     suspend fun getPresignedDownloadUrl(
         @Query("version") version: String,
         @Query("platform") platform: String

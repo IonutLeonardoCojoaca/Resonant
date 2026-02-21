@@ -17,7 +17,6 @@ import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.MiniPlayerColorizer
 import com.example.resonant.R
-import com.example.resonant.utils.Utils
 import com.example.resonant.data.models.Album
 import java.util.Calendar
 
@@ -25,6 +24,9 @@ class AlbumAdapter(
     private var albums: List<Album>,
     private val viewType: Int
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    var onSettingsClick: ((Album) -> Unit)? = null // New callback
+    var onAlbumClick: ((Album) -> Unit)? = null
 
     companion object {
         const val VIEW_TYPE_SIMPLE = 0
@@ -89,18 +91,34 @@ class AlbumAdapter(
         private val albumName: TextView = itemView.findViewById(R.id.albumName)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
         private val container: View = itemView.findViewById(R.id.itemContainer)
+        private val btnSettings: View? = itemView.findViewById(R.id.btnSettings)
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
-            artistName.text = album.artistName ?: "Unknown"
+            
+            // Fix: Use artist from inner list if artistName is null
+            val displayedArtistName = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown"
+            artistName.text = displayedArtistName
 
             loadAlbumCoverPalette(album.url, albumImage, container, albumName, artistName)
 
+            btnSettings?.visibility = View.VISIBLE
+            btnSettings?.setOnClickListener {
+                onSettingsClick?.invoke(album)
+            }
+
             itemView.setOnClickListener {
-                val bundle = Bundle().apply { putString("albumId", album.id) }
-                itemView.postDelayed({
-                    itemView.findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
-                }, 200)
+                onAlbumClick?.invoke(album) ?: run {
+                    val bundle = Bundle().apply { putString("albumId", album.id) }
+                    itemView.postDelayed({
+                        itemView.findNavController().navigate(R.id.albumFragment, bundle)
+                    }, 200)
+                }
+            }
+            
+            itemView.setOnLongClickListener {
+                onSettingsClick?.invoke(album)
+                true
             }
         }
     }
@@ -113,21 +131,37 @@ class AlbumAdapter(
         private val albumType: TextView = itemView.findViewById(R.id.albumType)
         val albumYear: TextView = itemView.findViewById(R.id.albumYear)
         val albumTracks: TextView = itemView.findViewById(R.id.albumTrackCount)
+        private val btnSettings: View? = itemView.findViewById(R.id.btnSettings)
 
         fun bind(album: Album) {
             albumTitle.text = album.title ?: "Not found"
-            artistName.text = album.artistName ?: "Unknown Artist"
+            
+            val displayedArtistName = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown Artist"
+            artistName.text = displayedArtistName
+            
             albumYear.text = album.releaseYear?.toString() ?: "-"
             val trackCount = album.numberOfTracks ?: 0
             albumTracks.text = "$trackCount canciones"
             albumType.text = if (trackCount > 6) "Álbum" else "EP/Single"
             loadAlbumCover(album.url, albumImage)
+            
+            btnSettings?.visibility = View.VISIBLE
+            btnSettings?.setOnClickListener {
+                onSettingsClick?.invoke(album)
+            }
 
             itemView.setOnClickListener {
-                val bundle = Bundle().apply { putString("albumId", album.id) }
-                itemView.postDelayed({
-                    itemView.findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
-                }, 200)
+                onAlbumClick?.invoke(album) ?: run {
+                    val bundle = Bundle().apply { putString("albumId", album.id) }
+                    itemView.postDelayed({
+                        itemView.findNavController().navigate(R.id.albumFragment, bundle)
+                    }, 200)
+                }
+            }
+            
+             itemView.setOnLongClickListener {
+                onSettingsClick?.invoke(album)
+                true
             }
         }
     }
@@ -137,17 +171,24 @@ class AlbumAdapter(
         val albumImage: ImageView = itemView.findViewById(R.id.albumImage)
         private val albumName: TextView = itemView.findViewById(R.id.albumTitle)
         private val artistName: TextView = itemView.findViewById(R.id.albumArtistName)
+        private val settingsButton: View? = itemView.findViewById(R.id.settingsButton) // Changed to View? to use findViewById
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
-            artistName.text = album.artistName ?: "Unknown"
+            
+            val displayedArtistName = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown"
+            artistName.text = displayedArtistName
+            
             loadAlbumCover(album.url, albumImage)
-
-            itemView.setOnClickListener {
-                val bundle = Bundle().apply { putString("albumId", album.id) }
-                itemView.postDelayed({
-                    itemView.findNavController().navigate(R.id.action_favoriteAlbumsFragment_to_albumFragment, bundle)
-                }, 200)
+            
+            settingsButton?.visibility = View.VISIBLE
+            settingsButton?.setOnClickListener {
+                onSettingsClick?.invoke(album)
+            }
+            
+             itemView.setOnLongClickListener {
+                onSettingsClick?.invoke(album)
+                true
             }
         }
     }
@@ -181,8 +222,15 @@ class AlbumAdapter(
             loadAlbumCover(album.url, albumImage)
 
             itemView.setOnClickListener {
-                val bundle = Bundle().apply { putString("albumId", album.id) }
-                itemView.findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
+                onAlbumClick?.invoke(album) ?: run {
+                    val bundle = Bundle().apply { putString("albumId", album.id) }
+                    itemView.findNavController().navigate(R.id.albumFragment, bundle)
+                }
+            }
+            
+             itemView.setOnLongClickListener {
+                onSettingsClick?.invoke(album)
+                true
             }
         }
     }
@@ -207,7 +255,14 @@ class AlbumAdapter(
             .dontAnimate()
             .placeholder(placeholderRes)
             .error(placeholderRes)
-            .into(imageView)
+            .into(object : CustomTarget<Drawable>() {
+                 override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
+                     imageView.setImageDrawable(resource)
+                 }
+                 override fun onLoadCleared(placeholder: Drawable?) {
+                     imageView.setImageDrawable(placeholder)
+                 }
+            })
     }
 
     private fun loadAlbumCoverPalette(
@@ -225,7 +280,7 @@ class AlbumAdapter(
             MiniPlayerColorizer.applyFromImageView(
                 imageView,
                 MiniPlayerColorizer.Targets(container = container, title = albumName, subtitle = artistName),
-                fallbackColor = imageView.context.getColor(R.color.appBackgroundTheme),
+                fallbackColor = imageView.context.getColor(R.color.primaryColorTheme),
                 animateMillis = 400L
             )
             return
@@ -247,7 +302,7 @@ class AlbumAdapter(
                     MiniPlayerColorizer.applyFromImageView(
                         imageView,
                         MiniPlayerColorizer.Targets(container = container, title = albumName, subtitle = artistName),
-                        fallbackColor = imageView.context.getColor(R.color.appBackgroundTheme),
+                        fallbackColor = imageView.context.getColor(R.color.primaryColorTheme),
                         animateMillis = 400L
                     )
                 }

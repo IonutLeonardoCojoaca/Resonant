@@ -53,9 +53,9 @@
                 android:text=""
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="#B1B1B1"
+                android:textColor="@color/subtitleBottomSheet"
                 android:fontFamily="@font/unageo_medium"
-                android:textSize="14sp"/>
+                android:textSize="13sp"/>
 
             <TextView
                 android:id="@+id/songStreams"
@@ -64,9 +64,9 @@
                 android:text=""
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:textColor="@color/no_selected_color_icon"
+                android:textColor="@color/textBottomSheet"
                 android:fontFamily="@font/unageo_regular"
-                android:textSize="14sp"/>
+                android:textSize="12sp"/>
 
         </LinearLayout>
 
@@ -101,7 +101,34 @@
             android:padding="16dp"
             android:text="Ver información"
             android:textColor="@color/white"
+            android:textSize="15sp"/>
+
+        <TextView
+            android:id="@+id/goToAlbumButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_album"
+            android:drawablePadding="10dp"
+            android:gravity="start|center_vertical"
+            android:fontFamily="@font/unageo_regular"
+            android:padding="16dp"
+            android:text="Ir al álbum"
+            android:textColor="@color/white"
+            android:visibility="gone"
             android:textSize="16sp"/>
+
+        <TextView
+            android:id="@+id/goToArtistButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_artist"
+            android:drawablePadding="10dp"
+            android:gravity="start|center_vertical"
+            android:fontFamily="@font/unageo_regular"
+            android:padding="16dp"
+            android:text="Ir al artista"
+            android:textColor="@color/white"
+            android:textSize="15sp"/>
 
         <TextView
             android:id="@+id/shareSongButton"
@@ -114,7 +141,7 @@
             android:padding="16dp"
             android:text="Compartir"
             android:textColor="@color/white"
-            android:textSize="16sp"/>
+            android:textSize="15sp"/>
 
         <TextView
             android:id="@+id/downloadSongButton"
@@ -128,7 +155,7 @@
             android:gravity="start|center_vertical"
             android:text="Descargar"
             android:textColor="@color/white"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/addToFavoriteButton"
@@ -141,7 +168,7 @@
             android:gravity="start|center_vertical"
             android:text="Añadir a favoritos"
             android:textColor="@color/white"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/addToPlaylistButton"
@@ -154,7 +181,7 @@
             android:gravity="start|center_vertical"
             android:text="Agregar a playlist"
             android:textColor="@color/white"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/cancelButton"
@@ -167,7 +194,7 @@
             android:gravity="start|center_vertical"
             android:text="Cancelar"
             android:textColor="@android:color/holo_red_light"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
     </LinearLayout>
 

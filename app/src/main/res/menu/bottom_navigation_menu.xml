@@ -7,6 +7,11 @@
         android:iconTint="@null"/>
 
     <item
+        android:id="@+id/exploreFragment"
+        android:icon="@drawable/selector_menu_explore"
+        android:title="Explorar"/>
+
+    <item
         android:id="@+id/searchFragment"
         android:icon="@drawable/selector_menu_search"
         android:title="Buscar" />

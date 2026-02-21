@@ -11,16 +11,17 @@ import com.example.resonant.data.models.Song
 // [CAMBIO] Ya no necesitamos ApiClient aquí, el Manager se encarga
 // import com.example.resonant.data.network.ApiClient
 import com.example.resonant.managers.ArtistManager // [CAMBIO] Importamos el Singleton
+import com.example.resonant.managers.GenreManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.data.models.Genre
 import kotlinx.coroutines.launch
+
+import com.example.resonant.data.models.ArtistSmartPlaylist
 
 class ArtistViewModel(application: Application) : AndroidViewModel(application) {
 
-    // [CAMBIO] Eliminamos artistService y albumService.
-    // El ViewModel ya no debe hablar con la API directamente.
-
-    // Mantenemos SongManager porque lo pide la función del ArtistManager
     private val songManager = SongManager(application)
+    private val genreManager = GenreManager(application)
 
     // LiveData (IGUAL QUE ANTES)
     private val _artist = MutableLiveData<Artist?>()
@@ -35,6 +36,15 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
     private val _topSongs = MutableLiveData<List<Song>>()
     val topSongs: LiveData<List<Song>> get() = _topSongs
 
+    private val _artistPlaylists = MutableLiveData<List<ArtistSmartPlaylist>>()
+    val artistPlaylists: LiveData<List<ArtistSmartPlaylist>> get() = _artistPlaylists
+
+    private val _artistImages = MutableLiveData<List<String>>()
+    val artistImages: LiveData<List<String>> get() = _artistImages
+
+    private val _artistGenres = MutableLiveData<List<Genre>>()
+    val artistGenres: LiveData<List<Genre>> get() = _artistGenres
+
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> get() = _isLoading
 
@@ -44,33 +54,37 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
     private var currentArtistId: String? = null
 
     fun loadData(artistId: String) {
-        // [OPTIMIZACIÓN EXTRA]
-        // Si rotamos la pantalla, el ViewModel sigue vivo.
-        // Verificamos si ya tenemos ESTE artista cargado en el ViewModel para no preguntar ni al Manager.
-        if (currentArtistId == artistId && _artist.value != null) {
-            return
-        }
-
+        // [CAMBIO] Eliminamos el chequeo estricto para permitir que ArtistManager decida si refrescar.
+        // Si el Manager devuelve datos cacheados, será instantáneo.
+        
         currentArtistId = artistId
-        _isLoading.value = true
+        
+        // Solo mostramos loading si no tenemos nada (evitar parpadeo)
+        if (_artist.value == null) {
+            _isLoading.value = true
+        }
 
         viewModelScope.launch {
             try {
-                // [CAMBIO CRÍTICO]
-                // En lugar de hacer 3 llamadas async aquí, llamamos a UNA función del Manager.
-                // El Manager verificará su caché global y nos devolverá todo junto.
                 val result = ArtistManager.getFullArtistData(
                     getApplication(),
                     artistId,
                     songManager
                 )
 
-                // Desestructuramos el Triple que nos devuelve el Manager
+                // Fetch Playlists 
+                val playlistsList = ArtistManager.getArtistSmartPlaylists(getApplication(), artistId)
+                _artistPlaylists.value = playlistsList
+
+                // Fetch Images (Gallery)
+                val imagesList = ArtistManager.getArtistImages(getApplication(), artistId)
+                _artistImages.value = imagesList
+
+                // Fetch Genres
+                val genresList = genreManager.getGenresByArtistId(artistId)
+                _artistGenres.value = genresList
+
                 val (artistObj, albumsList, songsList) = result
-
-                // --- LÓGICA DE PRESENTACIÓN (ESTO SE QUEDA AQUÍ) ---
-                // El Manager nos da los datos crudos, el ViewModel los "pone bonitos" para la UI.
-
                 val artistNameStr = artistObj.name ?: "Desconocido"
 
                 // Asignar nombres si faltan

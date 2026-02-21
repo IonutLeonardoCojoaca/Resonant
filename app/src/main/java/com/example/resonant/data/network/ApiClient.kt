@@ -1,13 +1,15 @@
 package com.example.resonant.data.network
 
 import android.content.Context
+
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.AppService
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.AuthService
+import com.example.resonant.data.network.services.GenreService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.SongService
-import com.example.resonant.data.network.services.StorageService
+
 import com.example.resonant.data.network.services.UserService
 import com.example.resonant.managers.SessionManager
 import okhttp3.OkHttpClient
@@ -15,15 +17,10 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
-    private const val BASE_URL = "https://resonantapp.ddns.net:8443/"
+    private const val BASE_URL = "https://resonantapp.ddns.net/"
 
-    // Variable para guardar la instancia de Retrofit
     private var retrofit: Retrofit? = null
 
-    /**
-     * Esta función es PRIVADA. Solo se encarga de construir la máquina de Retrofit.
-     * Reutiliza la lógica que ya tenías.
-     */
     private fun getRetrofitInstance(context: Context): Retrofit {
         if (retrofit == null) {
             val appContext = context.applicationContext
@@ -43,9 +40,6 @@ object ApiClient {
         return retrofit!!
     }
 
-    // ------------------------------------------------------
-    // MÉTODOS PÚBLICOS PARA OBTENER CADA SERVICIO
-    // ------------------------------------------------------
 
     fun getAuthService(context: Context): AuthService {
         return getRetrofitInstance(context).create(AuthService::class.java)
@@ -63,10 +57,6 @@ object ApiClient {
         return getRetrofitInstance(context).create(SongService::class.java)
     }
 
-    fun getStorageService(context: Context): StorageService { // Antes Minio
-        return getRetrofitInstance(context).create(StorageService::class.java)
-    }
-
     fun getPlaylistService(context: Context): PlaylistService {
         return getRetrofitInstance(context).create(PlaylistService::class.java)
     }
@@ -78,6 +68,12 @@ object ApiClient {
     fun getAppService(context: Context): AppService {
         return getRetrofitInstance(context).create(AppService::class.java)
     }
+
+    fun getGenreService(context: Context): GenreService {
+        return getRetrofitInstance(context).create(GenreService::class.java)
+    }
+
+
 
     fun baseUrl(): String = BASE_URL
 }

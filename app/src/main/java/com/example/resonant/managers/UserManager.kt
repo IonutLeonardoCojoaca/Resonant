@@ -20,12 +20,13 @@ class UserManager(private val context: Context) {
         return prefs.getString("USER_ID", null)
     }
 
-    suspend fun fetchAndStoreUserId(email: String): String? {
+    /**
+     * Obtiene el usuario actual del backend usando el JWT token (api/users/me)
+     * y guarda su ID en SharedPreferences.
+     */
+    suspend fun fetchAndStoreCurrentUser(): String? {
         return try {
-            // Usamos userService en lugar de la api gigante
-            val user = userService.getUserByEmail(email)
-
-            // Reutilizamos el método interno (ya no hace falta pasar context)
+            val user = userService.getCurrentUser()
             saveUserId(user.id)
             user.id
         } catch (e: Exception) {

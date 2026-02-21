@@ -18,11 +18,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val songManager = SongManager(application)
 
     // --- CONFIGURACIÓN DE EXPIRACIÓN ---
-    // 15 minutos en milisegundos. Ajusta esto según cuánto duren tus URLs firmadas.
-    // Si tus URLs duran 1 hora, ponlo en 45 minutos.
     private val DATA_EXPIRATION_TIME = 15 * 60 * 1000L
 
     private var lastSongsFetchTime: Long = 0
+    private var lastHistoryFetchTime: Long = 0
     private var lastArtistsFetchTime: Long = 0
     private var lastAlbumsFetchTime: Long = 0
 
@@ -35,6 +34,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val songsLoading: LiveData<Boolean> get() = _songsLoading
     private val _songsError = MutableLiveData<String?>()
     val songsError: LiveData<String?> get() = _songsError
+
+    // --- SECCIÓN HISTORIAL ---
+    private val _history = MutableLiveData<List<Song>>()
+    val history: LiveData<List<Song>> get() = _history
+    private val _historyLoading = MutableLiveData<Boolean>()
+    val historyLoading: LiveData<Boolean> get() = _historyLoading
+    private val _historyError = MutableLiveData<String?>()
+    val historyError: LiveData<String?> get() = _historyError
 
     // --- SECCIÓN ARTISTAS ---
     private val _artists = MutableLiveData<List<Artist>>()
@@ -57,19 +64,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val albumsError: LiveData<String?> get() = _albumsError
 
 
-    // --- FUNCIONES DE CARGA ROBUSTAS ---
-
-    // Añadimos el parámetro 'forceRefresh' para permitir al usuario recargar manualmente (SwipeToRefresh)
-    fun loadSongs(userId: String, forceRefresh: Boolean = false) {
+    fun loadSongs(forceRefresh: Boolean = false) {
         val currentTime = System.currentTimeMillis()
         val isExpired = (currentTime - lastSongsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _songs.value != null
 
-        // LÓGICA CLAVE: Si hay datos, NO es forzado y NO han expirado, no hacemos nada.
         if (hasData && !forceRefresh && !isExpired) return
 
-        // Si ya tenemos datos pero han expirado, recargamos en "silencio" (sin loading a pantalla completa)
-        // a menos que sea la primera carga o no tengamos datos.
         val showLoading = !hasData
 
         if (showLoading) _songsLoading.value = true
@@ -77,15 +78,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val result = songManager.getRecommendedSongs(userId, count = 25)
+                val result = songManager.getRecommendedSongs(count = 15)
 
                 if (result != null && result.items.isNotEmpty()) {
                     _songsTitle.value = result.title ?: "Recomendado para ti"
                     _songs.value = result.items
-                    // Actualizamos el tiempo SOLO si fue exitoso
                     lastSongsFetchTime = System.currentTimeMillis()
                 } else {
-                    // Si falla y no teníamos nada, mostramos error. Si teníamos algo viejo, lo mantenemos.
                     if (!hasData) _songsError.value = "No se encontraron canciones"
                 }
             } catch (e: Exception) {
@@ -96,7 +95,36 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loadArtists(userId: String, forceRefresh: Boolean = false) {
+    fun loadHistory(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastHistoryFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _history.value != null
+
+        // Refresh always if forceRefresh is true, otherwise respect cache
+        if (hasData && !forceRefresh && !isExpired) return
+
+        val showLoading = !hasData
+        if (showLoading) _historyLoading.value = true
+        _historyError.value = null
+
+        viewModelScope.launch {
+            try {
+                // Fetch from SongManager
+                val songs = songManager.getPlaybackHistory(limit = 6)
+
+                _history.value = songs
+                if (songs.isNotEmpty()) {
+                    lastHistoryFetchTime = System.currentTimeMillis()
+                }
+            } catch (e: Exception) {
+                if (!hasData) _historyError.value = "Error al cargar historial"
+            } finally {
+                _historyLoading.value = false
+            }
+        }
+    }
+
+    fun loadArtists(forceRefresh: Boolean = false) {
         val currentTime = System.currentTimeMillis()
         val isExpired = (currentTime - lastArtistsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _artists.value != null
@@ -109,7 +137,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val result = ArtistManager.getRecommendedArtists(getApplication(), userId, count = 6)
+                val result = ArtistManager.getRecommendedArtists(getApplication(), count = 6)
                 if (result != null && result.items.isNotEmpty()) {
                     _artistsTitle.value = result.title ?: "Recomendado para ti"
                     _artists.value = result.items
@@ -125,7 +153,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loadAlbums(userId: String, forceRefresh: Boolean = false) {
+    fun loadAlbums(forceRefresh: Boolean = false) {
         val currentTime = System.currentTimeMillis()
         val isExpired = (currentTime - lastAlbumsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _albums.value != null
@@ -138,7 +166,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val result = AlbumManager.getRecommendedAlbums(getApplication(), userId, count = 3)
+                val result = AlbumManager.getRecommendedAlbums(getApplication(), count = 3)
                 if (result != null && result.items.isNotEmpty()) {
                     _albumsTitle.value = result.title
                     _albums.value = result.items
@@ -154,10 +182,4 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Función auxiliar para refrescar todo de golpe (útil para SwipeRefreshLayout)
-    fun refreshAll(userId: String) {
-        loadSongs(userId, forceRefresh = true)
-        loadArtists(userId, forceRefresh = true)
-        loadAlbums(userId, forceRefresh = true)
-    }
 }

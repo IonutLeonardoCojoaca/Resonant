@@ -16,5 +16,8 @@ data class Album(
     @SerializedName("imageUrl")
     var url: String? = null,
 
+    @SerializedName("artists")
+    val artists: List<Artist> = emptyList(),
+
     var artistName: String? = null
 ) : Parcelable

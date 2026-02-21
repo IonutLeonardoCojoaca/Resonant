@@ -7,7 +7,18 @@ import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.data.models.Song
 
 object PlaybackStateRepository {
+    const val REPEAT_MODE_OFF = 0
+    const val REPEAT_MODE_ONE = 1
+    const val REPEAT_MODE_ALL = 2
+    private val _queueSourceLiveData = MutableLiveData<QueueSource>()
+    val queueSourceLiveData: LiveData<QueueSource> = _queueSourceLiveData
+
     var activeQueue: PlaybackQueue? = null
+        set(value) {
+            field = value
+            value?.let { _queueSourceLiveData.postValue(it.sourceType) }
+        }
+
     var currentSong: Song? = null
         private set
 
@@ -28,6 +39,12 @@ object PlaybackStateRepository {
 
     private val _currentSongBitmap = MutableLiveData<Bitmap?>()
     val currentSongBitmapLiveData: LiveData<Bitmap?> = _currentSongBitmap
+
+    private val _repeatMode = MutableLiveData(REPEAT_MODE_OFF)
+    val repeatModeLiveData: LiveData<Int> = _repeatMode
+
+    private val _isShuffleEnabled = MutableLiveData(false)
+    val isShuffleEnabledLiveData: LiveData<Boolean> = _isShuffleEnabled
 
     fun updatePlaybackPosition(position: Long, duration: Int) {
         // Solo actualizamos si hay un cambio real para ser eficientes
@@ -54,6 +71,18 @@ object PlaybackStateRepository {
         if (isPlaying != playing) {
             isPlaying = playing
             _isPlayingLiveData.postValue(playing)
+        }
+    }
+
+    fun setRepeatMode(mode: Int) {
+        if (_repeatMode.value != mode) {
+            _repeatMode.postValue(mode)
+        }
+    }
+
+    fun setIsShuffleEnabled(enabled: Boolean) {
+        if (_isShuffleEnabled.value != enabled) {
+            _isShuffleEnabled.postValue(enabled)
         }
     }
 

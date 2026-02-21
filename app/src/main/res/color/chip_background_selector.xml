@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Estado seleccionado: Un color más claro o tintado con el color primario -->
+    <item android:color="@color/secondaryColorTheme" android:state_checked="true" />
+    
+    <!-- Estado por defecto: Transparente o gris oscuro -->
+    <item android:color="#2A2A2A" /> 
+</selector>

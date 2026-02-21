@@ -31,6 +31,20 @@
             app:shapeAppearanceOverlay="@style/RoundedCornersImage"
             android:adjustViewBounds="true"/>
 
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="@drawable/background_circle_transparent"
+            android:src="@drawable/ic_item_settings"
+            android:padding="6dp"
+            app:tint="@color/white"
+            android:visibility="gone"
+            app:layout_constraintTop_toTopOf="@id/artistImage"
+            app:layout_constraintEnd_toEndOf="@id/artistImage"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="4dp"/>
+
         <TextView
             android:id="@+id/albumName"
             android:layout_width="0dp"

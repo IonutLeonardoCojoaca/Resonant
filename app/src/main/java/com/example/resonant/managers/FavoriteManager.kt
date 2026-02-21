@@ -18,13 +18,10 @@ class FavoriteManager(private val context: Context) {
 
     private val songManager = SongManager(context)
 
-    private val prefs = context.getSharedPreferences("user_data", Context.MODE_PRIVATE)
-    private fun getUserId(): String? = prefs.getString("USER_ID", null)
-
+    // Ya no necesitamos userId, el backend lo extrae del JWT token
     suspend fun addFavoriteSong(songId: String): Boolean {
-        val userId = getUserId() ?: return false
         return try {
-            songService.addFavoriteSong(userId, songId)
+            songService.addFavoriteSong(songId)
             true
         } catch (e: Exception) {
             false
@@ -32,9 +29,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun deleteFavoriteSong(songId: String): Boolean {
-        val userId = getUserId() ?: return false
         return try {
-            songService.deleteFavoriteSong(userId, songId)
+            songService.deleteFavoriteSong(songId)
             true
         } catch (e: Exception) {
             false
@@ -42,9 +38,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun getFavoritesSongs(): List<Song> {
-        val userId = getUserId() ?: return emptyList()
         return try {
-            songManager.getFavoriteSongs(userId)
+            songManager.getFavoriteSongs()
         } catch (e: Exception) {
             Log.e("FavoriteManager", "Error al obtener las canciones favoritas", e)
             emptyList()
@@ -52,9 +47,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun addFavoriteArtist(artistId: String): Boolean {
-        val userId = getUserId() ?: return false
         return try {
-            artistService.addFavoriteArtist(userId, artistId)
+            artistService.addFavoriteArtist(artistId)
             true
         } catch (e: Exception) {
             false
@@ -62,9 +56,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun deleteFavoriteArtist(artistId: String): Boolean {
-        val userId = getUserId() ?: return false
         return try {
-            artistService.deleteFavoriteArtist(userId, artistId)
+            artistService.deleteFavoriteArtist(artistId)
             true
         } catch (e: Exception) {
             false
@@ -72,9 +65,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun getFavoriteArtists(): List<Artist> {
-        val userId = getUserId() ?: return emptyList()
         return try {
-            artistService.getFavoriteArtistsByUser(userId)
+            artistService.getFavoriteArtistsByUser()
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -82,9 +74,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun addFavoriteAlbum(albumId: String): Boolean {
-        val userId = getUserId() ?: return false
         return try {
-            albumService.addFavoriteAlbum(userId, albumId)
+            albumService.addFavoriteAlbum(albumId)
             true
         } catch (e: Exception) {
             false
@@ -92,9 +83,8 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun deleteFavoriteAlbum(albumId: String): Boolean {
-        val userId = getUserId() ?: return false
         return try {
-            albumService.deleteFavoriteAlbum(userId, albumId)
+            albumService.deleteFavoriteAlbum(albumId)
             true
         } catch (e: Exception) {
             false
@@ -102,18 +92,9 @@ class FavoriteManager(private val context: Context) {
     }
 
     suspend fun getFavoriteAlbums(): List<Album> {
-        val userId = getUserId() ?: return emptyList()
         return try {
-            val favoritos = albumService.getFavoriteAlbumsByUser(userId).toMutableList()
-            favoritos.forEach { album ->
-                try {
-                    val artists = artistService.getArtistsByAlbumId(album.id)
-                    album.artistName = artists.joinToString(", ") { it.name }
-                } catch (ex: Exception) {
-                    album.artistName = "Unknown"
-                    Log.i("Error Album", ex.toString())
-                }
-            }
+            val favoritos = albumService.getFavoriteAlbumsByUser().toMutableList()
+            // artistName should now come included from the backend DTO
             favoritos
         } catch (e: Exception) {
             e.printStackTrace()

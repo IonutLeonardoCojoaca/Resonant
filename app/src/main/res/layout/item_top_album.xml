@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingVertical="12dp"
+    android:paddingHorizontal="16dp"
+    android:background="?attr/selectableItemBackground">
+
+    <TextView
+        android:id="@+id/rankText"
+        android:layout_width="35dp"
+        android:layout_height="wrap_content"
+        android:text="#2"
+        android:textSize="14sp"
+        android:textColor="#CCFFFFFF"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/albumImage"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_playlist_stack"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"
+        android:layout_marginStart="12dp"
+        app:layout_constraintStart_toEndOf="@id/rankText"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="16dp"
+        app:layout_constraintStart_toEndOf="@id/albumImage"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:id="@+id/albumName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Nombre del Álbum"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:fontFamily="@font/unageo_bold"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/albumArtist"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Nombre del Artista"
+            android:textSize="12sp"
+            android:textColor="#CCFFFFFF"
+            android:fontFamily="@font/unageo_medium" />
+
+        <TextView
+            android:id="@+id/albumInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Año: 2024"
+            android:textSize="11sp"
+            android:textColor="#80FFFFFF"
+            android:fontFamily="@font/unageo_regular" />
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

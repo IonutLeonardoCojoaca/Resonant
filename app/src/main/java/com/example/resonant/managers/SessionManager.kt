@@ -105,6 +105,22 @@ class SessionManager(private val context: Context, private val baseUrl: String) 
         }
     }
 
+    suspend fun logout() {
+        val refresh = getRefreshToken()
+        val email = getEmail()
+
+        if (!refresh.isNullOrBlank() && !email.isNullOrBlank()) {
+            try {
+                // Intentamos avisar al backend, pero no bloqueamos si falla (ej: sin internet)
+                authService.logout(RefreshTokenDTO(refresh, email))
+            } catch (e: Exception) {
+                Log.e("SessionManager", "Error enviando logout al backend", e)
+            }
+        }
+        // Borramos localmente siempre
+        clearTokens()
+    }
+
     fun hasLocalCredentials(): Boolean {
         val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
         val token = prefs.getString("ACCESS_TOKEN", null)

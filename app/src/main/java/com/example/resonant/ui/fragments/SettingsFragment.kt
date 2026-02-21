@@ -56,7 +56,7 @@ class SettingsFragment : Fragment() {
         setupAutomixSwitch()
         setupCrossfadeSlider()
         setupCrossfadeModeToggle()
-        setupSignOutButton()
+        setupNormalizationSwitch()
     }
 
     private fun styleSlider() {
@@ -180,40 +180,19 @@ class SettingsFragment : Fragment() {
         }
     }
 
-    private fun setupSignOutButton() {
-        binding.signOutButton.setOnClickListener {
-            signOut()
+    private fun setupNormalizationSwitch() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.loudnessNormalizationFlow.collect { isEnabled ->
+                if (binding.normalizationSwitch.isChecked != isEnabled) {
+                    binding.normalizationSwitch.isChecked = isEnabled
+                }
+            }
         }
-    }
 
-    private fun signOut() {
-        lifecycleScope.launch {
-            Log.d("SettingsFragment", "Enviando comando SHUTDOWN al servicio de música.")
-            val stopServiceIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_SHUTDOWN
+        binding.normalizationSwitch.setOnCheckedChangeListener { _, isChecked ->
+            viewLifecycleOwner.lifecycleScope.launch {
+                settingsManager.setLoudnessNormalizationEnabled(isChecked)
             }
-            requireContext().startService(stopServiceIntent)
-
-            auth.signOut()
-            try {
-                val clearRequest = ClearCredentialStateRequest()
-                credentialManager.clearCredentialState(clearRequest)
-            } catch (e: ClearCredentialException) {
-                Log.e("SettingsFragment", "Error clearing credential state.", e)
-            }
-
-            val authPrefs = requireContext().getSharedPreferences("Auth", Context.MODE_PRIVATE)
-            authPrefs.edit().clear().apply()
-
-            val userPrefs = requireContext().getSharedPreferences("user_data", Context.MODE_PRIVATE)
-            userPrefs.edit().clear().apply()
-
-            Log.d("SettingsFragment", "SharedPreferences de Auth y user_data borradas.")
-
-            val intent = Intent(requireContext(), LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-            startActivity(intent)
         }
     }
 

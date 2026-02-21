@@ -89,7 +89,7 @@ class PlaylistAdapter(
             itemView.setOnClickListener {
                 onClick?.invoke(playlist) ?: run {
                     val bundle = Bundle().apply { putString("playlistId", playlist.id) }
-                    itemView.findNavController().navigate(R.id.action_savedFragment_to_playlistFragment, bundle)
+                    itemView.findNavController().navigate(R.id.playlistFragment, bundle)
                 }
             }
 

@@ -300,10 +300,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.homeFragment,
             R.id.searchFragment,
             R.id.savedFragment,
-            R.id.favoriteSongsFragment,
-            R.id.favoriteArtistsFragment,
-            R.id.favoriteAlbumsFragment,
-            R.id.downloadedSongsFragment
+            R.id.downloadedSongsFragment,
+            R.id.exploreFragment
         )
 
         val fragmentsNoToolbar = setOf(
@@ -311,7 +309,16 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.albumFragment,
             R.id.detailedSongFragment,
             R.id.playlistFragment,
-            R.id.createPlaylistFragment
+            R.id.createPlaylistFragment,
+            R.id.genreArtistsFragment,
+            R.id.topChartsFragment,
+            R.id.artistSmartPlaylistFragment,
+            R.id.allGenresFragment,
+            R.id.topArtistsFragment,
+            R.id.topAlbumsFragment,
+            R.id.publicPlaylistsFragment,
+            R.id.historyFragment,
+            R.id.detailedArtistFragment
         )
 
         val fragmentsNoToolbarNoBottomNav = setOf(
@@ -326,6 +333,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 R.id.homeFragment -> bottomNavigationView.menu.findItem(R.id.homeFragment).isChecked = true
                 R.id.searchFragment -> bottomNavigationView.menu.findItem(R.id.searchFragment).isChecked = true
                 R.id.savedFragment -> bottomNavigationView.menu.findItem(R.id.savedFragment).isChecked = true
+                R.id.exploreFragment -> bottomNavigationView.menu.findItem(R.id.exploreFragment).isChecked = true
             }
 
             // 2. GESTIÓN DEL ICONO "CREAR"
@@ -408,6 +416,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 R.id.homeFragment -> {
                     if (navController.currentDestination?.id != R.id.homeFragment) {
                         navController.navigate(R.id.homeFragment)
+                    }
+                    true
+                }
+                R.id.exploreFragment -> {
+                    if (navController.currentDestination?.id != R.id.exploreFragment) {
+                        navController.navigate(R.id.exploreFragment)
                     }
                     true
                 }
@@ -535,38 +549,76 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         drawer.layoutParams = params
 
         // Referencias a los botones del menú lateral
+        val homeButton = findViewById<TextView>(R.id.homeButton)
+        val exploreButton = findViewById<TextView>(R.id.exploreButton)
         val settingsButton = findViewById<TextView>(R.id.settingsButton)
         val searchButton = findViewById<TextView>(R.id.searchButton)
         val savedButton = findViewById<TextView>(R.id.savedButton)
-        val favoriteSongsButton = findViewById<TextView>(R.id.favoriteSongsButton)
-
-        // 🔥 AÑADIMOS EL BOTÓN DE DESCARGAS
         val downloadsButton = findViewById<TextView>(R.id.downloadsButton)
+        val historyButton = findViewById<TextView>(R.id.historyButton)
 
-        settingsButton.setOnClickListener {
+        homeButton?.setOnClickListener {
+            navController.navigate(R.id.homeFragment)
+            drawerLayout.closeDrawers()
+        }
+
+        exploreButton?.setOnClickListener {
+            navController.navigate(R.id.exploreFragment)
+            drawerLayout.closeDrawers()
+        }
+
+        settingsButton?.setOnClickListener {
             navController.navigate(R.id.settingsFragment)
             drawerLayout.closeDrawers()
         }
 
-        searchButton.setOnClickListener {
+        searchButton?.setOnClickListener {
             navController.navigate(R.id.searchFragment)
             drawerLayout.closeDrawers()
         }
 
-        savedButton.setOnClickListener {
+        savedButton?.setOnClickListener {
             navController.navigate(R.id.savedFragment)
             drawerLayout.closeDrawers()
         }
 
-        favoriteSongsButton.setOnClickListener {
-            navController.navigate(R.id.favoriteSongsFragment)
+        downloadsButton?.setOnClickListener {
+            navController.navigate(R.id.downloadedSongsFragment)
             drawerLayout.closeDrawers()
         }
 
-        // 🔥 LÓGICA DE NAVEGACIÓN A DESCARGAS
-        downloadsButton.setOnClickListener {
-            navController.navigate(R.id.downloadedSongsFragment)
+        historyButton?.setOnClickListener {
+            navController.navigate(R.id.historyFragment)
             drawerLayout.closeDrawers()
+        }
+
+        // Action on Header (Profile)
+        val profileButton = findViewById<View>(R.id.headerDrawer)
+        profileButton?.setOnClickListener {
+            drawerLayout.closeDrawers()
+            navController.navigate(R.id.settingsFragment)
+        }
+
+        val logoutButton = findViewById<TextView>(R.id.logoutButton)
+        logoutButton?.setOnClickListener {
+            // Detener servicio de música
+            val stopServiceIntent = Intent(this, com.example.resonant.services.MusicPlaybackService::class.java).apply {
+                action = com.example.resonant.services.MusicPlaybackService.ACTION_SHUTDOWN
+            }
+            startService(stopServiceIntent)
+
+            // Cerrar sesión Firebase
+            FirebaseAuth.getInstance().signOut()
+
+            // Limpiar preferencias
+            getSharedPreferences("Auth", MODE_PRIVATE).edit().clear().apply()
+            getSharedPreferences("user_data", MODE_PRIVATE).edit().clear().apply()
+
+            // Navegar al login
+            val intent = Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            startActivity(intent)
         }
     }
 
@@ -614,21 +666,24 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent?.let { handleDeepLink(it) }
+        this.intent = intent
+        handleDeepLink(intent)
     }
 
     private fun handleDeepLink(intent: Intent) {
-        val data: Uri? = intent.data
-        if (data != null) {
+        val data: Uri = intent.data ?: return
+        if (data.host == "resonantapp.ddns.net") {
             val segments = data.pathSegments
-            if (segments.size >= 4 &&
-                segments[0] == "shared" &&
-                segments[1] == "android" &&
-                segments[2] == "song") {
-
-                val songId = segments[3]
-                val bundle = Bundle().apply { putString("songId", songId) }
-                navController.navigate(R.id.detailedSongFragment, bundle)
+            if (segments.isNotEmpty() && segments[0] == "song") {
+                val songId = segments.getOrNull(1)
+                if (songId != null) {
+                    val bundle = Bundle().apply { putString("songId", songId) }
+                    try {
+                        navController.navigate(R.id.detailedSongFragment, bundle)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         }
     }
@@ -805,22 +860,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private fun checkBanStatus() {
         val userViewModel = ViewModelProvider(this)[UserViewModel::class.java]
-        val email = userViewModel.user?.email
-
-        if (email == null) {
-            userViewModel.user = null
-            FirebaseAuth.getInstance().signOut()
-            Toast.makeText(this, "Tu cuenta ha sido restringida", Toast.LENGTH_LONG).show()
-            val intent = Intent(this, LoginActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
-            return
-        }
 
         lifecycleScope.launch {
             try {
-                val userData = userService.getUserByEmail(email)
+                val userData = userService.getCurrentUser()
                 userViewModel.user = userData
 
                 if (userData.isBanned == true) {

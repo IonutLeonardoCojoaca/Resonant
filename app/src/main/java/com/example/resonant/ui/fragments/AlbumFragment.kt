@@ -11,6 +11,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -39,6 +40,7 @@ import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
+import com.example.resonant.managers.AlbumManager
 
 class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
@@ -107,9 +109,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val albumId = arguments?.getString("albumId") ?: return
-        loadAlbumDetails(albumId)
-
+        
         // --- LÓGICA DE DESCARGAS ---
         lifecycleScope.launch {
             downloadViewModel.downloadedSongIds.collect { downloadedIds ->
@@ -118,6 +118,14 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                     songAdapter.notifyDataSetChanged()
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val albumId = arguments?.getString("albumId")
+        if (!albumId.isNullOrBlank()) {
+             loadAlbumDetails(albumId)
         }
     }
 
@@ -144,15 +152,24 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
     }
 
     private fun setupAnimations() {
+        // Animación inicial de la imagen
         albumImage.scaleX = 1.1f
         albumImage.scaleY = 1.1f
         albumImage.alpha = 0f
         albumImage.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(1000).start()
 
+        // 1. PREPARAR EL COLOR (Fuera del loop)
+        val themeColor = ContextCompat.getColor(requireContext(), R.color.primaryColorTheme)
+        val red = Color.red(themeColor)
+        val green = Color.green(themeColor)
+        val blue = Color.blue(themeColor)
+
         val startFade = 200
         val endFade = 500
+
         albumTopBarText.visibility = View.INVISIBLE
         albumTopBarText.alpha = 0f
+
         nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val parallaxFactor = 0.3f
             val offset = -scrollY * parallaxFactor
@@ -161,7 +178,8 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             val progress = ((scrollY - startFade).toFloat() / (endFade - startFade).toFloat()).coerceIn(0f, 1f)
             val alpha = (progress * 255).toInt()
 
-            topBar.setBackgroundColor(Color.argb(alpha, 0, 0, 0))
+            // 2. APLICAR EL COLOR GRIS OSCURO (#121212) CON LA TRANSPARENCIA CALCULADA
+            topBar.setBackgroundColor(Color.argb(alpha, red, green, blue))
 
             if (progress > 0f) {
                 if (albumTopBarText.visibility != View.VISIBLE) albumTopBarText.visibility = View.VISIBLE
@@ -278,10 +296,10 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         }
 
         songAdapter.onItemClick = { (song, bitmap) ->
-            val currentIndex = songAdapter.currentList.indexOfFirst { it.url == song.url }
+            val currentIndex = songAdapter.currentList.indexOfFirst { it.id == song.id }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
-            val albumId = loadedAlbum?.id ?: song.albumId
+            val albumId = loadedAlbum?.id ?: song.album?.id ?: ""
 
             val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
                 action = MusicPlaybackService.ACTION_PLAY
@@ -301,8 +319,8 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
         songAdapter.onSettingsClick = { song ->
             lifecycleScope.launch {
-                val artistList = artistService.getArtistsBySongId(song.id)
-                song.artistName = artistList.joinToString(", ") { it.name }
+                // Use artists already embedded in the song from the API
+                song.artistName = song.artists.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
                     song = song,
@@ -323,6 +341,23 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                     },
                     onRemoveDownloadClick = { songToDelete ->
                         downloadViewModel.deleteSong(songToDelete)
+                    },
+                    onGoToAlbumClick = { albumId ->
+                        // If we are already in this album, maybe just scroll to top? 
+                        // Or simply re-navigate (simplest for now)
+                        if (albumId != loadedAlbum?.id) {
+                            val bundle = Bundle().apply { putString("albumId", albumId) }
+                            // Uses self action or global action
+                            findNavController().navigate(R.id.albumFragment, bundle)
+                        }
+                    },
+                    onGoToArtistClick = { artist ->
+                         val bundle = Bundle().apply { 
+                             putString("artistId", artist.id)
+                             putString("artistName", artist.name)
+                             putString("artistImageUrl", artist.url)
+                        }
+                        findNavController().navigate(R.id.artistFragment, bundle)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -333,19 +368,28 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
     private fun loadAlbumDetails(albumId: String) {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                shimmerLayout.visibility = View.VISIBLE
-                recyclerViewSongs.visibility = View.GONE
+                // Solo mostrar shimmer si no tenemos datos ya cargados
+                if (loadedAlbum == null) {
+                    shimmerLayout.visibility = View.VISIBLE
+                    recyclerViewSongs.visibility = View.GONE
+                }
 
-                val albumDeferred = async { albumService.getAlbumById(albumId) }
+                // USAR MANAGER en lugar de servicio directo
+                val albumDeferred = async { AlbumManager.getAlbumById(requireContext(), albumId) }
                 val songsDeferred = async { songManager.getSongsFromAlbum(albumId) }
 
                 val album = albumDeferred.await()
                 val songs = songsDeferred.await()
-
-                val artistName = album.artistName ?: run {
-                    val artistList = artistService.getArtistsByAlbumId(albumId)
-                    artistList.firstOrNull()?.name ?: "Artista desconocido"
+                
+                if (album == null) {
+                    Toast.makeText(requireContext(), "Error Cargando Álbum", Toast.LENGTH_SHORT).show()
+                    // findNavController().popBackStack() // Opcional
+                    shimmerLayout.visibility = View.GONE
+                    return@launch
                 }
+
+                val artistName = album.artistName
+                    ?: album.artists.joinToString(", ") { it.name }.ifEmpty { "Artista desconocido" }
 
                 val albumImageUrl = album.url.orEmpty()
 

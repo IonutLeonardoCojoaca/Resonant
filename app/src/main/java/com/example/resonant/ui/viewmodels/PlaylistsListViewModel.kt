@@ -21,24 +21,20 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
     private val _playlistCreated = MutableLiveData<Boolean>(false)
     val playlistCreated: LiveData<Boolean> get() = _playlistCreated
 
-    private var currentUserId: String? = null
-
-    fun getPlaylistsByUserId(userId: String) {
-        currentUserId = userId
-        refreshPlaylists()
-    }
-
-    fun refreshPlaylists() {
-        val userId = currentUserId ?: return
+    fun loadMyPlaylists() {
         viewModelScope.launch {
             try {
-                val pls = playlistManager.getPlaylistByUserId(userId)
+                val pls = playlistManager.getMyPlaylists()
                 _playlists.postValue(pls)
             } catch (e: Exception) {
                 _error.postValue("Error al obtener las playlists: ${e.message}")
                 _playlists.postValue(emptyList())
             }
         }
+    }
+
+    fun refreshPlaylists() {
+        loadMyPlaylists()
     }
 
     fun deletePlaylist(playlistId: String) {
@@ -70,6 +66,28 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
                 refreshPlaylists()
             } catch (e: Exception) {
                 _error.postValue("Error al crear la playlist: ${e.message}")
+            }
+        }
+    }
+
+    fun toggleVisibility(
+        playlistId: String,
+        currentIsPublic: Boolean,
+        onSuccess: (newIsPublic: Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val newVisibility = !currentIsPublic
+        viewModelScope.launch {
+            try {
+                playlistManager.updatePlaylistVisibility(playlistId, newVisibility)
+                // Optimistic local update: flip isPublic on the matching item
+                val updated = _playlists.value?.map { pl ->
+                    if (pl.id == playlistId) pl.copy(isPublic = newVisibility) else pl
+                }
+                _playlists.postValue(updated ?: emptyList())
+                onSuccess(newVisibility)
+            } catch (e: Exception) {
+                onError(e.message ?: "Error al cambiar visibilidad")
             }
         }
     }

@@ -39,7 +39,6 @@ import com.example.resonant.ui.adapters.ArtistAdapter
 // Importamos los servicios específicos
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.ArtistService
-import com.example.resonant.data.network.services.StorageService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.CoroutineScope
@@ -47,7 +46,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlin.collections.get
 import kotlin.coroutines.CoroutineContext
 
 class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), CoroutineScope {
@@ -76,7 +74,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     // --- SERVICIOS Y MANAGERS ---
     private lateinit var albumService: AlbumService
     private lateinit var artistService: ArtistService
-    private lateinit var storageService: StorageService
     private lateinit var songManager: SongManager // Instancia del Manager
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -86,7 +83,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         val context = requireContext()
         albumService = ApiClient.getAlbumService(context)
         artistService = ApiClient.getArtistService(context)
-        storageService = ApiClient.getStorageService(context)
         songManager = SongManager(context) // Instancia
 
         setupViewModelObservers()
@@ -107,14 +103,20 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             }
         }
         else if (song != null) {
-            // CASO 2: Ya tenemos el objeto Song
+            // CASO 2: Ya tenemos el objeto Song, pero validamos frescura (URLs firmadas)
             lifecycleScope.launch {
                 try {
-                    // Usamos la instancia songManager
-                    song = songManager.enrichSingleSong(song!!)
+                    // Intentamos obtener versión fresca del Manager (cache vs red)
+                    val freshSong = songManager.getSongById(song!!.id)
+                    if (freshSong != null) {
+                        song = freshSong
+                    } else {
+                        // Si falla, enriquecemos el que tenemos como fallback
+                        song = songManager.enrichSingleSong(song!!)
+                    }
                     setupSongUI(song!!)
                 } catch (e: Exception) {
-                    Log.e("DetailedSongFragment", "Error al enriquecer la canción", e)
+                    Log.e("DetailedSongFragment", "Error al actualizar la canción", e)
                     setupSongUI(song!!)
                 }
             }
@@ -138,6 +140,27 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
 
         artistList.layoutManager = LinearLayoutManager(requireContext())
         val artistAdapter = ArtistAdapter(emptyList())
+        artistAdapter.onSettingsClick = { artist ->
+             val bottomSheet = com.example.resonant.ui.bottomsheets.ArtistOptionsBottomSheet(
+                artist = artist,
+                onGoToArtistClick = { selectedArtist ->
+                    val bundle = Bundle().apply { 
+                         putString("artistId", selectedArtist.id)
+                         putString("artistName", selectedArtist.name)
+                         putString("artistImageUrl", selectedArtist.url)
+                    }
+                    findNavController().navigate(R.id.action_detailedSongFragment_to_artistFragment, bundle)
+                },
+                onViewDetailsClick = {
+                     val bundle = Bundle().apply { 
+                         putParcelable("artist", it)
+                         putString("artistId", it.id)
+                     }
+                     findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
+                }
+            )
+            bottomSheet.show(parentFragmentManager, "ArtistOptionsBottomSheet")
+        }
         artistList.adapter = artistAdapter
         songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
 
@@ -212,8 +235,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     private fun setBackgroundColorFromBitmapFade(view: View, bitmap: Bitmap) {
         Palette.from(bitmap).generate { palette ->
             val dominantColor = palette?.getDominantColor(
-                requireContext().getColor(R.color.appBackgroundTheme)
-            ) ?: requireContext().getColor(R.color.appBackgroundTheme)
+                requireContext().getColor(R.color.primaryColorTheme)
+            ) ?: requireContext().getColor(R.color.primaryColorTheme)
             animateBackgroundColorFade(view, dominantColor)
         }
     }
@@ -280,8 +303,13 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         songDuration.text = "Duración: ${Utils.formatSecondsToMinSec(song.duration.toString().toInt())}"
         songStreams.text = "Reproducciones: ${song.streams}"
 
-        loadAlbumName(song.albumId)
-        loadArtists(song.id)
+        if (song.album != null) {
+            songAlbum.text = "Álbum: ${song.album.title}"
+            songAlbum.visibility = View.VISIBLE
+        } else {
+            loadAlbumName(song.album?.id)
+        }
+        loadArtists(song.artists.map { it.toArtist() })
     }
 
     override fun onDestroyView() {
@@ -300,7 +328,6 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
 
         albumJob = lifecycleScope.launch {
             try {
-                // --- 2. USO DE ALBUM SERVICE ---
                 val album = albumService.getAlbumById(albumId)
                 val albumName = album.title ?: "Sin título"
                 songAlbum.text = "Álbum: $albumName"
@@ -311,33 +338,12 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         }
     }
 
-    private fun loadArtists(songId: String, asList: Boolean = true) {
-        lifecycleScope.launch {
-            try {
-                // --- 3. USO DE ARTIST Y STORAGE SERVICE ---
+    private fun loadArtists(artists: List<com.example.resonant.data.models.Artist>, asList: Boolean = true) {
+        Log.i("DetailedSongFragment", "Artists from song model: ${artists.size}")
 
-                // Obtener datos de artistas
-                val artists = artistService.getArtistsBySongId(songId)
-
-                // Obtener imágenes de artistas
-                val fileNames = artists.mapNotNull { it.fileName }
-                val urlList = if (fileNames.isNotEmpty()) {
-                    storageService.getMultipleArtistUrls(fileNames)
-                } else emptyList()
-
-                val urlMap = urlList.associateBy { it.fileName }
-
-                artists.forEach { artist ->
-                    artist.url = urlMap[artist.fileName]?.url ?: ""
-                }
-
-                (artistList.adapter as? ArtistAdapter)?.apply {
-                    submitArtists(artists)
-                    setViewType(if (asList) ArtistAdapter.Companion.VIEW_TYPE_LIST else ArtistAdapter.Companion.VIEW_TYPE_GRID)
-                }
-            } catch (e: Exception) {
-                (artistList.adapter as? ArtistAdapter)?.submitArtists(emptyList())
-            }
+        (artistList.adapter as? ArtistAdapter)?.apply {
+            submitArtists(artists)
+            setViewType(if (asList) ArtistAdapter.Companion.VIEW_TYPE_LIST else ArtistAdapter.Companion.VIEW_TYPE_GRID)
         }
     }
 

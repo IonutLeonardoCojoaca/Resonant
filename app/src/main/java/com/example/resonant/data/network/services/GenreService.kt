@@ -1,44 +1,36 @@
 package com.example.resonant.data.network.services
 
-import com.example.resonant.data.models.Album
-import com.example.resonant.data.network.RecommendationResponse
-import com.example.resonant.data.network.SearchResponse
-import retrofit2.http.DELETE
+import com.example.resonant.data.models.Genre
 import retrofit2.http.GET
-import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 
-interface AlbumService {
-    @GET("api/Album/GetById")
-    suspend fun getAlbumById(@Query("id") id: String): Album
+interface GenreService {
 
-    @GET("api/Album/GetAllIds")
-    suspend fun getAllAlbumIds(): List<String>
+    @GET("api/genres")
+    suspend fun getAllGenres(): List<Genre>
 
-    @GET("api/Album/GetByArtistId")
-    suspend fun getByArtistId(@Query("artistId") artistId: String): List<Album>
+    @GET("api/genres/{id}")
+    suspend fun getGenreById(@Path("id") id: String): Genre
 
-    @GET("api/Album/SearchByQuery")
-    suspend fun searchAlbumsByQuery(@Query("query") query: String): SearchResponse<Album>
+    @GET("api/genres/by-artist/{artistId}")
+    suspend fun getGenresByArtistId(
+        @Path("artistId") artistId: String
+    ): List<Genre>
 
-    @POST("/api/Album/AddFavorite")
-    suspend fun addFavoriteAlbum(
-        @Query("userId") userId: String,
-        @Query("albumId") albumId: String
-    )
+    @GET("api/genres/popular")
+    suspend fun getPopularGenres(
+        @Query("count") count: Int = 10
+    ): List<Genre>
 
-    @DELETE("/api/Album/DeleteFavorite")
-    suspend fun deleteFavoriteAlbum(
-        @Query("userId") userId: String,
-        @Query("albumId") albumId: String
-    )
+    @GET("api/genres/{id}/related")
+    suspend fun getRelatedGenres(
+        @Path("id") genreId: String,
+        @Query("count") count: Int = 5
+    ): List<Genre>
 
-    @GET("/api/Album/GetByUserId")
-    suspend fun getFavoriteAlbumsByUser(@Query("userId") userId: String): List<Album>
-
-    @GET("api/Album/RecommendedAlbums")
-    suspend fun getRecommendedAlbums(
-        @Query("userId") userId: String,
-        @Query("count") count: Int
-    ): List<RecommendationResponse<Album>>
+    @GET("api/genres/favorites")
+    suspend fun getFavoriteGenres(
+        @Query("userId") userId: String
+    ): List<Genre>
 }

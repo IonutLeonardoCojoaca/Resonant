@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/drawer"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#161616"
-    android:paddingHorizontal="16dp"
+    android:background="@color/sideBar"
     android:paddingTop="20dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/headerDrawer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:paddingHorizontal="24dp"
         android:paddingBottom="20dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/headerUserPhoto"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:src="@drawable/ic_user"
             android:scaleType="centerCrop"
+            android:padding="2dp"
             app:shapeAppearanceOverlay="@style/CircularUserImage"
-            app:strokeColor="#33FFFFFF"
-            app:strokeWidth="1dp"
+            app:strokeColor="@color/secondaryColorTheme"
+            app:strokeWidth="2dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -40,25 +40,28 @@
             app:layout_constraintBottom_toBottomOf="@+id/headerUserPhoto">
 
             <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PRO"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:fontFamily="@font/unageo_bold"
+                android:background="@drawable/bg_pro_badge"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:layout_marginBottom="2dp"/>
+
+            <TextView
                 android:id="@+id/headerUserName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/unageo_bold"
                 android:text="Usuario"
                 android:textColor="#FFFFFF"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
-            <TextView
-                android:id="@+id/headerUserEmail"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Ver perfil"
-                android:textColor="#80FFFFFF"
-                android:textSize="13sp"
-                android:layout_marginTop="2dp"/>
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -68,16 +71,19 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#1AFFFFFF"
-        android:layout_marginBottom="10dp"
+        android:layout_marginHorizontal="24dp"
         app:layout_constraintTop_toBottomOf="@+id/headerDrawer"/>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:scrollbars="none"
-        android:layout_marginTop="10dp"
+        android:paddingHorizontal="12dp"
+        android:clipToPadding="false"
+        android:paddingBottom="40dp"
+        android:layout_marginTop="16dp"
         app:layout_constraintTop_toBottomOf="@+id/separator"
-        app:layout_constraintBottom_toTopOf="@+id/imageView">
+        app:layout_constraintBottom_toTopOf="@+id/footerLayout">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -89,12 +95,18 @@
                 android:layout_height="wrap_content"
                 android:text="Navegación"
                 android:fontFamily="@font/unageo_bold"
-                android:textColor="@color/white"
-                android:textSize="12sp"
+                android:textColor="#66FFFFFF"
+                android:textSize="11sp"
                 android:textAllCaps="true"
                 android:letterSpacing="0.1"
-                android:paddingStart="12dp"
+                android:paddingStart="16dp"
                 android:layout_marginBottom="8dp"/>
+
+            <TextView
+                android:id="@+id/homeButton"
+                style="@style/DrawerItemStyle"
+                android:text="Inicio"
+                app:drawableStartCompat="@drawable/ic_menu_home" />
 
             <TextView
                 android:id="@+id/searchButton"
@@ -103,56 +115,103 @@
                 app:drawableStartCompat="@drawable/ic_search" />
 
             <TextView
-                android:id="@+id/savedButton"
+                android:id="@+id/exploreButton"
                 style="@style/DrawerItemStyle"
-                android:text="Mi biblioteca"
-                app:drawableStartCompat="@drawable/ic_menu_saved" />
+                android:text="Descubrir"
+                app:drawableStartCompat="@drawable/ic_menu_explore" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="10dp"/>
 
             <TextView
-                android:id="@+id/favoriteSongsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Mi Música"
+                android:fontFamily="@font/unageo_bold"
+                android:textColor="#66FFFFFF"
+                android:textSize="11sp"
+                android:textAllCaps="true"
+                android:letterSpacing="0.1"
+                android:paddingStart="16dp"
+                android:layout_marginBottom="8dp"/>
+
+            <TextView
+                android:id="@+id/savedButton"
                 style="@style/DrawerItemStyle"
-                android:text="Favoritos"
-                app:drawableStartCompat="@drawable/ic_favorite" />
+                android:text="Biblioteca"
+                app:drawableStartCompat="@drawable/ic_menu_saved" />
 
             <TextView
                 android:id="@+id/downloadsButton"
                 style="@style/DrawerItemStyle"
-                android:text="Descargas"
+                android:text="Descargas offline"
                 app:drawableStartCompat="@drawable/ic_download" />
+
+            <TextView
+                android:id="@+id/historyButton"
+                style="@style/DrawerItemStyle"
+                android:text="Historial de escucha"
+                app:drawableStartCompat="@drawable/ic_recent" />
 
             <Space
                 android:layout_width="match_parent"
-                android:layout_height="20dp"/>
+                android:layout_height="10dp"/>
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Sistema"
                 android:fontFamily="@font/unageo_bold"
-                android:textColor="@color/white"
-                android:textSize="12sp"
+                android:textColor="#66FFFFFF"
+                android:textSize="11sp"
                 android:textAllCaps="true"
                 android:letterSpacing="0.1"
-                android:paddingStart="12dp"
+                android:paddingStart="16dp"
                 android:layout_marginBottom="8dp"/>
 
             <TextView
                 android:id="@+id/settingsButton"
                 style="@style/DrawerItemStyle"
-                android:text="Ajustes"
+                android:text="Ajustes y Privacidad"
                 app:drawableStartCompat="@drawable/ic_settings_selected" />
+
+            <TextView
+                android:id="@+id/logoutButton"
+                style="@style/DrawerItemStyle"
+                android:text="Cerrar sesión"
+                app:drawableStartCompat="@drawable/ic_logout" />
 
         </LinearLayout>
     </ScrollView>
 
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="120dp"
-        android:layout_height="40dp"
-        android:layout_marginBottom="30dp"
-        android:src="@drawable/logo_resonant_text"
+    <LinearLayout
+        android:id="@+id/footerLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingTop="12dp"
+        android:paddingBottom="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="120dp"
+            android:layout_height="40dp"
+            android:src="@drawable/logo_resonant_text" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Resonant 2.0.0"
+            android:textColor="#4DFFFFFF"
+            android:textSize="11sp"
+            android:fontFamily="@font/unageo_medium"
+            android:layout_marginTop="2dp"/>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

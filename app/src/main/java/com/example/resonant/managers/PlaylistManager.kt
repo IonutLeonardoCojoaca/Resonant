@@ -1,19 +1,16 @@
 package com.example.resonant.managers
 
 import android.content.Context
-import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.models.User
 import com.example.resonant.data.network.ApiClient
-import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.UserService
 
 class PlaylistManager(private val context: Context) {
 
     private val playlistService: PlaylistService = ApiClient.getPlaylistService(context)
-    private val artistService: ArtistService = ApiClient.getArtistService(context)
     private val userService: UserService = ApiClient.getUserService(context)
     private val songManager = SongManager(context)
 
@@ -22,7 +19,8 @@ class PlaylistManager(private val context: Context) {
     }
 
     suspend fun updatePlaylist(playlist: Playlist) {
-        val response = playlistService.updatePlaylist(playlist)
+        // Nuevo endpoint requiere ID en la ruta
+        val response = playlistService.updatePlaylist(playlist.id!!, playlist)
 
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
@@ -34,8 +32,16 @@ class PlaylistManager(private val context: Context) {
         return playlistService.getPlaylistById(id)
     }
 
-    suspend fun getPlaylistByUserId(id: String): List<Playlist> {
-        return playlistService.getPlaylistByUserId(id)
+    /**
+     * Obtiene las playlists del usuario autenticado.
+     * El nuevo endpoint api/playlists/mine no necesita userId.
+     */
+    suspend fun getMyPlaylists(): List<Playlist> {
+        return playlistService.getMyPlaylists()
+    }
+
+    suspend fun getAllPublicPlaylists(): List<Playlist> {
+        return playlistService.getAllPublicPlaylists()
     }
 
     suspend fun deletePlaylist(id: String) {
@@ -46,20 +52,26 @@ class PlaylistManager(private val context: Context) {
     }
 
     suspend fun addSongToPlaylist(songId: String, playlistId: String) {
-        playlistService.addSongToPlaylist(songId, playlistId)
+        // Nuevo endpoint: POST api/playlists/{id}/songs con songId en el body
+        playlistService.addSongToPlaylist(playlistId, songId)
     }
 
     suspend fun isSongInPlaylist(songId: String, playlistId: String): Boolean {
-        return playlistService.isSongInPlaylist(songId, playlistId)
+        // Nuevo endpoint: api/playlists/{id}/songs/{songId}/exists
+        return playlistService.isSongInPlaylist(playlistId, songId)
     }
 
     suspend fun deleteSongFromPlaylist(songId: String, playlistId: String) {
-        playlistService.deleteSongFromPlaylist(songId, playlistId)
+        // Nuevo endpoint: DELETE api/playlists/{id}/songs/{songId}
+        playlistService.deleteSongFromPlaylist(playlistId, songId)
     }
 
-    // --- MÉTODOS DE ARTISTA ---
-    suspend fun getArtistsBySongId(songId: String): List<Artist> {
-        return artistService.getArtistsBySongId(songId)
+    suspend fun updatePlaylistVisibility(playlistId: String, isPublic: Boolean) {
+        val response = playlistService.updatePlaylistVisibility(playlistId, isPublic)
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
+            throw Exception("Error ${response.code()}: $errorMsg")
+        }
     }
 
     // --- MÉTODOS DE USUARIO ---

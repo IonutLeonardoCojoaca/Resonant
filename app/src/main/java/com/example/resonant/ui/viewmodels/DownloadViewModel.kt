@@ -84,7 +84,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         url = finalAudioPath,       // Ruta corregida
                         coverUrl = finalCoverPath,  // Ruta corregida
                         duration = entity.duration,
-                        albumId = entity.albumId,
+                        album = entity.album,
                         sizeBytes = totalSize       // Tamaño calculado
                     )
                 }

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="2dp"
+    android:background="@drawable/bg_drawer_item"
+    android:paddingVertical="6dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp">
+
+    <!-- Número de posición (índice en el historial) -->
+    <TextView
+        android:id="@+id/tvPosition"
+        android:layout_width="28dp"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_alignParentStart="true"
+        android:gravity="center"
+        android:textColor="#60FFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="1" />
+
+    <!-- Portada -->
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/ivCover"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_toEndOf="@id/tvPosition"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="4dp"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
+
+    <!-- Contenedor de texto -->
+    <LinearLayout
+        android:id="@+id/textContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/ivCover"
+        android:layout_toStartOf="@id/btnMore"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:fontFamily="@font/unageo_medium"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="Título de la canción" />
+
+        <TextView
+            android:id="@+id/tvArtist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@font/unageo_regular"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginTop="2dp"
+            android:text="Artista" />
+
+    </LinearLayout>
+
+    <!-- Botón de menú -->
+    <ImageButton
+        android:id="@+id/btnMore"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_item_settings"
+        android:alpha="0.7"
+        app:tint="@color/white" />
+
+</RelativeLayout>

@@ -5,14 +5,15 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/appBackgroundTheme"
+    android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.CreatePlaylistFragment">
 
+    <!-- Top bar -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/superiorToolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingVertical="10dp"
+        android:paddingVertical="12dp"
         android:paddingHorizontal="20dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -33,16 +34,16 @@
             android:fontFamily="@font/unageo_bold"
             android:text="Nueva lista"
             android:textColor="@color/white"
-            android:textSize="25sp"
-            android:layout_marginStart="15dp"
+            android:textSize="24sp"
+            android:layout_marginStart="14dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@+id/imageView4"
             app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/userProfile"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:src="@drawable/ic_user"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -51,6 +52,7 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Scrollable content -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -67,53 +69,53 @@
             android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingHorizontal="24dp"
-            android:paddingBottom="100dp">
+            android:paddingBottom="120dp">
 
+            <!-- Cover artwork placeholder (compact) -->
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp">
+                android:layout_marginTop="16dp">
 
                 <androidx.cardview.widget.CardView
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    app:cardBackgroundColor="#222222"
-                    app:cardCornerRadius="20dp"
-                    app:cardElevation="10dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintDimensionRatio="1:1"
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    app:cardBackgroundColor="#1E1E1E"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="8dp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent">
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent">
 
                     <ImageView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:scaleType="centerCrop"
-                        android:src="@drawable/ic_playlist_stack"
-                        />
+                        android:src="@drawable/ic_playlist_stack" />
 
                 </androidx.cardview.widget.CardView>
 
             </androidx.constraintlayout.widget.ConstraintLayout>
 
+            <!-- Name field -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/inputNameLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="30dp"
+                android:layout_marginTop="28dp"
                 android:hint="Nombre de la lista"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 app:hintTextColor="@color/secondaryColorTheme"
                 app:boxStrokeColor="@color/secondaryColorTheme"
-                app:boxBackgroundColor="@color/appBackgroundTheme"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxBackgroundColor="@color/primaryColorTheme"
                 app:counterEnabled="true"
-                app:counterMaxLength="20"
+                app:counterMaxLength="30"
                 app:counterTextColor="@color/white"
-                app:boxCornerRadiusBottomEnd="20dp"
-                app:boxCornerRadiusBottomStart="20dp"
-                app:boxCornerRadiusTopEnd="20dp"
-                app:boxCornerRadiusTopStart="20dp">
+                app:boxCornerRadiusBottomEnd="16dp"
+                app:boxCornerRadiusBottomStart="16dp"
+                app:boxCornerRadiusTopEnd="16dp"
+                app:boxCornerRadiusTopStart="16dp">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/playlistName"
@@ -121,17 +123,106 @@
                     android:layout_height="wrap_content"
                     android:textColor="@color/white"
                     android:inputType="textCapSentences"
-                    android:imeOptions="actionDone"
+                    android:imeOptions="actionNext"
                     android:maxLines="1"
-                    android:fontFamily="@font/unageo_regular"/>
+                    android:fontFamily="@font/unageo_regular" />
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- Description field -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/inputDescriptionLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="Descripción (opcional)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:hintTextColor="#88FFFFFF"
+                app:boxStrokeColor="@color/secondaryColorTheme"
+                app:boxBackgroundColor="@color/primaryColorTheme"
+                app:counterEnabled="true"
+                app:counterMaxLength="120"
+                app:counterTextColor="@color/no_selected_color_icon"
+                app:boxCornerRadiusBottomEnd="16dp"
+                app:boxCornerRadiusBottomStart="16dp"
+                app:boxCornerRadiusTopEnd="16dp"
+                app:boxCornerRadiusTopStart="16dp">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/playlistDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:minLines="2"
+                    android:maxLines="3"
+                    android:fontFamily="@font/unageo_regular" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Visibility toggle card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="#15FFFFFF"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="16dp">
+
+                    <!-- Icon + text -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvVisibilityTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Playlist privada"
+                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:fontFamily="@font/unageo_bold" />
+
+                        <TextView
+                            android:id="@+id/tvVisibilityDescription"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Solo tú puedes verla"
+                            android:textColor="#88FFFFFF"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/unageo_regular" />
+
+                    </LinearLayout>
+
+                    <!-- Switch -->
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchPublic"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false"
+                        app:thumbTint="@color/white"
+                        app:trackTint="@color/secondaryColorTheme" />
+
+                </LinearLayout>
+
+            </androidx.cardview.widget.CardView>
+
+            <!-- Create button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/createPlaylistButton"
                 android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:layout_marginTop="40dp"
+                android:layout_height="58dp"
+                android:layout_marginTop="28dp"
                 android:text="Crear Playlist"
                 android:fontFamily="@font/unageo_bold"
                 android:textColor="@color/white"
@@ -139,12 +230,13 @@
                 app:cornerRadius="30dp"
                 app:backgroundTint="@color/secondaryColorTheme"
                 android:elevation="4dp"
-                android:stateListAnimator="@null"/>
+                android:stateListAnimator="@null" />
 
         </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>
 
+    <!-- Loading overlay -->
     <FrameLayout
         android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
@@ -152,12 +244,18 @@
         android:background="#80000000"
         android:clickable="true"
         android:focusable="true"
-        android:visibility="gone">
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
         <ProgressBar
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:indeterminateTint="@color/secondaryColorTheme"/>
+            android:indeterminateTint="@color/secondaryColorTheme" />
+
     </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

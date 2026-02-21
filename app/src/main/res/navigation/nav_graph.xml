@@ -25,6 +25,101 @@
     </fragment>
 
     <fragment
+        android:id="@+id/exploreFragment"
+        android:name="com.example.resonant.ui.fragments.ExploreFragment"
+        android:label="Explorar"
+        tools:layout="@layout/fragment_explore">
+
+        <action
+            android:id="@+id/action_exploreFragment_to_topChartsFragment"
+            app:destination="@id/topChartsFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_exploreFragment_to_genreArtistsFragment"
+            app:destination="@id/genreArtistsFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_exploreFragment_to_publicPlaylistsFragment"
+            app:destination="@id/publicPlaylistsFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_exploreFragment_to_allGenresFragment"
+            app:destination="@id/allGenresFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_exploreFragment_to_topAlbumsFragment"
+            app:destination="@id/topAlbumsFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/allGenresFragment"
+        android:name="com.example.resonant.ui.fragments.AllGenresFragment"
+        android:label="Todos los Géneros"
+        tools:layout="@layout/fragment_all_genres">
+        <action
+            android:id="@+id/action_allGenresFragment_to_genreArtistsFragment"
+            app:destination="@id/genreArtistsFragment" />
+    </fragment>
+    
+    <fragment
+        android:id="@+id/genreArtistsFragment"
+        android:name="com.example.resonant.ui.fragments.GenreArtistsFragment"
+        android:label="Artistas del Género"
+        tools:layout="@layout/fragment_genre_artists">
+        <action
+            android:id="@+id/action_genreArtistsFragment_to_artistFragment"
+            app:destination="@id/artistFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/topChartsFragment"
+        android:name="com.example.resonant.ui.fragments.TopChartsFragment"
+        android:label="Top Charts"
+        tools:layout="@layout/fragment_top_charts">
+
+        <argument
+            android:name="TITLE"
+            app:argType="string"
+            android:defaultValue="Top Charts" />
+        <argument
+            android:name="PERIOD"
+            app:argType="integer"
+            android:defaultValue="0" />
+        <argument
+            android:name="IS_TRENDING"
+            app:argType="boolean"
+            android:defaultValue="false" />
+        <argument
+            android:name="START_COLOR"
+            app:argType="string"
+            android:defaultValue="#333333" />
+        <argument
+            android:name="END_COLOR"
+            app:argType="string"
+            android:defaultValue="#000000" />
+
+        <action
+            android:id="@+id/action_topChartsFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
+    </fragment>
+
+    <fragment
         android:id="@+id/searchFragment"
         android:name="com.example.resonant.ui.fragments.SearchFragment"
         android:label="Buscar"
@@ -48,27 +143,30 @@
         android:name="com.example.resonant.ui.fragments.SavedFragment"
         android:label="Guardados"
         tools:layout="@layout/fragment_saved">
-        <action
-            android:id="@+id/action_savedFragment_to_favoriteSongsFragment"
-            app:destination="@id/favoriteSongsFragment" />
+
         <action
             android:id="@+id/action_savedFragment_to_createPlaylistFragment"
             app:destination="@id/createPlaylistFragment" />
         <action
             android:id="@+id/action_savedFragment_to_playlistFragment"
             app:destination="@id/playlistFragment" />
-        <action
-            android:id="@+id/action_savedFragment_to_favoriteArtistsFragment"
-            app:destination="@id/favoriteArtistsFragment" />
-        <action
-            android:id="@+id/action_savedFragment_to_favoriteAlbumsFragment"
-            app:destination="@id/favoriteAlbumsFragment" />
+
+
         <action
             android:id="@+id/action_savedFragment_to_editPlaylistFragment"
             app:destination="@id/editPlaylistFragment" />
         <action
             android:id="@+id/action_savedFragment_to_downloadedSongsFragment"
             app:destination="@id/downloadedSongsFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_albumFragment"
+            app:destination="@id/albumFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_artistFragment"
+            app:destination="@id/artistFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
     </fragment>
 
     <fragment
@@ -77,18 +175,7 @@
         android:label="Perfil"
         tools:layout="@layout/fragment_settings"/>
 
-    <fragment
-        android:id="@+id/favoriteSongsFragment"
-        android:name="com.example.resonant.ui.fragments.FavoriteSongsFragment"
-        android:label="Canciones favoritas"
-        tools:layout="@layout/fragment_favorite_songs" >
-        <action
-            android:id="@+id/action_favoriteSongsFragment_to_savedFragment"
-            app:destination="@id/savedFragment" />
-        <action
-            android:id="@+id/action_favoriteSongsFragment_to_detailedSongFragment"
-            app:destination="@id/detailedSongFragment" />
-    </fragment>
+
 
     <fragment
         android:id="@+id/albumFragment"
@@ -110,6 +197,37 @@
             app:destination="@id/albumFragment" />
         <action
             android:id="@+id/action_artistFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
+        <action
+            android:id="@+id/action_artistFragment_to_artistSmartPlaylistFragment"
+            app:destination="@id/artistSmartPlaylistFragment" />
+        <action
+            android:id="@+id/action_artistFragment_self"
+            app:destination="@id/artistFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/artistSmartPlaylistFragment"
+        android:name="com.example.resonant.ui.fragments.ArtistSmartPlaylistFragment"
+        android:label="Playlist Inteligente"
+        tools:layout="@layout/fragment_artist_smart_playlist">
+        <argument
+            android:name="artistId"
+            app:argType="string" />
+        <argument
+            android:name="playlistType"
+            app:argType="string" />
+        <argument
+            android:name="artistName"
+            app:argType="string" />
+        <argument
+            android:name="artworkUrl"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null"/>
+            
+        <action
+            android:id="@+id/action_artistSmartPlaylistFragment_to_detailedSongFragment"
             app:destination="@id/detailedSongFragment" />
     </fragment>
 
@@ -159,28 +277,9 @@
             app:destination="@id/songFragment" />
     </fragment>
 
-    <fragment
-        android:id="@+id/favoriteArtistsFragment"
-        android:name="com.example.resonant.ui.fragments.FavoriteArtistsFragment"
-        android:label="Artistas favoritos"
-        tools:layout="@layout/fragment_favorite_artists" >
-        <action
-            android:id="@+id/action_favoriteArtistsFragment_to_savedFragment"
-            app:destination="@id/savedFragment" />
-        <action
-            android:id="@+id/action_favoriteArtistsFragment_to_artistFragment"
-            app:destination="@id/artistFragment" />
-    </fragment>
 
-    <fragment
-        android:id="@+id/favoriteAlbumsFragment"
-        android:name="com.example.resonant.ui.fragments.FavoriteAlbumsFragment"
-        android:label="Álbumes favoritos"
-        tools:layout="@layout/fragment_favorite_albums" >
-        <action
-            android:id="@+id/action_favoriteAlbumsFragment_to_albumFragment"
-            app:destination="@id/albumFragment" />
-    </fragment>
+
+
 
     <fragment
         android:id="@+id/editPlaylistFragment"
@@ -217,6 +316,16 @@
         app:popEnterAnim="@anim/scale_up_fade_in"
         app:popExitAnim="@anim/slide_out_down"/>
 
+    <fragment
+        android:id="@+id/publicPlaylistsFragment"
+        android:name="com.example.resonant.ui.fragments.PublicPlaylistsFragment"
+        android:label="Playlists Públicas"
+        tools:layout="@layout/fragment_public_playlists">
+        <action
+            android:id="@+id/action_publicPlaylistsFragment_to_playlistFragment"
+            app:destination="@id/playlistFragment" />
+    </fragment>
+
     <action
         android:id="@+id/action_global_to_detailedSongFragment"
         app:destination="@id/detailedSongFragment"/>
@@ -224,5 +333,51 @@
     <action
         android:id="@+id/action_global_to_createPlaylistFragment"
         app:destination="@id/createPlaylistFragment"/>
+
+    <fragment
+        android:id="@+id/detailedAlbumFragment"
+        android:name="com.example.resonant.ui.fragments.DetailedAlbumFragment"
+        android:label="Detailed Album"
+        tools:layout="@layout/fragment_detailed_album"/>
+
+    <fragment
+        android:id="@+id/detailedArtistFragment"
+        android:name="com.example.resonant.ui.fragments.DetailedArtistFragment"
+        android:label="Detailed Artist"
+        tools:layout="@layout/fragment_detailed_artist"/>
+
+    <action
+        android:id="@+id/action_global_to_detailedAlbumFragment"
+        app:destination="@id/detailedAlbumFragment" />
+
+    <action
+        android:id="@+id/action_global_to_detailedArtistFragment"
+        app:destination="@id/detailedArtistFragment" />
+
+    <fragment
+        android:id="@+id/topArtistsFragment"
+        android:name="com.example.resonant.ui.fragments.TopArtistsFragment"
+        android:label="Top Artists"
+        tools:layout="@layout/fragment_top_artists" />
+
+    <fragment
+        android:id="@+id/topAlbumsFragment"
+        android:name="com.example.resonant.ui.fragments.TopAlbumsFragment"
+        android:label="Top Albums"
+        tools:layout="@layout/fragment_top_albums" />
+
+    <fragment
+        android:id="@+id/historyFragment"
+        android:name="com.example.resonant.ui.fragments.HistoryFragment"
+        android:label="Historial"
+        tools:layout="@layout/fragment_history">
+        <action
+            android:id="@+id/action_historyFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+    </fragment>
 
 </navigation>

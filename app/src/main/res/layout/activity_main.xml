@@ -8,14 +8,14 @@
         android:id="@+id/main"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/black">
+        android:background="@color/primaryColorTheme">
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/nav_host_fragment"
             android:name="androidx.navigation.fragment.NavHostFragment"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:background="#000000"
+            android:background="@color/primaryColorTheme"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -39,7 +39,7 @@
         <View
             android:id="@+id/gradientBottom"
             android:layout_width="match_parent"
-            android:layout_height="105dp"
+            android:layout_height="155dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -195,7 +195,7 @@
             style="@style/BottomNavigationViewStyle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_gradient_bottom_navigation"
+            android:background="@color/transparent"
             android:clipToPadding="false"
             app:itemBackground="@android:color/transparent"
             app:itemIconTint="@color/nav_item_color_selector"

@@ -55,7 +55,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_rounded_disc"
-            android:drawableStart="@drawable/ic_disc"
+            android:drawableStart="@drawable/ic_sound"
             android:drawablePadding="10dp"
             android:drawableTint="@color/white"
             android:fontFamily="@font/unageo_medium"

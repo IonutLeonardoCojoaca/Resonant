@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/black">
+    android:background="@color/primaryColorTheme">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/superiorToolbar"
@@ -172,7 +172,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_tip_card_gradient"
-            android:padding="16dp">
+            android:padding="18dp">
 
             <ImageView
                 android:id="@+id/closeTipButton"
@@ -238,7 +238,7 @@
         android:layout_marginTop="10dp"
         android:clipToPadding="false"
         android:paddingBottom="250dp"
-        android:paddingHorizontal="5dp"
+        android:paddingHorizontal="10dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/tipCard"
         app:layout_constraintStart_toStartOf="parent"

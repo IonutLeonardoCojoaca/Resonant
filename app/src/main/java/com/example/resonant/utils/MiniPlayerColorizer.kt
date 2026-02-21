@@ -64,11 +64,10 @@ object MiniPlayerColorizer {
             val rawBgColor = bestSwatch?.rgb ?: fallbackColor
 
             // Asegurar contraste adecuado
-            val textColor = if (ColorUtils.calculateContrast(Color.BLACK, rawBgColor) >= 4.5) {
-                Color.BLACK
-            } else {
-                Color.WHITE
-            }
+            // Preferimos texto blanco a menos que el fondo sea muy claro
+            val isBgDark = ColorUtils.calculateLuminance(rawBgColor) < 0.6
+            val textColor = if (isBgDark) Color.WHITE else Color.BLACK
+
             val bgColor = ensureContrast(rawBgColor, textColor)
 
             val fromColor = targets.container.backgroundTintList?.defaultColor ?: Color.TRANSPARENT
@@ -112,11 +111,15 @@ object MiniPlayerColorizer {
     private fun ensureContrast(color: Int, textColor: Int): Int {
         var adjusted = color
         var tries = 0
+        val isTextDark = ColorUtils.calculateLuminance(textColor) < 0.5
+        
         while (ColorUtils.calculateContrast(textColor, adjusted) < 4.5 && tries < 5) {
-            adjusted = if (ColorUtils.calculateLuminance(color) > 0.5) {
-                ColorUtils.blendARGB(adjusted, Color.BLACK, 0.15f)
-            } else {
+            adjusted = if (isTextDark) {
+                // Si el texto es oscuro (Negro), queremos aclarar el fondo
                 ColorUtils.blendARGB(adjusted, Color.WHITE, 0.15f)
+            } else {
+                 // Si el texto es claro (Blanco), queremos oscurecer el fondo
+                ColorUtils.blendARGB(adjusted, Color.BLACK, 0.15f)
             }
             tries++
         }

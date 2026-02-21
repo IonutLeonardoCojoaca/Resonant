@@ -37,6 +37,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -66,6 +67,8 @@ class MusicPlaybackService : Service(), PlayerController {
         const val EXTRA_PLAYLIST_ID = "com.resonant.EXTRA_PLAYLIST_ID"
         const val ACTION_SONG_MARKED_FOR_DELETION = "com.resonant.ACTION_SONG_MARKED_FOR_DELETION"
         const val EXTRA_SONG_ID = "com.resonant.EXTRA_SONG_ID"
+        const val ACTION_TOGGLE_SHUFFLE = "com.resonant.ACTION_TOGGLE_SHUFFLE"
+        const val ACTION_TOGGLE_REPEAT = "com.resonant.ACTION_TOGGLE_REPEAT"
     }
 
     inner class MusicServiceBinder : Binder() {
@@ -92,7 +95,12 @@ class MusicPlaybackService : Service(), PlayerController {
     @Volatile
     private var predictedIntelligentDuration: Long = -1L
 
+    // Loudness normalization
+    private var loudnessNormalizationEnabled: Boolean = true
+    private val TARGET_LOUDNESS_LUFS = -14.0f  // Referencia estándar de streaming
+
     private var currentSongStartTimeMs: Long = 0L
+    private var originalQueueSongs: List<Song>? = null
 
     private val seekBarHandler = Handler(Looper.getMainLooper())
     private val updateSeekBarRunnable = object : Runnable {
@@ -106,30 +114,29 @@ class MusicPlaybackService : Service(), PlayerController {
             val position = player.currentPosition
             val duration = player.duration.toInt()
 
+            // Diagnostic: log every ~5s so we can confirm the seekbar is running
+            if (position % 5000 < 250) {
+                Log.d("SeekBar", "▶ pos=${position}ms dur=${duration}ms song=${PlaybackStateRepository.currentSong?.title} mode=$crossfadeMode")
+            }
+
             if (duration <= 0) {
                 seekBarHandler.postDelayed(this, 200)
                 return
             }
 
-            // ✅ DELEGA a MediaSessionManager (esto lo conectaremos si falta)
             if (position % 2000 < 50) {
                 mediaSessionManager.updatePlaybackState(position)
             }
 
-            // 🔥 --- INICIO DE LA CORRECCIÓN --- 🔥
-            // Reemplazamos el placeholder 0L con la llamada a nuestra función.
             val triggerPosition = calculateTriggerPosition()
 
             if (triggerPosition > 0 && position >= triggerPosition) {
                 Log.i("MusicService", "🏁 TRIGGER by SeekBar: Pos(${position}ms) >= Trigger(${triggerPosition}ms).")
-                handleTransitionTrigger() // ¡Llama al nuevo coordinador!
-                return // Salimos porque la transición ya ha comenzado y este runnable se detendrá.
+                handleTransitionTrigger()
+                return
             }
 
-            // ✅ ENVÍA la actualización a la UI.
             PlaybackStateRepository.updatePlaybackPosition(position, duration)
-
-            // ✅ REPROGRAMACIÓN.
             seekBarHandler.postDelayed(this, 200)
         }
     }
@@ -169,19 +176,17 @@ class MusicPlaybackService : Service(), PlayerController {
             transitionManager.cancelCurrentTransition()
         }
 
-        val player = exoPlayer ?: return
-        val currentIndex = player.currentMediaItemIndex
-        val nextSong = PlaybackStateRepository.getNextSong(currentIndex)
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val nextIndex = queue.currentIndex + 1
+
         lastManualChangeTimestamp = System.currentTimeMillis()
 
-        if (nextSong != null) {
-            PlaybackStateRepository.setCurrentSong(nextSong)
-            loadArtworkForSong(nextSong)
-
-            player.seekToNextMediaItem()
-            player.play()
-            updateUiAndSystem()
-            Log.d("MusicService", "Acción Proactiva: Saltando a ${nextSong.title}")
+        if (nextIndex < queue.songs.size) {
+            Log.d("MusicService", "Acción Proactiva: Saltando al índice $nextIndex")
+            queue.currentIndex = nextIndex
+            playSongFromQueue()
+        } else {
+             Log.d("MusicService", "Fin de la cola alcanzado en playNext")
         }
     }
     override fun playPrevious() {
@@ -193,18 +198,13 @@ class MusicPlaybackService : Service(), PlayerController {
 
         lastManualChangeTimestamp = System.currentTimeMillis()
 
-        val player = exoPlayer ?: return
-        val currentIndex = player.currentMediaItemIndex
-        val previousSong = PlaybackStateRepository.getPreviousSong(currentIndex)
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val prevIndex = queue.currentIndex - 1
 
-        if (previousSong != null) {
-            PlaybackStateRepository.setCurrentSong(previousSong)
-            loadArtworkForSong(previousSong)
-
-            player.seekToPreviousMediaItem()
-            player.play()
-            updateUiAndSystem()
-            Log.d("MusicService", "Acción Proactiva: Volviendo a ${previousSong.title}")
+        if (prevIndex >= 0) {
+            Log.d("MusicService", "Acción Proactiva: Volviendo al índice $prevIndex")
+            queue.currentIndex = prevIndex
+            playSongFromQueue()
         }
     }
     override fun stop() {
@@ -217,22 +217,11 @@ class MusicPlaybackService : Service(), PlayerController {
     }
     override fun seekTo(position: Long) {
         val player = exoPlayer ?: return
-        val duration = player.duration
-
-        if (duration <= 0) {
-            player.seekTo(position)
-            return
-        }
-
-        val triggerPosition = calculateTriggerPosition()
-
-        if (triggerPosition > 0 && position >= triggerPosition) {
-            Log.d("MusicService", "🛡️ SeekTo protegido. El salto ($position) está en la ventana de crossfade (desde $triggerPosition). Se iniciará playNext().")
-            playNext()
-        } else {
-            player.seekTo(position)
-        }
+        player.seekTo(position)
+        // After a user seek the seekbar trigger will re-evaluate naturally on the next tick.
+        // Do not call playNext() here: that would skip the crossfade and leave the UI stale.
     }
+
 
     override fun onBind(intent: Intent?): IBinder? {
         return binder
@@ -351,7 +340,7 @@ class MusicPlaybackService : Service(), PlayerController {
 
                 if (isSeeking && !isPlayingUpdate) {
                     Log.d("PlayerListener", "onIsPlayingChanged(false) ignorado por seeking.")
-                    return // No hacemos nada
+                    return
                 }
 
                 if (transitionManager.isTransitioning) {
@@ -386,6 +375,7 @@ class MusicPlaybackService : Service(), PlayerController {
                         Log.d("PlayerListener", "Transición de ExoPlayer a una NUEVA canción: ${newSong.title}")
 
                         PlaybackStateRepository.setCurrentSong(newSong)
+                        PlaybackStateRepository.activeQueue?.currentIndex = newIndex
 
                         currentSongStartTimeMs = System.currentTimeMillis()
                         PlaybackStateRepository.streamReported = false
@@ -426,10 +416,34 @@ class MusicPlaybackService : Service(), PlayerController {
                         Log.d("PlayerListener", "STATE_ENDED ignorado porque hay una transición en curso.")
                         return
                     }
-                    Log.i("PlayerListener", "🏁 Canción finalizada naturalmente. Forzando paso a la siguiente.")
+                    Log.i("PlayerListener", "\uD83C\uDFC1 Canción finalizada naturalmente. Forzando paso a la siguiente.")
 
                     reportCurrentSongFinished(wasSkipped = false)
 
+                    playNext()
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e("PlayerListener", "\u274C ExoPlayer error: ${error.errorCodeName} - ${error.message}")
+
+                if (transitionManager.isTransitioning) {
+                    Log.w("PlayerListener", "Error during transition, letting TransitionManager handle it.")
+                    return
+                }
+
+                // Source error typically means expired/invalid URL
+                val isSourceError = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+
+                if (isSourceError) {
+                    Log.w("PlayerListener", "\uD83D\uDD04 Source error detected. Attempting to refetch URL and retry...")
+                    retryCurrentSongWithFreshUrl()
+                } else {
+                    Log.e("PlayerListener", "Non-recoverable error. Skipping to next song.")
                     playNext()
                 }
             }
@@ -442,53 +456,167 @@ class MusicPlaybackService : Service(), PlayerController {
                 repeatMode = Player.REPEAT_MODE_ALL
             }
     }
-    private fun calculateTriggerPosition(): Long {
-        val song = PlaybackStateRepository.currentSong ?: return -1L
-        val analysis = song.audioAnalysis ?: return -1L
-        val isAlbumMode = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.ALBUM
 
-        val nextSong = PlaybackStateRepository.getNextSong(exoPlayer?.currentMediaItemIndex ?: -1)
-        if (nextSong == null || nextSong.id == song.id) {
-            // No hay siguiente canción o está en bucle. No hay trigger.
+    @Volatile
+    private var retryCount = 0
+    private val MAX_RETRY_COUNT = 2
+
+    private fun retryCurrentSongWithFreshUrl() {
+        if (retryCount >= MAX_RETRY_COUNT) {
+            Log.e("MusicService", "Max retries ($MAX_RETRY_COUNT) reached. Skipping to next song.")
+            retryCount = 0
+            playNext()
+            return
+        }
+        retryCount++
+
+        val queue = PlaybackStateRepository.activeQueue ?: run {
+            playNext()
+            return
+        }
+        val index = queue.currentIndex
+        val currentSong = queue.songs.getOrNull(index) ?: run {
+            playNext()
+            return
+        }
+
+        Log.w("MusicService", "\uD83D\uDD04 Retry #$retryCount: Fetching fresh URL for '${currentSong.title}'")
+
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val songManager = SongManager(applicationContext)
+                // Invalidate cache so we get a truly fresh presigned URL
+                songManager.invalidateCache(currentSong.id)
+                val fetched = songManager.getSongById(currentSong.id)
+
+                if (fetched != null && !fetched.url.isNullOrEmpty()) {
+                    // Update the song in the queue
+                    val mutableSongs = queue.songs.toMutableList()
+                    mutableSongs[index] = fetched
+                    queue.songs = mutableSongs.toList()
+
+                    withContext(Dispatchers.Main) {
+                        Log.d("MusicService", "\u2705 Got fresh URL for '${fetched.title}'. Replaying.")
+                        PlaybackStateRepository.setCurrentSong(fetched)
+
+                        val player = exoPlayer ?: return@withContext
+                        val uri = Uri.parse(fetched.url)
+                        val mediaItem = MediaItem.Builder()
+                            .setUri(uri)
+                            .setMediaId(fetched.id)
+                            .build()
+
+                        player.setMediaItem(mediaItem)
+                        player.prepare()
+                        player.play()
+
+                        retryCount = 0 // Reset on success
+                        startSeekBarUpdates()
+                    }
+                } else {
+                    Log.e("MusicService", "Retry failed: no URL returned. Skipping.")
+                    withContext(Dispatchers.Main) {
+                        retryCount = 0
+                        playNext()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MusicService", "Retry failed with exception: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    retryCount = 0
+                    playNext()
+                }
+            }
+        }
+    }
+
+    private fun calculateTriggerPosition(): Long {
+        val song = PlaybackStateRepository.currentSong
+        if (song == null) {
+            Log.d("TriggerPos", "no currentSong")
             return -1L
         }
 
-        Log.d("MusicService", "🔧 calculateTriggerPosition - Modo: $crossfadeMode, Duración: ${crossfadeDurationMs}ms, AlbumMode: $isAlbumMode")
+        val repeatMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+        if (repeatMode == PlaybackStateRepository.REPEAT_MODE_ONE) {
+            Log.d("TriggerPos", "RepeatOne active — no trigger")
+            return -1L
+        }
 
-        return if (isAlbumMode && automixEnabled) {
-            // 🔥 CAMBIO CRÍTICO: Modo álbum con automix activado
-            -1L // Desactivamos el trigger del SeekBar para el modo álbum
+        val isAlbumMode = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.ALBUM
+        if (isAlbumMode && automixEnabled) {
+            Log.d("TriggerPos", "Album+automix — trigger disabled here")
+            return -1L
+        }
 
-        } else if (!isAlbumMode) {
-            // 🔥 CAMBIO CLAVE: Para modos no álbum, considerar el modo inteligente
-            val actualMixDuration = if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) {
-                // El modo inteligente SIEMPRE tiene duración, aunque el slider sea 0
-                val nextSong = PlaybackStateRepository.getNextSong(exoPlayer?.currentMediaItemIndex ?: -1)
-                if (nextSong != null) {
-                    val predictedDuration = transitionManager.predictIntelligentMixDuration(song, nextSong)
-                    Log.d("MusicService", "🧠 Modo Inteligente - Duración predicha: ${predictedDuration}ms")
-                    predictedDuration
-                } else {
-                    8000L // Duración por defecto para modo inteligente
-                }
-            } else {
-                // Para modos normales, usar la duración del slider
-                crossfadeDurationMs
+        val player = exoPlayer
+        val exoDurationMs = if (player != null && player.duration > 0) player.duration else -1L
+
+        // Resolve song duration: prefer audioAnalysis (most accurate), fall back to ExoPlayer.
+        val analysis = song.audioAnalysis
+        val songDurationMs: Long = when {
+            (analysis?.durationMs ?: 0) > 0 -> analysis!!.durationMs.toLong()
+            exoDurationMs > 0               -> exoDurationMs
+            else -> {
+                Log.d("TriggerPos", "duration unknown (analysis=${analysis?.durationMs}, exo=$exoDurationMs) — waiting")
+                return -1L
             }
+        }
 
-            // Solo activar trigger si hay duración de mezcla
-            if (actualMixDuration > 0) {
-                val triggerPos = analysis.durationMs.toLong() - actualMixDuration
-                Log.d("MusicService", "🎯 Trigger calculado: ${triggerPos}ms (Duración: ${analysis.durationMs}ms - Mix: ${actualMixDuration}ms)")
-                triggerPos
+        // Need a next song to cross-fade into.
+        val queue = PlaybackStateRepository.activeQueue
+        val currentQueueIndex = queue?.songs?.indexOfFirst { it.id == song.id } ?: -1
+        val nextSong: Song? = when {
+            currentQueueIndex >= 0 -> queue?.songs?.getOrNull(currentQueueIndex + 1)
+            else -> PlaybackStateRepository.getNextSong(player?.currentMediaItemIndex ?: -1)
+        }
+        if (nextSong == null || nextSong.id == song.id) {
+            Log.d("TriggerPos", "no next song (queueIdx=$currentQueueIndex) — no trigger")
+            return -1L
+        }
+
+        Log.d("MusicService", "🔧 calculateTriggerPosition - Modo: $crossfadeMode, songDuration: ${songDurationMs}ms, AlbumMode: $isAlbumMode, hasAnalysis: ${analysis != null}")
+
+        if (isAlbumMode) return -1L  // album non-automix: handled elsewhere
+
+        val actualMixDuration: Long = if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) {
+            // Intelligent mode always picks its own duration, regardless of the slider.
+            val cached = predictedIntelligentDuration
+            if (cached > 0L) {
+                Log.d("MusicService", "🧠 Duración cacheada: ${cached}ms")
+                cached
+            } else if (analysis != null && nextSong.audioAnalysis != null) {
+                // Full analysis available — compute and CACHE the result.
+                val predicted = transitionManager.predictIntelligentMixDuration(song, nextSong)
+                predictedIntelligentDuration = predicted  // cache so next ticks are cheap
+                Log.d("MusicService", "🧠 Duración predicha+cacheada: ${predicted}ms")
+                predicted
             } else {
-                Log.d("MusicService", "❌ Sin duración de mezcla - No hay trigger")
-                -1L
+                // Fallback when analysis is missing — use a sensible 8-second default.
+                Log.d("MusicService", "🧠 Sin análisis completo — usando 8000ms por defecto")
+                8000L
             }
         } else {
-            -1L
+            crossfadeDurationMs
         }
+
+        if (actualMixDuration <= 0) {
+            Log.d("MusicService", "❌ Sin duración de mezcla (slider=0) — no trigger")
+            return -1L
+        }
+
+        val triggerPos = songDurationMs - actualMixDuration
+        if (triggerPos <= 0) {
+            Log.w("MusicService", "⚠️ Trigger negativo ($triggerPos) — duración aún cargando")
+            return -1L
+        }
+
+        Log.d("MusicService", "🎯 Trigger calculado: ${triggerPos}ms (dur=${songDurationMs}ms - mix=${actualMixDuration}ms)")
+        return triggerPos
     }
+
+
+
     private fun loadArtworkForSong(song: Song) {
         val imageUrl = song.coverUrl
         if (imageUrl.isNullOrBlank()) {
@@ -520,90 +648,192 @@ class MusicPlaybackService : Service(), PlayerController {
     }
     private fun playSongFromQueue() {
         val queue = PlaybackStateRepository.activeQueue
-        val songToPlay = queue?.songs?.getOrNull(queue.currentIndex)
-        if (queue == null || songToPlay == null) {
-            Log.w("MusicService", "playSongFromQueue: No hay cola o canción válida para reproducir.")
-            stop()
-            return
-        }
+        val index = queue?.currentIndex ?: return
+        val currentSong = queue.songs.getOrNull(index) ?: return
 
-        Log.d("MusicService", "Configurando ExoPlayer para: ${songToPlay.title}")
+        serviceScope.launch(Dispatchers.Main) {
+            val songManager = SongManager(applicationContext)
 
-        PlaybackStateRepository.setCurrentSong(songToPlay)
-        loadArtworkForSong(songToPlay)
-
-        val url = songToPlay.url ?: ""
-        if (!url.startsWith("http")) {
-            val file = java.io.File(url)
-            if (file.exists()) {
-                Log.e("MusicService", "📁 DATOS DEL ARCHIVO LOCAL:")
-                Log.e("MusicService", "   Ruta: ${file.absolutePath}")
-                Log.e("MusicService", "   Tamaño: ${file.length()} bytes") // <--- ¿Es muy pequeño?
-
-                // Leemos los primeros 50 caracteres para ver si es un error HTML/JSON
-                try {
-                    val header = file.inputStream().use { input ->
-                        val buffer = ByteArray(50)
-                        input.read(buffer)
-                        String(buffer)
-                    }
-                    Log.e("MusicService", "   Cabecera (Texto): $header")
-                } catch (e: Exception) {
-                    Log.e("MusicService", "   No se pudo leer la cabecera.")
+            // 1. Fetch Current + Next concurrently (both with fresh URLs)
+            val deferredCurrent = async(Dispatchers.IO) {
+                try { songManager.getSongById(currentSong.id) } catch (e: Exception) {
+                    Log.e("MusicPlaybackService", "Failed to fetch current song ${currentSong.id}", e)
+                    null
                 }
-            } else {
-                Log.e("MusicService", "❌ EL ARCHIVO NO EXISTE FÍSICAMENTE")
             }
-        }
+            val nextSong = queue.songs.getOrNull(index + 1)
+            val deferredNext = if (nextSong != null) async(Dispatchers.IO) {
+                try { songManager.getSongById(nextSong.id) } catch (e: Exception) {
+                    Log.w("MusicPlaybackService", "Failed to prefetch next song ${nextSong.id}", e)
+                    null
+                }
+            } else null
 
-        // 🔥 CORRECCIÓN AQUÍ: Detectar si es archivo local o URL web
-        val mediaItems = queue.songs.map { song ->
-            val url = song.url ?: ""
-            val uri = if (url.startsWith("http") || url.startsWith("https")) {
-                Uri.parse(url) // Streaming
+            val fetchedCurrent = deferredCurrent.await()
+            val fetchedNext = deferredNext?.await()
+
+            Log.d("MusicPlaybackService", "playSongFromQueue: index=$index, fetchedCurrent=${fetchedCurrent?.id}, urlPresent=${fetchedCurrent?.url != null}")
+
+            // 2. Update Queue in Repository with enriched songs
+            if (fetchedCurrent != null) {
+                val mutableSongs = queue.songs.toMutableList()
+                if (index < mutableSongs.size) {
+                    mutableSongs[index] = fetchedCurrent
+                }
+                if (fetchedNext != null && nextSong != null && (index + 1) < mutableSongs.size) {
+                    mutableSongs[index + 1] = fetchedNext
+                }
+                queue.songs = mutableSongs.toList()
+
+                PlaybackStateRepository.setCurrentSong(fetchedCurrent)
+                loadArtworkForSong(fetchedCurrent)
             } else {
-                Uri.fromFile(File(url)) // Local (añade file://)
+                Log.w("MusicPlaybackService", "Failed to fetch full song data for ${currentSong.id}")
+                PlaybackStateRepository.setCurrentSong(currentSong)
+                loadArtworkForSong(currentSong)
             }
-            MediaItem.fromUri(uri)
+
+            val player = exoPlayer ?: run {
+                Log.e("MusicPlaybackService", "ExoPlayer is NULL!")
+                return@launch
+            }
+
+            // 3. CHECK VALIDITY — bail if no URL
+            val songToPlay = fetchedCurrent ?: currentSong
+            if (songToPlay.url.isNullOrEmpty()) {
+                Log.e("MusicPlaybackService", "\u274C La canción '${songToPlay.title}' no tiene URL. Intentando siguiente...")
+                // Don't just stop — skip to next song
+                val nextIdx = index + 1
+                if (nextIdx < queue.songs.size) {
+                    queue.currentIndex = nextIdx
+                    playSongFromQueue()
+                }
+                return@launch
+            }
+
+            // 4. Build media items — ONLY songs that have valid URLs
+            //    This prevents ExoPlayer from trying to load empty URIs
+            val validItems = mutableListOf<Pair<Int, MediaItem>>()
+            var adjustedStartIndex = 0
+
+            queue.songs.forEachIndexed { i, song ->
+                val url = song.url
+                if (!url.isNullOrEmpty()) {
+                    if (i == index) adjustedStartIndex = validItems.size
+                    val uri = if (url.startsWith("http") || url.startsWith("https")) {
+                        Uri.parse(url)
+                    } else {
+                        Uri.fromFile(java.io.File(url))
+                    }
+                    validItems.add(i to MediaItem.Builder().setUri(uri).setMediaId(song.id).build())
+                } else {
+                    Log.v("MusicPlaybackService", "Skipping song ${song.id} (no URL) from ExoPlayer queue")
+                }
+            }
+
+            if (validItems.isEmpty()) {
+                Log.e("MusicPlaybackService", "No songs with valid URLs in queue!")
+                return@launch
+            }
+
+            player.setMediaItems(validItems.map { it.second }, adjustedStartIndex, 0L)
+            player.prepare()
+            player.play()
+            applyLoudnessNormalization(songToPlay)
+            Log.d("MusicPlaybackService", "\u25B6\uFE0F Playback started for '${songToPlay.title}' (${validItems.size} valid items in ExoPlayer)")
+
+            currentSongStartTimeMs = System.currentTimeMillis()
+            PlaybackStateRepository.streamReported = false
+
+            updatePredictedDurationAsync()
+
+            // 5. Preload next song via TransitionManager
+            val actualNext = queue.songs.getOrNull(index + 1)
+            transitionManager.preloadNextSong(if (fetchedNext != null) fetchedNext else actualNext)
+
+            notificationManager.startForeground(songToPlay, true, null)
+
+            // 6. Proactively preload the song after next (index+2)
+            preloadNextSongMetadata(index + 2)
         }
-
-        exoPlayer?.setMediaItems(mediaItems, queue.currentIndex, 0L)
-        exoPlayer?.prepare()
-        exoPlayer?.play()
-
-        currentSongStartTimeMs = System.currentTimeMillis()
-        PlaybackStateRepository.streamReported = false
-
-        updatePredictedDurationAsync()
-
-        val nextSong = PlaybackStateRepository.getNextSong(queue.currentIndex)
-        transitionManager.preloadNextSong(nextSong)
-
-        notificationManager.startForeground(songToPlay, true, null)
     }
     private fun synchronizeExoPlayerQueue() {
         val queue = PlaybackStateRepository.activeQueue ?: return
         val player = exoPlayer ?: return
 
-        // 🔥 CORRECCIÓN AQUÍ TAMBIÉN
-        val newMediaItems = queue.songs.map { song ->
-            val url = song.url ?: ""
-            val uri = if (url.startsWith("http") || url.startsWith("https")) {
-                Uri.parse(url)
-            } else {
-                Uri.fromFile(File(url))
-            }
-            MediaItem.fromUri(uri)
+        if (queue.songs.isEmpty()) {
+            player.clearMediaItems()
+            return
         }
 
-        val newIndex = queue.currentIndex
+        // Si el player está vacío, carga inicial
+        if (player.mediaItemCount == 0) {
+             val items = queue.songs.map { createMediaItem(it) }
+             player.setMediaItems(items, queue.currentIndex, 0L)
+             player.prepare()
+             player.play()
+             return
+        }
 
-        val currentPosition = if (player.currentMediaItemIndex == newIndex) player.currentPosition else 0L
+        val currentSongId = PlaybackStateRepository.currentSong?.id
+        val newSongs = queue.songs
+        
+        // Buscar dónde debería estar la canción actual en la NUEVA lista
+        val newIndexTarget = newSongs.indexOfFirst { it.id == currentSongId }
 
-        player.setMediaItems(newMediaItems, newIndex, currentPosition)
-        player.prepare()
-        player.play()
-        Log.d("ExoPlayer", "Cola de ExoPlayer sincronizada.")
+        // Si la canción actual ya no está en la lista o algo raro pasa, fallback a recarga total
+        if (newIndexTarget == -1) {
+             val items = newSongs.map { createMediaItem(it) }
+             player.setMediaItems(items, 0, 0L)
+             player.prepare()
+             player.play()
+             return
+        }
+
+        // --- ACTUALIZACIÓN QUIRÚRGICA (Sin interrupción) ---
+        
+        val currentExoIndex = player.currentMediaItemIndex
+        
+        // 1. Eliminar lo posterior
+        if (currentExoIndex < player.mediaItemCount - 1) {
+             player.removeMediaItems(currentExoIndex + 1, player.mediaItemCount)
+        }
+        
+        // 2. Eliminar lo anterior
+        if (currentExoIndex > 0) {
+             player.removeMediaItems(0, currentExoIndex)
+        }
+        
+        // Ahora en ExoPlayer solo queda [CurrentSong] en index 0
+        
+        // 3. Insertar nuevos anteriores
+        val itemsBefore = newSongs.subList(0, newIndexTarget).map { createMediaItem(it) }
+        if (itemsBefore.isNotEmpty()) {
+            player.addMediaItems(0, itemsBefore)
+        }
+        
+        // 4. Insertar nuevos posteriores
+        val itemsAfter = newSongs.subList(newIndexTarget + 1, newSongs.size).map { createMediaItem(it) }
+        if (itemsAfter.isNotEmpty()) {
+            player.addMediaItems(player.mediaItemCount, itemsAfter)
+        }
+        
+        Log.d("ExoPlayer", "Cola Sincronizada QUIRÚRGICAMENTE. Playing: ${player.isPlaying}")
+    }
+
+    private fun createMediaItem(song: Song): MediaItem {
+        val url = song.url
+        val uri = if (url.isNullOrBlank()) {
+             Uri.EMPTY // Evita crash con File("")
+        } else if (url.startsWith("http") || url.startsWith("https")) {
+            Uri.parse(url)
+        } else {
+            Uri.fromFile(java.io.File(url))
+        }
+        return MediaItem.Builder()
+            .setUri(uri)
+            .setMediaId(song.id)
+            .build()
     }
     private fun reportCurrentSongFinished(wasSkipped: Boolean) {
         // Si ya se reportó (ej. en una transición), no hacerlo de nuevo.
@@ -711,8 +941,14 @@ class MusicPlaybackService : Service(), PlayerController {
                     )
 
                     playSongFromQueue()
+
+                    // Reset shuffle state on new play
+                    PlaybackStateRepository.setIsShuffleEnabled(false)
+                    originalQueueSongs = null
                 }
             }
+            ACTION_TOGGLE_SHUFFLE -> toggleShuffle()
+            ACTION_TOGGLE_REPEAT -> toggleRepeat()
             ACTION_PAUSE -> pause()
             ACTION_RESUME -> resume()
             ACTION_NEXT -> playNext()
@@ -786,6 +1022,78 @@ class MusicPlaybackService : Service(), PlayerController {
                 Log.d("MusicService", "Modo Crossfade: $mode")
             }
         }
+        serviceScope.launch {
+            settingsManager.loudnessNormalizationFlow.collect { isEnabled ->
+                loudnessNormalizationEnabled = isEnabled
+                Log.d("MusicService", "Normalización de Audio: ${if(isEnabled) "ACTIVADA" else "DESACTIVADA"}")
+                // Reaplicar volumen inmediatamente — debe ser en el hilo principal
+                val currentSong = PlaybackStateRepository.currentSong
+                withContext(Dispatchers.Main) {
+                    applyLoudnessNormalization(currentSong)
+                }
+            }
+        }
+    }
+
+    private fun toggleShuffle() {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val isShuffle = PlaybackStateRepository.isShuffleEnabledLiveData.value ?: false
+        val newShuffleState = !isShuffle
+
+        if (newShuffleState) {
+            // Activar Shuffle
+            if (originalQueueSongs == null) {
+                originalQueueSongs = queue.songs.toList()
+            }
+            val currentSongId = PlaybackStateRepository.currentSong?.id
+            val shuffled = queue.songs.shuffled().toMutableList()
+
+            // Mover canción actual al inicio para no interrumpir
+            if (currentSongId != null) {
+                 val currentSong = shuffled.find { it.id == currentSongId }
+                 if (currentSong != null) {
+                     shuffled.remove(currentSong)
+                     shuffled.add(0, currentSong)
+                 }
+            }
+            updateSongs(shuffled)
+        } else {
+            // Desactivar Shuffle (Restaurar)
+            val original = originalQueueSongs
+            if (original != null) {
+                updateSongs(original)
+                originalQueueSongs = null
+            }
+        }
+        PlaybackStateRepository.setIsShuffleEnabled(newShuffleState)
+    }
+
+    private fun toggleRepeat() {
+        val currentMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+        // Ciclo: OFF -> ONE -> ALL -> OFF...
+        // O lo que prefiera el usuario. Estándar: OFF -> ALL -> ONE -> OFF (Spotify)
+        val newMode = when (currentMode) {
+            PlaybackStateRepository.REPEAT_MODE_OFF -> PlaybackStateRepository.REPEAT_MODE_ALL
+            PlaybackStateRepository.REPEAT_MODE_ALL -> PlaybackStateRepository.REPEAT_MODE_ONE
+            else -> PlaybackStateRepository.REPEAT_MODE_OFF
+        }
+
+        PlaybackStateRepository.setRepeatMode(newMode)
+
+        when (newMode) {
+            PlaybackStateRepository.REPEAT_MODE_OFF -> {
+                exoPlayer?.repeatMode = Player.REPEAT_MODE_OFF
+                Log.d("MusicService", "Repeat: OFF")
+            }
+            PlaybackStateRepository.REPEAT_MODE_ONE -> {
+                exoPlayer?.repeatMode = Player.REPEAT_MODE_ONE
+                Log.d("MusicService", "Repeat: ONE")
+            }
+            PlaybackStateRepository.REPEAT_MODE_ALL -> {
+                exoPlayer?.repeatMode = Player.REPEAT_MODE_ALL
+                Log.d("MusicService", "Repeat: ALL")
+            }
+        }
     }
     private fun updateMediaSessionMetadata() {
         val song = PlaybackStateRepository.currentSong
@@ -800,14 +1108,21 @@ class MusicPlaybackService : Service(), PlayerController {
         predictedIntelligentDuration = -1L
 
         serviceScope.launch {
-
-            val currentIndex: Int
             val currentSong: Song?
             val nextSong: Song?
             withContext(Dispatchers.Main) {
-                currentIndex = exoPlayer?.currentMediaItemIndex ?: -1
                 currentSong = PlaybackStateRepository.currentSong
-                nextSong = PlaybackStateRepository.getNextSong(currentIndex)
+                // Resolve the next song by ID in the logical queue, NOT by ExoPlayer's filtered
+                // index. When songs without URLs are filtered from ExoPlayer's queue, its index
+                // does not match the original queue position, causing getNextSong to return the
+                // wrong song (often the currently playing song itself).
+                val queue = PlaybackStateRepository.activeQueue
+                val currentQueueIndex = queue?.songs?.indexOfFirst { it.id == currentSong?.id } ?: -1
+                nextSong = if (currentQueueIndex >= 0) {
+                    queue?.songs?.getOrNull(currentQueueIndex + 1)
+                } else {
+                    null
+                }
             }
 
             if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ &&
@@ -816,24 +1131,134 @@ class MusicPlaybackService : Service(), PlayerController {
                 currentSong.id != nextSong.id) {
 
                 val duration = transitionManager.predictIntelligentMixDuration(currentSong, nextSong)
-                predictedIntelligentDuration = duration // Actualizar la variable cacheada (seguro)
-                Log.d("MusicService", "🧠 Duración inteligente cacheada: ${duration}ms")
+                predictedIntelligentDuration = duration
+                Log.d("MusicService", "🧠 Duración inteligente cacheada: ${duration}ms (${currentSong.title} -> ${nextSong.title})")
+            } else {
+                Log.d("MusicService", "🧠 updatePredictedDuration: condiciones no cumplidas (mode=$crossfadeMode, cur=${currentSong?.title}, next=${nextSong?.title})")
+            }
+        }
+    }
+
+    /**
+     * Aplica normalización de loudness al ExoPlayer.
+     * Fórmula: gain (dB) = TARGET_LUFS - song.loudness
+     * Convertido a escala lineal: volume = 10^(gain/20), clamped entre 0.05 y 1.0
+     * Si la normalización está desactivada o no hay análisis, vuelve a volumen 1.0.
+     */
+    /**
+     * Calcula el volumen absoluto deseado (de 0.05 a 1.0) para una canción según Normalización de Audio.
+     */
+    private fun getNormalizedVolume(song: Song?): Float {
+        if (!loudnessNormalizationEnabled || song == null) return 1.0f
+        val loudness = song.audioAnalysis?.loudnessLufs
+        if (loudness == null || loudness == 0.0f) return 1.0f
+        val gainDb = TARGET_LOUDNESS_LUFS - loudness
+        return Math.pow(10.0, (gainDb / 20.0)).toFloat().coerceIn(0.05f, 1.0f)
+    }
+
+    /**
+     * Aplica el volumen normalizado a ExoPlayer.
+     */
+    private fun applyLoudnessNormalization(song: Song?) {
+        val player = exoPlayer ?: return
+        val linearVolume = getNormalizedVolume(song)
+        player.volume = linearVolume
+        Log.d("Loudness", "Aplicando volumen absoluto normalizado para '${song?.title}': $linearVolume")
+    }
+
+    private fun preloadNextSongMetadata(index: Int) {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val nextSong = queue.songs.getOrNull(index) ?: return
+
+        // If URL is already present and looks valid, skip preload
+        if (!nextSong.url.isNullOrEmpty()) {
+            Log.d("MusicService", "\u26A1 Song at index $index already has URL, skipping preload")
+            return
+        }
+
+        Log.d("MusicService", "\u26A1 Preloading song at index $index: ${nextSong.title}")
+
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val songManager = SongManager(applicationContext)
+                val fetched = songManager.getSongById(nextSong.id)
+                if (fetched != null && !fetched.url.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        val currentQueue = PlaybackStateRepository.activeQueue
+                        if (currentQueue != null && index < currentQueue.songs.size) {
+                            val mutableSongs = currentQueue.songs.toMutableList()
+                            mutableSongs[index] = fetched
+                            currentQueue.songs = mutableSongs.toList()
+
+                            // Also update ExoPlayer queue in-place if possible
+                            val player = exoPlayer
+                            if (player != null) {
+                                val currentExoIdx = player.currentMediaItemIndex
+                                // If this is the next item in ExoPlayer, insert it
+                                if (index == currentQueue.currentIndex + 1) {
+                                    transitionManager.preloadNextSong(fetched)
+                                }
+                            }
+
+                            Log.d("MusicService", "\u2705 Preloaded URL for '${fetched.title}' at index $index")
+                        }
+                    }
+                } else {
+                    Log.w("MusicService", "Preload returned null or empty URL for index $index")
+                }
+            } catch (e: Exception) {
+                Log.e("MusicService", "Failed to preload metadata for index $index: ${e.message}")
             }
         }
     }
 
     private fun handleTransitionTrigger() {
-        val player = exoPlayer ?: return
-        val oldSong = PlaybackStateRepository.currentSong ?: return
+        // Always stop the seekbar FIRST — must never fire twice.
+        stopSeekBarUpdates()
+
+        val player = exoPlayer
+        if (player == null) {
+            Log.e("TransitionTrigger", "❌ exoPlayer is null — aborting")
+            return
+        }
+
+        val oldSong = PlaybackStateRepository.currentSong
+        if (oldSong == null) {
+            Log.e("TransitionTrigger", "❌ currentSong is null — aborting")
+            return
+        }
 
         reportCurrentSongFinished(wasSkipped = false)
 
-        val currentIndex = player.currentMediaItemIndex
-        val nextSong = PlaybackStateRepository.getNextSong(currentIndex) ?: return
-        val nextIndex = PlaybackStateRepository.activeQueue?.songs?.indexOf(nextSong) ?: -1
+        val queue = PlaybackStateRepository.activeQueue
+        if (queue == null) {
+            Log.e("TransitionTrigger", "❌ activeQueue is null — aborting")
+            return
+        }
+
+        // Resolve current position in the LOGICAL queue (not ExoPlayer's filtered index).
+        val currentQueueIndex = queue.songs.indexOfFirst { it.id == oldSong.id }
+        Log.d("TransitionTrigger", "📍 oldSong=${oldSong.title}, queue size=${queue.songs.size}, currentQueueIndex=$currentQueueIndex, ExoIndex=${player.currentMediaItemIndex}")
+
+        // Prefer queue-based lookup; fall back to ExoPlayer index if song not found in queue.
+        val nextSong: Song? = when {
+            currentQueueIndex >= 0 -> queue.songs.getOrNull(currentQueueIndex + 1)
+            else -> {
+                Log.w("TransitionTrigger", "⚠️ Current song not found in queue by ID. Falling back to ExoPlayer index.")
+                PlaybackStateRepository.getNextSong(player.currentMediaItemIndex)
+            }
+        }
+
+        if (nextSong == null) {
+            Log.w("TransitionTrigger", "⚠️ No next song found (queueIndex=$currentQueueIndex, queueSize=${queue.songs.size}) — stopping")
+            return
+        }
+
+        val nextIndex = queue.songs.indexOf(nextSong)
+        Log.d("TransitionTrigger", "🎵 nextSong=${nextSong.title}, nextIndex=$nextIndex")
 
         if (nextIndex == -1) {
-            Log.w("MusicService", "No se encontró el índice para la siguiente canción. Saltando.")
+            Log.w("TransitionTrigger", "⚠️ Next song not found in queue.songs by reference. Seeking forward.")
             player.seekToNextMediaItem()
             return
         }
@@ -841,18 +1266,13 @@ class MusicPlaybackService : Service(), PlayerController {
         Log.d("MusicService", "🎬 INICIANDO TRANSICIÓN DESDE TRIGGER")
         Log.d("MusicService", "⚙️ Parámetros - Modo: $crossfadeMode, Duración: ${crossfadeDurationMs}ms")
 
-        // 1. Detenemos las actualizaciones del SeekBar
-        stopSeekBarUpdates()
-
-        // 2. Actualizamos el estado inmediatamente
+        // Update UI immediately to the next song
         PlaybackStateRepository.setCurrentSong(nextSong)
         loadArtworkForSong(nextSong)
 
-        // 3. Notificamos el reset visual
         val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
         PlaybackStateRepository.updatePlaybackPosition(0, newDuration)
 
-        // 4. Iniciamos la transición de audio
         transitionManager.startTransition(
             oldPlayer = player,
             oldSong = oldSong,
@@ -861,14 +1281,27 @@ class MusicPlaybackService : Service(), PlayerController {
             crossfadeMode = crossfadeMode,
             isAlbumMode = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.ALBUM,
             automixEnabled = automixEnabled,
-            crossfadeDurationMs = crossfadeDurationMs
+            crossfadeDurationMs = crossfadeDurationMs,
+            oldSongTargetVolume = getNormalizedVolume(oldSong),
+            nextSongTargetVolume = getNormalizedVolume(nextSong)
         )
     }
+
+
     private fun handleTransitionComplete(newPlayer: ExoPlayer, oldPlayer: ExoPlayer) {
         Log.d("MusicService", "✅ Transición completada. Realizando el cambio de reproductor.")
 
-        val newIndex = newPlayer.currentMediaItemIndex
-        val completedSong = PlaybackStateRepository.activeQueue?.songs?.getOrNull(newIndex)
+        // Look up the completed song by its mediaId (set on each MediaItem by buildValidMediaItems).
+        // This is safe even when empty-URL songs were filtered out of the transition player's
+        // queue, because it ignores position entirely and matches by song ID.
+        val completedSongId = newPlayer.currentMediaItem?.mediaId
+        val completedSong = if (!completedSongId.isNullOrEmpty()) {
+            PlaybackStateRepository.activeQueue?.songs?.firstOrNull { it.id == completedSongId }
+        } else {
+            // Fallback to index if mediaId is somehow unavailable (e.g. album mode preload)
+            val newIndex = newPlayer.currentMediaItemIndex
+            PlaybackStateRepository.activeQueue?.songs?.getOrNull(newIndex)
+        }
 
         if (completedSong == null) {
             Log.e("MusicService", "ERROR CRÍTICO: Transición completada pero no se encontró la canción en la cola. Deteniendo servicio.")
@@ -888,10 +1321,17 @@ class MusicPlaybackService : Service(), PlayerController {
 
         Log.d("MusicService", "Reproductor principal actualizado a la nueva instancia.")
 
+        // Update the queue's currentIndex to match the completed song
+        val newQueueIndex = PlaybackStateRepository.activeQueue?.songs?.indexOf(completedSong) ?: -1
+        if (newQueueIndex >= 0) {
+            PlaybackStateRepository.activeQueue?.currentIndex = newQueueIndex
+        }
+
         PlaybackStateRepository.setCurrentSong(completedSong)
         PlaybackStateRepository.setIsPlaying(newPlayer.isPlaying)
 
         loadArtworkForSong(completedSong)
+        applyLoudnessNormalization(completedSong)
         updateUiAndSystem()
 
         if (newPlayer.isPlaying) {
@@ -900,9 +1340,10 @@ class MusicPlaybackService : Service(), PlayerController {
 
         updatePredictedDurationAsync()
 
-        val nextSong = PlaybackStateRepository.getNextSong(newIndex)
+        val nextSong = PlaybackStateRepository.getNextSong(newQueueIndex.takeIf { it >= 0 } ?: newPlayer.currentMediaItemIndex)
         transitionManager.preloadNextSong(nextSong)
     }
+
     private fun handleTransitionFailed(oldPlayer: ExoPlayer) {
         // La transición no se hizo o falló, así que simplemente saltamos.
         oldPlayer.seekToNextMediaItem()

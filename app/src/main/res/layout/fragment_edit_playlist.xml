@@ -5,7 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/appBackgroundTheme"
+    android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.EditPlaylistFragment">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -105,7 +105,7 @@
                 android:hint="Nombre de la lista"
                 app:hintTextColor="@color/secondaryColorTheme"
                 app:boxStrokeColor="@color/secondaryColorTheme"
-                app:boxBackgroundColor="@color/appBackgroundTheme"
+                app:boxBackgroundColor="@color/primaryColorTheme"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 app:counterEnabled="true"
                 app:counterMaxLength="20"

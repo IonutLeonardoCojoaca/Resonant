@@ -124,7 +124,7 @@ class LoginActivity : AppCompatActivity() {
 
                             saveTokens(response.accessToken, response.refreshToken, email)
 
-                            val userData = userService.getUserByEmail(email)
+                            val userData = userService.getCurrentUser()
                             userViewModel.user = userData
 
                             if (userData.isBanned == true) {

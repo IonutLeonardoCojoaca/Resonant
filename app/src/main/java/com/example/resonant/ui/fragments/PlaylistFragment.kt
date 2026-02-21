@@ -25,6 +25,7 @@ import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.PlaylistOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
@@ -56,6 +57,12 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
     private var firstRenderDone = false
     private lateinit var settingsButtonContainer: FrameLayout
+    private var isReadOnly = false
+
+    // New views for redesigned layout
+    private var playlistDescriptionView: TextView? = null
+    private var tvVisibilityBadge: TextView? = null
+    private var visibilityBadge: View? = null
 
     private lateinit var downloadViewModel: DownloadViewModel
 
@@ -104,8 +111,14 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             requireActivity().onBackPressedDispatcher.onBackPressed()
         }
 
-        settingsButtonContainer.setOnClickListener {
-            showPlaylistOptions()
+        // Si es una playlist de otro usuario (modo lectura), ocultamos el botón de opciones
+        isReadOnly = arguments?.getBoolean("isReadOnly", false) ?: false
+        if (isReadOnly) {
+            settingsButtonContainer.visibility = View.GONE
+        } else {
+            settingsButtonContainer.setOnClickListener {
+                showPlaylistOptions()
+            }
         }
 
         setupAdapterClickListeners(playlistId)
@@ -131,12 +144,9 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                             colorRes = R.color.successColor,
                             iconRes = R.drawable.ic_success
                         )
-
                         findNavController().previousBackStackEntry?.savedStateHandle?.set(
-                            "PLAYLIST_UPDATED_ID",
-                            "DELETED"
+                            "PLAYLIST_UPDATED_ID", "DELETED"
                         )
-
                         findNavController().popBackStack()
                     },
                     onError = { errorMsg ->
@@ -145,10 +155,21 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                 )
             },
             onEditClick = { playlistToEdit ->
-                val bundle = Bundle().apply {
-                    putParcelable("playlist", playlistToEdit)
-                }
+                val bundle = Bundle().apply { putParcelable("playlist", playlistToEdit) }
                 findNavController().navigate(R.id.action_playlistFragment_to_editPlaylistFragment, bundle)
+            },
+            onToggleVisibilityClick = { pl ->
+                playlistViewModel.toggleVisibility(
+                    playlistId = pl.id!!,
+                    currentIsPublic = pl.isPublic ?: false,
+                    onSuccess = { newIsPublic ->
+                        val msg = if (newIsPublic) "Playlist ahora es pública" else "Playlist ahora es privada"
+                        showResonantSnackbar(text = msg, colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                    },
+                    onError = { err ->
+                        Toast.makeText(requireContext(), "Error: $err", Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
         )
         bottomSheet.show(parentFragmentManager, bottomSheet.tag)
@@ -165,6 +186,10 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         playlistLoader = view.findViewById(R.id.lottieLoader)
         settingsButtonContainer = view.findViewById(R.id.settingsBackground)
         playlistCoverImage = view.findViewById(R.id.playlistCoverImage)
+        // New views from redesigned layout
+        playlistDescriptionView = view.findViewById(R.id.playlistDescription)
+        tvVisibilityBadge = view.findViewById(R.id.tvVisibilityBadge)
+        visibilityBadge = view.findViewById(R.id.visibilityBadge)
     }
 
     private fun updateUI(state: PlaylistScreenState) {
@@ -195,11 +220,29 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             playlistText.text = details.name
 
             val count = details.numberOfTracks ?: state.songs.size
-            playlistNumberOfTracks.text = "$count canciones"
+            playlistNumberOfTracks.text = when {
+                count == 0 -> "Sin canciones"
+                count == 1 -> "1 canción"
+                else -> "$count canciones"
+            }
 
             details.duration?.let { seconds ->
                 playlistDuration.text = Utils.formatDuration(seconds.toInt())
             }
+
+            // Description
+            val desc = details.description?.trim()
+            if (!desc.isNullOrEmpty()) {
+                playlistDescriptionView?.text = desc
+                playlistDescriptionView?.visibility = View.VISIBLE
+            } else {
+                playlistDescriptionView?.visibility = View.GONE
+            }
+
+            // Visibility badge
+            val pub = details.isPublic ?: false
+            tvVisibilityBadge?.text = if (pub) "Pública" else "Privada"
+            visibilityBadge?.visibility = if (isReadOnly) View.GONE else View.VISIBLE
 
             val imageUrl = details.imageUrl
             if (!imageUrl.isNullOrEmpty()) {
@@ -278,8 +321,8 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         songAdapter.onSettingsClick = { song ->
             viewLifecycleOwner.lifecycleScope.launch {
-                val artistNames = playlistViewModel.getArtistsForSong(song.id)
-                song.artistName = artistNames
+                // Use artists already embedded in the song from the API
+                song.artistName = song.artists.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
                     song = song,
@@ -293,7 +336,17 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                     onFavoriteToggled = { toggledSong ->
                         favoritesViewModel.toggleFavoriteSong(toggledSong)
                     },
-                    playlistId = playlistId,
+                    // Null si es de solo lectura: el bottomsheet ocultará la opción eliminar
+                    playlistId = if (isReadOnly) null else playlistId,
+                    onAddToPlaylistClick = { songToAdd ->
+                        val sheet = SelectPlaylistBottomSheet(
+                            song = songToAdd,
+                            onNoPlaylistsFound = {
+                                findNavController().navigate(R.id.action_global_to_createPlaylistFragment)
+                            }
+                        )
+                        sheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                    },
                     onRemoveFromPlaylistClick = { songToRemove, id ->
                         viewLifecycleOwner.lifecycleScope.launch {
                             try {
@@ -328,6 +381,18 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                     },
                     onRemoveDownloadClick = { songToDelete ->
                         downloadViewModel.deleteSong(songToDelete)
+                    },
+                    onGoToAlbumClick = { albumId ->
+                        val bundle = Bundle().apply { putString("albumId", albumId) }
+                        findNavController().navigate(R.id.albumFragment, bundle)
+                    },
+                    onGoToArtistClick = { artist ->
+                         val bundle = Bundle().apply { 
+                             putString("artistId", artist.id)
+                             putString("artistName", artist.name)
+                             putString("artistImageUrl", artist.url)
+                        }
+                        findNavController().navigate(R.id.artistFragment, bundle)
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")

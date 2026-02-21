@@ -1,101 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/item_song_background"
+    android:id="@+id/item_song_root"
     android:layout_width="match_parent"
     android:layout_height="70dp"
-    android:layout_marginVertical="4dp"
-    android:clickable="true"
-    android:focusable="true"
-    app:rippleColor="@color/ripple_white"
-    app:cardBackgroundColor="@color/black">
+    android:layout_marginVertical="4dp">
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/songImage"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_margin="5dp"
+        android:scaleType="fitCenter"
+        android:layout_centerVertical="true"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
     <RelativeLayout
-        android:id="@+id/item_background"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/songImage"
+        android:layout_centerVertical="true"
+        android:layout_marginHorizontal="8dp"
+        android:descendantFocusability="blocksDescendants">
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/songImage"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_margin="5dp"
-            android:scaleType="fitCenter"
-            android:layout_centerVertical="true"
-            app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
-
-        <RelativeLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/songTitle"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/songImage"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@id/likeButton"
+            android:textColor="@color/white"
+            android:text="Song Name"
+            android:textSize="15sp"
+            android:fontFamily="@font/unageo_medium"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"/>
+
+        <ImageView
+            android:id="@+id/downloadedIcon"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:layout_below="@id/songTitle"
+            android:layout_alignParentStart="true"
+            android:layout_marginEnd="6dp"
+            android:layout_marginTop="2dp"
+            android:src="@drawable/ic_download_done"
+            android:visibility="gone"
+            app:tint="@color/secondaryColorTheme" />
+
+        <TextView
+            android:id="@+id/songArtist"
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:layout_below="@id/songTitle"
+            android:layout_toEndOf="@id/downloadedIcon"
+            android:layout_toStartOf="@id/likeButton"
+            android:textColor="#BDBDBD"
+            android:text="Artist"
+            android:textSize="12sp"
+            android:fontFamily="@font/unageo_medium" />
+
+        <ImageButton
+            android:id="@+id/likeButton"
+            android:layout_width="35dp"
+            android:layout_height="35dp"
             android:layout_centerVertical="true"
-            android:layout_marginHorizontal="8dp"
-            android:descendantFocusability="blocksDescendants">
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_toStartOf="@id/featuredButton"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="false"/>
 
-            <TextView
-                android:id="@+id/songTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentTop="true"
-                android:layout_alignParentStart="true"
-                android:layout_toStartOf="@id/likeButton"
-                android:textColor="@color/white"
-                android:text="Song Name"
-                android:textSize="15sp"
-                android:fontFamily="@font/unageo_medium"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"/>
-
-            <ImageView
-                android:id="@+id/downloadedIcon"
-                android:layout_width="14dp"
-                android:layout_height="14dp"
-                android:layout_below="@id/songTitle"
-                android:layout_alignParentStart="true"
-                android:layout_marginEnd="6dp"
-                android:layout_marginTop="2dp"
-                android:src="@drawable/ic_download_done"
-                android:visibility="gone"
-                app:tint="@color/secondaryColorTheme" />
-            <TextView
-                android:id="@+id/songArtist"
-                android:layout_width="match_parent"
-                android:layout_height="18dp"
-                android:layout_below="@id/songTitle"
-                android:layout_toEndOf="@id/downloadedIcon"
-                android:layout_toStartOf="@id/likeButton"
-                android:textColor="#BDBDBD"
-                android:text="Artist"
-                android:textSize="12sp"
-                android:fontFamily="@font/unageo_medium" />
-            <ImageButton
-                android:id="@+id/likeButton"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="5dp"
-                android:layout_marginEnd="5dp"
-                android:layout_toStartOf="@id/featuredButton"
-                android:background="@android:color/transparent"
-                android:clickable="true"
-                android:focusable="true"
-                android:focusableInTouchMode="false"/>
-
-            <ImageButton
-                android:id="@+id/featuredButton"
-                android:layout_width="35dp"
-                android:layout_height="35dp"
-                android:layout_centerVertical="true"
-                android:layout_alignParentEnd="true"
-                android:background="@android:color/transparent"
-                android:clickable="true"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:src="@drawable/ic_song_settings"/>
-
-        </RelativeLayout>
+        <ImageButton
+            android:id="@+id/featuredButton"
+            android:layout_width="35dp"
+            android:layout_height="35dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentEnd="true"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="false"
+            android:src="@drawable/ic_item_settings"/>
 
     </RelativeLayout>
 
-</androidx.cardview.widget.CardView>
+</RelativeLayout>

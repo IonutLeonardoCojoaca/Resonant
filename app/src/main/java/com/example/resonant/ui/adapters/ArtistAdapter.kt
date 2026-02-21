@@ -28,6 +28,7 @@ class ArtistAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     var onArtistClick: ((artist: Artist, sharedImage: ImageView) -> Unit)? = null
+    var onSettingsClick: ((artist: Artist) -> Unit)? = null // New callback
 
     companion object {
         const val VIEW_TYPE_GRID = 0
@@ -96,6 +97,7 @@ class ArtistAdapter(
     inner class GridArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
+        private val btnSettings: View? = itemView.findViewById(R.id.btnSettings) // Nullable because detailed layout might not have it yet or different layout
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
@@ -147,23 +149,17 @@ class ArtistAdapter(
                     })
                     .into(artistImage)
             }
+            
+            // Hide settings button in grid view as requested by user
+            btnSettings?.visibility = View.GONE
 
             itemView.setOnClickListener {
-                val bundle = Bundle().apply {
-                    putString("artistId", artist.id)
-                    putString("artistName", artist.name)
-                    putString("artistImageUrl", artist.url)
-                    putString("artistImageTransitionName", artistImage.transitionName)
-                }
-                val extras = FragmentNavigatorExtras(
-                    artistImage to artistImage.transitionName
-                )
-                itemView.findNavController().navigate(
-                    R.id.action_homeFragment_to_artistFragment,
-                    bundle,
-                    null,
-                    extras
-                )
+                onArtistClick?.invoke(artist, artistImage)
+            }
+            
+            itemView.setOnLongClickListener {
+                onSettingsClick?.invoke(artist)
+                true
             }
         }
     }
@@ -172,11 +168,14 @@ class ArtistAdapter(
     inner class ListArtistViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val artistImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
+        private val btnSettings: View? = itemView.findViewById(R.id.btnSettings)
         val loadingAnimation: LottieAnimationView = itemView.findViewById(R.id.loadingAnimation)
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
             artistImage.transitionName = "artistImage_${artist.id}"
+            
+            // ... (rest of bind logic) ... (Keeping existing logic, just adding long click for list view)
 
             loadingAnimation.visibility = View.VISIBLE
             artistImage.visibility = View.INVISIBLE
@@ -227,8 +226,20 @@ class ArtistAdapter(
                     .into(artistImage)
             }
 
+            // Show settings button in list view
+            btnSettings?.visibility = View.VISIBLE
+            btnSettings?.setOnClickListener {
+                onSettingsClick?.invoke(artist)
+            }
+            // Ensure click passes through if not on button
+            
             itemView.setOnClickListener {
-                onArtistClick?.invoke(artist, artistImage) // 🔥 Llama al callback
+                onArtistClick?.invoke(artist, artistImage) 
+            }
+            
+            itemView.setOnLongClickListener {
+                 onSettingsClick?.invoke(artist)
+                 true
             }
         }
     }

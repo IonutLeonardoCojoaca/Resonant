@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -14,19 +15,21 @@ import com.example.resonant.R
 import com.example.resonant.ui.viewmodels.UserViewModel
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.utils.Utils
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 
 class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
     private lateinit var playlistName: TextInputEditText
+    private lateinit var playlistDescription: TextInputEditText
+    private lateinit var switchPublic: SwitchMaterial
+    private lateinit var tvVisibilityDesc: TextView
+    private lateinit var tvVisibilityTitle: TextView
     private lateinit var createButton: Button
 
     private lateinit var playlistsViewModel: PlaylistsListViewModel
     private lateinit var userViewModel: UserViewModel
-
     private lateinit var userProfileImage: ImageView
-
-    private var selectedOption = 0
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -39,9 +42,22 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
     private fun bindViews(view: View) {
         playlistName = view.findViewById(R.id.playlistName)
+        playlistDescription = view.findViewById(R.id.playlistDescription)
+        switchPublic = view.findViewById(R.id.switchPublic)
+        tvVisibilityDesc = view.findViewById(R.id.tvVisibilityDescription)
+        tvVisibilityTitle = view.findViewById(R.id.tvVisibilityTitle)
         createButton = view.findViewById(R.id.createPlaylistButton)
         userProfileImage = view.findViewById(R.id.userProfile)
         Utils.loadUserProfile(requireContext(), userProfileImage)
+
+        // Update visibility label and description when switch changes
+        switchPublic.setOnCheckedChangeListener { _, isChecked ->
+            tvVisibilityTitle.text = if (isChecked) "Playlist pública" else "Playlist privada"
+            tvVisibilityDesc.text = if (isChecked)
+                "Cualquiera puede encontrarla y escucharla"
+            else
+                "Solo tú puedes verla"
+        }
     }
 
     private fun initializeViewModels() {
@@ -56,8 +72,8 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
             if (validateInputs()) {
                 val playlist = Playlist(
                     name = playlistName.text.toString().trim(),
-                    description = "",
-                    isPublic = (selectedOption == 1),
+                    description = playlistDescription.text?.toString()?.trim() ?: "",
+                    isPublic = switchPublic.isChecked,
                     id = null,
                     userId = userViewModel.user?.id,
                     numberOfTracks = 0,
@@ -76,14 +92,12 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
                     "PLAYLIST_UPDATED_ID",
                     "NEW_PLAYLIST_CREATED"
                 )
-
                 playlistsViewModel.onPlaylistCreationHandled()
 
                 val navOptions = androidx.navigation.NavOptions.Builder()
                     .setPopUpTo(R.id.createPlaylistFragment, true)
                     .setLaunchSingleTop(true)
                     .build()
-
                 findNavController().navigate(R.id.savedFragment, null, navOptions)
             }
         }
@@ -97,19 +111,20 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
     }
 
     private fun validateInputs(): Boolean {
-        var isValid = true
         val name = playlistName.text?.toString()?.trim() ?: ""
-
-        if (name.isEmpty()) {
-            playlistName.error = "El nombre es obligatorio"
-            isValid = false
-        } else if (name.length > 20) {
-            playlistName.error = "Máximo 20 caracteres"
-            isValid = false
-        } else {
-            playlistName.error = null
+        return when {
+            name.isEmpty() -> {
+                playlistName.error = "El nombre es obligatorio"
+                false
+            }
+            name.length > 30 -> {
+                playlistName.error = "Máximo 30 caracteres"
+                false
+            }
+            else -> {
+                playlistName.error = null
+                true
+            }
         }
-
-        return isValid
     }
 }

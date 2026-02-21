@@ -8,13 +8,13 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 data class Song(
     val id: String = "",
-    val albumId: String? = null,
     val title: String = "",
     var duration: String? = null,
     var streams: Int = 0,
     var position: Int = 0,
     var fileName: String = "",
     var imageFileName: String? = null,
+    var releaseYear: Int = 0,
 
     @SerializedName("songUrl")
     var url: String? = null,
@@ -23,10 +23,13 @@ data class Song(
     var coverUrl: String? = null,
 
     @SerializedName("artists")
-    val artists: List<Artist> = emptyList(),
+    val artists: List<ArtistSimpleDTO> = emptyList(),
+
+    @SerializedName("album")
+    val album: AlbumSimpleDTO? = null,
 
     @SerializedName("audioAnalysis")
-    val audioAnalysis: AudioAnalysis? = null,
+    var audioAnalysis: AudioAnalysis? = null,
 
     var sizeBytes: Long = 0L,
 

@@ -25,6 +25,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
+        android:layout_marginEnd="8dp"
         android:ellipsize="end"
         android:fontFamily="@font/unageo_bold"
         android:includeFontPadding="false"
@@ -34,7 +35,7 @@
         android:textSize="17sp"
         tools:text="Future Nostalgia"
         app:layout_constraintBottom_toTopOf="@+id/artistName"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnSettings"
         app:layout_constraintStart_toEndOf="@+id/albumCover"
         app:layout_constraintTop_toTopOf="@+id/albumCover"
         app:layout_constraintVertical_chainStyle="packed" />
@@ -44,6 +45,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
+        android:layout_marginEnd="8dp"
         android:ellipsize="end"
         android:fontFamily="@font/unageo_medium"
         android:includeFontPadding="false"
@@ -52,7 +54,7 @@
         android:textSize="15sp"
         tools:text="Dua Lipa"
         app:layout_constraintBottom_toTopOf="@+id/metaDataContainer"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnSettings"
         app:layout_constraintStart_toStartOf="@+id/albumTitle"
         app:layout_constraintTop_toBottomOf="@+id/albumTitle" />
 
@@ -64,7 +66,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         app:layout_constraintBottom_toBottomOf="@+id/albumCover"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnSettings"
         app:layout_constraintStart_toStartOf="@+id/albumTitle"
         app:layout_constraintTop_toBottomOf="@+id/artistName">
 
@@ -116,5 +118,17 @@
             tools:text="12 canciones" />
 
     </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/btnSettings"
+        android:layout_width="35dp"
+        android:layout_height="35dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_item_settings"
+        android:padding="8dp"
+        app:tint="#B3FFFFFF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

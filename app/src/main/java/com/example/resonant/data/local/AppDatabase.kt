@@ -7,7 +7,8 @@ import androidx.room.RoomDatabase
 import com.example.resonant.data.local.dao.DownloadedSongDao
 import com.example.resonant.data.local.entities.DownloadedSong
 
-@Database(entities = [DownloadedSong::class], version = 1, exportSchema = false)
+@Database(entities = [DownloadedSong::class], version = 2, exportSchema = false)
+@androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun downloadedSongDao(): DownloadedSongDao

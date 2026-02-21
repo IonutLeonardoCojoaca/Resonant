@@ -19,8 +19,11 @@ class PlaylistOptionsBottomSheet(
     private val playlist: Playlist,
     private val playlistImageBitmap: Bitmap?,
     private val onDeleteClick: (Playlist) -> Unit,
-    private val onEditClick: (Playlist) -> Unit
+    private val onEditClick: (Playlist) -> Unit,
+    private val onToggleVisibilityClick: ((Playlist) -> Unit)? = null
 ) : BottomSheetDialogFragment() {
+
+    override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -34,53 +37,75 @@ class PlaylistOptionsBottomSheet(
         val playlistOwner = view.findViewById<TextView>(R.id.playlistOwner)
         val playlistTracks = view.findViewById<TextView>(R.id.playlistNumberOfTracks)
 
-        // Referencias a botones
-        val editBtn = view.findViewById<TextView>(R.id.editPlaylistButton) // 👇 REFERENCIA
+        val editBtn = view.findViewById<TextView>(R.id.editPlaylistButton)
+        val toggleVisibilityBtn = view.findViewById<TextView>(R.id.toggleVisibilityButton)
         val deleteBtn = view.findViewById<TextView>(R.id.deletePlaylistButton)
         val cancelButton = view.findViewById<TextView>(R.id.cancelButton)
 
-        // ... (Tu código de carga de imagen existente va aquí) ...
+        // Cover image
         val imageUrl = playlist.imageUrl
-        if (!imageUrl.isNullOrEmpty()) {
-            Glide.with(this).load(imageUrl).placeholder(R.drawable.ic_playlist_stack).into(playlistImage)
-        } else if (playlistImageBitmap != null) {
-            playlistImage.setImageBitmap(playlistImageBitmap)
-        } else {
-            playlistImage.setImageResource(R.drawable.ic_playlist_stack)
+        when {
+            !imageUrl.isNullOrEmpty() ->
+                Glide.with(this).load(imageUrl).placeholder(R.drawable.ic_playlist_stack).into(playlistImage)
+            playlistImageBitmap != null -> playlistImage.setImageBitmap(playlistImageBitmap)
+            else -> playlistImage.setImageResource(R.drawable.ic_playlist_stack)
         }
 
         playlistName.text = playlist.name
-        playlistTracks.text = "${playlist.numberOfTracks ?: 0} canciones"
+        val count = playlist.numberOfTracks ?: 0
+        playlistTracks.text = when {
+            count == 0 -> "Sin canciones"
+            count == 1 -> "1 canción"
+            else -> "$count canciones"
+        }
 
+        // Load owner name async
         val userService = ApiClient.getUserService(requireContext())
         lifecycleScope.launch {
             try {
                 val userId = playlist.userId
                 if (!userId.isNullOrEmpty()) {
                     val user = userService.getUserById(userId)
-                    playlistOwner.text = user.name
+                    playlistOwner.text = user.name ?: "Desconocido"
                 } else {
                     playlistOwner.text = "Desconocido"
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 playlistOwner.text = "Desconocido"
             }
         }
 
-        // 👇 2. LISTENER PARA EDITAR
+        // Toggle visibility button label + icon
+        val isPublic = playlist.isPublic
+        toggleVisibilityBtn.text = if (isPublic == true) "Hacer privada" else "Hacer pública"
+        toggleVisibilityBtn.setCompoundDrawablesWithIntrinsicBounds(
+            if (isPublic == true) R.drawable.ic_private else R.drawable.ic_public, 0, 0, 0
+        )
+
+        // Listeners
         editBtn.setOnClickListener {
-            dismiss() // Cerramos el bottom sheet primero
-            onEditClick(playlist) // Navegamos
+            dismiss()
+            onEditClick(playlist)
+        }
+
+        toggleVisibilityBtn.setOnClickListener {
+            dismiss()
+            onToggleVisibilityClick?.invoke(playlist)
         }
 
         deleteBtn.setOnClickListener {
-            onDeleteClick(playlist)
-            dismiss()
+            com.example.resonant.ui.dialogs.ResonantDialog(requireContext())
+                .setTitle("¿Eliminar playlist?")
+                .setMessage("¿Estás seguro de que deseas eliminar '${playlist.name}'?")
+                .setPositiveButton("Eliminar") {
+                    onDeleteClick(playlist)
+                    dismiss()
+                }
+                .setNegativeButton("Cancelar", null)
+                .show()
         }
 
-        cancelButton.setOnClickListener {
-            dismiss()
-        }
+        cancelButton.setOnClickListener { dismiss() }
 
         return view
     }

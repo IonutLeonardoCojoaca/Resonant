@@ -58,10 +58,12 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="workers-playground-odd-fire-9bf1.resonant-app-service.workers.dev"
-                    android:pathPrefix="/shared/android/song" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+
+                <data android:host="resonantapp.ddns.net" />
+
             </intent-filter>
 
         </activity>
