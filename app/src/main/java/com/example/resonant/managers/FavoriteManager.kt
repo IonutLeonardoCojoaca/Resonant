@@ -94,7 +94,12 @@ class FavoriteManager(private val context: Context) {
     suspend fun getFavoriteAlbums(): List<Album> {
         return try {
             val favoritos = albumService.getFavoriteAlbumsByUser().toMutableList()
-            // artistName should now come included from the backend DTO
+            favoritos.forEach { album ->
+                if (album.artistName.isNullOrBlank()) {
+                    album.artistName = album.artists.joinToString(", ") { it.name }
+                        .takeIf { it.isNotBlank() }
+                }
+            }
             favoritos
         } catch (e: Exception) {
             e.printStackTrace()

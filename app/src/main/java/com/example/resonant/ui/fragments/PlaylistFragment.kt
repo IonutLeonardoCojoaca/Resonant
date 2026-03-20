@@ -82,7 +82,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             updateUI(state)
         }
 
-        val playlistId = arguments?.getString("playlistId")
+        val playlistId = arguments?.getString("playlistId") ?: arguments?.getString("playlist_id")
         if (playlistId != null) {
             val current = playlistViewModel.screenState.value
             val hasDataCached = (current?.playlistDetails != null) || !(current?.songs.isNullOrEmpty())

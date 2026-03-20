@@ -10,11 +10,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.core.widget.NestedScrollView
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.R
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.ArtistService
@@ -85,6 +87,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     private lateinit var downloadViewModel: DownloadViewModel
 
+    private var scrollBehavior: ScrollHeaderBehavior? = null
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -101,6 +105,16 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        val normalHeader = view.findViewById<View>(R.id.superiorToolbar)
+        val searchHeader = view.findViewById<View>(R.id.searchHeader)
+        val homeScrollView = view.findViewById<NestedScrollView>(R.id.homeScrollView)
+        scrollBehavior = ScrollHeaderBehavior(
+            normalHeader  = normalHeader,
+            searchHeader  = searchHeader,
+            onSearchClick = { SearchFragment().show(parentFragmentManager, "SearchFragment") }
+        )
+        scrollBehavior?.attachToNestedScrollView(homeScrollView)
 
         homeViewModel.loadSongs()
         homeViewModel.loadArtists()
@@ -141,11 +155,15 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         historyContainer = view.findViewById(R.id.historyPrincipalContainer)
         userProfileImage = view.findViewById(R.id.userProfile)
         Utils.loadUserProfile(requireContext(), userProfileImage)
+
+        view.findViewById<View>(R.id.searchButton).setOnClickListener {
+            SearchFragment().show(parentFragmentManager, "SearchFragment")
+        }
     }
 
     private fun setupRecyclerViews() {
         // History
-        recyclerViewHistory.layoutManager = GridLayoutManager(context, 3) 
+        recyclerViewHistory.layoutManager = GridLayoutManager(context, 2) 
         historyAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_GRID)
         recyclerViewHistory.adapter = historyAdapter
         recyclerViewHistory.isNestedScrollingEnabled = false
@@ -459,6 +477,12 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        scrollBehavior?.reset()
+        scrollBehavior = null
     }
 
     private fun updateSectionState(

@@ -14,10 +14,14 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
+import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.navigation.findNavController
 import androidx.navigation.fragment.FragmentNavigatorExtras
-import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
@@ -60,14 +64,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.collections.get
 
-class SearchFragment : BaseFragment(R.layout.fragment_search) {
+class SearchFragment : DialogFragment() {
 
     private lateinit var sharedPref: SharedPreferences
     private val queryFlow = MutableStateFlow("")
     private var restoringState = false
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
-    private lateinit var userProfileImage: ImageView
 
     private lateinit var noSongsFounded: TextView
     private lateinit var loadingAnimation: LottieAnimationView
@@ -81,6 +84,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
     private lateinit var searchHistoryManager: SearchHistoryManager
     private lateinit var historyAdapter: SearchHistoryAdapter
     private lateinit var historyRecyclerView: RecyclerView
+    private lateinit var sectionLabel: TextView
 
     private lateinit var chipSongs: Chip
     private lateinit var chipAlbums: Chip
@@ -102,6 +106,24 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private lateinit var downloadViewModel: DownloadViewModel
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setStyle(STYLE_NORMAL, R.style.FullScreenDialogStyle)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
+        // Show keyboard automatically
+        editTextQuery?.post {
+            editTextQuery?.requestFocus()
+            val controller = editTextQuery?.let {
+                WindowInsetsControllerCompat(requireActivity().window, it)
+            }
+            controller?.show(WindowInsetsCompat.Type.ime())
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         songViewModel.currentSongLiveData.value?.let { currentSong ->
@@ -114,6 +136,13 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_search, container, false)
+
+        // Apply status bar insets so the toolbar doesn't overlap with the notification bar
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(0, systemBars.top, 0, 0)
+            insets
+        }
 
         val context = requireContext()
         albumService = ApiClient.getAlbumService(context)
@@ -130,6 +159,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         chipArtists.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
 
         noSongsFounded = view.findViewById(R.id.noSongFoundedText)
+        sectionLabel = view.findViewById(R.id.searchSectionLabel)
         resultsRecyclerView = view.findViewById(R.id.filteredListResults)
         resultsRecyclerView.layoutManager = LinearLayoutManager(context)
         searchResultAdapter = SearchResultAdapter()
@@ -138,8 +168,9 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         editTextQuery = view.findViewById(R.id.editTextQuery)
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
-        userProfileImage = view.findViewById(R.id.userProfile)
-        Utils.loadUserProfile(requireContext(), userProfileImage)
+        view.findViewById<View>(R.id.btnBack).setOnClickListener {
+            dismiss()
+        }
 
         // --- SETUP HISTORIAL ---
         historyRecyclerView = view.findViewById(R.id.historyRecyclerView)
@@ -235,8 +266,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         // 1. CLIC EN CANCIÓN
         searchResultAdapter.onSongClick = { (song, bitmap) ->
-            // Guardamos historial
-            searchHistoryManager.addSearch(song.title)
+            // Guardamos historial con imagen
+            searchHistoryManager.addSearch(song.title, song.coverUrl, "Canción")
 
             val currentIndex = songResults.indexOfFirst { it.id == song.id }
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
@@ -256,18 +287,19 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
         // 2. CLIC EN ÁLBUM (Implementado en Fragment para guardar historial)
         searchResultAdapter.onAlbumClick = { album ->
-            // Guardamos historial
-            searchHistoryManager.addSearch(album.title ?: "")
+            // Guardamos historial con imagen
+            searchHistoryManager.addSearch(album.title ?: "", album.url, "Álbum")
 
             // Navegamos
             val bundle = Bundle().apply { putString("albumId", album.id) }
-            findNavController().navigate(R.id.action_searchFragment_to_albumFragment, bundle)
+            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
+            dismiss()
         }
 
         // 3. CLIC EN ARTISTA (Implementado en Fragment para guardar historial)
         searchResultAdapter.onArtistClick = { artist, imageView ->
-            // Guardamos historial
-            searchHistoryManager.addSearch(artist.name)
+            // Guardamos historial con imagen
+            searchHistoryManager.addSearch(artist.name, artist.url, "Artista")
 
             // Navegamos con animación
             val bundle = Bundle().apply {
@@ -277,7 +309,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                 putString("artistImageTransitionName", imageView.transitionName)
             }
             val extras = FragmentNavigatorExtras(imageView to imageView.transitionName)
-            findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle, null, extras)
+            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle, null, extras)
+            dismiss()
         }
 
         downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
@@ -307,13 +340,17 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     song = song,
                     onSeeSongClick = { selectedSong ->
                         val bundle = Bundle().apply { putParcelable("song", selectedSong) }
-                        findNavController().navigate(R.id.action_searchFragment_to_detailedSongFragment, bundle)
+                        requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.detailedSongFragment, bundle)
+                        this@SearchFragment.dismiss()
                     },
                     onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
                     onAddToPlaylistClick = { songToAdd ->
                         val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
-                            onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
+                            onNoPlaylistsFound = {
+                        requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.action_global_to_createPlaylistFragment)
+                        this@SearchFragment.dismiss()
+                    }
                         )
                         selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
                     },
@@ -325,7 +362,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     },
                     onGoToAlbumClick = { albumId ->
                         val bundle = Bundle().apply { putString("albumId", albumId) }
-                        findNavController().navigate(R.id.action_searchFragment_to_albumFragment, bundle)
+                        requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
+                        this@SearchFragment.dismiss()
                     },
                     onGoToArtistClick = { artist ->
                          val bundle = Bundle().apply { 
@@ -333,7 +371,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                              putString("artistName", artist.name)
                              putString("artistImageUrl", artist.url)
                         }
-                        findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                        requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
+                        this@SearchFragment.dismiss()
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -345,7 +384,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                  album = album,
                 onGoToAlbumClick = {
                     val bundle = Bundle().apply { putString("albumId", it.id) }
-                    findNavController().navigate(R.id.action_searchFragment_to_albumFragment, bundle)
+                    requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
+                    this@SearchFragment.dismiss()
                 },
                 onGoToArtistClick = {
                     val artists = it.artists
@@ -357,7 +397,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                                      putString("artistName", selectedArtist.name)
                                      putString("artistImageUrl", selectedArtist.url)
                                 }
-                                findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                                requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
+                                this@SearchFragment.dismiss()
                             }
                             selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
                         } else {
@@ -367,7 +408,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                                  putString("artistName", artist.name)
                                  putString("artistImageUrl", artist.url)
                             }
-                            findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
+                            this@SearchFragment.dismiss()
                         }
                     }
                 },
@@ -376,7 +418,8 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                          putParcelable("album", it)
                          putString("albumId", it.id)
                      }
-                     findNavController().navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
+                     requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
+                     this@SearchFragment.dismiss()
                 }
              )
              bottomSheet.show(parentFragmentManager, "AlbumOptionsBottomSheet")
@@ -391,14 +434,16 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                          putString("artistName", selectedArtist.name)
                          putString("artistImageUrl", selectedArtist.url)
                     }
-                    findNavController().navigate(R.id.action_searchFragment_to_artistFragment, bundle)
+                    requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
+                    this@SearchFragment.dismiss()
                 },
                 onViewDetailsClick = {
                      val bundle = Bundle().apply { 
                          putParcelable("artist", it)
                          putString("artistId", it.id)
                      }
-                     findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
+                     requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.action_global_to_detailedArtistFragment, bundle)
+                     this@SearchFragment.dismiss()
                 }
             )
             bottomSheet.show(parentFragmentManager, "ArtistOptionsBottomSheet")
@@ -421,6 +466,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                     resultsRecyclerView.visibility = View.INVISIBLE
                     suggestionsRecyclerView.visibility = View.GONE
                     noSongsFounded.visibility = View.GONE
+                    sectionLabel.visibility = View.GONE
 
                     // Mostrar historial si está vacío
                     loadHistory()
@@ -458,6 +504,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                         noSongsFounded.visibility = View.GONE
                         resultsRecyclerView.visibility = View.INVISIBLE
                         suggestionsRecyclerView.visibility = View.GONE
+                        sectionLabel.visibility = View.GONE
                         loadingAnimation.visibility = View.VISIBLE
                     }
 
@@ -516,18 +563,23 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
                             when {
                                 finalList.isNotEmpty() -> {
+                                    sectionLabel.text = "Resultados de búsqueda"
+                                    sectionLabel.visibility = View.VISIBLE
                                     resultsRecyclerView.visibility = View.VISIBLE
                                     suggestionsRecyclerView.visibility = View.GONE
                                     noSongsFounded.visibility = View.GONE
                                     searchResultAdapter.submitList(finalList)
                                 }
                                 combinedSuggestions.isNotEmpty() -> {
+                                    sectionLabel.text = "Quizás te refieres a…"
+                                    sectionLabel.visibility = View.VISIBLE
                                     resultsRecyclerView.visibility = View.GONE
                                     suggestionsRecyclerView.visibility = View.VISIBLE
                                     noSongsFounded.visibility = View.GONE
                                     suggestionAdapter.submitList(combinedSuggestions)
                                 }
                                 else -> {
+                                    sectionLabel.visibility = View.GONE
                                     resultsRecyclerView.visibility = View.GONE
                                     suggestionsRecyclerView.visibility = View.GONE
                                     noSongsFounded.visibility = View.VISIBLE
@@ -540,6 +592,7 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
                             loadingAnimation.visibility = View.INVISIBLE
                             resultsRecyclerView.visibility = View.INVISIBLE
                             suggestionsRecyclerView.visibility = View.GONE
+                            sectionLabel.visibility = View.GONE
                             noSongsFounded.visibility = View.VISIBLE
                             searchResultAdapter.submitList(emptyList())
                             Log.e("SearchFragment", "Error during search", e)
@@ -558,12 +611,14 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
 
     private fun loadHistory() {
         val list = searchHistoryManager.getHistory()
-        // historyAdapter ahora espera List<HistoryItem>, así que esto funciona directo:
         if (list.isNotEmpty()) {
             historyAdapter.submitList(list)
             historyRecyclerView.visibility = View.VISIBLE
+            sectionLabel.text = "Reciente"
+            sectionLabel.visibility = View.VISIBLE
         } else {
             historyRecyclerView.visibility = View.GONE
+            sectionLabel.visibility = View.GONE
         }
     }
 
@@ -629,7 +684,14 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         val filtered = applyActiveFilters(lastResults)
         searchResultAdapter.submitList(filtered)
         noSongsFounded.visibility = if (filtered.isEmpty() && lastResults.isNotEmpty()) View.VISIBLE else View.GONE
-        resultsRecyclerView.visibility = if (filtered.isNotEmpty()) View.VISIBLE else View.INVISIBLE
+        if (filtered.isNotEmpty()) {
+            sectionLabel.text = "Resultados de búsqueda"
+            sectionLabel.visibility = View.VISIBLE
+            resultsRecyclerView.visibility = View.VISIBLE
+        } else {
+            sectionLabel.visibility = View.GONE
+            resultsRecyclerView.visibility = View.INVISIBLE
+        }
         loadingAnimation.visibility = View.INVISIBLE
     }
 
@@ -638,7 +700,14 @@ class SearchFragment : BaseFragment(R.layout.fragment_search) {
         songViewModel.currentSongLiveData.value?.let { currentSong -> searchResultAdapter.setCurrentPlayingSong(currentSong.id) }
         val resultsAreEmpty = list.isEmpty()
         noSongsFounded.visibility = if (resultsAreEmpty && editTextQuery?.text?.isNotEmpty() == true) View.VISIBLE else View.GONE
-        resultsRecyclerView.visibility = if (!resultsAreEmpty) View.VISIBLE else View.INVISIBLE
+        if (!resultsAreEmpty) {
+            sectionLabel.text = "Resultados de búsqueda"
+            sectionLabel.visibility = View.VISIBLE
+            resultsRecyclerView.visibility = View.VISIBLE
+        } else {
+            sectionLabel.visibility = View.GONE
+            resultsRecyclerView.visibility = View.INVISIBLE
+        }
         loadingAnimation.visibility = View.INVISIBLE
     }
 

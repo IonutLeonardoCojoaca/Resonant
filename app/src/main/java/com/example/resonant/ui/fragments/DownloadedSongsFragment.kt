@@ -6,10 +6,11 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+
 import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -43,13 +44,11 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
 
-    // 🔥 IMPORTANTE: lateinit promete que se inicializará antes de usarse.
-    private lateinit var userProfileImage: ImageView
-
     private lateinit var tipCard: MaterialCardView
     private lateinit var closeTipButton: ImageView
     private lateinit var deleteAllButton: ImageView
     private lateinit var storageInfoText: TextView
+    private lateinit var backButton: ImageButton
 
     // --- NUEVAS VARIABLES PARA BÚSQUEDA ---
     private lateinit var searchButton: ImageView
@@ -67,9 +66,6 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
         setupRecyclerView()
         setupViewModels()
 
-        // Si tienes la función loadUserProfile en Utils, descomenta esto:
-        Utils.loadUserProfile(requireContext(), userProfileImage)
-
         downloadViewModel.loadDownloadedSongs()
     }
 
@@ -77,13 +73,11 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
         recyclerView = view.findViewById(R.id.recyclerView)
         emptyState = view.findViewById(R.id.emptyState)
 
-        // Si tienes userProfile en tu XML, inicialízalo. Si lo borraste, quita esta línea.
-        userProfileImage = view.findViewById(R.id.userProfile)
-
         tipCard = view.findViewById(R.id.tipCard)
         closeTipButton = view.findViewById(R.id.closeTipButton)
         deleteAllButton = view.findViewById(R.id.deleteAllButton)
         storageInfoText = view.findViewById(R.id.storageInfoText)
+        backButton = view.findViewById(R.id.btnBack)
 
         // --- INICIALIZAR BÚSQUEDA ---
         searchButton = view.findViewById(R.id.searchButton)
@@ -105,6 +99,10 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
 
         deleteAllButton.setOnClickListener {
             showDeleteConfirmationDialog()
+        }
+
+        backButton.setOnClickListener {
+            findNavController().navigateUp()
         }
     }
 

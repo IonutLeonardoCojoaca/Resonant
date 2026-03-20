@@ -104,6 +104,12 @@ POST
 Registra un evento de reproducción (stream) para contadores, rankings y recomendaciones.
 
 
+
+GET
+/api/analytics/activity
+Obtiene series temporales para los paneles de administración (dashboard).
+
+
 AppUpdate
 
 
@@ -128,6 +134,38 @@ Obtiene la información de la última versión disponible (Check for Updates).
 GET
 /api/updates/download
 Genera y devuelve la URL de descarga para una versión específica.
+
+
+Aria
+
+
+POST
+/api/chatbot/ask
+Envía un prompt al asistente musical y recibe una respuesta en streaming.
+
+
+
+DELETE
+/api/chatbot/user/{userId}/session
+Limpia el historial de sesión de conversación de Aria para el usuario autenticado.
+
+
+
+POST
+/api/aria/feedback
+Envía feedback (like/dislike) sobre una respuesta de Aria.
+
+
+
+GET
+/api/aria/feedback/stats
+Obtiene las estadísticas de feedback del usuario autenticado.
+
+
+
+GET
+/api/aria/feedback/stats/global
+Obtiene las estadísticas globales de feedback del sistema. Solo accesible para administradores.
 
 
 Artist
@@ -296,6 +334,18 @@ Cambia el nombre de un artista.
 
 
 POST
+/api/artists/{id}/genres
+Asigna manualmente un género a un artista.
+
+
+
+DELETE
+/api/artists/{id}/genres/{genreId}
+Elimina la relación manual entre un artista y un género.
+
+
+
+POST
 /api/artists/images/upload
 Sube una nueva imagen para la galería de artistas.
 
@@ -451,6 +501,12 @@ Cambia la visibilidad de una playlist (pública o privada).
 
 
 
+POST
+/api/playlists/{id}/sync-collage
+Sincroniza el collage de imagenes (Generación AI).
+
+
+
 GET
 /api/playlists/{id}/songs
 Obtiene las canciones que forman parte de una playlist.
@@ -562,6 +618,12 @@ Elimina una canción de la lista de favoritos del usuario autenticado.
 
 
 GET
+/api/songs/{id}/lyrics
+Obtiene las letras de una canción por su ID (sincronizadas o planas).
+
+
+
+GET
 /api/songs/{id}/playback
 Obtiene los datos de reproducción y mezcla inteligente (Smart Crossfade).
 
@@ -585,9 +647,27 @@ Cambia el título de una canción.
 
 
 
+PATCH
+/api/songs/{id}/album
+Cambia o remueve el álbum asignado de una canción.
+
+
+
 POST
 /api/songs/upload
 Sube un archivo de audio al sistema (MinIO + Base de Datos).
+
+
+
+POST
+/api/songs/{id}/artists
+Añade un artista a una canción.
+
+
+
+DELETE
+/api/songs/{id}/artists/{artistId}
+Elimina un artista de una canción.
 
 
 Tag
@@ -634,6 +714,18 @@ Elimina un usuario del sistema.
 GET
 /api/users/{id}
 Obtiene la información pública de un usuario por su ID.
+
+
+
+POST
+/api/users/{id}/ban
+Banea a un usuario (desactiva el uso de su cuenta de manera lógica).
+
+
+
+POST
+/api/users/{id}/unban
+Desbanea a un usuario previamente baneado.
 
 
 

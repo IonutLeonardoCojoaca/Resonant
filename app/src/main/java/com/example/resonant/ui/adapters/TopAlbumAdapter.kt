@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
@@ -16,6 +17,10 @@ class TopAlbumAdapter(
     private var albums: List<AlbumRank> = emptyList(),
     private val onAlbumClick: (Album) -> Unit
 ) : RecyclerView.Adapter<TopAlbumAdapter.ViewHolder>() {
+
+    init {
+        setHasStableIds(true)
+    }
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val rankText: TextView = view.findViewById(R.id.rankText)
@@ -54,10 +59,28 @@ class TopAlbumAdapter(
         }
     }
 
+    override fun getItemId(position: Int): Long {
+        return albums[position].album.id.hashCode().toLong()
+    }
+
     override fun getItemCount() = albums.size
 
     fun updateList(newList: List<AlbumRank>) {
+        val diffResult = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize(): Int = albums.size
+
+            override fun getNewListSize(): Int = newList.size
+
+            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                return albums[oldItemPosition].album.id == newList[newItemPosition].album.id
+            }
+
+            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                return albums[oldItemPosition] == newList[newItemPosition]
+            }
+        })
+
         albums = newList
-        notifyDataSetChanged()
+        diffResult.dispatchUpdatesTo(this)
     }
 }

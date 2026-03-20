@@ -110,7 +110,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 // Fetch from SongManager
-                val songs = songManager.getPlaybackHistory(limit = 6)
+                val songs = songManager.getPlaybackHistory(limit = 8)
 
                 _history.value = songs
                 if (songs.isNotEmpty()) {

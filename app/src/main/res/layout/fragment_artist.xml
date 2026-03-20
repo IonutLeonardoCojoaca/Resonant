@@ -351,7 +351,6 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginVertical="10dp"
-            android:background="@drawable/bg_accent_pill"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">

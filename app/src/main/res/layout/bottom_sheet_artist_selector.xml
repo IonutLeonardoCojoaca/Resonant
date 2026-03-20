@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:text="Selecciona un artista"
         android:textColor="@color/white"
-        android:textSize="18sp"
+        android:textSize="15sp"
         android:fontFamily="@font/unageo_bold"
         android:layout_marginBottom="16dp"
         android:layout_gravity="center"/>

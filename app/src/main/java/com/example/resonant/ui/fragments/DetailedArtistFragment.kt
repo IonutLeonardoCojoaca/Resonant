@@ -26,6 +26,7 @@ import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.viewmodels.ArtistViewModel
 import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.launch
+import androidx.navigation.Navigation
 
 class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
 
@@ -96,7 +97,7 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
                 // ¡AQUÍ ESTÁ LA LÍNEA MÁGICA QUE FALTABA!
                 putString("genreGradientColors", genre.gradientColors)
             }
-            androidx.navigation.Navigation.findNavController(requireView()).navigate(R.id.genreArtistsFragment, bundle)
+            Navigation.findNavController(requireView()).navigate(R.id.genreArtistsFragment, bundle)
         }
         genresRecyclerView.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
         genresRecyclerView.adapter = genresAdapter
@@ -175,11 +176,24 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
              )
              bottomSheet.show(parentFragmentManager, "AlbumOptionsBottomSheet")
         }
+
+        // Add click listeners to artist name and image to navigate to the current artist's detailed page
+        artistName.setOnClickListener {
+            artist?.id?.let { artistId ->
+                navigateToArtist(artistId)
+            }
+        }
+
+        artistImage.setOnClickListener {
+            artist?.id?.let { artistId ->
+                navigateToArtist(artistId)
+            }
+        }
     }
 
     private fun navigateToAlbum(albumId: String) {
         val bundle = Bundle().apply { putString("albumId", albumId) }
-        androidx.navigation.Navigation.findNavController(requireView()).navigate(R.id.albumFragment, bundle)
+        Navigation.findNavController(requireView()).navigate(R.id.albumFragment, bundle)
     }
 
     private fun navigateToAlbumDetails(album: com.example.resonant.data.models.Album) {
@@ -187,7 +201,12 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
             putParcelable("album", album)
             putString("albumId", album.id)
         }
-        androidx.navigation.Navigation.findNavController(requireView()).navigate(R.id.detailedAlbumFragment, bundle)
+        Navigation.findNavController(requireView()).navigate(R.id.detailedAlbumFragment, bundle)
+    }
+
+    private fun navigateToArtist(artistId: String) {
+        val bundle = Bundle().apply { putString("artistId", artistId) }
+        Navigation.findNavController(requireView()).navigate(R.id.detailedArtistFragment, bundle)
     }
 
     private fun loadArtistImage(url: String?) {

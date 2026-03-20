@@ -18,10 +18,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.core.widget.NestedScrollView
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
+import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.data.models.StatsPeriod
 import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.viewmodels.ExploreViewModel
@@ -31,9 +33,10 @@ class ExploreFragment : Fragment() {
 
     private lateinit var userProfileImage: ImageView
     private lateinit var recyclerViewGenres: RecyclerView
-
     private lateinit var genreAdapter: GenreAdapter
     private lateinit var viewModel: ExploreViewModel
+
+    private var scrollBehavior: ScrollHeaderBehavior? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -43,16 +46,14 @@ class ExploreFragment : Fragment() {
 
         viewModel = ViewModelProvider(this)[ExploreViewModel::class.java]
 
-        initViews(view)
+        initExploreViews(view)
         setupRecyclerView()
         setupObservers()
 
-        // ── Anillo girando ──────────────────────────────────────────────────
         val rings = view.findViewById<ImageView>(R.id.rotatingRings)
         rings.startAnimation(AnimationUtils.loadAnimation(requireContext(), R.anim.rotate_slow))
 
-        // ── Pulso de color en el anillo ─────────────────────────────────────
-        val colorRojoVivo  = Color.parseColor("#FF0000")
+        val colorRojoVivo   = Color.parseColor("#FF0000")
         val colorRojoOscuro = Color.parseColor("#121212")
         val colorPulseAnimator = ValueAnimator.ofObject(ArgbEvaluator(), colorRojoVivo, colorRojoOscuro)
         colorPulseAnimator.duration = 2500
@@ -66,11 +67,29 @@ class ExploreFragment : Fragment() {
         }
         colorPulseAnimator.start()
 
-        // Cargar datos
         viewModel.loadPopularGenres()
         viewModel.loadFavoriteGenre()
 
         return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val normalHeader = view.findViewById<View>(R.id.superiorToolbar)
+        val searchHeader = view.findViewById<View>(R.id.searchHeader)
+        val scrollView = view.findViewById<NestedScrollView>(R.id.exploreScrollView)
+        scrollBehavior = ScrollHeaderBehavior(
+            normalHeader  = normalHeader,
+            searchHeader  = searchHeader,
+            onSearchClick = { SearchFragment().show(parentFragmentManager, "SearchFragment") }
+        )
+        scrollBehavior?.attachToNestedScrollView(scrollView)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        scrollBehavior?.reset()
+        scrollBehavior = null
     }
 
     private fun navigateToChart(title: String, period: Int, isTrending: Boolean, startColor: String, endColor: String) {
@@ -84,35 +103,32 @@ class ExploreFragment : Fragment() {
         findNavController().navigate(R.id.action_exploreFragment_to_topChartsFragment, bundle)
     }
 
-    private fun initViews(view: View) {
+    private fun initExploreViews(view: View) {
         userProfileImage = view.findViewById(R.id.userProfile)
         recyclerViewGenres = view.findViewById(R.id.recyclerViewGenres)
 
-        val btnPopulares = view.findViewById<View>(R.id.btnPopulares)
-        val btnTrending  = view.findViewById<View>(R.id.btnTrending)
-        val btnPlaylists = view.findViewById<View>(R.id.btnPlaylists)
-        val btnArtistas  = view.findViewById<View>(R.id.btnArtistas)
-        val btnGeneros   = view.findViewById<View>(R.id.btnGeneros)
-        val btnAlbumes   = view.findViewById<View>(R.id.btnAlbumes)
-
         Utils.loadUserProfile(requireContext(), userProfileImage)
 
-        btnPopulares.setOnClickListener {
+        view.findViewById<View>(R.id.searchButton).setOnClickListener {
+            SearchFragment().show(parentFragmentManager, "SearchFragment")
+        }
+
+        view.findViewById<View>(R.id.btnPopulares).setOnClickListener {
             navigateToChart("Top Diario", StatsPeriod.DAILY.value, false, "#FF9F40", "#F53B57")
         }
-        btnTrending.setOnClickListener {
+        view.findViewById<View>(R.id.btnTrending).setOnClickListener {
             navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231")
         }
-        btnPlaylists.setOnClickListener {
+        view.findViewById<View>(R.id.btnPlaylists).setOnClickListener {
             findNavController().navigate(R.id.action_exploreFragment_to_publicPlaylistsFragment)
         }
-        btnArtistas.setOnClickListener {
+        view.findViewById<View>(R.id.btnArtistas).setOnClickListener {
             findNavController().navigate(R.id.topArtistsFragment)
         }
-        btnGeneros.setOnClickListener {
+        view.findViewById<View>(R.id.btnGeneros).setOnClickListener {
             findNavController().navigate(R.id.action_exploreFragment_to_allGenresFragment)
         }
-        btnAlbumes.setOnClickListener {
+        view.findViewById<View>(R.id.btnAlbumes).setOnClickListener {
             findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment)
         }
     }

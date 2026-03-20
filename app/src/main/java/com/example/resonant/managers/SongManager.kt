@@ -7,9 +7,7 @@ import com.example.resonant.data.network.AddStreamDTO
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RecommendationResult
 import com.example.resonant.data.network.SearchResponse
-import com.example.resonant.data.network.SongAudioAnalysisDTO
 import com.example.resonant.data.network.SongMetadataDTO
-import com.example.resonant.data.network.SongPlaybackDTO
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.SongService
@@ -148,13 +146,24 @@ class SongManager(private val context: Context) {
     suspend fun getSongAnalysis(songId: String): AudioAnalysis? {
         return try {
             val dto = songService.getSongAnalysis(songId)
-            // Map DTO to AudioAnalysis model
+            val resolvedSongId = dto.songId ?: songId
+            val durationMs = dto.durationMs ?: 0
+            val bpmValue = dto.bpm ?: 0.0
             AudioAnalysis(
                 id = dto.id,
-                songId = songId,
-                bpm = dto.bpm ?: 0.0,
+                songId = resolvedSongId,
+                durationMs = durationMs,
+                audioStartMs = dto.audioStartMs ?: 0,
+                audioEndMs = dto.audioEndMs ?: durationMs,
+                loudnessLufs = dto.loudnessLufs?.toFloat() ?: 0f,
+                bpm = bpmValue,
+                bpmNormalized = dto.bpmNormalized ?: bpmValue,
+                optimalStartPointMs = dto.optimalStartPointMs,
+                optimalExitPointMs = dto.optimalExitPointMs,
                 musicalKey = dto.musicalKey,
-                segmentsUrl = dto.segmentsUrl
+                sectionsJson = dto.sectionsJson,
+                segmentsUrl = dto.segmentsUrl,
+                segmentsFileName = dto.segmentsFileName
             )
         } catch (e: Exception) {
             Log.e("SongManager", "Error fetching analysis for '$songId'", e)

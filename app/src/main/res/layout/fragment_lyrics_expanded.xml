@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/expandedRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/primaryColorTheme">
+
+    <ImageView
+        android:id="@+id/expandedBlurBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0.12" />
+
+    <LinearLayout
+        android:id="@+id/expandedTopBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingTop="32dp"
+        android:paddingHorizontal="32dp"
+        android:paddingBottom="12dp"
+        android:layout_alignParentTop="true">
+
+        <TextView
+            android:id="@+id/expandedSongTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold" />
+
+        <TextView
+            android:id="@+id/expandedSongArtist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="#80FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@font/unageo_medium"
+            android:layout_marginTop="2dp" />
+
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/expandedCloseButton"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="20dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_keyboard_arrow_down"
+            app:tint="#CCFFFFFF" />
+
+    </FrameLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/expandedLyricsRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/expandedTopBar"
+        android:layout_above="@id/expandedCloseButton"
+        android:overScrollMode="never"
+        android:paddingTop="24dp"
+        android:paddingBottom="24dp"
+        android:clipToPadding="false" />
+
+    <View
+        android:id="@+id/expandedTopFade"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_below="@id/expandedTopBar" />
+
+    <View
+        android:id="@+id/expandedBottomFade"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_above="@id/expandedCloseButton" />
+
+</RelativeLayout>

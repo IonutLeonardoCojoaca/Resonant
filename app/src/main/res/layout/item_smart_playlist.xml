@@ -17,7 +17,7 @@
         android:id="@+id/itemContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#000000">
+        android:background="@color/cardsTheme">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/artistImage"
@@ -43,7 +43,7 @@
                 android:id="@+id/view5"
                 android:layout_width="match_parent"
                 android:layout_height="80dp"
-                android:background="@drawable/bg_gradient_artist"
+                android:background="@drawable/bg_gradient_artist_playlist"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent" />

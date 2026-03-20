@@ -86,17 +86,19 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Observe Downloads to update icons
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { ids ->
-                favoritesAdapter.downloadedSongIds = ids
-            }
-        }
-
         initViews(view)
         setupAdapters()
         setupClickListeners()
         setupChipListener()
+
+        // Observe Downloads to update icons (adapter must be initialized first)
+        viewLifecycleOwner.lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { ids ->
+                if (::favoritesAdapter.isInitialized) {
+                    favoritesAdapter.downloadedSongIds = ids
+                }
+            }
+        }
         
         // Observe Playlists
         playlistsListViewModel.playlists.observe(viewLifecycleOwner, Observer { playlists ->
@@ -253,9 +255,11 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                         }
                     },
                     onViewDetailsClick = {
-                         // Option to see detailed info, currently just navigating to fragment
-                         val bundle = Bundle().apply { putString("albumId", it.id) }
-                         findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
+                         val bundle = Bundle().apply {
+                             putParcelable("album", it)
+                             putString("albumId", it.id)
+                         }
+                         findNavController().navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
                     }
                  )
                  bottomSheet.show(childFragmentManager, bottomSheet.tag)
@@ -274,9 +278,11 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                         findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
                     },
                     onViewDetailsClick = {
-                         // Option to see detailed info, currently just navigating to fragment
-                         val bundle = Bundle().apply { putString("artistId", it.id) }
-                         findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
+                         val bundle = Bundle().apply {
+                             putParcelable("artist", it)
+                             putString("artistId", it.id)
+                         }
+                         findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
                     }
                  )
                  bottomSheet.show(childFragmentManager, bottomSheet.tag)

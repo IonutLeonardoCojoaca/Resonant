@@ -105,7 +105,7 @@ class SelectPlaylistBottomSheet(
                             showResonantSnackbar(
                                 text = "La canción ya está en la lista",
                                 colorRes = R.color.adviseColor,
-                                iconRes = R.drawable.ic_information
+                                iconRes = R.drawable.ic_warning
                             )
                         } else {
                             // Nota: requireContext() aquí es redundante si el método

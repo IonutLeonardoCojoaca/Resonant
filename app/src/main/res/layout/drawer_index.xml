@@ -23,8 +23,6 @@
             android:scaleType="centerCrop"
             android:padding="2dp"
             app:shapeAppearanceOverlay="@style/CircularUserImage"
-            app:strokeColor="@color/secondaryColorTheme"
-            app:strokeWidth="2dp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -38,18 +36,6 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@+id/headerUserPhoto"
             app:layout_constraintBottom_toBottomOf="@+id/headerUserPhoto">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="PRO"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp"
-                android:fontFamily="@font/unageo_bold"
-                android:background="@drawable/bg_pro_badge"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="2dp"
-                android:layout_marginBottom="2dp"/>
 
             <TextView
                 android:id="@+id/headerUserName"
@@ -95,7 +81,7 @@
                 android:layout_height="wrap_content"
                 android:text="Navegación"
                 android:fontFamily="@font/unageo_bold"
-                android:textColor="#66FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="11sp"
                 android:textAllCaps="true"
                 android:letterSpacing="0.1"
@@ -109,16 +95,16 @@
                 app:drawableStartCompat="@drawable/ic_menu_home" />
 
             <TextView
+                android:id="@+id/exploreButton"
+                style="@style/DrawerItemStyle"
+                android:text="Explorar"
+                app:drawableStartCompat="@drawable/ic_menu_explore" />
+
+            <TextView
                 android:id="@+id/searchButton"
                 style="@style/DrawerItemStyle"
                 android:text="Buscar"
                 app:drawableStartCompat="@drawable/ic_search" />
-
-            <TextView
-                android:id="@+id/exploreButton"
-                style="@style/DrawerItemStyle"
-                android:text="Descubrir"
-                app:drawableStartCompat="@drawable/ic_menu_explore" />
 
             <Space
                 android:layout_width="match_parent"
@@ -129,7 +115,7 @@
                 android:layout_height="wrap_content"
                 android:text="Mi Música"
                 android:fontFamily="@font/unageo_bold"
-                android:textColor="#66FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="11sp"
                 android:textAllCaps="true"
                 android:letterSpacing="0.1"
@@ -145,13 +131,13 @@
             <TextView
                 android:id="@+id/downloadsButton"
                 style="@style/DrawerItemStyle"
-                android:text="Descargas offline"
+                android:text="Descargas"
                 app:drawableStartCompat="@drawable/ic_download" />
 
             <TextView
                 android:id="@+id/historyButton"
                 style="@style/DrawerItemStyle"
-                android:text="Historial de escucha"
+                android:text="Historial"
                 app:drawableStartCompat="@drawable/ic_recent" />
 
             <Space
@@ -163,7 +149,7 @@
                 android:layout_height="wrap_content"
                 android:text="Sistema"
                 android:fontFamily="@font/unageo_bold"
-                android:textColor="#66FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="11sp"
                 android:textAllCaps="true"
                 android:letterSpacing="0.1"
@@ -173,7 +159,7 @@
             <TextView
                 android:id="@+id/settingsButton"
                 style="@style/DrawerItemStyle"
-                android:text="Ajustes y Privacidad"
+                android:text="Ajustes"
                 app:drawableStartCompat="@drawable/ic_settings_selected" />
 
             <TextView
@@ -204,9 +190,10 @@
             android:src="@drawable/logo_resonant_text" />
 
         <TextView
+            android:id="@+id/versionText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Resonant 2.0.0"
+            android:text="Resonant 2.2.0"
             android:textColor="#4DFFFFFF"
             android:textSize="11sp"
             android:fontFamily="@font/unageo_medium"

@@ -2,13 +2,16 @@ package com.example.resonant.ui.adapters
 
 import android.animation.ObjectAnimator
 import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -25,12 +28,12 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Song
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.MiniPlayerColorizer
-import android.graphics.drawable.Drawable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.ViewHolder>(SongDiffCallback()) {
 
@@ -74,6 +77,12 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         set(value) {
             field = value
             // Notificamos cambios para refrescar los iconos
+            notifyDataSetChanged()
+        }
+
+    var hideArtwork: Boolean = false
+        set(value) {
+            field = value
             notifyDataSetChanged()
         }
 
@@ -146,6 +155,7 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
         private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
         private val downloadedIcon: ImageView = itemView.findViewById(R.id.downloadedIcon)
+        private val textContainer: LinearLayout = itemView.findViewById(R.id.songTextContainer)
 
         val albumArtImageView: ImageView = itemView.findViewById(R.id.songImage)
         var albumArtAnimator: ObjectAnimator? = null
@@ -210,28 +220,42 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                 cancelJobs()
                 albumArtAnimator?.cancel()
                 albumArtImageView.rotation = 0f
-                albumArtImageView.visibility = View.VISIBLE
-
-                Glide.with(itemView).clear(albumArtImageView)
-
-                val placeholderRes = R.drawable.ic_disc
-                val url = song.coverUrl
-
-                if (!url.isNullOrBlank()) {
-                    albumArtAnimator?.cancel()
-                    albumArtImageView.rotation = 0f
-
-                    Glide.with(albumArtImageView.context)
-                        .asBitmap()
-                        .load(url)
-                        .override(200, 200) // OPTIMIZATION: Downsample image
-                        .dontAnimate()
-                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                        .placeholder(placeholderRes)
-                        .error(placeholderRes)
-                        .into(albumArtImageView)
+                if (hideArtwork) {
+                    albumArtImageView.visibility = View.GONE
+                    val layoutParams = textContainer.layoutParams as ConstraintLayout.LayoutParams
+                    layoutParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                    layoutParams.startToEnd = ConstraintLayout.LayoutParams.UNSET
+                    layoutParams.marginStart = 0
+                    textContainer.layoutParams = layoutParams
                 } else {
-                    albumArtImageView.setImageResource(placeholderRes)
+                    albumArtImageView.visibility = View.VISIBLE
+                    val layoutParams = textContainer.layoutParams as ConstraintLayout.LayoutParams
+                    layoutParams.startToStart = ConstraintLayout.LayoutParams.UNSET
+                    layoutParams.startToEnd = R.id.songImage
+                    layoutParams.marginStart = (14 * itemView.resources.displayMetrics.density).roundToInt()
+                    textContainer.layoutParams = layoutParams
+
+                    Glide.with(itemView).clear(albumArtImageView)
+
+                    val placeholderRes = R.drawable.ic_disc
+                    val url = song.coverUrl
+
+                    if (!url.isNullOrBlank()) {
+                        albumArtAnimator?.cancel()
+                        albumArtImageView.rotation = 0f
+
+                        Glide.with(albumArtImageView.context)
+                            .asBitmap()
+                            .load(url)
+                            .override(200, 200) // OPTIMIZATION: Downsample image
+                            .dontAnimate()
+                            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                            .placeholder(placeholderRes)
+                            .error(placeholderRes)
+                            .into(albumArtImageView)
+                    } else {
+                        albumArtImageView.setImageResource(placeholderRes)
+                    }
                 }
             }
         }
@@ -351,167 +375,60 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
 
             // Update Play/Pause icon
             playPauseIcon.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+            playPauseIcon.visibility = if (isPlaying) View.VISIBLE else View.GONE
 
             if (!partial) {
-                // Use Palette loading for dynamic background
-                loadSongCoverPalette(song.id, song.coverUrl, albumArtImageView, container, titleTextView, artistTextView)
+                val placeholderRes = R.drawable.ic_disc
+                val url = song.coverUrl
+
+                Glide.with(itemView).clear(albumArtImageView)
+
+                if (!url.isNullOrBlank()) {
+                    val model = ImageRequestHelper.buildGlideModel(albumArtImageView.context, url)
+                    Glide.with(albumArtImageView.context)
+                        .asBitmap()
+                        .load(model)
+                        .override(150, 150)
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                        .placeholder(placeholderRes)
+                        .error(placeholderRes)
+                        .into(object : CustomTarget<Bitmap>() {
+                            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                                albumArtImageView.setImageBitmap(resource)
+                                MiniPlayerColorizer.applyFromImageView(
+                                    imageView = albumArtImageView,
+                                    targets = MiniPlayerColorizer.Targets(
+                                        container = container,
+                                        title = titleTextView,
+                                        subtitle = artistTextView
+                                    ),
+                                    fallbackColor = ContextCompat.getColor(albumArtImageView.context, R.color.primaryColorTheme),
+                                    animateMillis = 300L
+                                )
+                            }
+                            override fun onLoadCleared(placeholder: Drawable?) {
+                                albumArtImageView.setImageDrawable(placeholder)
+                            }
+                            override fun onLoadFailed(errorDrawable: Drawable?) {
+                                albumArtImageView.setImageDrawable(errorDrawable)
+                            }
+                        })
+                } else {
+                    albumArtImageView.setImageResource(placeholderRes)
+                    MiniPlayerColorizer.applyFromImageView(
+                        imageView = albumArtImageView,
+                        targets = MiniPlayerColorizer.Targets(
+                            container = container,
+                            title = titleTextView,
+                            subtitle = artistTextView
+                        ),
+                        fallbackColor = ContextCompat.getColor(albumArtImageView.context, R.color.primaryColorTheme),
+                        animateMillis = 0L
+                    )
+                }
             }
         }
-    }
-
-    private fun loadSongCoverPalette(
-        songId: String,
-        url: String?,
-        imageView: ImageView,
-        container: View,
-        titleView: TextView,
-        subtitleView: TextView
-    ) {
-        val placeholderRes = R.drawable.ic_disc // Or specific dark placeholder
-
-        // 1. Check Cache
-        if (dominantColorCache.containsKey(songId)) {
-            val cachedColor = dominantColorCache[songId]!!
-            // If cached, apply immediately without Glide palette generation logic overhead
-            // But we still need to load the image into the view!
-             Glide.with(imageView).clear(imageView)
-             if (!url.isNullOrBlank()) {
-                 Glide.with(imageView)
-                    .load(url) // Just load image normally
-                    .override(300, 300)
-                    .dontAnimate()
-                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                    .placeholder(placeholderRes)
-                    .into(imageView)
-             } else {
-                 imageView.setImageResource(placeholderRes)
-             }
-             
-             // Apply Cached Color
-             MiniPlayerColorizer.applyFromImageView(
-                imageView, // This won't be used for generation bc we pass a color? No, helper needs refactor to accept color directly?
-                // Actually MiniPlayerColorizer doesn't support "Apply this int color".
-                // I should assume the color calculation is fast enough? 
-                // No, I want to avoid Palette generation.
-                // I will add a manual apply using the cached color.
-                 MiniPlayerColorizer.Targets(container = container, title = titleView, subtitle = subtitleView),
-                 fallbackColor = cachedColor, // Use cached as "fallback" but it isn't fallback.
-                 animateMillis = 0L // Instant
-             )
-             // Wait, MiniPlayerColorizer logic: if image is NOT null, it generates palette. 
-             // If I use 'applyFromImageView', it WILL regenerate.
-             // I need to manually apply the color if cached.
-             // I'll inline the application logic for cache hit.
-             
-             // Apply Cached Color Logic:
-             applyCachedColor(container, titleView, subtitleView, cachedColor)
-             return
-        }
-
-        // 2. Cache Miss: Full Load
-        Glide.with(imageView).clear(imageView)
-
-        if (url.isNullOrBlank()) {
-            imageView.setImageResource(placeholderRes)
-             MiniPlayerColorizer.applyFromImageView(
-                imageView,
-                MiniPlayerColorizer.Targets(container = container, title = titleView, subtitle = subtitleView),
-                fallbackColor = imageView.context.getColor(R.color.primaryColorTheme), // Default dark/primary
-                animateMillis = 0L
-            )
-            return
-        }
-
-        val model = ImageRequestHelper.buildGlideModel(imageView.context, url)
-
-        Glide.with(imageView)
-            .asBitmap()
-            .load(model)
-            .override(300, 300)
-            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .dontAnimate()
-            .placeholder(placeholderRes)
-            .error(placeholderRes)
-            .into(object : CustomTarget<Bitmap>() {
-                override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                    imageView.setImageBitmap(resource)
-                    
-                    // We need to Intercept the color to cache it.
-                    // MiniPlayerColorizer doesn't return it.
-                    // We might need to generate palette here manually then cache it.
-                    
-                    androidx.palette.graphics.Palette.from(resource).maximumColorCount(32).generate { palette ->
-                         val swatches = listOfNotNull(
-                            palette?.vibrantSwatch,
-                            palette?.darkVibrantSwatch,
-                            palette?.lightVibrantSwatch,
-                            palette?.mutedSwatch,
-                            palette?.darkMutedSwatch,
-                            palette?.lightMutedSwatch,
-                            palette?.dominantSwatch
-                        )
-                        val bestSwatch = swatches.maxByOrNull { it.population }
-                        val rawBgColor = bestSwatch?.rgb ?: imageView.context.getColor(R.color.primaryColorTheme)
-                        
-                        // CACHE IT
-                        dominantColorCache[songId] = rawBgColor
-                        
-                        // Now Apply
-                        // We can call MiniPlayerColorizer but it will regen again. 
-                        // Or we duplicate logic. 
-                        // Best: MiniPlayerColorizer is small enough to just let it run once, 
-                        // BUT if we want true optimization we should not generate twice.
-                        // Since I am already generating here to cache, I should apply it myself.
-                        
-                        // Copying logic from MiniPlayerColorizer (Contrast check)
-                        val isBgDark = androidx.core.graphics.ColorUtils.calculateLuminance(rawBgColor) < 0.6
-                        val textColor = if (isBgDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                        
-                        // We call ensureContrast helper from MiniPlayerColorizer? It is private.
-                        // I'll skipping exact Contrast helper for now or expose it?
-                        // Simplest: Just use MiniPlayerColorizer.applyFromImageView(imageView...) inside generic flow 
-                        // and accept it runs Palette twice first time? NO, that defeats optimization.
-                        
-                        // Hack: I will just use MiniPlayerColorizer normally on MISS. 
-                        // But wait, how do I get the color to cache it if I use MiniPlayerColorizer?
-                        // I can't.
-                        // So I MUST Generate Palette here.
-                        
-                        applyColorToViews(container, titleView, subtitleView, rawBgColor, textColor)
-                    }
-                }
-
-                override fun onLoadCleared(placeholder: Drawable?) {
-                    imageView.setImageDrawable(placeholder)
-                 }
-                
-                override fun onLoadFailed(errorDrawable: Drawable?) {
-                     imageView.setImageDrawable(errorDrawable)
-                }
-            })
-    }
-    
-    private fun applyCachedColor(container: View, title: TextView, subtitle: TextView, color: Int) {
-         val isBgDark = androidx.core.graphics.ColorUtils.calculateLuminance(color) < 0.6
-         val textColor = if (isBgDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-         applyColorToViews(container, title, subtitle, color, textColor)
-    }
-    
-    private fun applyColorToViews(container: View, title: TextView, subtitle: TextView, bgColor: Int, textColor: Int) {
-         // Direct application without animation for cache hits or fast loads
-         // Ensure contrast logic (simplified version of MiniPlayerColorizer)
-         // Actually, let's just create a quick robust helper
-         
-         // Fix background tint
-         androidx.core.view.ViewCompat.setBackgroundTintList(container, android.content.res.ColorStateList.valueOf(bgColor))
-         
-         // Fix text color
-         title.setTextColor(textColor)
-         subtitle.setTextColor(adjustAlpha(textColor, 0.85f))
-    }
-     private fun adjustAlpha(color: Int, factor: Float): Int {
-        val a = (android.graphics.Color.alpha(color) * factor).toInt()
-        return android.graphics.Color.argb(a, android.graphics.Color.red(color), android.graphics.Color.green(color), android.graphics.Color.blue(color))
     }
 
     class SongDiffCallback : DiffUtil.ItemCallback<Song>() {

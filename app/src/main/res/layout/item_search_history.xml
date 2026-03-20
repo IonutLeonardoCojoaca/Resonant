@@ -4,20 +4,19 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/item_history_background"
     android:layout_width="match_parent"
-    android:layout_height="60dp"
-    android:layout_marginVertical="4dp"
+    android:layout_height="70dp"
+    android:layout_marginVertical="2dp"
     android:background="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:paddingHorizontal="5dp">
+    android:paddingHorizontal="8dp">
 
-    <ImageView
+    <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/iconRecent"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_marginStart="10dp"
-        android:src="@drawable/ic_recent"
-        app:tint="@color/white"
+        android:layout_width="55dp"
+        android:layout_height="55dp"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -25,7 +24,7 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="15dp"
+        android:layout_marginHorizontal="14dp"
         android:orientation="vertical"
         android:gravity="center_vertical"
         app:layout_constraintBottom_toBottomOf="parent"

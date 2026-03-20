@@ -72,8 +72,14 @@ class TransitionManager(
         this.nextPlayer = null
 
         // Limpieza de EQs
-        oldPlayerEq?.release()
-        newPlayerEq?.release()
+        try {
+            oldPlayerEq?.enabled = false
+            oldPlayerEq?.release()
+        } catch (e: Exception) {}
+        try {
+            newPlayerEq?.enabled = false
+            newPlayerEq?.release()
+        } catch (e: Exception) {}
         oldPlayerEq = null
         newPlayerEq = null
 
@@ -262,7 +268,12 @@ class TransitionManager(
 
         try { nextPlayer?.stop(); nextPlayer?.release() } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar nextExoPlayer", e) }
         nextPlayer = null
-        try { oldPlayerEq?.release(); newPlayerEq?.release() } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar EQs", e) }
+        try { 
+            oldPlayerEq?.enabled = false
+            oldPlayerEq?.release()
+            newPlayerEq?.enabled = false
+            newPlayerEq?.release() 
+        } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar EQs", e) }
         oldPlayerEq = null
         newPlayerEq = null
 

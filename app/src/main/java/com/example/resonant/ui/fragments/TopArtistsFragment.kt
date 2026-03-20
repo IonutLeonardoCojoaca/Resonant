@@ -12,19 +12,28 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import android.content.res.ColorStateList
+import android.graphics.Color
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
 import com.example.resonant.R
 import com.example.resonant.data.models.StatsPeriod
 import com.example.resonant.ui.adapters.FeaturedImageAdapter
 import com.example.resonant.ui.adapters.TopArtistAdapter
 import com.example.resonant.ui.viewmodels.TopArtistsViewModel
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.tabs.TabLayout
+import androidx.recyclerview.widget.SimpleItemAnimator
 
 class TopArtistsFragment : Fragment() {
 
     private lateinit var viewModel: TopArtistsViewModel
 
-    private lateinit var tabLayout: TabLayout
+    private lateinit var btnDaily: MaterialButton
+    private lateinit var btnWeekly: MaterialButton
+    private lateinit var btnMonthly: MaterialButton
+    private lateinit var btnGlobal: MaterialButton
     private lateinit var featuredName: TextView
     private lateinit var featuredStats: TextView
     private lateinit var viewPagerGallery: ViewPager2
@@ -32,6 +41,10 @@ class TopArtistsFragment : Fragment() {
     private lateinit var btnViewFeatured: MaterialButton
     private lateinit var featuredContainer: View
     private lateinit var btnBack: FrameLayout
+
+    private var currentPeriod: Int = 0
+    private var lastFeaturedArtistId: String? = null
+    private var shouldAnimateFeaturedImages = false
 
     private lateinit var topArtistAdapter: TopArtistAdapter
     private lateinit var galleryAdapter: FeaturedImageAdapter
@@ -52,7 +65,7 @@ class TopArtistsFragment : Fragment() {
         initViews(view)
         setupListeners()
         setupObservers()
-        setupTabs() // también lanza la carga inicial
+        setupChips()
     }
 
     private fun initAdapters() {
@@ -64,7 +77,10 @@ class TopArtistsFragment : Fragment() {
 
     private fun initViews(view: View) {
         btnBack = view.findViewById(R.id.btnBack)
-        tabLayout = view.findViewById(R.id.tabLayoutPeriod)
+        btnDaily = view.findViewById(R.id.btnDaily)
+        btnWeekly = view.findViewById(R.id.btnWeekly)
+        btnMonthly = view.findViewById(R.id.btnMonthly)
+        btnGlobal = view.findViewById(R.id.btnGlobal)
         featuredName = view.findViewById(R.id.featuredArtistName)
         featuredStats = view.findViewById(R.id.featuredArtistStats)
         viewPagerGallery = view.findViewById(R.id.artistGalleryPager)
@@ -76,6 +92,13 @@ class TopArtistsFragment : Fragment() {
         recyclerView.adapter = topArtistAdapter
         recyclerView.setHasFixedSize(false)
         recyclerView.isNestedScrollingEnabled = false
+        recyclerView.itemAnimator?.apply {
+            addDuration = 160
+            removeDuration = 140
+            moveDuration = 220
+            changeDuration = 120
+        }
+        (recyclerView.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
 
         viewPagerGallery.adapter = galleryAdapter
         viewPagerGallery.offscreenPageLimit = 1
@@ -87,28 +110,61 @@ class TopArtistsFragment : Fragment() {
         }
     }
 
-    private fun setupTabs() {
-        tabLayout.addTab(tabLayout.newTab().setText("Hoy"))
-        tabLayout.addTab(tabLayout.newTab().setText("Semana"))
-        tabLayout.addTab(tabLayout.newTab().setText("Mes"))
-        tabLayout.addTab(tabLayout.newTab().setText("Global"))
+    private fun dpToPx(dp: Int): Int =
+        (dp * resources.displayMetrics.density).toInt()
 
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab?) {
-                val period = when (tab?.position) {
-                    0 -> StatsPeriod.DAILY.value
-                    1 -> StatsPeriod.WEEKLY.value
-                    2 -> StatsPeriod.MONTHLY.value
-                    3 -> StatsPeriod.ALL_TIME.value
-                    else -> StatsPeriod.DAILY.value
-                }
-                viewModel.loadTopArtists(period)
+    private fun updateButtonStates(selectedPeriod: Int) {
+        val buttons = listOf(btnDaily, btnWeekly, btnMonthly, btnGlobal)
+        val periods = listOf(0, 1, 2, 3)
+        buttons.forEachIndexed { index, button ->
+            if (periods[index] == selectedPeriod) {
+                button.backgroundTintList = ColorStateList.valueOf(
+                    ContextCompat.getColor(requireContext(), R.color.secondaryColorTheme)
+                )
+                button.strokeWidth = 0
+                button.setTextColor(Color.WHITE)
+            } else {
+                button.backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+                button.strokeColor = ColorStateList.valueOf(Color.parseColor("#80FFFFFF"))
+                button.strokeWidth = dpToPx(1)
+                button.setTextColor(Color.parseColor("#CCFFFFFF"))
             }
-            override fun onTabUnselected(tab: TabLayout.Tab?) {}
-            override fun onTabReselected(tab: TabLayout.Tab?) {}
-        })
+        }
+    }
 
-        // Forzar carga inicial del primer tab
+    private fun setupChips() {
+        updateButtonStates(0)
+
+        btnDaily.setOnClickListener {
+            if (currentPeriod != 0) {
+                currentPeriod = 0
+                updateButtonStates(0)
+                viewModel.loadTopArtists(StatsPeriod.DAILY.value)
+            }
+        }
+        btnWeekly.setOnClickListener {
+            if (currentPeriod != 1) {
+                currentPeriod = 1
+                updateButtonStates(1)
+                viewModel.loadTopArtists(StatsPeriod.WEEKLY.value)
+            }
+        }
+        btnMonthly.setOnClickListener {
+            if (currentPeriod != 2) {
+                currentPeriod = 2
+                updateButtonStates(2)
+                viewModel.loadTopArtists(StatsPeriod.MONTHLY.value)
+            }
+        }
+        btnGlobal.setOnClickListener {
+            if (currentPeriod != 3) {
+                currentPeriod = 3
+                updateButtonStates(3)
+                viewModel.loadTopArtists(StatsPeriod.ALL_TIME.value)
+            }
+        }
+
+        // Carga inicial
         viewModel.loadTopArtists(StatsPeriod.DAILY.value)
     }
 
@@ -120,8 +176,19 @@ class TopArtistsFragment : Fragment() {
         viewModel.featuredArtist.observe(viewLifecycleOwner) { rankItem ->
             if (rankItem != null) {
                 featuredContainer.visibility = View.VISIBLE
-                featuredName.text = rankItem.artist.name
-                featuredStats.text = "Artista más popular"
+                val shouldAnimate = lastFeaturedArtistId != null && lastFeaturedArtistId != rankItem.artist.id
+                shouldAnimateFeaturedImages = shouldAnimate
+                bindFeaturedArtist(rankItem.artist.id, rankItem.artist.name, rankItem.artist.url, shouldAnimate)
+                lastFeaturedArtistId = rankItem.artist.id
+
+                // Pre-cargar la imagen principal con prioridad alta antes de que el ViewPager la muestre
+                rankItem.artist.url?.let { url ->
+                    Glide.with(this)
+                        .load(url)
+                        .apply(RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL).skipMemoryCache(false))
+                        .preload()
+                }
+
                 btnViewFeatured.setOnClickListener {
                     navigateToArtist(rankItem.artist.id, rankItem.artist.name, rankItem.artist.url)
                 }
@@ -131,8 +198,65 @@ class TopArtistsFragment : Fragment() {
         }
 
         viewModel.featuredImages.observe(viewLifecycleOwner) { images ->
-            galleryAdapter.updateData(images.ifEmpty { emptyList() })
+            updateFeaturedImages(images.ifEmpty { emptyList() }, shouldAnimateFeaturedImages)
+            shouldAnimateFeaturedImages = false
         }
+    }
+
+    private fun bindFeaturedArtist(
+        artistId: String,
+        artistName: String,
+        artistUrl: String?,
+        animate: Boolean
+    ) {
+        val updateContent = {
+            featuredName.text = artistName
+            featuredStats.text = "Artista más popular del periodo"
+            btnViewFeatured.setOnClickListener {
+                navigateToArtist(artistId, artistName, artistUrl)
+            }
+        }
+
+        if (!animate) {
+            featuredContainer.alpha = 1f
+            updateContent()
+            return
+        }
+
+        featuredContainer.animate()
+            .alpha(0f)
+            .setDuration(120)
+            .withEndAction {
+                updateContent()
+                featuredContainer.animate()
+                    .alpha(1f)
+                    .setDuration(180)
+                    .start()
+            }
+            .start()
+    }
+
+    private fun updateFeaturedImages(images: List<String>, animate: Boolean) {
+        if (!animate) {
+            viewPagerGallery.alpha = 1f
+            galleryAdapter.updateData(images)
+            return
+        }
+
+        viewPagerGallery.animate()
+            .alpha(0f)
+            .setDuration(120)
+            .withEndAction {
+                galleryAdapter.updateData(images)
+                viewPagerGallery.post {
+                    viewPagerGallery.setCurrentItem(0, false)
+                    viewPagerGallery.animate()
+                        .alpha(1f)
+                        .setDuration(180)
+                        .start()
+                }
+            }
+            .start()
     }
 
     private fun navigateToArtist(id: String, name: String, url: String?) {

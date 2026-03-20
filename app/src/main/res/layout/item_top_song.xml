@@ -3,39 +3,41 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/item_song_background"
     android:layout_width="match_parent"
-    android:layout_height="70dp"
+    android:layout_height="wrap_content"
     android:layout_marginVertical="4dp">
 
     <FrameLayout
         android:id="@+id/item_background"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_centerHorizontal="true">
+        android:layout_height="76dp"
+        android:layout_centerHorizontal="true"
+        android:foreground="?attr/selectableItemBackground">
 
         <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:paddingHorizontal="14dp">
 
             <TextView
                 android:id="@+id/songPosition"
-                android:layout_width="35dp"
-                android:layout_height="wrap_content"
+                android:layout_width="40dp"
+                android:layout_height="28dp"
                 android:layout_centerVertical="true"
-                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_top_chart_rank_badge"
                 android:fontFamily="@font/unageo_medium"
                 android:gravity="center"
                 android:text=""
                 android:textColor="@color/white"
-                android:textSize="16sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/songImage"
-                android:layout_width="60dp"
-                android:layout_height="60dp"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
                 android:layout_marginStart="12dp"
                 android:layout_toEndOf="@id/songPosition"
-                android:scaleType="fitCenter"
+                android:scaleType="centerCrop"
                 android:layout_centerVertical="true"
                 app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
 
@@ -44,7 +46,8 @@
                 android:layout_height="wrap_content"
                 android:layout_toEndOf="@id/songImage"
                 android:layout_centerVertical="true"
-                android:layout_marginHorizontal="10dp"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="8dp"
                 android:descendantFocusability="blocksDescendants">
 
                 <TextView
@@ -57,19 +60,18 @@
                     android:textColor="@color/white"
                     android:text="Song Name"
                     android:textSize="15sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textStyle="bold"
+                    android:fontFamily="@font/unageo_bold"
                     android:maxLines="1"
                     android:ellipsize="end"/>
 
                 <ImageView
                     android:id="@+id/downloadedIcon"
-                    android:layout_width="14dp"
-                    android:layout_height="14dp"
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
                     android:layout_below="@id/songTitle"
                     android:layout_alignParentStart="true"
                     android:layout_marginTop="2dp"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="4dp"
                     android:src="@drawable/ic_download_done"
                     android:visibility="gone"
                     app:tint="@color/secondaryColorTheme" />
@@ -77,39 +79,40 @@
                 <TextView
                     android:id="@+id/songStreams"
                     android:layout_width="match_parent"
-                    android:layout_height="18dp"
+                    android:layout_height="wrap_content"
                     android:layout_below="@id/songTitle"
                     android:layout_toEndOf="@id/downloadedIcon"
                     android:layout_toLeftOf="@id/likeButton"
-                    android:textColor="#BDBDBD"
+                    android:textColor="#AAFFFFFF"
                     android:text="0 reproducciones"
                     android:textSize="12sp"
                     android:fontFamily="@font/unageo_medium" />
 
                 <ImageButton
                     android:id="@+id/likeButton"
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:layout_centerVertical="true"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="5dp"
+                    android:layout_marginStart="0dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_toLeftOf="@id/featuredButton"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:clickable="true"
                     android:focusable="true"
                     android:focusableInTouchMode="false"/>
 
                 <ImageButton
                     android:id="@+id/featuredButton"
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:layout_centerVertical="true"
                     android:layout_alignParentRight="true"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:clickable="true"
                     android:focusable="true"
                     android:focusableInTouchMode="false"
-                    android:src="@drawable/ic_item_settings"/>
+                    android:src="@drawable/ic_item_settings"
+                    app:tint="#BDBDBD"/>
 
             </RelativeLayout>
 

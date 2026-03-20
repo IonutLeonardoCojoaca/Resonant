@@ -227,9 +227,12 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
 
         fun bind(album: Album) {
             albumTitle.text = album.title ?: "Not found"
-            albumArtistName.text = album.artistName ?: "Desconocido"
+            albumArtistName.text = album.artistName
+                ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotBlank() }
+                ?: "Desconocido"
             val placeholderRes = R.drawable.ic_album_stack
             Glide.with(itemView).clear(albumImage)
+
             val url = album.url
             if (url.isNullOrBlank()) { albumImage.setImageResource(placeholderRes) }
             else {

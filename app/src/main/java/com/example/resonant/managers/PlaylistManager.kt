@@ -74,6 +74,14 @@ class PlaylistManager(private val context: Context) {
         }
     }
 
+    suspend fun updatePlaylistName(playlistId: String, name: String) {
+        val response = playlistService.updatePlaylistName(playlistId, name)
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
+            throw Exception("Error ${response.code()}: $errorMsg")
+        }
+    }
+
     // --- MÉTODOS DE USUARIO ---
     suspend fun getUserById(userId: String): User {
         return userService.getUserById(userId)

@@ -10,14 +10,10 @@
 
     <ImageView
         android:id="@+id/blurrySongImageBackground"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
-        android:scaleY="3"
-        android:scaleX="3"
-        android:translationY="200dp"
-        android:translationX="50dp"
-        android:scaleType="fitCenter"
-        android:alpha="0.30"/>
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0.35"/>
 
     <View
         android:layout_width="match_parent"
@@ -38,13 +34,14 @@
         android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:paddingVertical="5dp"
         android:paddingHorizontal="15dp">
 
         <FrameLayout
             android:id="@+id/arrowGoBackBackground"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginVertical="10dp"
+            android:layout_marginVertical="5dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -105,7 +102,7 @@
             android:id="@+id/settingsBackground"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginVertical="10dp"
+            android:layout_marginVertical="5dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -123,187 +120,174 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/nestedScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:layout_below="@id/topBar">
+        android:layout_below="@id/topBar"
+        android:fillViewport="true"
+        android:overScrollMode="always">
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/song_image"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_marginHorizontal="20dp"
-            android:layout_centerHorizontal="true"
-            android:background="@drawable/ic_disc"
-            app:layout_constraintDimensionRatio="1:1"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
-
-        <RelativeLayout
-            android:id="@+id/songData"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:paddingBottom="10dp"
-            android:paddingTop="10dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/song_image">
-
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_alignParentTop="true"
-                android:layout_centerHorizontal="true"
-                android:padding="2dp">
-
-                <TextView
-                    android:id="@+id/song_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentTop="true"
-                    android:layout_alignParentStart="true"
-                    android:layout_marginEnd="10dp"
-                    android:layout_toLeftOf="@id/likeButton"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_medium"
-                    android:maxLines="1"
-                    android:text="Song Title"
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/songArtist"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/song_title"
-                    android:layout_alignParentStart="true"
-                    android:layout_toLeftOf="@id/likeButton"
-                    android:layout_marginEnd="10dp"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_medium"
-                    android:maxLines="1"
-                    android:text="Artist Name"
-                    android:textColor="@color/white"
-                    android:textSize="14sp" />
-
-                <ImageButton
-                    android:id="@+id/likeButton"
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:background="@drawable/ic_favorite_border" />
-
-            </RelativeLayout>
-
-        </RelativeLayout>
-
-        <RelativeLayout
-            android:id="@+id/seekbarActionsContainer"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/songData">
+            android:orientation="vertical">
 
-            <FrameLayout
-                android:id="@+id/actionsReplayRandomContainer"
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/song_image"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingHorizontal="10dp"
-                android:paddingBottom="5dp">
-
-                <ImageButton
-                    android:id="@+id/shuffleButton"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_gravity="center_vertical|start"
-                    android:background="@drawable/ic_random"
-                    android:layout_marginStart="4dp"/>
-
-                <ImageButton
-                    android:id="@+id/replay_button"
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
-                    android:layout_gravity="center_vertical|end"
-                    android:background="@android:color/transparent"
-                    android:scaleType="centerCrop"
-                    android:padding="0dp"
-                    android:src="@drawable/ic_replay" />
-
-            </FrameLayout>
+                android:layout_marginHorizontal="20dp"
+                android:adjustViewBounds="true"
+                android:background="@drawable/ic_disc"
+                app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
 
             <RelativeLayout
-                android:id="@+id/seekbarContainer"
+                android:id="@+id/songData"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_below="@id/actionsReplayRandomContainer"
-                android:paddingHorizontal="0dp">
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="20dp"
+                android:paddingBottom="10dp"
+                android:paddingTop="10dp">
 
-                <TextView
-                    android:id="@+id/currentTimeText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="20dp"
-                    android:layout_alignParentStart="true"
-                    android:layout_alignParentBottom="true"
-                    android:layout_marginStart="15dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="00:00"
-                    android:textColor="@color/numberTime"
-                    android:textSize="12sp" />
-
-                <SeekBar
-                    android:id="@+id/seekBar"
+                <RelativeLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_alignParentTop="true"
-                    android:progressTint="@color/white"
-                    android:thumbTint="@color/white" />
+                    android:layout_centerHorizontal="true"
+                    android:padding="2dp">
 
-                <TextView
-                    android:id="@+id/totalTimeText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="20dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_alignParentBottom="true"
-                    android:layout_marginEnd="15dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="00:00"
-                    android:textColor="@color/numberTime"
-                    android:textSize="12sp" />
+                    <TextView
+                        android:id="@+id/song_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentTop="true"
+                        android:layout_alignParentStart="true"
+                        android:layout_marginEnd="10dp"
+                        android:layout_toLeftOf="@id/likeButton"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_medium"
+                        android:maxLines="1"
+                        android:text="Song Title"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/songArtist"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/song_title"
+                        android:layout_alignParentStart="true"
+                        android:layout_toLeftOf="@id/likeButton"
+                        android:layout_marginEnd="10dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_medium"
+                        android:maxLines="1"
+                        android:text="Artist Name"
+                        android:textColor="@color/white"
+                        android:textSize="14sp" />
+
+                    <ImageButton
+                        android:id="@+id/likeButton"
+                        android:layout_width="35dp"
+                        android:layout_height="35dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@drawable/ic_favorite_border" />
+
+                </RelativeLayout>
 
             </RelativeLayout>
 
-        </RelativeLayout>
+            <RelativeLayout
+                android:id="@+id/seekbarActionsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="12dp">
 
-        <RelativeLayout
-            android:id="@+id/songActionsContainer"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/seekbarActionsContainer">
+                <FrameLayout
+                    android:id="@+id/actionsReplayRandomContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="10dp"
+                    android:paddingBottom="5dp">
+
+                    <ImageButton
+                        android:id="@+id/shuffleButton"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_gravity="center_vertical|start"
+                        android:background="@drawable/ic_random"
+                        android:layout_marginStart="4dp"/>
+
+                    <ImageButton
+                        android:id="@+id/replay_button"
+                        android:layout_width="35dp"
+                        android:layout_height="35dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:background="@android:color/transparent"
+                        android:scaleType="centerCrop"
+                        android:padding="0dp"
+                        android:src="@drawable/ic_replay" />
+
+                </FrameLayout>
+
+                <RelativeLayout
+                    android:id="@+id/seekbarContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_below="@id/actionsReplayRandomContainer"
+                    android:paddingHorizontal="0dp">
+
+                    <TextView
+                        android:id="@+id/currentTimeText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="20dp"
+                        android:layout_alignParentStart="true"
+                        android:layout_alignParentBottom="true"
+                        android:layout_marginStart="15dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="00:00"
+                        android:textColor="@color/numberTime"
+                        android:textSize="12sp" />
+
+                    <SeekBar
+                        android:id="@+id/seekBar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentTop="true"
+                        android:progressTint="@color/white"
+                        android:thumbTint="@color/white" />
+
+                    <TextView
+                        android:id="@+id/totalTimeText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="20dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_alignParentBottom="true"
+                        android:layout_marginEnd="15dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="00:00"
+                        android:textColor="@color/numberTime"
+                        android:textSize="12sp" />
+
+                </RelativeLayout>
+
+            </RelativeLayout>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/nextSongContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_above="@+id/playerActions"
-                android:layout_centerHorizontal="true"
                 android:layout_marginHorizontal="30dp"
-                android:layout_marginBottom="25dp"
+                android:layout_marginBottom="10dp"
                 app:cardBackgroundColor="#26FFFFFF"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
                 app:strokeColor="#1AFFFFFF"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp"
+                android:layout_marginTop="10dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -356,11 +340,11 @@
                 android:id="@+id/playerActions"
                 android:layout_width="240dp"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:layout_centerHorizontal="true"
+                android:layout_gravity="center_horizontal"
                 android:layout_marginBottom="20dp"
                 android:orientation="horizontal"
-                android:paddingHorizontal="18dp">
+                android:paddingHorizontal="18dp"
+                android:layout_marginTop="20dp">
 
                 <ImageButton
                     android:id="@+id/previousSongButton"
@@ -401,8 +385,124 @@
 
             </RelativeLayout>
 
-        </RelativeLayout>
+            <!-- ── LYRICS CARD ── -->
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/lyricsCard"
+                android:layout_width="match_parent"
+                android:layout_height="280dp"
+                android:layout_marginHorizontal="20dp"
+                android:layout_marginTop="30dp"
+                android:layout_marginBottom="48dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#1A1A1A">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/lyricsRecyclerView"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:overScrollMode="never"
+                        android:paddingTop="118dp"
+                        android:paddingBottom="118dp"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:visibility="gone"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent" />
+
+                    <View
+                        android:id="@+id/lyricsTopFade"
+                        android:layout_width="match_parent"
+                        android:layout_height="72dp"
+                        android:layout_gravity="top"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@+id/header_lyrics" />
+
+                    <View
+                        android:id="@+id/lyricsBottomFade"
+                        android:layout_width="match_parent"
+                        android:layout_height="72dp"
+                        android:layout_gravity="bottom"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent" />
+
+                    <ProgressBar
+                        android:id="@+id/lyricsLoadingIndicator"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        android:indeterminateTint="@color/secondaryColorTheme"
+                        android:visibility="gone"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <TextView
+                        android:id="@+id/noLyricsText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="24dp"
+                        android:text="No hay letra disponible"
+                        android:textColor="#66FFFFFF"
+                        android:textSize="13sp"
+                        android:visibility="visible"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <LinearLayout
+                        android:id="@+id/header_lyrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top"
+                        android:background="#FF1A1A1A"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/unageo_bold"
+                            android:letterSpacing="0.1"
+                            android:text="LETRA"
+                            android:textAllCaps="true"
+                            android:textColor="#99FFFFFF"
+                            android:textSize="12sp" />
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:src="@drawable/ic_keyboard_arrow_up"
+                            app:tint="#66FFFFFF" />
+
+                    </LinearLayout>
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
 
 </RelativeLayout>

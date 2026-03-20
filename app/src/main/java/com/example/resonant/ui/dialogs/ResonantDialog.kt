@@ -6,33 +6,48 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.view.LayoutInflater
 import android.view.View
+import android.util.TypedValue
+import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import com.example.resonant.R
 
 class ResonantDialog(context: Context) {
 
     private val dialog = Dialog(context)
-    private val view: View = LayoutInflater.from(context).inflate(R.layout.dialog_resonant_custom, null)
+    private val view: View = LayoutInflater.from(context)
+        .inflate(R.layout.dialog_resonant_custom, null)
 
-    // Referencias a las vistas del XML
-    private val titleView: TextView = view.findViewById(R.id.dialogTitle)
+    private val sectionView: TextView = view.findViewById(R.id.dialogSection)
+    private val titleView:   TextView = view.findViewById(R.id.dialogTitle)
     private val messageView: TextView = view.findViewById(R.id.dialogMessage)
-    private val positiveBtn: Button = view.findViewById(R.id.positiveButton)
-    private val negativeBtn: Button = view.findViewById(R.id.negativeButton)
+    private val positiveBtn: TextView = view.findViewById(R.id.positiveButton)
+    private val negativeBtn: TextView = view.findViewById(R.id.negativeButton)
+    private val btnDivider:  View     = view.findViewById(R.id.buttonDivider)
 
     init {
-        // Configuración base para que el fondo sea transparente y se vea tu diseño redondeado
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(view)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-        // Hacer que el diálogo sea ancho (match_parent con márgenes)
+        val displayMetrics = context.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val marginPx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, 48f, displayMetrics
+        ).toInt()
         dialog.window?.setLayout(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            screenWidth - marginPx,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         )
+    }
+
+    fun setSection(text: String): ResonantDialog {
+        if (text.isNotEmpty()) {
+            sectionView.text = text.uppercase()
+            sectionView.visibility = View.VISIBLE
+        }
+        return this
     }
 
     fun setTitle(text: String): ResonantDialog {
@@ -46,9 +61,11 @@ class ResonantDialog(context: Context) {
         return this
     }
 
-    fun setPositiveButton(text: String, onClick: () -> Unit): ResonantDialog {
+    fun setPositiveButton(
+        text: String,
+        onClick: () -> Unit
+    ): ResonantDialog {
         positiveBtn.text = text
-        positiveBtn.visibility = View.VISIBLE
         positiveBtn.setOnClickListener {
             onClick()
             dialog.dismiss()
@@ -56,9 +73,13 @@ class ResonantDialog(context: Context) {
         return this
     }
 
-    fun setNegativeButton(text: String, onClick: (() -> Unit)? = null): ResonantDialog {
+    fun setNegativeButton(
+        text: String,
+        onClick: (() -> Unit)? = null
+    ): ResonantDialog {
         negativeBtn.text = text
         negativeBtn.visibility = View.VISIBLE
+        btnDivider.visibility = View.VISIBLE
         negativeBtn.setOnClickListener {
             onClick?.invoke()
             dialog.dismiss()
@@ -66,7 +87,17 @@ class ResonantDialog(context: Context) {
         return this
     }
 
-    // Opción para que no se cierre al pulsar fuera (para diálogos críticos)
+    // Acción destructiva — botón positivo en rojo
+    fun setDestructive(): ResonantDialog {
+        positiveBtn.setTextColor(
+            ContextCompat.getColor(
+                dialog.context,
+                R.color.secondaryColorTheme
+            )
+        )
+        return this
+    }
+
     fun setCancelable(cancelable: Boolean): ResonantDialog {
         dialog.setCancelable(cancelable)
         return this

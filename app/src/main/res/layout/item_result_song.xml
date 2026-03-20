@@ -1,150 +1,135 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/item_song_background"
+    android:id="@+id/item_song_root"
     android:layout_width="match_parent"
     android:layout_height="70dp"
-    android:layout_marginVertical="4dp">
+    android:layout_marginVertical="2dp"
+    android:paddingHorizontal="8dp"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true">
 
-    <FrameLayout
-        android:id="@+id/item_background"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_centerHorizontal="true">
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/loadingAnimation"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:lottie_fileName="loader.json"
+        app:lottie_autoPlay="true"
+        app:lottie_loop="true"
+        android:visibility="gone"/>
 
-        <RelativeLayout
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/songImage"
+        android:layout_width="55dp"
+        android:layout_height="55dp"
+        android:scaleType="centerCrop"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"/>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="8dp"
+        app:layout_constraintStart_toEndOf="@id/songImage"
+        app:layout_constraintEnd_toStartOf="@id/likeButton"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:id="@+id/songTitle"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:text=""
+            android:textSize="14sp"
+            android:fontFamily="@font/unageo_medium"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
-            <com.airbnb.lottie.LottieAnimationView
-                android:id="@+id/loadingAnimation"
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:layout_centerVertical="true"
-                android:layout_margin="5dp"
-                app:lottie_fileName="loader.json"
-                app:lottie_autoPlay="true"
-                app:lottie_loop="true"
-                android:visibility="gone"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="2dp">
 
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/songImage"
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:layout_margin="5dp"
-                android:scaleType="fitCenter"
-                android:layout_centerVertical="true"
-                app:shapeAppearanceOverlay="@style/RoundedCornersImage"
-                android:alpha="0.8"/>
+            <ImageView
+                android:id="@+id/downloadedIcon"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginEnd="4dp"
+                android:src="@drawable/ic_download_done"
+                android:visibility="gone"
+                app:tint="@color/secondaryColorTheme" />
 
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_toEndOf="@id/songImage"
-                android:layout_toStartOf="@id/buttonsContainer"
-                android:layout_centerVertical="true"
-                android:layout_marginHorizontal="8dp"
-                android:descendantFocusability="blocksDescendants">
-
-                <TextView
-                    android:id="@+id/songTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentTop="true"
-                    android:layout_alignParentStart="true"
-                    android:textColor="@color/white"
-                    android:text=""
-                    android:textSize="16sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textStyle="bold"
-                    android:maxLines="1"
-                    android:ellipsize="end"/>
-
-                <ImageView
-                    android:id="@+id/downloadedIcon"
-                    android:layout_width="14dp"
-                    android:layout_height="14dp"
-                    android:layout_alignParentStart="true"
-                    android:layout_alignParentBottom="true"
-                    android:layout_marginBottom="2dp"
-                    android:layout_marginEnd="4dp"
-                    android:src="@drawable/ic_download_done"
-                    android:visibility="gone"
-                    app:tint="@color/secondaryColorTheme" />
-
-                <TextView
-                    android:id="@+id/dataType"
-                    android:layout_width="wrap_content"
-                    android:layout_height="18dp"
-                    android:text="Canción"
-                    android:textSize="12sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textColor="#BDBDBD"
-                    android:layout_alignParentBottom="true"
-                    android:layout_toRightOf="@id/downloadedIcon"/>
-
-                <TextView
-                    android:id="@+id/separator"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="3dp"
-                    android:text="●"
-                    android:layout_alignParentBottom="true"
-                    android:textColor="#BDBDBD"
-                    android:layout_toRightOf="@id/dataType"/>
-
-                <TextView
-                    android:id="@+id/songArtist"
-                    android:layout_width="wrap_content"
-                    android:layout_height="18dp"
-                    android:textColor="#BDBDBD"
-                    android:text=""
-                    android:textSize="12sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:layout_alignParentBottom="true"
-                    android:layout_toRightOf="@id/separator"
-                    android:maxLines="1"
-                    android:ellipsize="end"/>
-
-            </RelativeLayout>
-
-            <!-- Contenedor para botones alineados a la derecha -->
-            <LinearLayout
-                android:id="@+id/buttonsContainer"
+            <TextView
+                android:id="@+id/dataType"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginEnd="8dp">
+                android:text="Canción"
+                android:textSize="12sp"
+                android:fontFamily="@font/unageo_medium"
+                android:textColor="#BDBDBD" />
 
-                <ImageButton
-                    android:id="@+id/likeButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_favorite_border"
-                    android:padding="8dp"
-                    app:tint="@color/white"
-                    android:scaleType="fitCenter"
-                    android:clickable="true"
-                    android:focusable="true"/>
+            <TextView
+                android:id="@+id/separator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:text="●"
+                android:textSize="12sp"
+                android:textColor="#BDBDBD" />
 
-                <ImageButton
-                    android:id="@+id/featuredButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_item_settings"
-                    app:tint="@color/white"
-                    android:clickable="true"
-                    android:focusable="true"/>
+            <TextView
+                android:id="@+id/songArtist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#BDBDBD"
+                android:text=""
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:fontFamily="@font/unageo_medium" />
+        </LinearLayout>
 
-            </LinearLayout>
+    </LinearLayout>
 
-        </RelativeLayout>
+    <ImageButton
+        android:id="@+id/likeButton"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_favorite_border"
+        android:clickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="false"
+        app:tint="@color/white"
+        app:layout_constraintEnd_toStartOf="@id/featuredButton"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
-    </FrameLayout>
+    <ImageButton
+        android:id="@+id/featuredButton"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:layout_marginEnd="4dp"
+        android:focusableInTouchMode="false"
+        android:src="@drawable/ic_item_settings"
+        app:tint="#BDBDBD"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

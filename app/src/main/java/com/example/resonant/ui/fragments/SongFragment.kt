@@ -1,38 +1,59 @@
-package com.example.resonant.ui.fragments
+﻿package com.example.resonant.ui.fragments
 
+import android.content.ComponentName
 import android.content.Context
+
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.isVisible
+import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.DialogFragment
+
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.utils.AnimationsUtils
 import com.example.resonant.utils.PreferenceKeys
 import com.example.resonant.R
-import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
-import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.managers.LyricLine
+import com.example.resonant.managers.LyricsManager
+import com.example.resonant.ui.adapters.LyricsAdapter
 import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.AlbumService
@@ -41,9 +62,12 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
-import kotlinx.coroutines.launch
+import androidx.palette.graphics.Palette
 import com.example.resonant.playback.PlaybackStateRepository
+import com.google.android.material.card.MaterialCardView
 import java.io.File
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 class SongFragment : DialogFragment() {
     private lateinit var blurrySongImageBackground: ImageView
@@ -87,6 +111,69 @@ class SongFragment : DialogFragment() {
     // 1. Declaramos el servicio
     private lateinit var artistService: ArtistService
 
+    // Lyrics
+    private lateinit var nestedScrollView: NestedScrollView
+    private lateinit var lyricsCard: MaterialCardView
+    private lateinit var lyricsHeader: View
+    private lateinit var lyricsTopFade: View
+    private lateinit var lyricsBottomFade: View
+    private lateinit var lyricsRecyclerView: RecyclerView
+    private lateinit var lyricsLoadingIndicator: ProgressBar
+    private lateinit var noLyricsText: TextView
+    private lateinit var lyricsAdapter: LyricsAdapter
+    private var dominantColor: Int = 0xFF1A1A1A.toInt()
+    private var lastLyricsSongId: String? = null
+
+    private val lyricsHandler = Handler(Looper.getMainLooper())
+    private var lyricLines: List<LyricLine> = emptyList()
+    private var lastActiveLine = -1
+    private var autoScrollEnabled = true
+    private var hasTimedLyrics = false
+    private var userIsSeeking = false
+    private var ignoreUpdatesUntilMs = 0L
+
+    // Service binding for getCurrentPosition()
+    private var musicService: MusicPlaybackService? = null
+    private var serviceBound = false
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            val binder = service as MusicPlaybackService.MusicServiceBinder
+            musicService = binder.getService()
+            serviceBound = true
+            if (lyricLines.isNotEmpty()) {
+                startLyricsSync()
+            }
+        }
+        override fun onServiceDisconnected(name: ComponentName) {
+            musicService = null
+            serviceBound = false
+            stopLyricsSync()
+        }
+    }
+
+    private val lyricsUpdateRunnable = object : Runnable {
+        override fun run() {
+            if (userIsSeeking || System.currentTimeMillis() < ignoreUpdatesUntilMs) {
+                Log.d("SongFragmentSync", "Skipping update: userIsSeeking=$userIsSeeking, ignoreUpdatesUntilMs=$ignoreUpdatesUntilMs")
+                lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
+                return
+            }
+            
+            val service = musicService ?: return
+            
+            val positionMs = service.getCurrentPosition().toLong()
+            val durationMs = service.getDuration().toLong()
+            Log.d("SongFragmentSync", "Syncing lyrics to pos: $positionMs")
+            syncLyricsToPosition(positionMs, durationMs, forceScroll = false)
+            lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
+        }
+    }
+
+    private val reenableAutoScrollRunnable = Runnable {
+        autoScrollEnabled = true
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setStyle(STYLE_NORMAL, R.style.FullScreenDialogStyle)
@@ -94,8 +181,37 @@ class SongFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        val window = dialog?.window ?: return
-        window.setWindowAnimations(R.style.DialogAnimationUpDown)
+        dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
+
+        Intent(requireContext(), MusicPlaybackService::class.java).also { intent ->
+            requireContext().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (serviceBound) {
+            requireContext().unbindService(serviceConnection)
+            serviceBound = false
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (lyricLines.isNotEmpty() && serviceBound) {
+            startLyricsSync()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopLyricsSync()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        stopLyricsSync()
+        lyricsHandler.removeCallbacksAndMessages(null)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -142,10 +258,55 @@ class SongFragment : DialogFragment() {
         nextSongContainer = view.findViewById(R.id.nextSongContainer)
         nextSongInfo = view.findViewById(R.id.nextSongInfo)
 
-        arguments?.getString("coverFileName")?.let { fileName ->
-            val file = File(requireContext().cacheDir, fileName)
-            setSongImage(imageSong, file)
-            setSongImage(blurrySongImageBackground, file)
+        // Lyrics views
+        nestedScrollView = view.findViewById(R.id.nestedScrollView)
+        lyricsCard = view.findViewById(R.id.lyricsCard)
+        lyricsHeader = view.findViewById(R.id.header_lyrics)
+        lyricsTopFade = view.findViewById(R.id.lyricsTopFade)
+        lyricsBottomFade = view.findViewById(R.id.lyricsBottomFade)
+        lyricsRecyclerView = view.findViewById(R.id.lyricsRecyclerView)
+        lyricsLoadingIndicator = view.findViewById(R.id.lyricsLoadingIndicator)
+        noLyricsText = view.findViewById(R.id.noLyricsText)
+
+        lyricsAdapter = LyricsAdapter()
+        lyricsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        lyricsRecyclerView.adapter = lyricsAdapter
+        lyricsRecyclerView.itemAnimator = null
+
+        // Pause auto-scroll when user manually drags the lyrics RecyclerView
+        lyricsRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    autoScrollEnabled = false
+                    lyricsHandler.removeCallbacks(reenableAutoScrollRunnable)
+                    lyricsHandler.postDelayed(reenableAutoScrollRunnable, 3000)
+                }
+            }
+        })
+
+        val lyricsTapDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean = true
+        })
+        lyricsRecyclerView.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                if (lyricsTapDetector.onTouchEvent(e)) {
+                    openExpandedLyrics()
+                    return true
+                }
+                return false
+            }
+        })
+
+        lyricsCard.setOnClickListener { openExpandedLyrics() }
+
+        // Use the already-in-memory bitmap from PlaybackStateRepository — no disk I/O needed
+        val currentBitmap = PlaybackStateRepository.currentSongBitmapLiveData.value
+        if (currentBitmap != null) {
+            imageSong.setImageBitmap(currentBitmap)
+            blurrySongImageBackground.setImageBitmap(currentBitmap)
+        } else {
+            imageSong.setImageResource(R.drawable.ic_disc)
+            blurrySongImageBackground.setImageResource(R.drawable.ic_disc)
         }
 
         songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
@@ -303,27 +464,37 @@ class SongFragment : DialogFragment() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     currentTimeText.text = Utils.formatTime(progress)
+                    if (lyricLines.isNotEmpty()) {
+                        val durationMs = musicService?.getDuration()?.toLong() ?: 0L
+                        syncLyricsToPosition(progress.toLong(), durationMs, forceScroll = true)
+                    }
                 }
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                val intent = Intent(context, MusicPlaybackService::class.java).apply {
-                    action = MusicPlaybackService.Companion.ACTION_START_SEEK
-                }
-                context?.startService(intent)
+                userIsSeeking = true
+                stopLyricsSync()
+                // Pause UI updates from the service side if needed, but since we ignore them here, it's fine.
             }
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                val seekIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                    action = MusicPlaybackService.Companion.ACTION_SEEK_TO
-                    putExtra(MusicPlaybackService.Companion.EXTRA_SEEK_POSITION, seekBar?.progress ?: 0)
-                }
-                context?.startService(seekIntent)
+                userIsSeeking = false
+                val seekProgress = seekBar?.progress ?: 0
+                
+                // Synchronous direct call to service eliminates Intent queuing latency
+                musicService?.seekTo(seekProgress.toLong())
 
-                val stopIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                    action = MusicPlaybackService.Companion.ACTION_STOP_SEEK
+                autoScrollEnabled = true
+                ignoreUpdatesUntilMs = System.currentTimeMillis() + 800L
+                
+                if (lyricLines.isNotEmpty()) {
+                    val durationMs = musicService?.getDuration()?.toLong() ?: 0L
+                    lastActiveLine = -1 
+                    lyricsAdapter.clearActiveLine() // Force adapter to forget previous highlight
+                    syncLyricsToPosition(seekProgress.toLong(), durationMs, forceScroll = true)
                 }
-                context?.startService(stopIntent)
+
+                startLyricsSync()
             }
         })
         return view
@@ -427,6 +598,7 @@ class SongFragment : DialogFragment() {
                                     }
                                 }
                                 lastSongId = song.id
+                                applyDominantColorToCard(resource)
                             }
                             override fun onLoadCleared(placeholder: Drawable?) {}
                         })
@@ -436,9 +608,10 @@ class SongFragment : DialogFragment() {
                     view?.findViewById<ImageView>(R.id.song_image)?.setImageBitmap(bitmap)
                 }
                 
-                // Reset UI elements for new song (if logic requires)
-                if (song.id != lastSongId) {
-                     // Podríamos resetear seekbar aquí, pero el observer de position lo hará
+                // Load lyrics for the new song (tracked separately from animation lastSongId)
+                if (song.id != lastLyricsSongId) {
+                    lastLyricsSongId = song.id
+                    loadLyricsForCurrentSong(song)
                 }
             }
         }
@@ -449,7 +622,7 @@ class SongFragment : DialogFragment() {
         }
 
         songViewModel.playbackPositionLiveData.observe(viewLifecycleOwner) { positionInfo ->
-            if (!seekBar.isPressed) {
+            if (!seekBar.isPressed && !userIsSeeking && System.currentTimeMillis() > ignoreUpdatesUntilMs) {
                 if (positionInfo.duration > 0) {
                     seekBar.max = positionInfo.duration.toInt()
                 }
@@ -475,6 +648,170 @@ class SongFragment : DialogFragment() {
             )
         }
     }
+
+    // ── Lyrics methods ──
+
+    private fun loadLyricsForCurrentSong(song: com.example.resonant.data.models.Song) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            lyricsLoadingIndicator.isVisible = true
+            lyricsRecyclerView.isVisible = false
+            noLyricsText.isVisible = false
+
+            val lines = LyricsManager.getLyrics(requireContext(), song.id)
+
+            lyricsLoadingIndicator.isVisible = false
+
+            if (lines.isEmpty()) {
+                hasTimedLyrics = false
+                noLyricsText.isVisible = true
+                noLyricsText.text = "No hay letra disponible para esta canción"
+                lyricLines = emptyList()
+                lastActiveLine = -1
+                stopLyricsSync()
+            } else {
+                lyricLines = lines
+                hasTimedLyrics = lines.any { it.timeMs >= 0 }
+                lastActiveLine = -1
+                lyricsAdapter.submitLines(lines)
+                lyricsRecyclerView.scrollToPosition(0)
+                lyricsRecyclerView.isVisible = true
+
+                if (!hasTimedLyrics) {
+                    lyricsAdapter.clearActiveLine()
+                    updateLinearLyricsProgress(
+                        musicService?.getCurrentPosition()?.toLong() ?: 0L,
+                        musicService?.getDuration()?.toLong() ?: 0L
+                    )
+                }
+
+                if (serviceBound) {
+                    startLyricsSync()
+                }
+            }
+
+            // Prefetch next song's lyrics so they're ready when it plays
+            prefetchNextSongLyrics(song.id)
+        }
+    }
+
+    private fun prefetchNextSongLyrics(currentSongId: String) {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val songs = queue.songs
+        val currentIdx = songs.indexOfFirst { it.id == currentSongId }
+        if (currentIdx < 0) return
+        val repeatMode = songViewModel.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+        val nextSong = songs.getOrNull(currentIdx + 1)
+            ?: songs.getOrNull(0).takeIf { repeatMode != PlaybackStateRepository.REPEAT_MODE_OFF }
+            ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            LyricsManager.getLyrics(requireContext(), nextSong.id)
+        }
+    }
+
+    private fun startLyricsSync() {
+        lyricsHandler.removeCallbacks(lyricsUpdateRunnable)
+        lyricsHandler.post(lyricsUpdateRunnable)
+    }
+
+    private fun stopLyricsSync() {
+        lyricsHandler.removeCallbacks(lyricsUpdateRunnable)
+    }
+
+    private fun syncLyricsToPosition(positionMs: Long, durationMs: Long, forceScroll: Boolean) {
+        if (lyricLines.isEmpty()) return
+
+        if (hasTimedLyrics) {
+            val newIndex = LyricsManager.getCurrentLineIndex(lyricLines, positionMs)
+            val shouldScroll = forceScroll || (autoScrollEnabled && newIndex != lastActiveLine)
+
+            if (newIndex != lastActiveLine) {
+                lastActiveLine = newIndex
+                lyricsAdapter.updateActiveLine(newIndex)
+            }
+
+            if (shouldScroll && newIndex >= 0) {
+                scrollToActiveLine(newIndex)
+            }
+        } else {
+            updateLinearLyricsProgress(positionMs, durationMs)
+        }
+    }
+
+    private fun scrollToActiveLine(index: Int) {
+        if (!autoScrollEnabled) return
+        val lm = lyricsRecyclerView.layoutManager as? LinearLayoutManager ?: return
+        val availableHeight = lyricsRecyclerView.height - lyricsRecyclerView.paddingTop - lyricsRecyclerView.paddingBottom
+        if (availableHeight <= 0) return
+        val centerOffset = lyricsRecyclerView.paddingTop + (availableHeight / 2)
+        val itemView = lm.findViewByPosition(index)
+        if (itemView != null) {
+            val itemCenter = (itemView.top + itemView.bottom) / 2
+            lyricsRecyclerView.smoothScrollBy(0, itemCenter - centerOffset)
+        } else {
+            lm.scrollToPositionWithOffset(index, centerOffset)
+        }
+    }
+
+    private fun updateLinearLyricsProgress(positionMs: Long, durationMs: Long) {
+        if (lyricLines.isEmpty() || durationMs <= 0) return
+
+        val progress = (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+        if (lastActiveLine != -1) {
+            lastActiveLine = -1
+            lyricsAdapter.clearActiveLine()
+        }
+
+        if (!autoScrollEnabled) return
+
+        lyricsRecyclerView.post {
+            val scrollRange = (lyricsRecyclerView.computeVerticalScrollRange() - lyricsRecyclerView.height).coerceAtLeast(0)
+            val targetOffset = (scrollRange * progress).toInt()
+            val currentOffset = lyricsRecyclerView.computeVerticalScrollOffset()
+            if (kotlin.math.abs(targetOffset - currentOffset) <= 1) return@post
+
+            if (kotlin.math.abs(targetOffset - currentOffset) > 120) {
+                lyricsRecyclerView.scrollBy(0, targetOffset - currentOffset)
+            } else {
+                val nextOffset = currentOffset + ((targetOffset - currentOffset) * 0.18f).toInt()
+                lyricsRecyclerView.scrollBy(0, nextOffset - currentOffset)
+            }
+        }
+    }
+
+    private fun applyDominantColorToCard(bitmap: Bitmap) {
+        Palette.from(bitmap).generate { palette ->
+            val raw = palette?.run {
+                getDarkVibrantColor(0)
+                    .takeIf { it != 0 }
+                    ?: getVibrantColor(0)
+                    .takeIf { it != 0 }
+                    ?: getDarkMutedColor(0)
+                    .takeIf { it != 0 }
+                    ?: getDominantColor(0xFF1A1A1A.toInt())
+            } ?: 0xFF1A1A1A.toInt()
+            dominantColor = ColorUtils.blendARGB(raw, Color.BLACK, 0.35f)
+            lyricsCard.setCardBackgroundColor(dominantColor)
+            lyricsHeader.setBackgroundColor(dominantColor)
+            val topGrad = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(dominantColor, Color.TRANSPARENT)
+            )
+            val botGrad = GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(dominantColor, Color.TRANSPARENT)
+            )
+            lyricsTopFade.background = topGrad
+            lyricsBottomFade.background = botGrad
+        }
+    }
+
+    private fun openExpandedLyrics() {
+        val song = songViewModel.currentSongLiveData.value ?: return
+        LyricsExpandedFragment.newInstance(song.id, dominantColor)
+            .show(parentFragmentManager, "LyricsExpanded")
+    }
+
+    // ── End lyrics methods ──
 
     private fun updateFavoriteButtonUI(isFavorite: Boolean) {
         favoriteButton.setBackgroundResource(

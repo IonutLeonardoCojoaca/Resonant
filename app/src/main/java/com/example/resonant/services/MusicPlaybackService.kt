@@ -216,10 +216,25 @@ class MusicPlaybackService : Service(), PlayerController {
         stopSelf()
     }
     override fun seekTo(position: Long) {
+        if (transitionManager.isTransitioning) {
+            Log.w("MusicService", "Seek to durante transición. Forzando completado para buscar en la nueva canción.")
+            transitionManager.forceCompleteTransition()
+            
+            val player = exoPlayer ?: return
+            val currentMediaId = player.currentMediaItem?.mediaId
+            val expectedMediaId = PlaybackStateRepository.currentSong?.id
+            
+            if (currentMediaId != null && expectedMediaId != null && currentMediaId != expectedMediaId) {
+                Log.w("MusicService", "Desajuste UI vs ExoPlayer detectado tras forzar completado. Saltando a la siguiente canción.")
+                player.seekToNextMediaItem()
+                return
+            }
+        }
+
         val player = exoPlayer ?: return
+        expectedSeekPositionMs = position
+        seekIssuedAtMs = System.currentTimeMillis()
         player.seekTo(position)
-        // After a user seek the seekbar trigger will re-evaluate naturally on the next tick.
-        // Do not call playNext() here: that would skip the crossfade and leave the UI stale.
     }
 
 
@@ -322,9 +337,20 @@ class MusicPlaybackService : Service(), PlayerController {
     }
     fun getCurrentSong(): Song? = PlaybackStateRepository.currentSong
     fun getDuration(): Int = exoPlayer?.duration?.toInt() ?: 0
-    fun getCurrentPosition(): Int = exoPlayer?.currentPosition?.toInt() ?: 0
+    fun getCurrentPosition(): Int {
+        val actual = exoPlayer?.currentPosition ?: 0L
+        val expected = expectedSeekPositionMs
+        if (expected >= 0L && System.currentTimeMillis() - seekIssuedAtMs < 3000L) {
+            return maxOf(actual, expected).toInt()
+        }
+        expectedSeekPositionMs = -1L
+        return actual.toInt()
+    }
     fun getCurrentIndex(): Int = exoPlayer?.currentMediaItemIndex ?: -1
     fun getCurrentSongUrl(): String? = PlaybackStateRepository.currentSong?.url
+
+    private var expectedSeekPositionMs: Long = -1L
+    private var seekIssuedAtMs: Long = 0L
 
     private fun setupPlayerListener() {
         playerListener = object : Player.Listener {
@@ -368,20 +394,26 @@ class MusicPlaybackService : Service(), PlayerController {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
                     reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
 
-                    val newIndex = exoPlayer?.currentMediaItemIndex ?: -1
-                    val newSong = PlaybackStateRepository.activeQueue?.songs?.getOrNull(newIndex)
+                    val mediaId = mediaItem?.mediaId
+                    val newQueueIndex = PlaybackStateRepository.activeQueue?.songs?.indexOfFirst { it.id == mediaId } ?: -1
+                    val newSong = PlaybackStateRepository.activeQueue?.songs?.getOrNull(newQueueIndex)
 
                     if (newSong != null && newSong.id != PlaybackStateRepository.currentSong?.id) {
                         Log.d("PlayerListener", "Transición de ExoPlayer a una NUEVA canción: ${newSong.title}")
 
+                        expectedSeekPositionMs = -1L
+
                         PlaybackStateRepository.setCurrentSong(newSong)
-                        PlaybackStateRepository.activeQueue?.currentIndex = newIndex
+                        PlaybackStateRepository.activeQueue?.currentIndex = newQueueIndex
 
                         currentSongStartTimeMs = System.currentTimeMillis()
                         PlaybackStateRepository.streamReported = false
 
                         loadArtworkForSong(newSong)
                         updateUiAndSystem()
+                        
+                        // Proactively preload the song after next to maintain seamless native gapless
+                        preloadNextSongMetadata(newQueueIndex + 2)
                     } else {
                         Log.d("PlayerListener", "Transición de ExoPlayer a la misma canción (${newSong?.title}). Se ignora para evitar parpadeo.")
                     }
@@ -453,7 +485,12 @@ class MusicPlaybackService : Service(), PlayerController {
         return ExoPlayer.Builder(this)
             .build().apply {
                 addListener(playerListener)
-                repeatMode = Player.REPEAT_MODE_ALL
+                val initialMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+                repeatMode = when (initialMode) {
+                    PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+                    PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+                    else -> Player.REPEAT_MODE_OFF
+                }
             }
     }
 
@@ -1173,6 +1210,20 @@ class MusicPlaybackService : Service(), PlayerController {
         // If URL is already present and looks valid, skip preload
         if (!nextSong.url.isNullOrEmpty()) {
             Log.d("MusicService", "\u26A1 Song at index $index already has URL, skipping preload")
+            val player = exoPlayer
+            if (player != null) {
+                var exists = false
+                for (i in 0 until player.mediaItemCount) {
+                    if (player.getMediaItemAt(i).mediaId == nextSong.id) {
+                        exists = true
+                        break
+                    }
+                }
+                if (!exists) {
+                    player.addMediaItem(createMediaItem(nextSong))
+                    Log.d("MusicService", "➕ Added '${nextSong.title}' natively during early return.")
+                }
+            }
             return
         }
 
@@ -1193,6 +1244,19 @@ class MusicPlaybackService : Service(), PlayerController {
                             // Also update ExoPlayer queue in-place if possible
                             val player = exoPlayer
                             if (player != null) {
+                                var exists = false
+                                for (i in 0 until player.mediaItemCount) {
+                                    if (player.getMediaItemAt(i).mediaId == fetched.id) {
+                                        exists = true
+                                        break
+                                    }
+                                }
+                                if (!exists) {
+                                    val newMediaItem = createMediaItem(fetched)
+                                    player.addMediaItem(newMediaItem)
+                                    Log.d("MusicService", "➕ Added '${fetched.title}' to ExoPlayer's playlist.")
+                                }
+
                                 val currentExoIdx = player.currentMediaItemIndex
                                 // If this is the next item in ExoPlayer, insert it
                                 if (index == currentQueue.currentIndex + 1) {
@@ -1269,6 +1333,7 @@ class MusicPlaybackService : Service(), PlayerController {
         // Update UI immediately to the next song
         PlaybackStateRepository.setCurrentSong(nextSong)
         loadArtworkForSong(nextSong)
+        PlaybackStateRepository.activeQueue?.currentIndex = nextIndex
 
         val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
         PlaybackStateRepository.updatePlaybackPosition(0, newDuration)

@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginBottom="16dp">
+
+    <!-- Horizontal: icon + bubble -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="top">
+
+        <!-- Small Aria icon -->
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:src="@drawable/ic_menu_aria_selected"
+            android:padding="3dp"
+            android:scaleType="fitCenter"/>
+
+        <!-- Aria bubble (left-aligned, no background) -->
+        <LinearLayout
+            android:id="@+id/ariaBubble"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginEnd="40dp">
+
+            <!-- Intent label (e.g. "crear_playlist") -->
+            <TextView
+                android:id="@+id/ariaIntentText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#60FFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:fontFamily="@font/unageo_regular_italic"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp"
+                android:letterSpacing="0.04"
+                android:textAllCaps="true"/>
+
+            <!-- Main message text -->
+            <TextView
+                android:id="@+id/ariaMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#E8E8E8"
+                android:textSize="14sp"
+                android:fontFamily="@font/unageo_regular"
+                android:lineSpacingMultiplier="1.5"/>
+
+            <!-- ── Rich entity card ── -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/ariaPlaylistCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="#1C1C1E"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                android:foreground="?android:attr/selectableItemBackground">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <!-- Header: cover + name + kind label -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="12dp">
+
+                        <!-- Cover image (circle for artist, rounded for playlist/album) -->
+                        <com.google.android.material.imageview.ShapeableImageView
+                            android:id="@+id/ariaCardCover"
+                            android:layout_width="52dp"
+                            android:layout_height="52dp"
+                            android:layout_alignParentStart="true"
+                            android:layout_centerVertical="true"
+                            android:scaleType="centerCrop"
+                            app:shapeAppearanceOverlay="@style/CircularUserImage"/>
+
+                        <!-- Name + kind + stats in a column -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_toEndOf="@id/ariaCardCover"
+                            android:layout_centerVertical="true"
+                            android:layout_marginStart="12dp"
+                            android:layout_marginEnd="28dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/ariaCardKindLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="#66FFFFFF"
+                                android:textSize="9sp"
+                                android:fontFamily="@font/unageo_medium"
+                                android:textAllCaps="true"
+                                android:letterSpacing="0.12"
+                                android:visibility="gone"/>
+
+                            <TextView
+                                android:id="@+id/ariaPlaylistCardTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="#FFFFFF"
+                                android:textSize="14sp"
+                                android:fontFamily="@font/unageo_bold"
+                                android:maxLines="1"
+                                android:ellipsize="end"/>
+
+                            <TextView
+                                android:id="@+id/ariaPlaylistCardSub"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="#88FFFFFF"
+                                android:fontFamily="@font/unageo_regular"
+                                android:textSize="11sp"
+                                android:layout_marginTop="1dp"
+                                android:maxLines="1"
+                                android:ellipsize="end"/>
+
+                        </LinearLayout>
+
+                        <!-- Arrow -->
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_alignParentEnd="true"
+                            android:layout_centerVertical="true"
+                            android:src="@drawable/ic_keyboard_arrow_down"
+                            android:rotation="-90"
+                            android:scaleType="fitCenter"
+                            app:tint="#44FFFFFF"/>
+
+                    </RelativeLayout>
+
+                    <!-- Thin divider -->
+                    <View
+                        android:id="@+id/ariaCardDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#12FFFFFF"
+                        android:visibility="gone"/>
+
+                    <!-- Genres chips row -->
+                    <HorizontalScrollView
+                        android:id="@+id/ariaCardGenresScroll"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="none"
+                        android:overScrollMode="never"
+                        android:visibility="gone"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="4dp">
+
+                        <LinearLayout
+                            android:id="@+id/ariaCardGenresRow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"/>
+
+                    </HorizontalScrollView>
+
+                    <!-- Top tracks list -->
+                    <LinearLayout
+                        android:id="@+id/ariaCardTracksContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="10dp"
+                        android:paddingTop="4dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Top canciones"
+                            android:textColor="#55FFFFFF"
+                            android:textSize="9sp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.1"
+                            android:layout_marginBottom="6dp"/>
+
+                        <TextView
+                            android:id="@+id/ariaCardTrack1"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#CCFFFFFF"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/unageo_regular"
+                            android:drawablePadding="8dp"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="3dp"
+                            android:visibility="gone"/>
+
+                        <TextView
+                            android:id="@+id/ariaCardTrack2"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#AAFFFFFF"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/unageo_regular"
+                            android:drawablePadding="8dp"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="3dp"
+                            android:visibility="gone"/>
+
+                        <TextView
+                            android:id="@+id/ariaCardTrack3"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#88FFFFFF"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/unageo_regular"
+                            android:drawablePadding="8dp"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="3dp"
+                            android:visibility="gone"/>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Timestamp + Feedback row (below bubble) -->
+    <LinearLayout
+        android:id="@+id/ariaFeedbackRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/ariaTimestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#555555"
+            android:textSize="10sp"
+            android:fontFamily="@font/unageo_regular"/>
+
+        <ImageButton
+            android:id="@+id/ariaLikeButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:minWidth="44dp"
+            android:minHeight="44dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_aria_feedback_button"
+            android:src="@drawable/ic_thumb_up"
+            android:padding="10dp"
+            android:scaleType="fitCenter"
+            app:tint="#666666"/>
+
+        <ImageButton
+            android:id="@+id/ariaDislikeButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:minWidth="44dp"
+            android:minHeight="44dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_aria_feedback_button"
+            android:src="@drawable/ic_thumb_down"
+            android:padding="10dp"
+            android:scaleType="fitCenter"
+            app:tint="#666666"/>
+    </LinearLayout>
+</LinearLayout>

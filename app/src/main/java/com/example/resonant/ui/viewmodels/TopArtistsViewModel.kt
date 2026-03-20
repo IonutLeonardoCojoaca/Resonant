@@ -59,10 +59,9 @@ class TopArtistsViewModel(application: Application) : AndroidViewModel(applicati
                     // Mostramos ya el contenido y quitamos el loader
                     _isLoading.value = false
                     
-                    // Ponemos la imagen principal inmediatamente como primera en la galería
-                    _featuredImages.value = listOf(first.artist.url ?: "")
-                    
-                    // Cargar el resto de imágenes en segundo plano (no bloquea el loader principal)
+                    // Cargar imágenes en segundo plano (en paralelo, sin bloquear)
+                    // Inicializar con la URL del artista como fallback
+                    _featuredImages.value = listOfNotNull(first.artist.url)
                     loadFeaturedImages(first.artist.id)
                 } else {
                     _featuredArtist.value = null
@@ -81,21 +80,24 @@ class TopArtistsViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private suspend fun loadFeaturedImages(artistId: String) {
-        try {
-            val response = artistService.getArtistImages(artistId)
-            val images = mutableListOf<String>()
-            
-            // Prioridad: Main image, luego gallery
-            response.mainImageUrl?.let { images.add(it) }
-            response.galleryImageUrls?.let { images.addAll(it) }
-            
-            // Si no hay suficientes, repetir la main o buscar en otras top songs? 
-            // Por ahora pasar lo que hay.
-            
-            _featuredImages.value = images
-        } catch (e: Exception) {
-            _featuredImages.value = emptyList()
+    private fun loadFeaturedImages(artistId: String) {
+        viewModelScope.launch {
+            try {
+                val response = artistService.getArtistImages(artistId)
+                val images = mutableListOf<String>()
+                
+                // Prioridad: Main image, luego gallery
+                response.mainImageUrl?.let { images.add(it) }
+                response.galleryImageUrls?.let { images.addAll(it) }
+                
+                // Solo actualizar si tenemos imágenes válidas
+                if (images.isNotEmpty()) {
+                    _featuredImages.value = images
+                }
+            } catch (e: Exception) {
+                // Silent fail - mantener lo que ya estaba cargado
+                e.printStackTrace()
+            }
         }
     }
 }

@@ -27,9 +27,11 @@ class EditPlaylistViewModel(application: Application) : AndroidViewModel(applica
             _updateState.value = UpdateState.Loading
             try {
                 playlist.name = newName
-                playlistManager.updatePlaylist(playlist)
+                playlistManager.updatePlaylistName(playlist.id!!, newName)
                 _updateState.value = UpdateState.Success
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                _updateState.value = UpdateState.Error(e.message ?: "Error al actualizar")
+            }
         }
     }
 

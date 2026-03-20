@@ -41,7 +41,7 @@
                 android:text="Album Title"
                 android:textColor="@color/white"
                 android:fontFamily="@font/unageo_bold"
-                android:textSize="16sp"/>
+                android:textSize="15sp"/>
 
             <TextView
                 android:id="@+id/artistName"
@@ -52,7 +52,7 @@
                 android:text="Artist Name"
                 android:textColor="@color/subtitleBottomSheet"
                 android:fontFamily="@font/unageo_medium"
-                android:textSize="14sp"/>
+                android:textSize="13sp"/>
 
         </LinearLayout>
 
@@ -88,7 +88,7 @@
             android:padding="16dp"
             android:text="Ir al álbum"
             android:textColor="@color/white"
-            android:textSize="16sp"/>
+            android:textSize="15sp"/>
 
         <TextView
             android:id="@+id/goToArtistButton"
@@ -101,7 +101,7 @@
             android:padding="16dp"
             android:text="Ir al artista"
             android:textColor="@color/white"
-            android:textSize="16sp"/>
+            android:textSize="15sp"/>
 
         <TextView
             android:id="@+id/addToFavoriteButton"
@@ -114,20 +114,20 @@
             android:gravity="start|center_vertical"
             android:text="Añadir a favoritos"
             android:textColor="@color/white"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/viewDetailsButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_information"
+            android:drawableStart="@drawable/ic_warning"
             android:drawablePadding="16dp"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
             android:gravity="start|center_vertical"
             android:text="Ver información detallada"
             android:textColor="@color/white"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
             
         <TextView
             android:id="@+id/shareAlbumButton"
@@ -140,7 +140,7 @@
             android:padding="16dp"
             android:text="Compartir"
             android:textColor="@color/white"
-            android:textSize="16sp"/>
+            android:textSize="15sp"/>
 
     </LinearLayout>
 

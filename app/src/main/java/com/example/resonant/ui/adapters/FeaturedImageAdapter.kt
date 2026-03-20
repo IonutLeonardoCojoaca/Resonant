@@ -6,6 +6,9 @@ import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.Priority
 import com.example.resonant.R
 
 class FeaturedImageAdapter(
@@ -22,11 +25,18 @@ class FeaturedImageAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val url = images[position]
+        val priority = if (position == 0) Priority.IMMEDIATE else Priority.NORMAL
         Glide.with(holder.imageView.context)
             .load(url)
-            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .centerCrop()
-            .placeholder(R.drawable.gradient_bottom_overlay) // Placeholder temporal
+            .apply(
+                RequestOptions()
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .skipMemoryCache(false)
+                    .priority(priority)
+                    .centerCrop()
+            )
+            .transition(DrawableTransitionOptions.withCrossFade(250))
+            .placeholder(R.drawable.gradient_bottom_overlay)
             .error(R.drawable.gradient_bottom_overlay)
             .into(holder.imageView)
     }

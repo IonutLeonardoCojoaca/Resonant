@@ -31,18 +31,18 @@
 
         <TextView
             android:id="@+id/playlistText"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="56dp"
+            android:paddingHorizontal="20dp"
+            android:ellipsize="end"
             android:fontFamily="@font/unageo_medium"
+            android:gravity="center"
+            android:maxLines="1"
             android:textColor="@color/white"
             android:textSize="16sp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:gravity="center"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/settingsBackground"
+            app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
             app:layout_constraintTop_toTopOf="parent" />
 
         <FrameLayout

@@ -136,6 +136,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
         // Inicializar Adapter
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        songAdapter.hideArtwork = true
         recyclerViewSongs.adapter = songAdapter
 
         topBar = view.findViewById(R.id.topBar)

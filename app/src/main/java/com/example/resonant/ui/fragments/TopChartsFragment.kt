@@ -141,7 +141,7 @@ class TopChartsFragment : Fragment() {
         val btnGlobal = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnGlobal)
 
         // 3. Configurar RecyclerView y Adapter
-        songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_TOP_SONG)
         rvSongs.layoutManager = LinearLayoutManager(context)
         rvSongs.adapter = songAdapter
 

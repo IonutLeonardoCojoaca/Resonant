@@ -38,9 +38,8 @@ class UpdateDialogFragment : DialogFragment() {
         // 🔥 CAMBIO 2: Usamos los IDs del nuevo layout compartido
         val titleView = view.findViewById<TextView>(R.id.dialogTitle)
         val messageView = view.findViewById<TextView>(R.id.dialogMessage)
-        val positiveBtn = view.findViewById<Button>(R.id.positiveButton) // Era acceptButton
-        val negativeBtn = view.findViewById<Button>(R.id.negativeButton) // Era dismissButton
-        val divider = view.findViewById<View>(R.id.divider)
+        val positiveBtn = view.findViewById<TextView>(R.id.positiveButton)
+        val negativeBtn = view.findViewById<TextView>(R.id.negativeButton)
 
         titleView.text = title
         messageView.text = message
@@ -60,6 +59,7 @@ class UpdateDialogFragment : DialogFragment() {
             dialog.setCanceledOnTouchOutside(false)
         } else {
             negativeBtn.visibility = View.VISIBLE
+            view.findViewById<View>(R.id.buttonDivider).visibility = View.VISIBLE
             negativeBtn.text = "Más tarde"
             negativeBtn.setOnClickListener {
                 (activity as? UpdateDialogListener)?.onUpdateDeferred()
@@ -76,8 +76,13 @@ class UpdateDialogFragment : DialogFragment() {
 
         // 🔥 CAMBIO 3: Fondo transparente para que se vean los bordes redondeados
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        val displayMetrics = ctx.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val marginPx = android.util.TypedValue.applyDimension(
+            android.util.TypedValue.COMPLEX_UNIT_DIP, 48f, displayMetrics
+        ).toInt()
         dialog.window?.setLayout(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            screenWidth - marginPx,
             WindowManager.LayoutParams.WRAP_CONTENT
         )
 

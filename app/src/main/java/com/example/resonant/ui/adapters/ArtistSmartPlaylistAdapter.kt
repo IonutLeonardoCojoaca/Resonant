@@ -12,6 +12,8 @@ import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.ArtistSmartPlaylist
 
+import com.example.resonant.utils.ImageRequestHelper
+
 class ArtistSmartPlaylistAdapter(
     private val onItemClick: (ArtistSmartPlaylist) -> Unit
 ) : ListAdapter<ArtistSmartPlaylist, ArtistSmartPlaylistAdapter.ViewHolder>(DiffCallback()) {
@@ -39,15 +41,24 @@ class ArtistSmartPlaylistAdapter(
         fun bind(playlist: ArtistSmartPlaylist, onItemClick: (ArtistSmartPlaylist) -> Unit) {
             nameText.text = playlist.name
             descText.text = playlist.description
-            
-            // Set the overlay text
-            typeOverlay.text = if (playlist.playlistType.equals("Essentials", ignoreCase = true)) "ESSENTIALS" else "RADIO"
 
-            Glide.with(itemView.context)
-                .load(playlist.coverUrl)
-                .placeholder(R.drawable.ic_playlist_stack)
-                .error(R.drawable.ic_playlist_stack)
-                .into(coverImage)
+            // Set the overlay text
+            val isEssentials = playlist.playlistType.equals("Essentials", ignoreCase = true)
+            typeOverlay.text = if (isEssentials) "ESSENTIALS" else "RADIO"
+
+            val url = playlist.coverUrl
+            val fallbackRes = if (isEssentials) R.drawable.ic_essentials else R.drawable.ic_radio
+
+            if (url.isNullOrBlank() || url == "null") {
+                coverImage.setImageResource(fallbackRes)
+            } else {
+                val model = ImageRequestHelper.buildGlideModel(itemView.context, url)
+                Glide.with(itemView.context)
+                    .load(model)
+                    .placeholder(fallbackRes)
+                    .error(fallbackRes)
+                    .into(coverImage)
+            }
 
             itemView.setOnClickListener { onItemClick(playlist) }
         }

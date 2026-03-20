@@ -67,7 +67,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URL
 import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -121,7 +120,20 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            // Solo top y lados — NO bottom en el contenedor raíz
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
+            insets
+        }
+
+        // Listener específico para BottomNavigationView
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.bottom_navigation)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(
+                v.paddingLeft,
+                v.paddingTop,
+                v.paddingRight,
+                systemBars.bottom
+            )
             insets
         }
 
@@ -173,6 +185,28 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         seekBar.max = 100
 
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+        drawerLayout.setScrimColor(Color.TRANSPARENT)
+
+        val mainContent = findViewById<View>(R.id.main)
+        drawerLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                val slideX = drawerView.width * slideOffset
+                mainContent.translationX = slideX
+                val scale = 1f - (slideOffset * 0.06f)
+                mainContent.scaleX = scale
+                mainContent.scaleY = scale
+            }
+
+            override fun onDrawerOpened(drawerView: View) {}
+
+            override fun onDrawerClosed(drawerView: View) {
+                mainContent.translationX = 0f
+                mainContent.scaleX = 1f
+                mainContent.scaleY = 1f
+            }
+
+            override fun onDrawerStateChanged(newState: Int) {}
+        })
 
         songName.isSelected = true
         songArtist.isSelected = true
@@ -274,39 +308,28 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         miniPlayerContainer.setOnClickListener {
             val currentSong = songViewModel.currentSongLiveData.value
-            val bitmap = songViewModel.currentSongBitmapLiveData.value
-
-            if (currentSong != null && bitmap != null) {
-                val fileName = "cover_${currentSong.id}.png"
-                Utils.saveBitmapToCacheUri(this@MainActivity, bitmap, fileName)
-
-                val bundle = Bundle().apply {
-                    putString("title", currentSong.title)
-                    putString("artist", currentSong.artistName)
-                    putString("url", currentSong.url)
-                    putString("coverFileName", fileName)
-                }
-
-                val songFragment = SongFragment()
-                songFragment.arguments = bundle
-
-                songFragment.show(supportFragmentManager, "SongFragment")
+            if (currentSong != null) {
+                SongFragment().show(supportFragmentManager, "SongFragment")
             } else {
-                Log.w("MiniPlayerClick", "No se pudo abrir SongFragment: currentSong is ${if(currentSong == null) "null" else "OK"}, bitmap is ${if(bitmap == null) "null" else "OK"}")
+                Log.w("MiniPlayerClick", "No se pudo abrir SongFragment: currentSong is null")
             }
         }
 
         val fragmentsWithToolbar = setOf(
             R.id.homeFragment,
-            R.id.searchFragment,
             R.id.savedFragment,
             R.id.downloadedSongsFragment,
             R.id.exploreFragment
         )
 
+        val fragmentsWithToolbarNoHeader = setOf(
+            R.id.ariaFragment
+        )
+
         val fragmentsNoToolbar = setOf(
             R.id.artistFragment,
             R.id.albumFragment,
+            R.id.detailedAlbumFragment,
             R.id.detailedSongFragment,
             R.id.playlistFragment,
             R.id.createPlaylistFragment,
@@ -318,7 +341,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.topAlbumsFragment,
             R.id.publicPlaylistsFragment,
             R.id.historyFragment,
-            R.id.detailedArtistFragment
+            R.id.detailedArtistFragment,
+            R.id.searchFragment
         )
 
         val fragmentsNoToolbarNoBottomNav = setOf(
@@ -331,9 +355,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             // Esto asegura que si navegas, el tab se actualice solo.
             when (destination.id) {
                 R.id.homeFragment -> bottomNavigationView.menu.findItem(R.id.homeFragment).isChecked = true
-                R.id.searchFragment -> bottomNavigationView.menu.findItem(R.id.searchFragment).isChecked = true
                 R.id.savedFragment -> bottomNavigationView.menu.findItem(R.id.savedFragment).isChecked = true
                 R.id.exploreFragment -> bottomNavigationView.menu.findItem(R.id.exploreFragment).isChecked = true
+                R.id.ariaFragment -> bottomNavigationView.menu.findItem(R.id.ariaFragment)?.isChecked = true
             }
 
             // 2. GESTIÓN DEL ICONO "CREAR"
@@ -378,6 +402,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     gradientBottom.visibility = View.VISIBLE
                     shouldShowMiniPlayer = true
                 }
+                in fragmentsWithToolbarNoHeader -> {
+                    bottomNavigation.visibility = View.VISIBLE
+                    gradientBottom.visibility = View.VISIBLE
+                    shouldShowMiniPlayer = true
+                }
                 in fragmentsNoToolbar -> {
                     bottomNavigation.visibility = View.VISIBLE
                     gradientBottom.visibility = View.VISIBLE
@@ -412,6 +441,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         bottomNavigationView.setOnItemSelectedListener { item ->
+            // Bounce animation on icon click
+            animateBottomNavIcon(item.itemId)
+            
             when (item.itemId) {
                 R.id.homeFragment -> {
                     if (navController.currentDestination?.id != R.id.homeFragment) {
@@ -425,15 +457,15 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     }
                     true
                 }
-                R.id.searchFragment -> {
-                    if (navController.currentDestination?.id != R.id.searchFragment) {
-                        navController.navigate(R.id.searchFragment)
-                    }
-                    true
-                }
                 R.id.savedFragment -> {
                     if (navController.currentDestination?.id != R.id.savedFragment) {
                         navController.navigate(R.id.savedFragment)
+                    }
+                    true
+                }
+                R.id.ariaFragment -> {
+                    if (navController.currentDestination?.id != R.id.ariaFragment) {
+                        navController.navigate(R.id.ariaFragment)
                     }
                     true
                 }
@@ -526,7 +558,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         val mainFragmentId = R.id.homeFragment
         val currentFragmentId = navController.currentDestination?.id
-        val topLevelFragments = setOf(R.id.homeFragment, R.id.searchFragment, R.id.savedFragment, R.id.settingsFragment)
+        val topLevelFragments = setOf(R.id.homeFragment, R.id.savedFragment, R.id.settingsFragment, R.id.ariaFragment, R.id.exploreFragment)
 
         if (currentFragmentId != null && currentFragmentId !in topLevelFragments) {
             navController.popBackStack()
@@ -547,6 +579,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val params = drawer.layoutParams
         params.width = drawerWidth
         drawer.layoutParams = params
+
+        val version = this@MainActivity.packageManager
+            .getPackageInfo(this@MainActivity.packageName, 0)
+            .versionName
+
+        // Sincronizar versión con BuildConfig
+        val versionText = findViewById<TextView>(R.id.versionText)
+        versionText?.text = "Resonant $version"
 
         // Referencias a los botones del menú lateral
         val homeButton = findViewById<TextView>(R.id.homeButton)
@@ -962,6 +1002,26 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 }
             }
         }
+    }
+
+    private fun animateBottomNavIcon(itemId: Int) {
+        val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        val menuItem = bottomNavigationView.menu.findItem(itemId) ?: return
+        val itemView = bottomNavigationView.findViewById<View>(itemId) ?: return
+
+        // Pulse animation: scale 1.0 → 0.90 → 1.0 (icon + label)
+        itemView.animate()
+            .scaleX(0.90f)
+            .scaleY(0.90f)
+            .setDuration(150)
+            .withEndAction {
+                itemView.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(150)
+                    .start()
+            }
+            .start()
     }
 
 }
