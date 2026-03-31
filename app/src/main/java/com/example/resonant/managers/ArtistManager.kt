@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Album
+import com.example.resonant.data.models.ArtistStatsDTO
+import com.example.resonant.data.models.Genre
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RecommendationResult
@@ -19,8 +21,10 @@ object ArtistManager {
     private val artistDetailsCache = mutableMapOf<String, Artist>()
     private val albumsCache = mutableMapOf<String, List<Album>>()
     private val topSongsCache = mutableMapOf<String, List<Song>>()
+    private val singlesCache = mutableMapOf<String, List<Song>>()
+    private val playlistsCache = mutableMapOf<String, List<com.example.resonant.data.models.ArtistSmartPlaylist>>()
     private val cacheTimestamps = mutableMapOf<String, Long>() // Para controlar caducidad
-    
+
     private const val CACHE_DURATION_MS = 20 * 60 * 1000L // 20 Minutos
 
     private var cachedRecommendation: RecommendationResult<Artist>? = null
@@ -109,8 +113,15 @@ object ArtistManager {
     }
 
     suspend fun getArtistSmartPlaylists(context: Context, artistId: String): List<com.example.resonant.data.models.ArtistSmartPlaylist> {
+        val now = System.currentTimeMillis()
+        val lastUpdate = cacheTimestamps[artistId] ?: 0L
+        if ((now - lastUpdate) <= CACHE_DURATION_MS && playlistsCache.containsKey(artistId)) {
+            return playlistsCache[artistId]!!
+        }
         return try {
-            ApiClient.getArtistService(context).getArtistSmartPlaylists(artistId)
+            val result = ApiClient.getArtistService(context).getArtistSmartPlaylists(artistId)
+            playlistsCache[artistId] = result
+            result
         } catch (e: Exception) {
             Log.e("ArtistManager", "Error fetching playlists for $artistId", e)
             emptyList()
@@ -142,6 +153,67 @@ object ArtistManager {
         } catch (e: Exception) {
              Log.e("ArtistManager", "Error fetching images for $artistId", e)
              emptyList()
+        }
+    }
+
+    suspend fun getArtistSingles(context: Context, artistId: String): List<Song> {
+        val now = System.currentTimeMillis()
+        val lastUpdate = cacheTimestamps[artistId] ?: 0L
+        if ((now - lastUpdate) <= CACHE_DURATION_MS && singlesCache.containsKey(artistId)) {
+            return singlesCache[artistId]!!
+        }
+        return try {
+            val result = ApiClient.getArtistService(context).getArtistSingles(artistId)
+            singlesCache[artistId] = result
+            result
+        } catch (e: Exception) {
+            Log.e("ArtistManager", "Error fetching singles for $artistId", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getRecentlyAddedArtists(context: Context, limit: Int = 20): List<Artist> {
+        return try {
+            ApiClient.getArtistService(context).getRecentlyAddedArtists(limit)
+        } catch (e: Exception) {
+            Log.e("ArtistManager", "Error fetching recently added artists", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getMostListenedArtists(context: Context, limit: Int = 20): List<Artist> {
+        return try {
+            ApiClient.getArtistService(context).getMostListenedArtists(limit)
+        } catch (e: Exception) {
+            Log.e("ArtistManager", "Error fetching most listened artists", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getArtistStats(context: Context, artistId: String): ArtistStatsDTO? {
+        return try {
+            ApiClient.getArtistService(context).getArtistStats(artistId)
+        } catch (e: Exception) {
+            Log.e("ArtistManager", "Error fetching stats for $artistId", e)
+            null
+        }
+    }
+
+    suspend fun getArtistGenres(context: Context, artistId: String): List<Genre> {
+        return try {
+            ApiClient.getArtistService(context).getArtistGenres(artistId)
+        } catch (e: Exception) {
+            Log.e("ArtistManager", "Error fetching genres for $artistId", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getArtistCollaborators(context: Context, artistId: String, limit: Int = 20): List<Artist> {
+        return try {
+            ApiClient.getArtistService(context).getArtistCollaborators(artistId, limit)
+        } catch (e: Exception) {
+            Log.e("ArtistManager", "Error fetching collaborators for $artistId", e)
+            emptyList()
         }
     }
 }

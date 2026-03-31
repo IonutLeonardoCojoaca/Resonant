@@ -1,6 +1,7 @@
 package com.example.resonant.ui.viewmodels
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -29,7 +30,12 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private val _downloadEvent = MutableSharedFlow<String>()
     val downloadEvent = _downloadEvent.asSharedFlow()
 
-    val downloadedSongIds = database.downloadedSongDao().getAll().map { list ->
+    private fun getCurrentUserId(): String =
+        getApplication<Application>()
+            .getSharedPreferences("user_data", Context.MODE_PRIVATE)
+            .getString("USER_ID", "") ?: ""
+
+    val downloadedSongIds = database.downloadedSongDao().getAllByUser(getCurrentUserId()).map { list ->
         list.map { it.songId }.toSet()
     }
 
@@ -44,7 +50,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             val context = getApplication<Application>()
 
             val songsList = withContext(Dispatchers.IO) {
-                val localEntities = database.downloadedSongDao().getAllSync()
+                val localEntities = database.downloadedSongDao().getAllSyncByUser(getCurrentUserId())
 
                 localEntities.map { entity ->
 
@@ -96,26 +102,32 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     fun deleteAllDownloads() {
         viewModelScope.launch {
             val context = getApplication<Application>()
-            // 1. Obtener lista para borrar archivos físicos
-            val currentList = database.downloadedSongDao().getAllSync()
+            val userId = getCurrentUserId()
+            // 1. Obtener lista del usuario actual para saber qué archivos referencian
+            val currentList = database.downloadedSongDao().getAllSyncByUser(userId)
 
             withContext(Dispatchers.IO) {
+                // 2. Borrar de BD sólo las entradas del usuario actual
+                database.downloadedSongDao().deleteAllByUser(userId)
+
+                // 3. Borrar el archivo físico SOLO si ningún otro usuario lo referencia
                 currentList.forEach { song ->
                     try {
-                        // Intentamos borrar usando rutas corregidas por si acaso
-                        val audioPath = if (File(song.localAudioPath).exists()) song.localAudioPath else File(context.filesDir, song.localAudioPath.removePrefix("/")).absolutePath
-                        File(audioPath).delete()
+                        if (database.downloadedSongDao().countBySongId(song.songId) == 0) {
+                            val audioPath = if (File(song.localAudioPath).exists()) song.localAudioPath
+                                            else File(context.filesDir, song.localAudioPath.removePrefix("/")).absolutePath
+                            File(audioPath).delete()
 
-                        song.localImagePath?.let { path ->
-                            val imgPath = if (File(path).exists()) path else File(context.filesDir, path.removePrefix("/")).absolutePath
-                            File(imgPath).delete()
+                            song.localImagePath?.let { path ->
+                                val imgPath = if (File(path).exists()) path
+                                              else File(context.filesDir, path.removePrefix("/")).absolutePath
+                                File(imgPath).delete()
+                            }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
-                // 2. Borrar de BD
-                database.downloadedSongDao().deleteAll()
             }
 
             // 3. Refrescar UI
@@ -128,11 +140,12 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     fun downloadSong(song: Song) {
         viewModelScope.launch {
+            val userId = getCurrentUserId()
             // PASO 1: Resetear estado INMEDIATAMENTE a 0 (sin esperar a la red)
             _downloadStatus.value = DownloadStatus.Progress(0)
 
             // PASO 2: Iniciar la descarga
-            downloadManager.downloadSong(song).collect { status ->
+            downloadManager.downloadSong(song, userId).collect { status ->
                 _downloadStatus.value = status
 
                 if (status is DownloadStatus.Success) {
@@ -152,23 +165,23 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     fun deleteSong(song: Song) {
         viewModelScope.launch {
             val context = getApplication<Application>()
+            val userId = getCurrentUserId()
 
             withContext(Dispatchers.IO) {
                 try {
-                    // 1. Borrar archivo de AUDIO físico
-                    val audioFile = File(context.filesDir, "${song.id}.mp3")
-                    if (audioFile.exists()) {
-                        val deleted = audioFile.delete()
-                        Log.d("DownloadViewModel", "Archivo de audio borrado: $deleted")
-                    }
+                    // 1. Borrar la entrada de BD del usuario actual
+                    database.downloadedSongDao().deleteSongById(userId, song.id)
 
-                    val coverName = "cover_${song.id}.jpg"
-                    val coverFile = File(context.filesDir, coverName)
-                    if (coverFile.exists()) {
-                        coverFile.delete()
+                    // 2. Borrar archivo físico SOLO si ningún otro usuario lo referencia
+                    if (database.downloadedSongDao().countBySongId(song.id) == 0) {
+                        val audioFile = File(context.filesDir, "${song.id}.mp3")
+                        if (audioFile.exists()) {
+                            val deleted = audioFile.delete()
+                            Log.d("DownloadViewModel", "Archivo de audio borrado: $deleted")
+                        }
+                        val coverFile = File(context.filesDir, "cover_${song.id}.jpg")
+                        if (coverFile.exists()) coverFile.delete()
                     }
-
-                    database.downloadedSongDao().deleteSongById(song.id)
 
                     Log.d("DownloadViewModel", "Canción ${song.title} eliminada de BD")
 

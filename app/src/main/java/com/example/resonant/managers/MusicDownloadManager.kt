@@ -33,12 +33,42 @@ class MusicDownloadManager(
     private val client = OkHttpClient()
     private val gson = Gson()
 
-    fun downloadSong(song: Song): Flow<DownloadStatus> = flow {
+    fun downloadSong(song: Song, userId: String): Flow<DownloadStatus> = flow {
         var downloadUrl = song.url
 
         // 1. Emitir Started y FORZAR 0% inmediatamente
         emit(DownloadStatus.Started)
         emit(DownloadStatus.Progress(0))
+
+        val fileName = "${song.id}.mp3"
+        val existingFile = File(context.filesDir, fileName)
+
+        // Si el archivo físico ya existe (otro usuario lo descargó), sólo registramos en BD
+        if (existingFile.exists() && existingFile.length() > 0) {
+            var localImageName: String? = null
+            val coverFile = File(context.filesDir, "cover_${song.id}.jpg")
+            if (coverFile.exists()) localImageName = "cover_${song.id}.jpg"
+
+            val analysisJson = if (song.audioAnalysis != null) gson.toJson(song.audioAnalysis) else null
+            val entity = DownloadedSong(
+                userId = userId,
+                songId = song.id,
+                title = song.title,
+                artistName = song.artistName ?: "Desconocido",
+                album = song.album,
+                duration = song.duration,
+                localAudioPath = fileName,
+                localImagePath = localImageName,
+                downloadDate = System.currentTimeMillis(),
+                sizeBytes = existingFile.length() + (if (coverFile.exists()) coverFile.length() else 0L),
+                audioAnalysisJson = analysisJson
+            )
+            downloadedSongDao.insert(entity)
+            emit(DownloadStatus.Progress(100))
+            delay(300)
+            emit(DownloadStatus.Success(song.title))
+            return@flow
+        }
 
         // 2. Si no hay URL, intentamos obtenerla del backend (Endpoints protegidos/dinámicos)
         if (downloadUrl.isNullOrBlank()) {
@@ -75,7 +105,6 @@ class MusicDownloadManager(
             val totalLength = body.contentLength()
             val inputStream = body.byteStream()
 
-            val fileName = "${song.id}.mp3"
             val file = File(context.filesDir, fileName)
             val outputStream = FileOutputStream(file)
 
@@ -131,11 +160,11 @@ class MusicDownloadManager(
             // Guardar en BD
             val analysisJson = if (song.audioAnalysis != null) gson.toJson(song.audioAnalysis) else null
             val entity = DownloadedSong(
+                userId = userId,
                 songId = song.id,
                 title = song.title,
                 artistName = song.artistName ?: "Desconocido",
-                // Si song.album es null, guardamos nulo o string vacío
-                album = song.album, 
+                album = song.album,
                 duration = song.duration,
                 localAudioPath = fileName,
                 localImagePath = localImageName,

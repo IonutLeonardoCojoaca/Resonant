@@ -45,8 +45,11 @@ class PublicPlaylistAdapter(
                 else -> "$trackCount canciones"
             }
 
-            // Nombre del owner: "Por X" o "Usuario" como fallback
-            val owner = playlist.ownerName?.takeIf { it.isNotBlank() } ?: "Usuario"
+            // Owner name: "Resonant" for system playlists, otherwise user name
+            val owner = when {
+                playlist.isSystemPlaylist -> "Resonant"
+                else -> playlist.ownerName?.takeIf { it.isNotBlank() } ?: "Usuario"
+            }
             tvOwner.text = "Por $owner"
 
             // Cargar imagen de portada

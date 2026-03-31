@@ -164,6 +164,133 @@
                 android:paddingHorizontal="12dp"
                 android:paddingTop="10dp" />
 
+            <!-- STATS SECTION -->
+            <TextView
+                android:id="@+id/statsHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="18dp"
+                android:layout_marginTop="20dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Estadísticas"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:visibility="gone"/>
+
+            <LinearLayout
+                android:id="@+id/statsCardsRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginHorizontal="12dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/cardTotalSongs"
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/bg_border_item_type"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="8dp">
+                    <TextView
+                        android:id="@+id/statTotalSongs"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:text="—"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:textColor="#BDBDBD"
+                        android:textSize="11sp"
+                        android:text="Canciones"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/cardTotalAlbums"
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/bg_border_item_type"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="8dp">
+                    <TextView
+                        android:id="@+id/statTotalAlbums"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:text="—"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:textColor="#BDBDBD"
+                        android:textSize="11sp"
+                        android:text="Álbumes"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/cardTotalStreams"
+                    android:layout_width="0dp"
+                    android:layout_height="72dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_border_item_type"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="8dp">
+                    <TextView
+                        android:id="@+id/statTotalStreams"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:text="—"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:textColor="#BDBDBD"
+                        android:textSize="11sp"
+                        android:text="Escuchas"/>
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- COLLABORATORS SECTION -->
+            <TextView
+                android:id="@+id/collaboratorsHeader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="18dp"
+                android:layout_marginTop="20dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Colaboradores"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:visibility="gone"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/collaboratorsRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:clipToPadding="false"
+                android:paddingHorizontal="10dp"
+                android:nestedScrollingEnabled="false"
+                android:visibility="gone"/>
+
         </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>

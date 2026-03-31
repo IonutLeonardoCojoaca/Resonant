@@ -12,6 +12,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.R
 import com.example.resonant.data.models.Album
 import com.example.resonant.ui.viewmodels.AlbumRank
+import com.example.resonant.utils.ChartUtils
 
 class TopAlbumAdapter(
     private var albums: List<AlbumRank> = emptyList(),
@@ -28,6 +29,8 @@ class TopAlbumAdapter(
         val albumName: TextView = view.findViewById(R.id.albumName)
         val albumArtist: TextView = view.findViewById(R.id.albumArtist)
         val albumInfo: TextView = view.findViewById(R.id.albumInfo)
+        val tvPositionChange: TextView = view.findViewById(R.id.tvPositionChange)
+        val ivTrendIcon: ImageView = view.findViewById(R.id.ivTrendIcon)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -44,6 +47,7 @@ class TopAlbumAdapter(
         holder.albumName.text = album.title
         holder.albumArtist.text = item.artistName ?: "Artista Desconocido"
         holder.albumInfo.text = "Lanzado en ${item.releaseYear ?: "N/A"}"
+        ChartUtils.bindPositionChange(holder.tvPositionChange, holder.ivTrendIcon, album.positionChange)
 
         val placeholderRes = R.drawable.ic_playlist_stack
         

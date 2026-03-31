@@ -3,6 +3,8 @@ package com.example.resonant.managers
 import android.content.Context
 import android.util.Log
 import com.example.resonant.data.models.Album
+import com.example.resonant.data.models.AlbumStatsDTO
+import com.example.resonant.data.models.Artist
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RecommendationResult
 import com.example.resonant.data.network.services.AlbumService
@@ -84,6 +86,51 @@ object AlbumManager {
         } catch (e: Exception) {
             Log.w("AlbumManager", "Fallo en recomendaciones: ${e.message}")
             return null
+        }
+    }
+
+    suspend fun getNewReleaseAlbums(context: Context, limit: Int = 20): List<Album> {
+        return try {
+            ApiClient.getAlbumService(context).getNewReleaseAlbums(limit)
+        } catch (e: Exception) {
+            Log.e("AlbumManager", "Error fetching new release albums", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getAlbumsByYear(context: Context, yearFrom: Int? = null, yearTo: Int? = null, limit: Int = 50): List<Album> {
+        return try {
+            ApiClient.getAlbumService(context).getAlbumsByYear(yearFrom, yearTo, limit)
+        } catch (e: Exception) {
+            Log.e("AlbumManager", "Error fetching albums by year ($yearFrom-$yearTo)", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getMostListenedAlbums(context: Context, limit: Int = 20): List<Album> {
+        return try {
+            ApiClient.getAlbumService(context).getMostListenedAlbums(limit)
+        } catch (e: Exception) {
+            Log.e("AlbumManager", "Error fetching most listened albums", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getAlbumStats(context: Context, albumId: String): AlbumStatsDTO? {
+        return try {
+            ApiClient.getAlbumService(context).getAlbumStats(albumId)
+        } catch (e: Exception) {
+            Log.e("AlbumManager", "Error fetching stats for album $albumId", e)
+            null
+        }
+    }
+
+    suspend fun getAlbumArtists(context: Context, albumId: String): List<Artist> {
+        return try {
+            ApiClient.getAlbumService(context).getAlbumArtists(albumId)
+        } catch (e: Exception) {
+            Log.e("AlbumManager", "Error fetching artists for album $albumId", e)
+            emptyList()
         }
     }
 }

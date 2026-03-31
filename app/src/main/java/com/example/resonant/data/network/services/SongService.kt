@@ -69,4 +69,32 @@ interface SongService {
 
     @GET("api/songs/history")
     suspend fun getPlaybackHistory(@Query("limit") limit: Int = 20): List<Song>
+
+    @GET("api/songs/charts/new-releases")
+    suspend fun getNewReleaseSongs(
+        @Query("limit") limit: Int = 50
+    ): List<Song>
+
+    @GET("api/songs/by-year")
+    suspend fun getSongsByYear(
+        @Query("yearFrom") yearFrom: Int? = null,
+        @Query("yearTo") yearTo: Int? = null,
+        @Query("limit") limit: Int = 50
+    ): List<Song>
+
+    @GET("api/songs/most-favorited")
+    suspend fun getMostFavoritedSongs(
+        @Query("limit") limit: Int = 50
+    ): List<Song>
+
+    @GET("api/songs/most-listened")
+    suspend fun getMostListenedSongs(
+        @Query("limit") limit: Int = 20
+    ): List<Song>
+
+    @GET("api/songs/{id}/related")
+    suspend fun getRelatedSongs(
+        @Path("id") songId: String,
+        @Query("limit") limit: Int = 20
+    ): List<Song>
 }

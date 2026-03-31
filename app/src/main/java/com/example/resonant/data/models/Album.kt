@@ -19,5 +19,11 @@ data class Album(
     @SerializedName("artists")
     val artists: List<Artist> = emptyList(),
 
-    var artistName: String? = null
+    var artistName: String? = null,
+
+    @SerializedName("playCount")
+    val playCount: Int? = null,
+
+    @SerializedName("positionChange")
+    val positionChange: Int? = null
 ) : Parcelable

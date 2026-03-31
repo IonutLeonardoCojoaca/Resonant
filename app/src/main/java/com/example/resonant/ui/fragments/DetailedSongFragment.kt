@@ -60,6 +60,12 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     private lateinit var songAlbum: TextView
 
     private var albumJob: Job? = null
+    private var relatedJob: Job? = null
+
+    private lateinit var relatedSongsHeader: android.widget.TextView
+    private lateinit var relatedSongsList: RecyclerView
+    private lateinit var shimmerRelatedSongs: com.facebook.shimmer.ShimmerFrameLayout
+    private lateinit var relatedAdapter: SongAdapter
 
     private var albumArtAnimator: ObjectAnimator? = null
     private val bitmapCache = mutableMapOf<String, Bitmap>()
@@ -137,6 +143,17 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         songStreams = view.findViewById(R.id.songStreams)
         songAlbum = view.findViewById(R.id.songAlbum)
         playButton = view.findViewById(R.id.playButton)
+        relatedSongsHeader = view.findViewById(R.id.relatedSongsHeader)
+        relatedSongsList = view.findViewById(R.id.relatedSongsList)
+        shimmerRelatedSongs = view.findViewById(R.id.shimmerRelatedSongs)
+        relatedAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        relatedSongsList.layoutManager = LinearLayoutManager(requireContext())
+        relatedSongsList.adapter = relatedAdapter
+        relatedSongsList.isNestedScrollingEnabled = false
+        relatedAdapter.onItemClick = { (relatedSong, bitmap) ->
+            val bundle = Bundle().apply { putParcelable("song", relatedSong) }
+            findNavController().navigate(R.id.action_global_to_detailedSongFragment, bundle)
+        }
 
         artistList.layoutManager = LinearLayoutManager(requireContext())
         val artistAdapter = ArtistAdapter(emptyList())
@@ -310,6 +327,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             loadAlbumName(song.album?.id)
         }
         loadArtists(song.artists.map { it.toArtist() })
+        loadRelatedSongs(song.id)
     }
 
     override fun onDestroyView() {
@@ -347,6 +365,29 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         }
     }
 
+    private fun loadRelatedSongs(songId: String) {
+        relatedJob?.cancel()
+        shimmerRelatedSongs.visibility = View.VISIBLE
+        shimmerRelatedSongs.startShimmer()
+        relatedSongsHeader.visibility = View.GONE
+        relatedSongsList.visibility = View.GONE
+        relatedJob = lifecycleScope.launch {
+            try {
+                val related = songManager.getRelatedSongs(songId, limit = 10)
+                shimmerRelatedSongs.stopShimmer()
+                shimmerRelatedSongs.visibility = View.GONE
+                if (related.isNotEmpty()) {
+                    relatedSongsHeader.visibility = View.VISIBLE
+                    relatedSongsList.visibility = View.VISIBLE
+                    relatedAdapter.submitList(related)
+                }
+            } catch (e: Exception) {
+                shimmerRelatedSongs.stopShimmer()
+                shimmerRelatedSongs.visibility = View.GONE
+            }
+        }
+    }
+
     fun updatePlayPauseButton(isPlaying: Boolean) {
         if (isPlaying) {
             playButton.setIconResource(R.drawable.ic_pause)
@@ -358,6 +399,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     private fun cancelJobs() {
         artworkJob?.cancel()
         artworkJob = null
+        relatedJob?.cancel()
+        relatedJob = null
     }
 
     private fun showSongNotFound() {

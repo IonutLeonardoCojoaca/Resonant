@@ -393,6 +393,13 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                              putString("artistImageUrl", artist.url)
                         }
                         findNavController().navigate(R.id.artistFragment, bundle)
+                    },
+                    onAddToPlaymixClick = { songToAdd ->
+                        val sheet = com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet(
+                            song = songToAdd,
+                            onNoPlaymixesFound = { findNavController().navigate(R.id.action_global_to_playmixListFragment) }
+                        )
+                        sheet.show(parentFragmentManager, "SelectPlaymixBottomSheet")
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ariaSongCardsContainer"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginTop="12dp"
+    android:visibility="gone">
+
+    <!-- Header row: artist name + catalog count -->
+    <LinearLayout
+        android:id="@+id/songCardsHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/songCardsKindLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="CANCIONES RECOMENDADAS"
+            android:textColor="#55FFFFFF"
+            android:textSize="9sp"
+            android:fontFamily="@font/unageo_medium"
+            android:textAllCaps="true"
+            android:letterSpacing="0.1"/>
+
+        <TextView
+            android:id="@+id/songCardsArtistName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:fontFamily="@font/unageo_bold"
+            android:layout_marginTop="2dp"
+            android:visibility="gone"/>
+
+        <TextView
+            android:id="@+id/songCardsCatalogCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#66FFFFFF"
+            android:textSize="11sp"
+            android:fontFamily="@font/unageo_regular"
+            android:layout_marginTop="1dp"
+            android:visibility="gone"/>
+    </LinearLayout>
+
+    <!-- Scrollable song list -->
+    <LinearLayout
+        android:id="@+id/songCardsList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"/>
+
+</LinearLayout>

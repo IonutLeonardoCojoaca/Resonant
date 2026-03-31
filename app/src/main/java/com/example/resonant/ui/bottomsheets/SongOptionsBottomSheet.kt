@@ -39,7 +39,8 @@ class SongOptionsBottomSheet(
     // 🔥 NUEVO CALLBACK: Acción para borrar la descarga
     private val onRemoveDownloadClick: ((Song) -> Unit)? = null,
     private val onGoToAlbumClick: ((String) -> Unit)? = null,
-    private val onGoToArtistClick: ((Artist) -> Unit)? = null
+    private val onGoToArtistClick: ((Artist) -> Unit)? = null,
+    private val onAddToPlaymixClick: ((Song) -> Unit)? = null
 
 ) : BottomSheetDialogFragment() {
 
@@ -64,6 +65,7 @@ class SongOptionsBottomSheet(
         val goToArtistButton: TextView = view.findViewById(R.id.goToArtistButton) // NEW
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
         val addToPlaylistButton: TextView = view.findViewById(R.id.addToPlaylistButton)
+        val addToPlaymixButton: TextView = view.findViewById(R.id.addToPlaymixButton)
         val downloadSongButton: TextView = view.findViewById(R.id.downloadSongButton)
         val shareSongButton: TextView = view.findViewById(R.id.shareSongButton)
         val cancelButton: TextView = view.findViewById(R.id.cancelButton)
@@ -205,6 +207,16 @@ class SongOptionsBottomSheet(
             }
         } else {
             disableButton(addToPlaylistButton, disabledAlpha, disabledColor)
+        }
+
+        // 2.5 PLAYMIX
+        if (isNetworkAvailable) {
+            addToPlaymixButton.setOnClickListener {
+                onAddToPlaymixClick?.invoke(song)
+                dismiss()
+            }
+        } else {
+            disableButton(addToPlaymixButton, disabledAlpha, disabledColor)
         }
 
         // 3. FAVORITOS

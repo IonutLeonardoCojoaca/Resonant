@@ -128,14 +128,6 @@
             android:textColor="@color/white"
             android:textSize="15sp" />
 
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#12FFFFFF"
-            android:layout_marginHorizontal="20dp"
-            android:layout_marginVertical="4dp" />
-
         <!-- Delete -->
         <TextView
             android:id="@+id/deletePlaylistButton"

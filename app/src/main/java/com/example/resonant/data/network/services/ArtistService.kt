@@ -1,6 +1,8 @@
 package com.example.resonant.data.network.services
 
 import com.example.resonant.data.models.Artist
+import com.example.resonant.data.models.ArtistStatsDTO
+import com.example.resonant.data.models.Genre
 import com.example.resonant.data.network.RecommendationResponse
 import com.example.resonant.data.network.SearchResponse
 import retrofit2.http.DELETE
@@ -71,4 +73,26 @@ interface ArtistService {
 
     @GET("api/artists/{id}/images")
     suspend fun getArtistImages(@Path("id") artistId: String): com.example.resonant.data.models.ArtistImagesResponse
+
+    @GET("api/artists/charts/recently-added")
+    suspend fun getRecentlyAddedArtists(
+        @Query("limit") limit: Int = 20
+    ): List<Artist>
+
+    @GET("api/artists/most-listened")
+    suspend fun getMostListenedArtists(
+        @Query("limit") limit: Int = 20
+    ): List<Artist>
+
+    @GET("api/artists/{id}/stats")
+    suspend fun getArtistStats(@Path("id") artistId: String): ArtistStatsDTO
+
+    @GET("api/artists/{id}/genres")
+    suspend fun getArtistGenres(@Path("id") artistId: String): List<Genre>
+
+    @GET("api/artists/{id}/collaborators")
+    suspend fun getArtistCollaborators(
+        @Path("id") artistId: String,
+        @Query("limit") limit: Int = 20
+    ): List<Artist>
 }

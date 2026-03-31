@@ -14,7 +14,7 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
-import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.core.view.ViewCompat
@@ -64,7 +64,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.collections.get
 
-class SearchFragment : DialogFragment() {
+class SearchFragment : Fragment() {
 
     private lateinit var sharedPref: SharedPreferences
     private val queryFlow = MutableStateFlow("")
@@ -106,28 +106,16 @@ class SearchFragment : DialogFragment() {
 
     private lateinit var downloadViewModel: DownloadViewModel
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setStyle(STYLE_NORMAL, R.style.FullScreenDialogStyle)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
-        // Show keyboard automatically
-        editTextQuery?.post {
-            editTextQuery?.requestFocus()
-            val controller = editTextQuery?.let {
-                WindowInsetsControllerCompat(requireActivity().window, it)
-            }
-            controller?.show(WindowInsetsCompat.Type.ime())
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         songViewModel.currentSongLiveData.value?.let { currentSong ->
             searchResultAdapter.setCurrentPlayingSong(currentSong.id)
+        }
+        // Auto-show keyboard when search opens
+        editTextQuery?.post {
+            editTextQuery?.requestFocus()
+            val controller = WindowInsetsControllerCompat(requireActivity().window, requireView())
+            controller.show(WindowInsetsCompat.Type.ime())
         }
     }
 
@@ -136,13 +124,6 @@ class SearchFragment : DialogFragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_search, container, false)
-
-        // Apply status bar insets so the toolbar doesn't overlap with the notification bar
-        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(0, systemBars.top, 0, 0)
-            insets
-        }
 
         val context = requireContext()
         albumService = ApiClient.getAlbumService(context)
@@ -169,7 +150,7 @@ class SearchFragment : DialogFragment() {
         loadingAnimation = view.findViewById(R.id.loadingAnimation)
 
         view.findViewById<View>(R.id.btnBack).setOnClickListener {
-            dismiss()
+            requireActivity().findNavController(R.id.nav_host_fragment).popBackStack()
         }
 
         // --- SETUP HISTORIAL ---
@@ -293,7 +274,6 @@ class SearchFragment : DialogFragment() {
             // Navegamos
             val bundle = Bundle().apply { putString("albumId", album.id) }
             requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
-            dismiss()
         }
 
         // 3. CLIC EN ARTISTA (Implementado en Fragment para guardar historial)
@@ -310,7 +290,6 @@ class SearchFragment : DialogFragment() {
             }
             val extras = FragmentNavigatorExtras(imageView to imageView.transitionName)
             requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle, null, extras)
-            dismiss()
         }
 
         downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
@@ -341,7 +320,6 @@ class SearchFragment : DialogFragment() {
                     onSeeSongClick = { selectedSong ->
                         val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                         requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.detailedSongFragment, bundle)
-                        this@SearchFragment.dismiss()
                     },
                     onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
                     onAddToPlaylistClick = { songToAdd ->
@@ -349,7 +327,6 @@ class SearchFragment : DialogFragment() {
                             song = songToAdd,
                             onNoPlaylistsFound = {
                         requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.action_global_to_createPlaylistFragment)
-                        this@SearchFragment.dismiss()
                     }
                         )
                         selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
@@ -363,7 +340,6 @@ class SearchFragment : DialogFragment() {
                     onGoToAlbumClick = { albumId ->
                         val bundle = Bundle().apply { putString("albumId", albumId) }
                         requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
-                        this@SearchFragment.dismiss()
                     },
                     onGoToArtistClick = { artist ->
                          val bundle = Bundle().apply { 
@@ -372,7 +348,6 @@ class SearchFragment : DialogFragment() {
                              putString("artistImageUrl", artist.url)
                         }
                         requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
-                        this@SearchFragment.dismiss()
                     }
                 )
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
@@ -385,7 +360,6 @@ class SearchFragment : DialogFragment() {
                 onGoToAlbumClick = {
                     val bundle = Bundle().apply { putString("albumId", it.id) }
                     requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
-                    this@SearchFragment.dismiss()
                 },
                 onGoToArtistClick = {
                     val artists = it.artists
@@ -398,7 +372,6 @@ class SearchFragment : DialogFragment() {
                                      putString("artistImageUrl", selectedArtist.url)
                                 }
                                 requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
-                                this@SearchFragment.dismiss()
                             }
                             selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
                         } else {
@@ -409,7 +382,6 @@ class SearchFragment : DialogFragment() {
                                  putString("artistImageUrl", artist.url)
                             }
                             requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
-                            this@SearchFragment.dismiss()
                         }
                     }
                 },
@@ -419,7 +391,6 @@ class SearchFragment : DialogFragment() {
                          putString("albumId", it.id)
                      }
                      requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
-                     this@SearchFragment.dismiss()
                 }
              )
              bottomSheet.show(parentFragmentManager, "AlbumOptionsBottomSheet")
@@ -435,7 +406,6 @@ class SearchFragment : DialogFragment() {
                          putString("artistImageUrl", selectedArtist.url)
                     }
                     requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
-                    this@SearchFragment.dismiss()
                 },
                 onViewDetailsClick = {
                      val bundle = Bundle().apply { 
@@ -443,7 +413,6 @@ class SearchFragment : DialogFragment() {
                          putString("artistId", it.id)
                      }
                      requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.action_global_to_detailedArtistFragment, bundle)
-                     this@SearchFragment.dismiss()
                 }
             )
             bottomSheet.show(parentFragmentManager, "ArtistOptionsBottomSheet")

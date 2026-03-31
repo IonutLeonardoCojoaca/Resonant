@@ -3,11 +3,12 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/cardPlaylist"
-    android:layout_width="150dp"
+    android:layout_width="160dp"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="5dp"
     android:layout_marginVertical="4dp"
-    app:cardCornerRadius="10dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
     android:foreground="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
@@ -17,7 +18,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#1A1A1A">
+        android:background="#1E1E1E">
 
         <!-- Cover image square -->
         <com.google.android.material.imageview.ShapeableImageView
@@ -35,13 +36,13 @@
         <!-- Gradient overlay at bottom of image -->
         <View
             android:layout_width="0dp"
-            android:layout_height="70dp"
+            android:layout_height="80dp"
             android:background="@drawable/bg_gradient_artist"
             app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Track count badge bottom-left -->
+        <!-- Track count badge bottom-left of image -->
         <TextView
             android:id="@+id/tvTracksCount"
             android:layout_width="0dp"
@@ -56,21 +57,21 @@
             android:shadowDx="0"
             android:shadowDy="1"
             android:shadowRadius="3"
-            android:layout_marginBottom="6dp"
-            android:layout_marginStart="7dp"
+            android:layout_marginBottom="7dp"
+            android:layout_marginStart="8dp"
             android:layout_marginEnd="4dp"
             app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/ivPublicBadge" />
 
-        <!-- Icon badge bottom-right -->
+        <!-- Sound icon badge bottom-right of image -->
         <ImageView
             android:id="@+id/ivPublicBadge"
             android:layout_width="14dp"
             android:layout_height="14dp"
             android:src="@drawable/ic_sound"
             app:tint="#BBFFFFFF"
-            android:layout_marginEnd="7dp"
+            android:layout_marginEnd="8dp"
             android:layout_marginBottom="7dp"
             android:alpha="0.9"
             app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
@@ -82,8 +83,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_marginHorizontal="7dp"
-            android:layout_marginBottom="8dp"
+            android:layout_marginHorizontal="8dp"
+            android:layout_marginBottom="2dp"
             android:text=""
             android:textColor="@color/white"
             android:fontFamily="@font/unageo_bold"
@@ -93,14 +94,21 @@
             app:layout_constraintTop_toBottomOf="@id/ivPlaylistCover"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintBottom_toTopOf="@id/tvOwnerName" />
 
-        <!-- tvOwnerName kept for adapter compatibility but not used here -->
+        <!-- Owner name — visible, shown below title -->
         <TextView
             android:id="@+id/tvOwnerName"
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:visibility="gone"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="8dp"
+            android:layout_marginBottom="8dp"
+            android:text=""
+            android:textColor="#99FFFFFF"
+            android:fontFamily="@font/unageo_medium"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:ellipsize="end"
             app:layout_constraintTop_toBottomOf="@id/tvPlaylistName"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"

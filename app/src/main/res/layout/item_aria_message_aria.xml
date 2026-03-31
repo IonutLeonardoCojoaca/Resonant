@@ -239,6 +239,13 @@
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
+
+            <!-- ── User stats card (consulta_usuario) ── -->
+            <include layout="@layout/include_aria_user_stats_card"/>
+
+            <!-- ── Song recommendation cards (recomendar_cancion) ── -->
+            <include layout="@layout/include_aria_song_cards"/>
+
         </LinearLayout>
     </LinearLayout>
 
@@ -268,7 +275,7 @@
             android:minWidth="44dp"
             android:minHeight="44dp"
             android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
+            android:layout_marginEnd="6dp"
             android:background="@drawable/bg_aria_feedback_button"
             android:src="@drawable/ic_thumb_up"
             android:padding="10dp"

@@ -22,7 +22,36 @@
         android:gravity="center"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toTopOf="@id/trendRow" />
+
+    <!-- Trend badge -->
+    <LinearLayout
+        android:id="@+id/trendRow"
+        android:layout_width="40dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="3dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/rankText"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <ImageView
+            android:id="@+id/ivTrendIcon"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="2dp"
+            android:src="@drawable/ic_trend_neutral" />
+
+        <TextView
+            android:id="@+id/tvPositionChange"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="—"
+            android:textSize="9sp"
+            android:textColor="@color/white"
+            android:fontFamily="@font/unageo_medium" />
+    </LinearLayout>
 
     <!-- Portada del álbum con esquinas redondeadas -->
     <com.google.android.material.imageview.ShapeableImageView

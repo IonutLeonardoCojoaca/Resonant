@@ -25,7 +25,9 @@ import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlayerController
 import com.example.resonant.managers.PlaylistManager
+import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.managers.SettingsManager
 import com.example.resonant.managers.TransitionManager
 import com.example.resonant.managers.UserManager
@@ -101,6 +103,10 @@ class MusicPlaybackService : Service(), PlayerController {
 
     private var currentSongStartTimeMs: Long = 0L
     private var originalQueueSongs: List<Song>? = null
+
+    // PlayMix crossfade — map key: "fromSongId:toSongId"
+    private var playmixTransitions: Map<String, PlaymixTransitionDTO> = emptyMap()
+    private var playmixSongIdMap: Map<String, String> = emptyMap() // songId -> playmixSongId
 
     private val seekBarHandler = Handler(Looper.getMainLooper())
     private val updateSeekBarRunnable = object : Runnable {
@@ -580,9 +586,33 @@ class MusicPlaybackService : Service(), PlayerController {
             return -1L
         }
 
-        val isAlbumMode = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.ALBUM
+        val queue = PlaybackStateRepository.activeQueue
+        val isAlbumMode = queue?.sourceType == QueueSource.ALBUM
+        val isPlaymixMode = queue?.sourceType == QueueSource.PLAYMIX
+
         if (isAlbumMode && automixEnabled) {
             Log.d("TriggerPos", "Album+automix — trigger disabled here")
+            return -1L
+        }
+
+        val currentQueueIndex = queue?.songs?.indexOfFirst { it.id == song.id } ?: -1
+        val nextSong: Song? = when {
+            currentQueueIndex >= 0 -> queue?.songs?.getOrNull(currentQueueIndex + 1)
+            else -> PlaybackStateRepository.getNextSong(exoPlayer?.currentMediaItemIndex ?: -1)
+        }
+        if (nextSong == null || nextSong.id == song.id) {
+            Log.d("TriggerPos", "no next song (queueIdx=$currentQueueIndex) — no trigger")
+            return -1L
+        }
+
+        // —— PlayMix mode: trigger exactly at the configured exit point ——
+        if (isPlaymixMode) {
+            val transition = playmixTransitions["${song.id}:${nextSong.id}"]
+            if (transition != null) {
+                Log.d("TriggerPos", "🎹 PlayMix trigger at exitPointMs=${transition.exitPointMs}ms")
+                return transition.exitPointMs.toLong()
+            }
+            Log.d("TriggerPos", "PlayMix but no transition configured — no trigger")
             return -1L
         }
 
@@ -598,18 +628,6 @@ class MusicPlaybackService : Service(), PlayerController {
                 Log.d("TriggerPos", "duration unknown (analysis=${analysis?.durationMs}, exo=$exoDurationMs) — waiting")
                 return -1L
             }
-        }
-
-        // Need a next song to cross-fade into.
-        val queue = PlaybackStateRepository.activeQueue
-        val currentQueueIndex = queue?.songs?.indexOfFirst { it.id == song.id } ?: -1
-        val nextSong: Song? = when {
-            currentQueueIndex >= 0 -> queue?.songs?.getOrNull(currentQueueIndex + 1)
-            else -> PlaybackStateRepository.getNextSong(player?.currentMediaItemIndex ?: -1)
-        }
-        if (nextSong == null || nextSong.id == song.id) {
-            Log.d("TriggerPos", "no next song (queueIdx=$currentQueueIndex) — no trigger")
-            return -1L
         }
 
         Log.d("MusicService", "🔧 calculateTriggerPosition - Modo: $crossfadeMode, songDuration: ${songDurationMs}ms, AlbumMode: $isAlbumMode, hasAnalysis: ${analysis != null}")
@@ -977,6 +995,37 @@ class MusicPlaybackService : Service(), PlayerController {
                         sourceType = sourceType
                     )
 
+                    // Load PlayMix transition data so exits/entries use playlist-defined crossfade
+                    if (sourceType == QueueSource.PLAYMIX && sourceId.isNotBlank()) {
+                        playmixTransitions = emptyMap()
+                        playmixSongIdMap = emptyMap()
+                        serviceScope.launch(Dispatchers.IO) {
+                            try {
+                                val detail = PlaymixManager(applicationContext).getPlaymixDetail(sourceId)
+                                val songIdToPlaymixId = detail.songs.associate { it.songId to it.playmixSongId }
+                                val transitionMap = mutableMapOf<String, PlaymixTransitionDTO>()
+                                for (t in detail.transitions) {
+                                    // Resolve playmixSongId -> songId for both ends
+                                    val fromSongId = detail.songs.firstOrNull { it.playmixSongId == t.fromPlaymixSongId }?.songId
+                                    val toSongId   = detail.songs.firstOrNull { it.playmixSongId == t.toPlaymixSongId   }?.songId
+                                    if (fromSongId != null && toSongId != null) {
+                                        transitionMap["$fromSongId:$toSongId"] = t
+                                    }
+                                }
+                                withContext(Dispatchers.Main) {
+                                    playmixSongIdMap = songIdToPlaymixId
+                                    playmixTransitions = transitionMap
+                                    Log.d("MusicService", "🔌 PlayMix transitions loaded: ${transitionMap.size}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("MusicService", "Failed to load PlayMix transitions", e)
+                            }
+                        }
+                    } else {
+                        playmixTransitions = emptyMap()
+                        playmixSongIdMap = emptyMap()
+                    }
+
                     playSongFromQueue()
 
                     // Reset shuffle state on new play
@@ -1330,6 +1379,17 @@ class MusicPlaybackService : Service(), PlayerController {
         Log.d("MusicService", "🎬 INICIANDO TRANSICIÓN DESDE TRIGGER")
         Log.d("MusicService", "⚙️ Parámetros - Modo: $crossfadeMode, Duración: ${crossfadeDurationMs}ms")
 
+        // PlayMix: use transition-defined parameters instead of global settings
+        val isPlaymixMode = queue.sourceType == QueueSource.PLAYMIX
+        val playmixTransition = if (isPlaymixMode) playmixTransitions["${oldSong.id}:${nextSong.id}"] else null
+        val effectiveCrossfadeDurationMs = playmixTransition?.crossfadeDurationMs?.toLong() ?: crossfadeDurationMs
+        val effectiveCrossfadeMode = playmixTransition?.fadeCurveType?.toPlaymixCrossfadeMode() ?: crossfadeMode
+        val nextSongEntryPointMs = playmixTransition?.entryPointMs?.toLong() ?: 0L
+
+        if (playmixTransition != null) {
+            Log.d("MusicService", "🎹 PlayMix transition: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, curve=${playmixTransition.fadeCurveType}")
+        }
+
         // Update UI immediately to the next song
         PlaybackStateRepository.setCurrentSong(nextSong)
         loadArtworkForSong(nextSong)
@@ -1343,12 +1403,13 @@ class MusicPlaybackService : Service(), PlayerController {
             oldSong = oldSong,
             nextSong = nextSong,
             nextSongIndex = nextIndex,
-            crossfadeMode = crossfadeMode,
-            isAlbumMode = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.ALBUM,
+            crossfadeMode = effectiveCrossfadeMode,
+            isAlbumMode = queue.sourceType == QueueSource.ALBUM,
             automixEnabled = automixEnabled,
-            crossfadeDurationMs = crossfadeDurationMs,
+            crossfadeDurationMs = effectiveCrossfadeDurationMs,
             oldSongTargetVolume = getNormalizedVolume(oldSong),
-            nextSongTargetVolume = getNormalizedVolume(nextSong)
+            nextSongTargetVolume = getNormalizedVolume(nextSong),
+            nextSongStartPositionMs = nextSongEntryPointMs
         )
     }
 
@@ -1421,4 +1482,12 @@ class MusicPlaybackService : Service(), PlayerController {
                 "Exo.isPlaying=${exoPlayer?.isPlaying}, " +
                 "Repo.Song=${PlaybackStateRepository.currentSong?.title}")
     }
+}
+
+/**
+ * Maps the fadeCurveType string from PlaymixTransitionDTO to the CrossfadeMode used by TransitionManager.
+ */
+private fun String.toPlaymixCrossfadeMode(): CrossfadeMode = when (this.lowercase()) {
+    "exponential", "logarithmic" -> CrossfadeMode.DIRECT_CUT
+    else -> CrossfadeMode.SOFT_MIX // "linear", "custom", unknown → equal-power
 }

@@ -1,12 +1,12 @@
 package com.example.resonant.data.local.entities
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 import com.example.resonant.data.models.AlbumSimpleDTO
 
-@Entity(tableName = "downloaded_songs")
+@Entity(tableName = "downloaded_songs", primaryKeys = ["userId", "songId"])
 data class DownloadedSong(
-    @PrimaryKey val songId: String,
+    val userId: String,
+    val songId: String,
     val title: String,
     val artistName: String,
     val album: AlbumSimpleDTO?,

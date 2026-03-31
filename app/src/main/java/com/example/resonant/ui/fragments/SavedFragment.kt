@@ -55,6 +55,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private lateinit var playlistsContainerView: View
     private lateinit var favoritesRecyclerView: RecyclerView
     private lateinit var downloadsItemContainer: View
+    private lateinit var playmixItemContainer: View
     private var lastCheckedId = View.NO_ID
     
     // Playlists Section
@@ -139,6 +140,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         playlistsContainerView = view.findViewById(R.id.playlistsContainerView)
         favoritesRecyclerView = view.findViewById(R.id.favoritesRecyclerView)
         downloadsItemContainer = view.findViewById(R.id.downloadsItemContainer)
+        playmixItemContainer = view.findViewById(R.id.playmixItemContainer)
         
         playlistRecyclerView = view.findViewById(R.id.playlistList)
         newPlaylistOption = view.findViewById(R.id.noPlaylistContainer)
@@ -460,6 +462,11 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
         newPlaylistOption.setOnClickListener {
             findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
+        }
+
+        // PlayMix Item Click
+        playmixItemContainer.setOnClickListener {
+            findNavController().navigate(R.id.action_savedFragment_to_playmixListFragment)
         }
     }
 

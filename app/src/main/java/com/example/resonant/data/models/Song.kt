@@ -33,6 +33,12 @@ data class Song(
 
     var sizeBytes: Long = 0L,
 
-    var artistName: String? = null
+    var artistName: String? = null,
+
+    @SerializedName("playCount")
+    val playCount: Int? = null,
+
+    @SerializedName("positionChange")
+    val positionChange: Int? = null
 
 ) : Parcelable

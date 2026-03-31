@@ -217,18 +217,21 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintVertical_bias="0.0"/>
 
-        <!-- Chips — dos filas en la parte inferior -->
-        <!-- Fila 1 -->
-        <LinearLayout
-            android:id="@+id/ariaChipsRow1"
-            android:layout_width="wrap_content"
+        <!-- Chips — FlexboxLayout con wrap automático -->
+        <com.google.android.flexbox.FlexboxLayout
+            android:id="@+id/ariaChipsContainer"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
+            app:flexWrap="wrap"
+            app:flexDirection="row"
+            app:justifyContent="flex_start"
+            app:alignItems="center"
             android:layout_marginStart="10dp"
-            android:layout_marginBottom="8dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginBottom="16dp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/ariaChipsRow2">
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent">
 
             <TextView
                 android:id="@+id/ariaChip1"
@@ -245,7 +248,8 @@
                 android:text="Mezcla mi lista"
                 android:textColor="#DDFFFFFF"
                 android:textSize="12sp"
-                android:layout_marginEnd="8dp"/>
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"/>
 
             <TextView
                 android:id="@+id/ariaChip2"
@@ -261,21 +265,9 @@
                 android:paddingHorizontal="18dp"
                 android:text="Consulta mis estadísticas"
                 android:textColor="#DDFFFFFF"
-                android:textSize="12sp"/>
-
-        </LinearLayout>
-
-        <!-- Fila 2 -->
-        <LinearLayout
-            android:id="@+id/ariaChipsRow2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginStart="10dp"
-            android:layout_marginBottom="16dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent">
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"/>
 
             <TextView
                 android:id="@+id/ariaChip3"
@@ -292,7 +284,8 @@
                 android:text="Recomiéndame música nueva"
                 android:textColor="#DDFFFFFF"
                 android:textSize="12sp"
-                android:layout_marginEnd="8dp"/>
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"/>
 
             <TextView
                 android:id="@+id/ariaChip4"
@@ -306,11 +299,13 @@
                 android:gravity="center"
                 android:maxLines="1"
                 android:paddingHorizontal="18dp"
-                android:text="Crea una playlist para mí"
+                android:text="Crea una playlist pop"
                 android:textColor="#DDFFFFFF"
-                android:textSize="12sp"/>
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"/>
 
-        </LinearLayout>
+        </com.google.android.flexbox.FlexboxLayout>
 
         <!-- IDs fantasma para mantener compatibilidad con el código -->
         <View android:id="@+id/ariaOrbitalRingOuter" android:layout_width="1dp"

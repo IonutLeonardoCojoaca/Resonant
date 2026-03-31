@@ -47,7 +47,9 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
                 // Enriquecer en paralelo con el nombre del owner
                 val enriched = playlists.map { playlist ->
                     async {
-                        if (!playlist.userId.isNullOrEmpty()) {
+                        if (playlist.isSystemPlaylist) {
+                            playlist.ownerName = "Resonant"
+                        } else if (!playlist.userId.isNullOrEmpty()) {
                             try {
                                 val user = playlistManager.getUserById(playlist.userId)
                                 playlist.ownerName = user.name ?: "Usuario"
@@ -75,7 +77,16 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
     private fun buildSections(playlists: List<Playlist>): List<PlaylistSection> {
         return playlists
             .groupBy { it.ownerName ?: "Usuario" }
-            .map { (owner, list) -> PlaylistSection(ownerName = owner, playlists = list) }
-            .sortedByDescending { it.playlists.size } // Más playlists primero
+            .map { (owner, list) ->
+                PlaylistSection(
+                    ownerName = owner,
+                    playlists = list,
+                    isSystem = list.any { it.isSystemPlaylist }
+                )
+            }
+            .sortedWith(
+                compareByDescending<PlaylistSection> { it.isSystem }
+                    .thenByDescending { it.playlists.size }
+            )
     }
 }

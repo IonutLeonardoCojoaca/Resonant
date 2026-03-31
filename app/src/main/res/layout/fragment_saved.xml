@@ -134,151 +134,206 @@
 
     </HorizontalScrollView>
 
-    <!-- PLAYLISTS VIEW (Visible by default) -->
-    <LinearLayout
+    <!-- PLAYLISTS VIEW (Visible by default) — wrapped in NestedScrollView so the
+         downloads row + header scroll together with the playlist list.
+         Playlists are few so wrap_content on the RecyclerView is acceptable. -->
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/playlistsContainerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:orientation="vertical"
         android:visibility="visible"
         app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- DOWNLOADS ITEM (WhatsApp Style) -->
-        <RelativeLayout
-            android:id="@+id/downloadsItemContainer"
-            android:layout_width="match_parent"
-            android:layout_height="70dp"
-            android:paddingHorizontal="15dp"
-            android:layout_marginVertical="5dp"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true">
-
-            <FrameLayout
-                android:id="@+id/iconContainer"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_centerVertical="true"
-                android:background="@drawable/bg_circle_secondary_20">
-
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_download"
-                    app:tint="@color/white" />
-            </FrameLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_toEndOf="@id/iconContainer"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="15dp"
-                android:text="Descargas"
-                android:fontFamily="@font/unageo_bold"
-                android:textSize="17sp"
-                android:textColor="@color/white" />
-
-        </RelativeLayout>
-
-        <!-- Separator -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginHorizontal="20dp"
-            android:background="#1AFFFFFF"/>
-
-        <FrameLayout
-            android:id="@+id/playlistTextContainer"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="15dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/playlistText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical|start"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Listas de canciones"
-                android:textColor="@color/white"
-                android:textSize="20sp" />
-
-        </FrameLayout>
-
-        <RelativeLayout
-            android:id="@+id/containerPlaylistsUser"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"> <!-- Fills remaining space in LinearLayout -->
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/playlistList"
+            <!-- DOWNLOADS ITEM (WhatsApp Style) -->
+            <RelativeLayout
+                android:id="@+id/downloadsItemContainer"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:paddingHorizontal="10dp"
-                android:paddingBottom="200dp" />
+                android:layout_height="70dp"
+                android:paddingHorizontal="15dp"
+                android:layout_marginVertical="5dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
 
-            <androidx.constraintlayout.widget.ConstraintLayout
-                android:id="@+id/noPlaylistContainer"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:visibility="visible">
+                <FrameLayout
+                    android:id="@+id/iconContainer"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/bg_circle_secondary_20">
 
-                <LinearLayout
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_download"
+                        app:tint="@color/white" />
+                </FrameLayout>
+
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintVertical_bias="0.4">
+                    android:layout_toEndOf="@id/iconContainer"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="15dp"
+                    android:text="Descargas"
+                    android:fontFamily="@font/unageo_bold"
+                    android:textSize="17sp"
+                    android:textColor="@color/white" />
 
-                    <FrameLayout
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:background="@drawable/bg_circle_secondary_20">
+            </RelativeLayout>
 
-                        <ImageView
-                            android:layout_width="35dp"
-                            android:layout_height="35dp"
-                            android:layout_gravity="center"
-                            android:src="@drawable/ic_menu_add"
-                            app:tint="@color/white" />
-                    </FrameLayout>
+            <!-- Separator -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="20dp"
+                android:background="#1AFFFFFF"/>
 
-                    <TextView
+            <!-- PLAYMIXES ITEM -->
+            <RelativeLayout
+                android:id="@+id/playmixItemContainer"
+                android:layout_width="match_parent"
+                android:layout_height="70dp"
+                android:paddingHorizontal="15dp"
+                android:layout_marginVertical="5dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:id="@+id/playmixIconContainer"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/bg_circle_secondary_20">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_playmix"
+                        app:tint="@color/white" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_toEndOf="@id/playmixIconContainer"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="15dp"
+                    android:text="PlayMixes"
+                    android:fontFamily="@font/unageo_bold"
+                    android:textSize="17sp"
+                    android:textColor="@color/white" />
+
+            </RelativeLayout>
+
+            <!-- Separator -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="20dp"
+                android:background="#1AFFFFFF"/>
+
+            <FrameLayout
+                android:id="@+id/playlistTextContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="15dp">
+
+                <TextView
+                    android:id="@+id/playlistText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical|start"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Listas de canciones"
+                    android:textColor="@color/white"
+                    android:textSize="20sp" />
+
+            </FrameLayout>
+
+            <RelativeLayout
+                android:id="@+id/containerPlaylistsUser"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="400dp">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/playlistList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    android:clipToPadding="false"
+                    android:paddingHorizontal="10dp"
+                    android:paddingBottom="200dp" />
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/noPlaylistContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="400dp"
+                    android:visibility="visible">
+
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:fontFamily="@font/unageo_bold"
-                        android:text="Crea tu primera playlist"
-                        android:textColor="@color/white"
-                        android:textSize="20sp" />
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintVertical_bias="0.4">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Organiza tu música a tu manera"
-                        android:textColor="#80FFFFFF"
-                        android:textSize="15sp" />
+                        <FrameLayout
+                            android:layout_width="80dp"
+                            android:layout_height="80dp"
+                            android:background="@drawable/bg_circle_secondary_20">
 
-                </LinearLayout>
+                            <ImageView
+                                android:layout_width="35dp"
+                                android:layout_height="35dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_menu_add"
+                                app:tint="@color/white" />
+                        </FrameLayout>
 
-            </androidx.constraintlayout.widget.ConstraintLayout>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="20dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:text="Crea tu primera playlist"
+                            android:textColor="@color/white"
+                            android:textSize="20sp" />
 
-        </RelativeLayout>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Organiza tu música a tu manera"
+                            android:textColor="#80FFFFFF"
+                            android:textSize="15sp" />
 
-    </LinearLayout>
+                    </LinearLayout>
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+            </RelativeLayout>
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
 
     <!-- FAVORITES VIEW (RecyclerView for Songs, Artists, Albums) -->
     <!-- Direct child of ConstraintLayout, filling remaining space -->

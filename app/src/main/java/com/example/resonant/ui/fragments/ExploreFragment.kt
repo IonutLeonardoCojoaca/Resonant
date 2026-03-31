@@ -81,7 +81,7 @@ class ExploreFragment : Fragment() {
         scrollBehavior = ScrollHeaderBehavior(
             normalHeader  = normalHeader,
             searchHeader  = searchHeader,
-            onSearchClick = { SearchFragment().show(parentFragmentManager, "SearchFragment") }
+            onSearchClick = { findNavController().navigate(R.id.action_exploreFragment_to_searchFragment) }
         )
         scrollBehavior?.attachToNestedScrollView(scrollView)
     }
@@ -110,7 +110,7 @@ class ExploreFragment : Fragment() {
         Utils.loadUserProfile(requireContext(), userProfileImage)
 
         view.findViewById<View>(R.id.searchButton).setOnClickListener {
-            SearchFragment().show(parentFragmentManager, "SearchFragment")
+            findNavController().navigate(R.id.action_exploreFragment_to_searchFragment)
         }
 
         view.findViewById<View>(R.id.btnPopulares).setOnClickListener {

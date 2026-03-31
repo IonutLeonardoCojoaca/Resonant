@@ -35,6 +35,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -342,7 +343,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.publicPlaylistsFragment,
             R.id.historyFragment,
             R.id.detailedArtistFragment,
-            R.id.searchFragment
+            R.id.searchFragment,
+            R.id.playmixListFragment,
+            R.id.playmixDetailFragment,
+            R.id.crossfadeEditorFragment
         )
 
         val fragmentsNoToolbarNoBottomNav = setOf(
@@ -613,7 +617,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         searchButton?.setOnClickListener {
-            navController.navigate(R.id.searchFragment)
+            val navOptions = NavOptions.Builder()
+                .setEnterAnim(R.anim.slide_in_up)
+                .setExitAnim(R.anim.scale_down_fade_out)
+                .setPopEnterAnim(R.anim.scale_up_fade_in)
+                .setPopExitAnim(R.anim.slide_out_down)
+                .build()
+            navController.navigate(R.id.searchFragment, null, navOptions)
             drawerLayout.closeDrawers()
         }
 

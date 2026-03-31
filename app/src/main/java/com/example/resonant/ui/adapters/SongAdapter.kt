@@ -26,6 +26,7 @@ import com.bumptech.glide.request.target.Target
 import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.R
 import com.example.resonant.data.models.Song
+import com.example.resonant.utils.ChartUtils
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.MiniPlayerColorizer
 import kotlinx.coroutines.CoroutineScope
@@ -269,6 +270,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
         private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
         private val downloadedIcon: ImageView = itemView.findViewById(R.id.downloadedIcon)
+        private val tvPositionChange: TextView = itemView.findViewById(R.id.tvPositionChange)
+        private val ivTrendIcon: ImageView = itemView.findViewById(R.id.ivTrendIcon)
 
         init {
              likeButton.setOnClickListener {
@@ -298,6 +301,7 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
 
         fun bind(song: Song, itemPosition: Int, partial: Boolean = false) {
             positionTextView.text = "#${(itemPosition + 1)}"
+            ChartUtils.bindPositionChange(tvPositionChange, ivTrendIcon, song.positionChange)
             title.text = song.title
 
             val isDownloaded = downloadedSongIds.contains(song.id)

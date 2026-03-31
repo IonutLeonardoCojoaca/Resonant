@@ -12,24 +12,21 @@ interface DownloadedSongDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(song: DownloadedSong)
 
-    @Query("SELECT * FROM downloaded_songs WHERE songId = :id")
-    suspend fun getById(id: String): DownloadedSong?
+    @Query("SELECT * FROM downloaded_songs WHERE userId = :userId AND songId = :songId")
+    suspend fun getById(userId: String, songId: String): DownloadedSong?
 
-    @Query("DELETE FROM downloaded_songs WHERE songId = :id")
-    suspend fun deleteById(id: String)
+    @Query("SELECT * FROM downloaded_songs WHERE userId = :userId")
+    fun getAllByUser(userId: String): Flow<List<DownloadedSong>>
 
-    @Query("SELECT * FROM downloaded_songs")
-    fun getAll(): Flow<List<DownloadedSong>>
+    @Query("SELECT * FROM downloaded_songs WHERE userId = :userId")
+    suspend fun getAllSyncByUser(userId: String): List<DownloadedSong>
 
-    @Query("SELECT * FROM downloaded_songs WHERE songId = :songId")
-    suspend fun getDownloadedSong(songId: String): DownloadedSong?
+    @Query("DELETE FROM downloaded_songs WHERE userId = :userId")
+    suspend fun deleteAllByUser(userId: String)
 
-    @Query("SELECT * FROM downloaded_songs") // Asegúrate de que el nombre de la tabla es correcto
-    suspend fun getAllSync(): List<DownloadedSong>
+    @Query("DELETE FROM downloaded_songs WHERE userId = :userId AND songId = :songId")
+    suspend fun deleteSongById(userId: String, songId: String)
 
-    @Query("DELETE FROM downloaded_songs")
-    suspend fun deleteAll()
-
-    @Query("DELETE FROM downloaded_songs WHERE songId = :songId")
-    suspend fun deleteSongById(songId: String)
+    @Query("SELECT COUNT(*) FROM downloaded_songs WHERE songId = :songId")
+    suspend fun countBySongId(songId: String): Int
 }

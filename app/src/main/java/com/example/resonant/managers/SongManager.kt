@@ -296,6 +296,56 @@ class SongManager(private val context: Context) {
         }
     }
 
+    suspend fun getNewReleaseSongs(limit: Int = 50): List<Song> {
+        return try {
+            val songs = songService.getNewReleaseSongs(limit)
+            formatSongMetadata(songs)
+        } catch (e: Exception) {
+            Log.e("SongManager", "Error fetching new release songs", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getSongsByYear(yearFrom: Int? = null, yearTo: Int? = null, limit: Int = 50): List<Song> {
+        return try {
+            val songs = songService.getSongsByYear(yearFrom, yearTo, limit)
+            formatSongMetadata(songs)
+        } catch (e: Exception) {
+            Log.e("SongManager", "Error fetching songs by year ($yearFrom-$yearTo)", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getMostFavoritedSongs(limit: Int = 50): List<Song> {
+        return try {
+            val songs = songService.getMostFavoritedSongs(limit)
+            formatSongMetadata(songs)
+        } catch (e: Exception) {
+            Log.e("SongManager", "Error fetching most favorited songs", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getMostListenedSongs(limit: Int = 20): List<Song> {
+        return try {
+            val songs = songService.getMostListenedSongs(limit)
+            formatSongMetadata(songs)
+        } catch (e: Exception) {
+            Log.e("SongManager", "Error fetching most listened songs", e)
+            emptyList()
+        }
+    }
+
+    suspend fun getRelatedSongs(songId: String, limit: Int = 20): List<Song> {
+        return try {
+            val songs = songService.getRelatedSongs(songId, limit)
+            formatSongMetadata(songs)
+        } catch (e: Exception) {
+            Log.e("SongManager", "Error fetching related songs for $songId", e)
+            emptyList()
+        }
+    }
+
     private fun formatSongMetadata(songs: List<Song>): List<Song> {
         if (songs.isEmpty()) return emptyList()
         songs.forEach { song ->

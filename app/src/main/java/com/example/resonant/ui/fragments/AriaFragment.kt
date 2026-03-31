@@ -40,6 +40,7 @@ import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.ui.dialogs.ResonantDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -110,6 +111,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private var parallaxAnimator: ObjectAnimator? = null
     private var glow2Animator: ObjectAnimator? = null
     private val orbAnimators = mutableListOf<ObjectAnimator>()
+    private val fetchedPlaylistImageIds = mutableSetOf<String>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -186,6 +188,10 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             },
             onActionCardClick = { actionPayload ->
                 handleActionCardClick(actionPayload)
+            },
+            onSongCardClick = { songId ->
+                val bundle = Bundle().apply { putString("songId", songId) }
+                findNavController().navigate(R.id.action_ariaFragment_to_detailedSongFragment, bundle)
             }
         )
         val layoutManager = LinearLayoutManager(requireContext())
@@ -200,7 +206,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             chip1 to "Mezcla mi lista",
             chip2 to "Consulta mis estadísticas",
             chip3 to "Recomiéndame música nueva",
-            chip4 to "Crea una playlist para mí"
+            chip4 to "Crea una playlist pop"
         ).forEach { (chip, prompt) ->
             chip.setOnClickListener {
                 inputField.setText(prompt)
@@ -347,6 +353,18 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
                         scrollToBottom()
                     }
                 }
+                // Fetch playlist cover when a completed crear_playlist message lacks an image
+                for (msg in messages) {
+                    if (msg.role == AriaMessageRole.ARIA &&
+                        msg.isComplete &&
+                        msg.intentType == "crear_playlist" &&
+                        msg.actionData?.playlistId != null &&
+                        msg.actionData.entityImageUrl == null &&
+                        !fetchedPlaylistImageIds.contains(msg.id)) {
+                        fetchedPlaylistImageIds.add(msg.id)
+                        fetchPlaylistCoverForMessage(msg.id, msg.actionData.playlistId!!)
+                    }
+                }
             }
         }
 
@@ -381,6 +399,42 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
     private fun stopStreaming() {
         ariaViewModel.stopStreaming()
+    }
+
+    private fun fetchPlaylistCoverForMessage(messageId: String, playlistId: String) {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            // 1. Trigger collage generation on the backend
+            try {
+                val ctx = requireContext()
+                val session = SessionManager(ctx.applicationContext, ApiClient.baseUrl())
+                val token = session.getValidAccessToken()
+                if (!token.isNullOrBlank()) {
+                    val url = java.net.URL("${ApiClient.baseUrl()}api/playlists/$playlistId/sync-collage")
+                    val conn = url.openConnection() as java.net.HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Authorization", "Bearer $token")
+                    conn.responseCode
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "sync-collage call failed (will still retry fetch): $e")
+            }
+
+            // 2. Poll until the backend delivers the generated image (exponential backoff)
+            val retryDelays = longArrayOf(1500L, 3000L, 5000L, 8000L)
+            for ((attempt, delayMs) in retryDelays.withIndex()) {
+                delay(delayMs)
+                try {
+                    val playlist = PlaylistManager(requireContext()).getPlaylistById(playlistId)
+                    if (!playlist.imageUrl.isNullOrBlank()) {
+                        ariaViewModel.updatePlaylistCoverUrl(messageId, playlist.imageUrl!!)
+                        return@launch
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Cover fetch attempt ${attempt + 1} failed for $playlistId", e)
+                }
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -459,15 +513,19 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
                 ?: content?.optString("route")?.takeIf { it.isNotBlank() }
 
             val contentId = content?.optString("id")?.takeIf { it.isNotBlank() }
+            val entityKind = content?.optString("kind")?.takeIf { it.isNotBlank() }
+                ?: json.optString("kind")?.takeIf { it.isNotBlank() }
             val playlistId = json.optString("playlist_id").takeIf { it.isNotBlank() }
                 ?: json.optString("id").takeIf { it.isNotBlank() }
                 ?: extractRouteId(route, "/playlist/")
             val artistId = content?.optString("artist_id")?.takeIf { it.isNotBlank() }
                 ?: extractRouteId(route, "/artist/")
                 ?: extractIdFromPrefixedValue(contentId, "artist_profile:")
+                ?: if (entityKind?.contains("artist") == true) contentId else null
             val albumId = content?.optString("album_id")?.takeIf { it.isNotBlank() }
                 ?: extractRouteId(route, "/album/")
                 ?: extractIdFromPrefixedValue(contentId, "album_profile:")
+                ?: if (entityKind?.contains("album") == true) contentId else null
 
             when {
                 !playlistId.isNullOrBlank() -> {
@@ -636,22 +694,16 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             animate().alpha(1f).setDuration(400).setStartDelay(300).start()
         }
 
-        // Chips: aparecen desde abajo escalonados
-        val rows = listOf(
-            view?.findViewById<View>(R.id.ariaChipsRow1),
-            view?.findViewById<View>(R.id.ariaChipsRow2)
-        )
-        rows.forEachIndexed { i, row ->
-            row?.apply {
-                alpha = 0f
-                translationY = 20f
-                animate()
-                    .alpha(1f).translationY(0f)
-                    .setDuration(350)
-                    .setStartDelay((400 + i * 80).toLong())
-                    .setInterpolator(AccelerateDecelerateInterpolator())
-                    .start()
-            }
+        // Chips: aparecen desde abajo
+        view?.findViewById<View>(R.id.ariaChipsContainer)?.apply {
+            alpha = 0f
+            translationY = 20f
+            animate()
+                .alpha(1f).translationY(0f)
+                .setDuration(350)
+                .setStartDelay(400)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
         }
     }
 

@@ -33,6 +33,23 @@ data class AriaTopTrack(
     val streams: Int
 )
 
+data class AriaNamePlays(
+    val name: String,
+    val plays: Int
+)
+
+data class AriaSongCard(
+    val songId: String,
+    val title: String,
+    val artistNames: String,
+    val albumId: String? = null,
+    val albumTitle: String? = null,
+    val durationSeconds: Int = 0,
+    val releaseYear: Int = 0,
+    val streams: Int = 0,
+    val genres: List<String> = emptyList()
+)
+
 data class AriaAction(
     val type: String,
     val playlistId: String? = null,
@@ -51,7 +68,29 @@ data class AriaAction(
     val totalAlbums: Int? = null,
     val firstReleaseYear: Int? = null,
     val lastReleaseYear: Int? = null,
-    val summary: String? = null
+    val summary: String? = null,
+    // consulta_usuario fields
+    val userStatsKind: String? = null,
+    val totalPlaylists: Int? = null,
+    val totalSongsInPlaylists: Int? = null,
+    val totalPlays: Int? = null,
+    val totalListenTimeHours: Double? = null,
+    val avgPlaysPerDay: Double? = null,
+    val favoriteGenre: String? = null,
+    val favoriteArtist: String? = null,
+    val daysActive: Int? = null,
+    val totalPlaysLast7Days: Int? = null,
+    val topArtistsWithPlays: List<AriaNamePlays>? = null,
+    val topGenresWithPlays: List<AriaNamePlays>? = null,
+    val userFavorites: List<AriaTopTrack>? = null,
+    val userHistoryDays: List<Pair<String, Int>>? = null,
+    val userMood: String? = null,
+    val userMoodTrend: String? = null,
+    // recomendar_cancion / song_recommendations fields
+    val songRecommendations: List<AriaSongCard>? = null,
+    val songRecArtistId: String? = null,
+    val songRecArtistName: String? = null,
+    val songRecTotalInCatalog: Int? = null
 )
 
 data class AriaMessage(
@@ -170,6 +209,17 @@ class AriaViewModel : ViewModel() {
     fun clearMessages() {
         _messages.value = emptyList()
         _statusStream.value = null
+    }
+
+    fun updatePlaylistCoverUrl(messageId: String, imageUrl: String) {
+        val currentList = _messages.value.toMutableList()
+        val idx = currentList.indexOfFirst { it.id == messageId }
+        if (idx != -1) {
+            val msg = currentList[idx]
+            val updatedAction = msg.actionData?.copy(entityImageUrl = imageUrl) ?: return
+            currentList[idx] = msg.copy(actionData = updatedAction)
+            _messages.value = currentList
+        }
     }
 
     fun stopStreaming() {
@@ -464,6 +514,121 @@ class AriaViewModel : ViewModel() {
             val lastYear = stats?.optInt("last_release_year", 0)?.takeIf { it > 0 }
             val summary = content?.optString("summary")?.takeIf { it.isNotBlank() }
 
+            // consulta_usuario fields
+            val userStatsKind = if (type == "consulta_usuario") entityKind else null
+            var totalPlaylists: Int? = null
+            var totalSongsInPlaylists: Int? = null
+            var totalPlays: Int? = null
+            var totalListenTimeHours: Double? = null
+            var avgPlaysPerDay: Double? = null
+            var favoriteGenre: String? = null
+            var favoriteArtist: String? = null
+            var daysActive: Int? = null
+            var totalPlaysLast7Days: Int? = null
+            var topArtistsWithPlays: List<AriaNamePlays>? = null
+            var topGenresWithPlays: List<AriaNamePlays>? = null
+            var userFavorites: List<AriaTopTrack>? = null
+            var userHistoryDays: List<Pair<String, Int>>? = null
+            var userMood: String? = null
+            var userMoodTrend: String? = null
+
+            if (type == "consulta_usuario" && content != null) {
+                totalPlaylists = content.optInt("total_playlists", 0).takeIf { it > 0 }
+                totalSongsInPlaylists = content.optInt("total_songs_in_playlists", 0).takeIf { it > 0 }
+                totalPlays = content.optInt("total_plays", 0).takeIf { it > 0 }
+                totalListenTimeHours = content.optDouble("total_listen_time_hours", 0.0).takeIf { it > 0 }
+                avgPlaysPerDay = content.optDouble("avg_plays_per_day", 0.0).takeIf { it > 0 }
+                favoriteGenre = content.optString("favorite_genre").takeIf { it.isNotBlank() }
+                favoriteArtist = content.optString("favorite_artist").takeIf { it.isNotBlank() }
+                daysActive = content.optInt("days_active", 0).takeIf { it > 0 }
+                totalPlaysLast7Days = content.optInt("total_plays_last_7_days", 0).takeIf { it > 0 }
+                userMood = content.optString("mood").takeIf { it.isNotBlank() }
+                userMoodTrend = content.optString("tendencia").takeIf { it.isNotBlank() }
+
+                val topArtistsArr = content.optJSONArray("top_artists")
+                    ?: content.optJSONArray("artists")
+                if (topArtistsArr != null) {
+                    topArtistsWithPlays = (0 until topArtistsArr.length()).mapNotNull { i ->
+                        val obj = topArtistsArr.optJSONObject(i) ?: return@mapNotNull null
+                        val n = obj.optString("name").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        AriaNamePlays(name = n, plays = obj.optInt("plays", 0))
+                    }
+                }
+
+                val topGenresArr2 = content.optJSONArray("top_genres")
+                    ?: content.optJSONArray("genres")
+                if (topGenresArr2 != null && topGenresArr2.length() > 0 && topGenresArr2.optJSONObject(0) != null) {
+                    topGenresWithPlays = (0 until topGenresArr2.length()).mapNotNull { i ->
+                        val obj = topGenresArr2.optJSONObject(i) ?: return@mapNotNull null
+                        val n = obj.optString("name").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        AriaNamePlays(name = n, plays = obj.optInt("plays", 0))
+                    }
+                }
+
+                val favsArr = content.optJSONArray("favorites")
+                if (favsArr != null) {
+                    userFavorites = (0 until favsArr.length()).mapNotNull { i ->
+                        val obj = favsArr.optJSONObject(i) ?: return@mapNotNull null
+                        val fid = obj.optString("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val ftitle = obj.optString("title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        AriaTopTrack(id = fid, title = ftitle, streams = 0)
+                    }
+                }
+
+                val daysArr = content.optJSONArray("days")
+                if (daysArr != null) {
+                    userHistoryDays = (0 until daysArr.length()).mapNotNull { i ->
+                        val obj = daysArr.optJSONObject(i) ?: return@mapNotNull null
+                        val date = obj.optString("date").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        Pair(date, obj.optInt("plays", 0))
+                    }
+                }
+            }
+
+            // recomendar_cancion / song_recommendations fields
+            var songRecommendations: List<AriaSongCard>? = null
+            var songRecArtistId: String? = null
+            var songRecArtistName: String? = null
+            var songRecTotalInCatalog: Int? = null
+
+            if (type == "recomendar_cancion" && content != null && entityKind == "song_recommendations") {
+                songRecArtistId = content.optString("artist_id").takeIf { it.isNotBlank() }
+                songRecArtistName = content.optString("artist_name").takeIf { it.isNotBlank() }
+                songRecTotalInCatalog = content.optInt("total_in_catalog", 0).takeIf { it > 0 }
+
+                val songsArr = content.optJSONArray("songs")
+                if (songsArr != null) {
+                    songRecommendations = (0 until songsArr.length()).mapNotNull { i ->
+                        val s = songsArr.optJSONObject(i) ?: return@mapNotNull null
+                        val sid = s.optString("song_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val sTitle = s.optString("title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val sArtists = s.optString("artist_names").takeIf { it.isNotBlank() } ?: ""
+                        val sAlbumId = s.optString("album_id").takeIf { it.isNotBlank() }
+                        val sAlbumTitle = s.optString("album_title").takeIf { it.isNotBlank() }
+                        val sDuration = s.optInt("duration_seconds", 0)
+                        val sYear = s.optInt("release_year", 0)
+                        val sStreams = s.optInt("streams", 0)
+                        val sGenresArr = s.optJSONArray("genres")
+                        val sGenres = if (sGenresArr != null) {
+                            (0 until sGenresArr.length()).mapNotNull { j ->
+                                sGenresArr.optString(j).takeIf { it.isNotBlank() }
+                            }
+                        } else emptyList()
+                        AriaSongCard(
+                            songId = sid,
+                            title = sTitle,
+                            artistNames = sArtists,
+                            albumId = sAlbumId,
+                            albumTitle = sAlbumTitle,
+                            durationSeconds = sDuration,
+                            releaseYear = sYear,
+                            streams = sStreams,
+                            genres = sGenres
+                        )
+                    }
+                }
+            }
+
             AriaAction(
                 type = type,
                 playlistId = playlistId,
@@ -481,16 +646,39 @@ class AriaViewModel : ViewModel() {
                 totalAlbums = totalAlbums,
                 firstReleaseYear = firstYear,
                 lastReleaseYear = lastYear,
-                summary = summary
+                summary = summary,
+                userStatsKind = userStatsKind,
+                totalPlaylists = totalPlaylists,
+                totalSongsInPlaylists = totalSongsInPlaylists,
+                totalPlays = totalPlays,
+                totalListenTimeHours = totalListenTimeHours,
+                avgPlaysPerDay = avgPlaysPerDay,
+                favoriteGenre = favoriteGenre,
+                favoriteArtist = favoriteArtist,
+                daysActive = daysActive,
+                totalPlaysLast7Days = totalPlaysLast7Days,
+                topArtistsWithPlays = topArtistsWithPlays,
+                topGenresWithPlays = topGenresWithPlays,
+                userFavorites = userFavorites,
+                userHistoryDays = userHistoryDays,
+                userMood = userMood,
+                userMoodTrend = userMoodTrend,
+                songRecommendations = songRecommendations,
+                songRecArtistId = songRecArtistId,
+                songRecArtistName = songRecArtistName,
+                songRecTotalInCatalog = songRecTotalInCatalog
             )
         } catch (e: Exception) { null }
     }
 
     private fun addInterChunkSpaceIfNeeded(accumulatedText: StringBuilder, chunk: String): String {
         if (chunk.isEmpty()) return ""
-        // SSE chunks from the AI are partial tokens — they should be concatenated
-        // directly without injecting extra whitespace. The model already includes
-        // spaces/newlines where needed inside each chunk.
+        if (accumulatedText.isEmpty()) return chunk
+        val lastChar = accumulatedText.last()
+        val firstChar = chunk.first()
+        if (lastChar.isLetter() && firstChar.isDigit()) {
+            return " $chunk"
+        }
         return chunk
     }
 

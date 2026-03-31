@@ -6,9 +6,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.example.resonant.data.models.Album
+import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Genre
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.UserService
+import com.example.resonant.managers.AlbumManager
+import com.example.resonant.managers.ArtistManager
 import com.example.resonant.managers.GenreManager
 import kotlinx.coroutines.launch
 
@@ -36,6 +40,16 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     // Colores de gradiente del género favorito
     private val _favoriteGenreColors = MutableLiveData<String?>()
     val favoriteGenreColors: LiveData<String?> get() = _favoriteGenreColors
+
+    private val _recentArtists = MutableLiveData<List<Artist>>()
+    val recentArtists: LiveData<List<Artist>> get() = _recentArtists
+    private val _recentArtistsLoading = MutableLiveData<Boolean>()
+    val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
+
+    private val _newReleaseAlbums = MutableLiveData<List<Album>>()
+    val newReleaseAlbums: LiveData<List<Album>> get() = _newReleaseAlbums
+    private val _newReleaseAlbumsLoading = MutableLiveData<Boolean>()
+    val newReleaseAlbumsLoading: LiveData<Boolean> get() = _newReleaseAlbumsLoading
 
     fun loadPopularGenres() {
         _isLoading.value = true
@@ -66,6 +80,36 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 _error.value = "Error al cargar géneros: ${e.message}"
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadRecentArtists() {
+        if (_recentArtists.value != null) return
+        _recentArtistsLoading.value = true
+        viewModelScope.launch {
+            try {
+                _recentArtists.value = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 20)
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando artistas recientes: ${e.message}")
+                _recentArtists.value = emptyList()
+            } finally {
+                _recentArtistsLoading.value = false
+            }
+        }
+    }
+
+    fun loadNewReleaseAlbums() {
+        if (_newReleaseAlbums.value != null) return
+        _newReleaseAlbumsLoading.value = true
+        viewModelScope.launch {
+            try {
+                _newReleaseAlbums.value = AlbumManager.getNewReleaseAlbums(getApplication(), limit = 20)
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando nuevos álbumes: ${e.message}")
+                _newReleaseAlbums.value = emptyList()
+            } finally {
+                _newReleaseAlbumsLoading.value = false
             }
         }
     }

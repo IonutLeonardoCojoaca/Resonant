@@ -12,5 +12,11 @@ data class Artist(
     var fileName: String? = null,
 
     @SerializedName("imageUrl")
-    var url: String? = null
+    var url: String? = null,
+
+    @SerializedName("playCount")
+    val playCount: Int? = null,
+
+    @SerializedName("positionChange")
+    val positionChange: Int? = null
 ) : Parcelable

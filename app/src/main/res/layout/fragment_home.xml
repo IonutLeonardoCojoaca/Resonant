@@ -285,13 +285,14 @@
             </RelativeLayout>
         </RelativeLayout>
 
-        <!-- SONGS SECTION -->
+        <!-- SONGS SECTION (Recommended — right after albums) -->
         <FrameLayout
             android:id="@+id/titleSongsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingHorizontal="20dp"
-            android:paddingVertical="15dp">
+            android:paddingTop="15dp"
+            android:paddingBottom="5dp">
             <TextView
                 android:id="@+id/songsFeatured"
                 android:layout_width="wrap_content"
@@ -300,7 +301,7 @@
                 android:text=""
                 android:textColor="@color/white"
                 android:textSize="20sp"
-                android:layout_gravity="center_vertical|left"/>
+                android:layout_gravity="center_vertical|start"/>
         </FrameLayout>
 
         <RelativeLayout
@@ -315,26 +316,22 @@
                 android:layout_height="wrap_content"
                 android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
-                android:scrollbars="none"
-                android:paddingBottom="250dp"/>
+                android:scrollbars="none"/>
 
             <com.facebook.shimmer.ShimmerFrameLayout
                 android:id="@+id/shimmerSongLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
-
                 <LinearLayout
                     android:id="@+id/shimmerSongItems"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingBottom="250dp">
+                    android:orientation="vertical">
                     <include layout="@layout/item_song_shimmer_placeholder" />
                     <include layout="@layout/item_song_shimmer_placeholder" />
                     <include layout="@layout/item_song_shimmer_placeholder" />
                     <include layout="@layout/item_song_shimmer_placeholder" />
                 </LinearLayout>
-
             </com.facebook.shimmer.ShimmerFrameLayout>
 
             <LinearLayout
@@ -343,11 +340,151 @@
                 android:layout_height="300dp"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:visibility="gone"
-                android:paddingBottom="50dp">
+                android:visibility="gone">
                 <ImageView android:layout_width="50dp" android:layout_height="50dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
                 <TextView android:id="@+id/tvErrorSongs" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:fontFamily="@font/unageo_medium" android:text="No se encontraron canciones" android:textColor="#808080" android:textSize="16sp"/>
             </LinearLayout>
+        </RelativeLayout>
+
+        <!-- TOP ARTISTS SECTION (Artistas que más escuchas) -->
+        <TextView
+            android:id="@+id/tvTopArtistsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="15dp"
+            android:layout_marginTop="20dp"
+            android:fontFamily="@font/unageo_bold"
+            android:text="Artistas que más escuchas"
+            android:textColor="@color/white"
+            android:textSize="20sp" />
+
+        <FrameLayout
+            android:id="@+id/topArtistsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/listTopArtists"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="8dp"
+                android:scrollbars="none" />
+
+            <com.facebook.shimmer.ShimmerFrameLayout
+                android:id="@+id/shimmerTopArtists"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="8dp">
+                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                    <include layout="@layout/item_artist_shimmer_placeholder"/>
+                </LinearLayout>
+            </com.facebook.shimmer.ShimmerFrameLayout>
+
+        </FrameLayout>
+
+        <!-- TOP ALBUMS SECTION (Álbumes más escuchados) -->
+        <TextView
+            android:id="@+id/tvTopAlbumsTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="15dp"
+            android:layout_marginTop="20dp"
+            android:fontFamily="@font/unageo_bold"
+            android:text="Álbumes más escuchados"
+            android:textColor="@color/white"
+            android:textSize="20sp" />
+
+        <FrameLayout
+            android:id="@+id/topAlbumsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/listTopAlbums"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="8dp"
+                android:scrollbars="none" />
+
+            <com.facebook.shimmer.ShimmerFrameLayout
+                android:id="@+id/shimmerTopAlbums"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="8dp">
+                    <include layout="@layout/item_album_shimmer_placeholder"/>
+                    <include layout="@layout/item_album_shimmer_placeholder"/>
+                    <include layout="@layout/item_album_shimmer_placeholder"/>
+                </LinearLayout>
+            </com.facebook.shimmer.ShimmerFrameLayout>
+
+        </FrameLayout>
+
+        <!-- MOST LISTENED SONGS SECTION -->
+        <FrameLayout
+            android:id="@+id/titleTopSongsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="5dp">
+            <TextView
+                android:id="@+id/tvTopSongsTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Tus más escuchadas"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:layout_gravity="center_vertical|start"/>
+        </FrameLayout>
+
+        <RelativeLayout
+            android:id="@+id/listTopSongs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="10dp"
+            android:paddingBottom="250dp">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/allTopSongList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:scrollbars="none"/>
+
+            <com.facebook.shimmer.ShimmerFrameLayout
+                android:id="@+id/shimmerTopSongs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <include layout="@layout/item_song_shimmer_placeholder"/>
+                    <include layout="@layout/item_song_shimmer_placeholder"/>
+                    <include layout="@layout/item_song_shimmer_placeholder"/>
+                </LinearLayout>
+            </com.facebook.shimmer.ShimmerFrameLayout>
+
         </RelativeLayout>
 
     </LinearLayout>

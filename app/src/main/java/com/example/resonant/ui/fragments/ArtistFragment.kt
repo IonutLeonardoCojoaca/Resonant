@@ -86,10 +86,23 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     private lateinit var recyclerViewAlbums: RecyclerView
     private lateinit var albumsAdapter: AlbumAdapter
     private lateinit var titleAlbumSongs: TextView
+    private lateinit var listAlbumsContainer: LinearLayout
+    private lateinit var btnSeeMoreAlbums: MaterialButton
+    private var fullAlbumsList: List<com.example.resonant.data.models.Album> = emptyList()
+    private var albumsDisplayCount = 3
 
     private lateinit var layoutFeaturedAlbum: RelativeLayout
     private lateinit var recyclerViewFeaturedAlbum: RecyclerView
     private lateinit var featuredAlbumAdapter: AlbumAdapter
+
+    // Singles
+    private lateinit var listSinglesContainer: LinearLayout
+    private lateinit var recyclerViewSingles: RecyclerView
+    private lateinit var singlesAdapter: SongAdapter
+    private lateinit var titleSingles: TextView
+    private lateinit var btnSeeMoreSingles: MaterialButton
+    private var fullSinglesList: List<Song> = emptyList()
+    private var singlesDisplayCount = 5
 
     private lateinit var recyclerViewTopSongs: RecyclerView
     private lateinit var topSongsAdapter: SongAdapter
@@ -168,9 +181,17 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         titleAlbumSongs = view.findViewById(R.id.titleAlbumSongs)
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
+        listAlbumsContainer = view.findViewById(R.id.listAlbums)
+        btnSeeMoreAlbums = view.findViewById(R.id.btnSeeMoreAlbums)
 
         layoutFeaturedAlbum = view.findViewById(R.id.albumFeatured)
         recyclerViewFeaturedAlbum = view.findViewById(R.id.featuredAlbumList)
+
+        // Singles
+        listSinglesContainer = view.findViewById(R.id.listSingles)
+        recyclerViewSingles = view.findViewById(R.id.singlesRecycler)
+        titleSingles = view.findViewById(R.id.titleSingles)
+        btnSeeMoreSingles = view.findViewById(R.id.btnSeeMoreSingles)
 
         // --- Inicializamos el botón Play ---
         playButton = view.findViewById(R.id.playButton)
@@ -306,14 +327,25 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         recyclerViewAlbums.layoutManager = LinearLayoutManager(requireContext())
         recyclerViewAlbums.adapter = albumsAdapter
         recyclerViewAlbums.isNestedScrollingEnabled = false
+        recyclerViewAlbums.setItemViewCacheSize(6)
+
+        // Shared ViewPool for song-type RecyclerViews (reduces view inflation)
+        val songViewPool = RecyclerView.RecycledViewPool().apply { setMaxRecycledViews(0, 12) }
 
         // Top Songs
         topSongsAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_TOP_SONG)
         recyclerViewTopSongs.layoutManager = LinearLayoutManager(requireContext())
         recyclerViewTopSongs.adapter = topSongsAdapter
         recyclerViewTopSongs.isNestedScrollingEnabled = false
+        recyclerViewTopSongs.setItemViewCacheSize(10)
 
-        recyclerViewTopSongs.setItemViewCacheSize(20)
+        // Singles
+        singlesAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        recyclerViewSingles.layoutManager = LinearLayoutManager(requireContext())
+        recyclerViewSingles.adapter = singlesAdapter
+        recyclerViewSingles.isNestedScrollingEnabled = false
+        recyclerViewSingles.setRecycledViewPool(songViewPool)
+        recyclerViewSingles.setItemViewCacheSize(8)
     }
 
     private fun startEnterAnimation() {
@@ -378,6 +410,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             topSongsAdapter.favoriteSongIds = songIds
+            singlesAdapter.favoriteSongIds = songIds
         }
 
         artistViewModel = ViewModelProvider(this)[ArtistViewModel::class.java]
@@ -439,12 +472,14 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         // Observer: Álbumes Normales
         artistViewModel.normalAlbums.observe(viewLifecycleOwner) { list ->
             if (list.isNotEmpty()) {
+                fullAlbumsList = list
                 titleAlbumSongs.visibility = View.VISIBLE
                 recyclerViewAlbums.visibility = View.VISIBLE
-                albumsAdapter.updateList(list)
+                listAlbumsContainer.visibility = View.VISIBLE
+                albumsDisplayCount = 3
+                updateAlbumsListDisplay()
             } else {
-                recyclerViewAlbums.visibility = View.GONE
-                titleAlbumSongs.visibility = View.GONE
+                listAlbumsContainer.visibility = View.GONE
             }
         }
 
@@ -463,6 +498,19 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                 topSongsTitle.visibility = View.GONE
                 recyclerViewTopSongs.visibility = View.GONE
                 btnSeeMoreSongs.visibility = View.GONE
+            }
+        }
+
+        // Observer: Singles
+        artistViewModel.singles.observe(viewLifecycleOwner) { list ->
+            if (list.isNotEmpty()) {
+                fullSinglesList = list
+                listSinglesContainer.visibility = View.VISIBLE
+                singlesDisplayCount = 5
+                updateSinglesListDisplay()
+            } else {
+                listSinglesContainer.visibility = View.GONE
+                btnSeeMoreSingles.visibility = View.GONE
             }
         }
 
@@ -523,6 +571,54 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             }
         } else {
             btnSeeMoreSongs.visibility = View.GONE
+        }
+    }
+
+    private fun updateSinglesListDisplay() {
+        if (fullSinglesList.isEmpty()) {
+            btnSeeMoreSingles.visibility = View.GONE
+            return
+        }
+
+        val listToShow = fullSinglesList.take(singlesDisplayCount)
+        singlesAdapter.submitList(listToShow)
+
+        if (singlesDisplayCount < fullSinglesList.size) {
+            btnSeeMoreSingles.visibility = View.VISIBLE
+            val remaining = fullSinglesList.size - singlesDisplayCount
+            val nextBatch = minOf(remaining, 10)
+            btnSeeMoreSingles.text = "Ver $nextBatch más"
+            btnSeeMoreSingles.setIconResource(R.drawable.ic_keyboard_arrow_down)
+        } else if (fullSinglesList.size > 5) {
+            btnSeeMoreSingles.visibility = View.VISIBLE
+            btnSeeMoreSingles.text = "Ver menos"
+            btnSeeMoreSingles.setIconResource(R.drawable.ic_keyboard_arrow_up)
+        } else {
+            btnSeeMoreSingles.visibility = View.GONE
+        }
+    }
+
+    private fun updateAlbumsListDisplay() {
+        if (fullAlbumsList.isEmpty()) {
+            btnSeeMoreAlbums.visibility = View.GONE
+            return
+        }
+
+        val listToShow = fullAlbumsList.take(albumsDisplayCount)
+        albumsAdapter.updateList(listToShow)
+
+        if (albumsDisplayCount < fullAlbumsList.size) {
+            btnSeeMoreAlbums.visibility = View.VISIBLE
+            val remaining = fullAlbumsList.size - albumsDisplayCount
+            val nextBatch = minOf(remaining, 5)
+            btnSeeMoreAlbums.text = "Ver $nextBatch más"
+            btnSeeMoreAlbums.setIconResource(R.drawable.ic_keyboard_arrow_down)
+        } else if (fullAlbumsList.size > 3) {
+            btnSeeMoreAlbums.visibility = View.VISIBLE
+            btnSeeMoreAlbums.text = "Ver menos"
+            btnSeeMoreAlbums.setIconResource(R.drawable.ic_keyboard_arrow_up)
+        } else {
+            btnSeeMoreAlbums.visibility = View.GONE
         }
     }
 
@@ -599,7 +695,10 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         // Observamos cambios en la canción actual
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             // Actualizamos el adapter (las barritas animadas en la canción individual)
-            currentSong?.let { topSongsAdapter.setCurrentPlayingSong(it.id) }
+            currentSong?.let {
+                topSongsAdapter.setCurrentPlayingSong(it.id)
+                singlesAdapter.setCurrentPlayingSong(it.id)
+            }
             // Actualizamos el botón grande
             checkPlayButtonState()
         }
@@ -650,6 +749,42 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                 Log.e("ArtistFragment", "Error during songs expansion", e)
                 isSongsExpanded = !isSongsExpanded
                 updateSongsListDisplay()
+            }
+        }
+
+        btnSeeMoreSingles.setOnClickListener {
+            try {
+                val transition = AutoTransition()
+                transition.duration = 200
+                transition.excludeChildren(recyclerViewSingles, true)
+                TransitionManager.beginDelayedTransition(listSinglesContainer, transition)
+
+                if (singlesDisplayCount >= fullSinglesList.size) {
+                    singlesDisplayCount = 5
+                } else {
+                    singlesDisplayCount = minOf(singlesDisplayCount + 10, fullSinglesList.size)
+                }
+                updateSinglesListDisplay()
+            } catch (e: Exception) {
+                Log.e("ArtistFragment", "Error during singles expansion", e)
+            }
+        }
+
+        btnSeeMoreAlbums.setOnClickListener {
+            try {
+                val transition = AutoTransition()
+                transition.duration = 200
+                transition.excludeChildren(recyclerViewAlbums, true)
+                TransitionManager.beginDelayedTransition(listAlbumsContainer, transition)
+
+                if (albumsDisplayCount >= fullAlbumsList.size) {
+                    albumsDisplayCount = 3
+                } else {
+                    albumsDisplayCount = minOf(albumsDisplayCount + 5, fullAlbumsList.size)
+                }
+                updateAlbumsListDisplay()
+            } catch (e: Exception) {
+                Log.e("ArtistFragment", "Error during albums expansion", e)
             }
         }
 
@@ -738,21 +873,110 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                             downloadViewModel.deleteSong(songToDelete)
                         },
                         onGoToAlbumClick = { albumId ->
-                             val bundle = Bundle().apply { putString("albumId", albumId) }
-                             findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
+                            val bundle = Bundle().apply { putString("albumId", albumId) }
+                            findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
                         },
                         onGoToArtistClick = { artist ->
-                             val bundle = Bundle().apply { 
-                                 putString("artistId", artist.id)
-                                 putString("artistName", artist.name)
-                                 putString("artistImageUrl", artist.url)
+                            val bundle = Bundle().apply {
+                                putString("artistId", artist.id)
+                                putString("artistName", artist.name)
+                                putString("artistImageUrl", artist.url)
                             }
                             findNavController().navigate(R.id.action_artistFragment_self, bundle)
+                        },
+                        onAddToPlaymixClick = { songToAdd ->
+                            val sheet = com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet(
+                                song = songToAdd,
+                                onNoPlaymixesFound = { findNavController().navigate(R.id.action_global_to_playmixListFragment) }
+                            )
+                            sheet.show(parentFragmentManager, "SelectPlaymixBottomSheet")
                         }
                     )
                     bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
                 } catch (e: Exception) {
                     Log.e("ArtistFragment", "Error loading song artist details", e)
+                }
+            }
+        }
+
+        // Singles click listeners
+        singlesAdapter.onItemClick = { (song, bitmap) ->
+            val currentIndex = singlesAdapter.currentList.indexOfFirst { it.id == song.id }
+            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+            val songList = ArrayList(singlesAdapter.currentList)
+            val queueId = currentArtist?.id ?: "ARTIST_SINGLES_UNKNOWN"
+
+            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PLAY
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+            }
+            requireContext().startService(playIntent)
+        }
+
+        singlesAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+
+        singlesAdapter.onSettingsClick = { song ->
+            lifecycleScope.launch {
+                try {
+                    song.artistName = song.artists.joinToString(", ") { it.name }
+
+                    val bottomSheet = SongOptionsBottomSheet(
+                        song = song,
+                        onSeeSongClick = { selectedSong ->
+                            val bundle = Bundle().apply { putParcelable("song", selectedSong) }
+                            findNavController().navigate(R.id.action_artistFragment_to_detailedSongFragment, bundle)
+                        },
+                        onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
+                        onAddToPlaylistClick = { songToAdd ->
+                            val sheet = SelectPlaylistBottomSheet(
+                                song = songToAdd,
+                                onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
+                            )
+                            sheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                        },
+                        onDownloadClick = { songToDownload ->
+                            downloadViewModel.downloadSong(songToDownload)
+                        },
+                        onRemoveDownloadClick = { songToDelete ->
+                            downloadViewModel.deleteSong(songToDelete)
+                        },
+                        onGoToAlbumClick = { albumId ->
+                            val bundle = Bundle().apply { putString("albumId", albumId) }
+                            findNavController().navigate(R.id.action_artistFragment_to_albumFragment, bundle)
+                        },
+                        onGoToArtistClick = { artist ->
+                            val bundle = Bundle().apply {
+                                putString("artistId", artist.id)
+                                putString("artistName", artist.name)
+                                putString("artistImageUrl", artist.url)
+                            }
+                            findNavController().navigate(R.id.action_artistFragment_self, bundle)
+                        },
+                        onAddToPlaymixClick = { songToAdd ->
+                            val sheet = com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet(
+                                song = songToAdd,
+                                onNoPlaymixesFound = { findNavController().navigate(R.id.action_global_to_playmixListFragment) }
+                            )
+                            sheet.show(parentFragmentManager, "SelectPlaymixBottomSheet")
+                        }
+                    )
+                    bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
+                } catch (e: Exception) {
+                    Log.e("ArtistFragment", "Error loading single artist details", e)
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                singlesAdapter.downloadedSongIds = downloadedIds
+                if (singlesAdapter.currentList.isNotEmpty()) {
+                    singlesAdapter.notifyDataSetChanged()
                 }
             }
         }

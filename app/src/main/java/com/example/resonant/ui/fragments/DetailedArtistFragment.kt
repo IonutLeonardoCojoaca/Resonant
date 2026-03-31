@@ -19,9 +19,11 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
+import android.widget.LinearLayout
 import com.example.resonant.R
 import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.adapters.AlbumAdapter
+import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.viewmodels.ArtistViewModel
 import com.google.android.material.imageview.ShapeableImageView
@@ -44,6 +46,15 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
 
     private lateinit var albumsAdapter: AlbumAdapter
     private lateinit var genresAdapter: GenreAdapter
+    private lateinit var collaboratorsAdapter: ArtistAdapter
+
+    private lateinit var statsHeader: TextView
+    private lateinit var statsCardsRow: LinearLayout
+    private lateinit var statTotalSongs: TextView
+    private lateinit var statTotalAlbums: TextView
+    private lateinit var statTotalStreams: TextView
+    private lateinit var collaboratorsHeader: TextView
+    private lateinit var collaboratorsRecyclerView: RecyclerView
 
     private lateinit var artistViewModel: ArtistViewModel
 
@@ -79,6 +90,14 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
 
         albumsHeader = view.findViewById(R.id.albumsHeader)
         albumCountText = view.findViewById(R.id.albumCountText)
+
+        statsHeader = view.findViewById(R.id.statsHeader)
+        statsCardsRow = view.findViewById(R.id.statsCardsRow)
+        statTotalSongs = view.findViewById(R.id.statTotalSongs)
+        statTotalAlbums = view.findViewById(R.id.statTotalAlbums)
+        statTotalStreams = view.findViewById(R.id.statTotalStreams)
+        collaboratorsHeader = view.findViewById(R.id.collaboratorsHeader)
+        collaboratorsRecyclerView = view.findViewById(R.id.collaboratorsRecyclerView)
     }
 
     private fun setupAdapters() {
@@ -101,6 +120,16 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
         }
         genresRecyclerView.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
         genresRecyclerView.adapter = genresAdapter
+
+        // Collaborators
+        collaboratorsAdapter = ArtistAdapter(emptyList())
+        collaboratorsAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_LIST)
+        collaboratorsAdapter.onArtistClick = { collab, _ ->
+            val bundle = Bundle().apply { putString("artistId", collab.id) }
+            Navigation.findNavController(requireView()).navigate(R.id.detailedArtistFragment, bundle)
+        }
+        collaboratorsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        collaboratorsRecyclerView.adapter = collaboratorsAdapter
 
         setupClickListeners()
     }
@@ -137,6 +166,38 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
                 genresRecyclerView.visibility = View.GONE
                 genresHeader.visibility = View.GONE
             }
+        }
+
+        artistViewModel.artistStats.observe(viewLifecycleOwner) { stats ->
+            if (stats != null) {
+                statsHeader.visibility = View.VISIBLE
+                statsCardsRow.visibility = View.VISIBLE
+                statTotalSongs.text = stats.totalSongs.toString()
+                statTotalAlbums.text = stats.totalAlbums.toString()
+                statTotalStreams.text = formatCount(stats.totalStreams)
+            } else {
+                statsHeader.visibility = View.GONE
+                statsCardsRow.visibility = View.GONE
+            }
+        }
+
+        artistViewModel.collaborators.observe(viewLifecycleOwner) { collabs ->
+            if (collabs.isNotEmpty()) {
+                collaboratorsHeader.visibility = View.VISIBLE
+                collaboratorsRecyclerView.visibility = View.VISIBLE
+                collaboratorsAdapter.submitArtists(collabs)
+            } else {
+                collaboratorsHeader.visibility = View.GONE
+                collaboratorsRecyclerView.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun formatCount(count: Int): String {
+        return when {
+            count >= 1_000_000 -> String.format("%.1fM", count / 1_000_000.0)
+            count >= 1_000 -> String.format("%.1fK", count / 1_000.0)
+            else -> count.toString()
         }
     }
 

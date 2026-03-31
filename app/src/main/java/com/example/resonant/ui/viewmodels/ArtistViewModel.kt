@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
+import com.example.resonant.data.models.ArtistStatsDTO
 import com.example.resonant.data.models.Song
 // [CAMBIO] Ya no necesitamos ApiClient aquí, el Manager se encarga
 // import com.example.resonant.data.network.ApiClient
@@ -15,6 +16,7 @@ import com.example.resonant.managers.GenreManager
 import com.example.resonant.managers.SongManager
 import com.example.resonant.data.models.Genre
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 import com.example.resonant.data.models.ArtistSmartPlaylist
 
@@ -48,52 +50,46 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> get() = _isLoading
 
+    private val _singles = MutableLiveData<List<Song>>()
+    val singles: LiveData<List<Song>> get() = _singles
+
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> get() = _errorMessage
+
+    private val _artistStats = MutableLiveData<ArtistStatsDTO?>()
+    val artistStats: LiveData<ArtistStatsDTO?> get() = _artistStats
+
+    private val _collaborators = MutableLiveData<List<Artist>>()
+    val collaborators: LiveData<List<Artist>> get() = _collaborators
 
     private var currentArtistId: String? = null
 
     fun loadData(artistId: String) {
-        // [CAMBIO] Eliminamos el chequeo estricto para permitir que ArtistManager decida si refrescar.
-        // Si el Manager devuelve datos cacheados, será instantáneo.
-        
         currentArtistId = artistId
-        
-        // Solo mostramos loading si no tenemos nada (evitar parpadeo)
+
         if (_artist.value == null) {
             _isLoading.value = true
         }
 
         viewModelScope.launch {
             try {
-                val result = ArtistManager.getFullArtistData(
-                    getApplication(),
-                    artistId,
-                    songManager
+                // --- FASE 1: Datos críticos (artista + álbumes + top songs) ---
+                // ArtistManager ya lanza estas 3 llamadas en paralelo internamente.
+                // Publicamos en la UI en cuanto llegan para que el usuario vea contenido rápido.
+                val (artistObj, albumsList, songsList) = ArtistManager.getFullArtistData(
+                    getApplication(), artistId, songManager
                 )
-
-                // Fetch Playlists 
-                val playlistsList = ArtistManager.getArtistSmartPlaylists(getApplication(), artistId)
-                _artistPlaylists.value = playlistsList
-
-                // Fetch Images (Gallery)
-                val imagesList = ArtistManager.getArtistImages(getApplication(), artistId)
-                _artistImages.value = imagesList
-
-                // Fetch Genres
-                val genresList = genreManager.getGenresByArtistId(artistId)
-                _artistGenres.value = genresList
-
-                val (artistObj, albumsList, songsList) = result
                 val artistNameStr = artistObj.name ?: "Desconocido"
 
-                // Asignar nombres si faltan
                 albumsList.forEach { it.artistName = artistNameStr }
                 songsList.forEach { if (it.artistName.isNullOrEmpty()) it.artistName = artistNameStr }
 
-                // Separar Destacado vs Normal
-                val sortedAlbums = albumsList.sortedByDescending { it.releaseYear ?: 0 }
+                // Publicar inmediatamente → el usuario ve cabecera y canciones sin esperar Phase 2
+                _artist.value = artistObj
+                _topSongs.value = songsList
+                _isLoading.value = false
 
+                val sortedAlbums = albumsList.sortedByDescending { it.releaseYear ?: 0 }
                 if (sortedAlbums.isNotEmpty()) {
                     _featuredAlbum.value = listOf(sortedAlbums.first())
                     _normalAlbums.value = sortedAlbums.drop(1)
@@ -102,9 +98,36 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
                     _normalAlbums.value = emptyList()
                 }
 
-                // Publicar el resto de datos
-                _artist.value = artistObj
-                _topSongs.value = songsList
+                // --- FASE 2: Contenido secundario en paralelo ---
+                // Cada sección publica en la UI en cuanto su llamada termina,
+                // de forma independiente. Un fallo en una no afecta a las demás.
+                supervisorScope {
+                    launch {
+                        val playlists = ArtistManager.getArtistSmartPlaylists(getApplication(), artistId)
+                        _artistPlaylists.postValue(playlists)
+                    }
+                    launch {
+                        val images = ArtistManager.getArtistImages(getApplication(), artistId)
+                        _artistImages.postValue(images)
+                    }
+                    launch {
+                        val singles = ArtistManager.getArtistSingles(getApplication(), artistId)
+                        singles.forEach { if (it.artistName.isNullOrEmpty()) it.artistName = artistNameStr }
+                        _singles.postValue(singles)
+                    }
+                    launch {
+                        val genres = genreManager.getGenresByArtistId(artistId)
+                        _artistGenres.postValue(genres)
+                    }
+                    launch {
+                        val stats = ArtistManager.getArtistStats(getApplication(), artistId)
+                        _artistStats.postValue(stats)
+                    }
+                    launch {
+                        val collabs = ArtistManager.getArtistCollaborators(getApplication(), artistId)
+                        _collaborators.postValue(collabs)
+                    }
+                }
 
             } catch (e: Exception) {
                 _errorMessage.value = "Error al cargar datos: ${e.message}"

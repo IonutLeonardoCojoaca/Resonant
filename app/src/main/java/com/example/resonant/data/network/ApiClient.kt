@@ -10,6 +10,7 @@ import com.example.resonant.data.network.services.AuthService
 import com.example.resonant.data.network.services.GenreService
 import com.example.resonant.data.network.services.LyricsService
 import com.example.resonant.data.network.services.PlaylistService
+import com.example.resonant.data.network.services.PlaymixService
 import com.example.resonant.data.network.services.SongService
 
 import com.example.resonant.data.network.services.UserService
@@ -81,6 +82,10 @@ object ApiClient {
 
     fun getLyricsService(context: Context): LyricsService {
         return getRetrofitInstance(context).create(LyricsService::class.java)
+    }
+
+    fun getPlaymixService(context: Context): PlaymixService {
+        return getRetrofitInstance(context).create(PlaymixService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

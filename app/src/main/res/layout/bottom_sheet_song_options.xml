@@ -184,6 +184,20 @@
             android:textSize="15sp" />
 
         <TextView
+            android:id="@+id/addToPlaymixButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_playmix"
+            android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
+            android:fontFamily="@font/unageo_regular"
+            android:padding="16dp"
+            android:gravity="start|center_vertical"
+            android:text="Añadir a PlayMix"
+            android:textColor="@color/white"
+            android:textSize="15sp" />
+
+        <TextView
             android:id="@+id/cancelButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

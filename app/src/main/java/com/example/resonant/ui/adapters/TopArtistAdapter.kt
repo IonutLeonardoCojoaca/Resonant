@@ -12,6 +12,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.R
 import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.viewmodels.ArtistRank
+import com.example.resonant.utils.ChartUtils
 
 class TopArtistAdapter(
     private var artists: List<ArtistRank> = emptyList(),
@@ -27,6 +28,8 @@ class TopArtistAdapter(
         val artistImage: ImageView = view.findViewById(R.id.artistImage)
         val artistName: TextView = view.findViewById(R.id.artistName)
         val artistStats: TextView = view.findViewById(R.id.artistStats)
+        val tvPositionChange: TextView = view.findViewById(R.id.tvPositionChange)
+        val ivTrendIcon: ImageView = view.findViewById(R.id.ivTrendIcon)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -42,6 +45,7 @@ class TopArtistAdapter(
         holder.rankText.text = "#${item.rank}"
         holder.artistName.text = artist.name
         holder.artistStats.text = "Artista Popular"
+        ChartUtils.bindPositionChange(holder.tvPositionChange, holder.ivTrendIcon, artist.positionChange)
 
         val placeholderRes = R.drawable.ic_user
         

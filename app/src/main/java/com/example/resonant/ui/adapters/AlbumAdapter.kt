@@ -28,6 +28,9 @@ class AlbumAdapter(
     var onSettingsClick: ((Album) -> Unit)? = null // New callback
     var onAlbumClick: ((Album) -> Unit)? = null
 
+    /** When > 0, overrides the item root width (use for horizontal RecyclerViews) */
+    var itemWidthOverride: Int = 0
+
     companion object {
         const val VIEW_TYPE_SIMPLE = 0
         const val VIEW_TYPE_DETAILED = 1
@@ -61,10 +64,17 @@ class AlbumAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val album = albums[position]
         when (holder) {
-            is SimpleAlbumViewHolder -> holder.bind(album)
+            is SimpleAlbumViewHolder -> {
+                if (itemWidthOverride > 0) {
+                    holder.itemView.layoutParams = holder.itemView.layoutParams
+                        ?.also { it.width = itemWidthOverride }
+                        ?: ViewGroup.LayoutParams(itemWidthOverride, ViewGroup.LayoutParams.WRAP_CONTENT)
+                }
+                holder.bind(album)
+            }
             is DetailedAlbumViewHolder -> holder.bind(album)
             is FavoriteAlbumViewHolder -> holder.bind(album)
-            is FeaturedAlbumViewHolder -> holder.bind(album) // <--- BINDING NUEVO
+            is FeaturedAlbumViewHolder -> holder.bind(album)
         }
     }
 

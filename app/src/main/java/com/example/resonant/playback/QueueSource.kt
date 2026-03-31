@@ -7,4 +7,5 @@ enum class QueueSource {
     HOME,
     FAVORITE_SONGS,
     TOP_SONGS_ARTIST,
+    PLAYMIX,
     UNKNOWN }

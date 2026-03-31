@@ -183,6 +183,9 @@
             app:exitAnim="@anim/scale_down_fade_out"
             app:popEnterAnim="@anim/scale_up_fade_in"
             app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_ariaFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment" />
     </fragment>
 
     <fragment
@@ -211,6 +214,13 @@
         <action
             android:id="@+id/action_savedFragment_to_downloadedSongsFragment"
             app:destination="@id/downloadedSongsFragment" />
+        <action
+            android:id="@+id/action_savedFragment_to_playmixListFragment"
+            app:destination="@id/playmixListFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
         <action
             android:id="@+id/action_savedFragment_to_albumFragment"
             app:destination="@id/albumFragment" />
@@ -436,5 +446,48 @@
             app:popEnterAnim="@anim/scale_up_fade_in"
             app:popExitAnim="@anim/slide_out_down" />
     </fragment>
+
+    <!-- ═══ PlayMix ═══ -->
+    <fragment
+        android:id="@+id/playmixListFragment"
+        android:name="com.example.resonant.ui.fragments.PlaymixListFragment"
+        android:label="Mis PlayMixes"
+        tools:layout="@layout/fragment_playmix_list">
+        <action
+            android:id="@+id/action_playmixListFragment_to_playmixDetailFragment"
+            app:destination="@id/playmixDetailFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/playmixDetailFragment"
+        android:name="com.example.resonant.ui.fragments.PlaymixDetailFragment"
+        android:label="PlayMix"
+        tools:layout="@layout/fragment_playmix_detail">
+        <action
+            android:id="@+id/action_playmixDetailFragment_to_crossfadeEditorFragment"
+            app:destination="@id/crossfadeEditorFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/crossfadeEditorFragment"
+        android:name="com.example.resonant.ui.fragments.CrossfadeEditorFragment"
+        android:label="Editor de Crossfade"
+        tools:layout="@layout/fragment_crossfade_editor" />
+
+    <action
+        android:id="@+id/action_global_to_playmixListFragment"
+        app:destination="@id/playmixListFragment" />
+
+    <action
+        android:id="@+id/action_global_to_playmixDetailFragment"
+        app:destination="@id/playmixDetailFragment" />
 
 </navigation>

@@ -11,8 +11,8 @@
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/albumCover"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
+        android:layout_width="92dp"
+        android:layout_height="92dp"
         android:scaleType="centerCrop"
         android:src="@drawable/ic_album_stack"
         app:shapeAppearanceOverlay="@style/PremiumSquareImage"

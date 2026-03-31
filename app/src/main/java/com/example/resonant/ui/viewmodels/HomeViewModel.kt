@@ -24,6 +24,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var lastHistoryFetchTime: Long = 0
     private var lastArtistsFetchTime: Long = 0
     private var lastAlbumsFetchTime: Long = 0
+    private var lastRecentArtistsFetchTime: Long = 0
+    private var lastRecentAlbumsFetchTime: Long = 0
+    private var lastTopSongsFetchTime: Long = 0
+    private var lastTopArtistsFetchTime: Long = 0
+    private var lastTopAlbumsFetchTime: Long = 0
 
     // --- SECCIÓN CANCIONES ---
     private val _songs = MutableLiveData<List<Song>>()
@@ -62,6 +67,46 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val albumsLoading: LiveData<Boolean> get() = _albumsLoading
     private val _albumsError = MutableLiveData<String?>()
     val albumsError: LiveData<String?> get() = _albumsError
+
+    // --- SECCIÓN ARTISTAS RECIENTEMENTE AÑADIDOS ---
+    private val _recentArtists = MutableLiveData<List<Artist>>()
+    val recentArtists: LiveData<List<Artist>> get() = _recentArtists
+    private val _recentArtistsLoading = MutableLiveData<Boolean>()
+    val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
+    private val _recentArtistsError = MutableLiveData<String?>()
+    val recentArtistsError: LiveData<String?> get() = _recentArtistsError
+
+    // --- SECCIÓN ÁLBUMES RECIENTEMENTE AÑADIDOS ---
+    private val _recentAlbums = MutableLiveData<List<Album>>()
+    val recentAlbums: LiveData<List<Album>> get() = _recentAlbums
+    private val _recentAlbumsLoading = MutableLiveData<Boolean>()
+    val recentAlbumsLoading: LiveData<Boolean> get() = _recentAlbumsLoading
+    private val _recentAlbumsError = MutableLiveData<String?>()
+    val recentAlbumsError: LiveData<String?> get() = _recentAlbumsError
+
+    // --- SECCIÓN TUS CANCIONES MÁS ESCUCHADAS ---
+    private val _topSongs = MutableLiveData<List<Song>>()
+    val topSongs: LiveData<List<Song>> get() = _topSongs
+    private val _topSongsLoading = MutableLiveData<Boolean>()
+    val topSongsLoading: LiveData<Boolean> get() = _topSongsLoading
+    private val _topSongsError = MutableLiveData<String?>()
+    val topSongsError: LiveData<String?> get() = _topSongsError
+
+    // --- SECCIÓN TUS ARTISTAS MÁS ESCUCHADOS ---
+    private val _topArtists = MutableLiveData<List<Artist>>()
+    val topArtists: LiveData<List<Artist>> get() = _topArtists
+    private val _topArtistsLoading = MutableLiveData<Boolean>()
+    val topArtistsLoading: LiveData<Boolean> get() = _topArtistsLoading
+    private val _topArtistsError = MutableLiveData<String?>()
+    val topArtistsError: LiveData<String?> get() = _topArtistsError
+
+    // --- SECCIÓN TUS ÁLBUMES MÁS ESCUCHADOS ---
+    private val _topAlbums = MutableLiveData<List<Album>>()
+    val topAlbums: LiveData<List<Album>> get() = _topAlbums
+    private val _topAlbumsLoading = MutableLiveData<Boolean>()
+    val topAlbumsLoading: LiveData<Boolean> get() = _topAlbumsLoading
+    private val _topAlbumsError = MutableLiveData<String?>()
+    val topAlbumsError: LiveData<String?> get() = _topAlbumsError
 
 
     fun loadSongs(forceRefresh: Boolean = false) {
@@ -178,6 +223,126 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (!hasData) _albumsError.value = "Error al cargar álbumes"
             } finally {
                 _albumsLoading.value = false
+            }
+        }
+    }
+
+    fun loadRecentArtists(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastRecentArtistsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _recentArtists.value != null
+
+        if (hasData && !forceRefresh && !isExpired) return
+
+        if (!hasData) _recentArtistsLoading.value = true
+        _recentArtistsError.value = null
+
+        viewModelScope.launch {
+            try {
+                val result = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 20)
+                _recentArtists.value = result
+                if (result.isNotEmpty()) lastRecentArtistsFetchTime = System.currentTimeMillis()
+                else if (!hasData) _recentArtistsError.value = "No hay artistas recientes"
+            } catch (e: Exception) {
+                if (!hasData) _recentArtistsError.value = "Error al cargar artistas recientes"
+            } finally {
+                _recentArtistsLoading.value = false
+            }
+        }
+    }
+
+    fun loadRecentAlbums(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastRecentAlbumsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _recentAlbums.value != null
+
+        if (hasData && !forceRefresh && !isExpired) return
+
+        if (!hasData) _recentAlbumsLoading.value = true
+        _recentAlbumsError.value = null
+
+        viewModelScope.launch {
+            try {
+                val result = AlbumManager.getNewReleaseAlbums(getApplication(), limit = 20)
+                _recentAlbums.value = result
+                if (result.isNotEmpty()) lastRecentAlbumsFetchTime = System.currentTimeMillis()
+                else if (!hasData) _recentAlbumsError.value = "No hay álbumes recientes"
+            } catch (e: Exception) {
+                if (!hasData) _recentAlbumsError.value = "Error al cargar álbumes recientes"
+            } finally {
+                _recentAlbumsLoading.value = false
+            }
+        }
+    }
+
+    fun loadTopSongs(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastTopSongsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _topSongs.value != null
+
+        if (hasData && !forceRefresh && !isExpired) return
+
+        if (!hasData) _topSongsLoading.value = true
+        _topSongsError.value = null
+
+        viewModelScope.launch {
+            try {
+                val result = songManager.getMostListenedSongs(limit = 20)
+                _topSongs.value = result
+                if (result.isNotEmpty()) lastTopSongsFetchTime = System.currentTimeMillis()
+                else if (!hasData) _topSongsError.value = "No hay canciones escuchadas"
+            } catch (e: Exception) {
+                if (!hasData) _topSongsError.value = "Error al cargar tus más escuchadas"
+            } finally {
+                _topSongsLoading.value = false
+            }
+        }
+    }
+
+    fun loadTopArtists(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastTopArtistsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _topArtists.value != null
+
+        if (hasData && !forceRefresh && !isExpired) return
+
+        if (!hasData) _topArtistsLoading.value = true
+        _topArtistsError.value = null
+
+        viewModelScope.launch {
+            try {
+                val result = ArtistManager.getMostListenedArtists(getApplication(), limit = 20)
+                _topArtists.value = result
+                if (result.isNotEmpty()) lastTopArtistsFetchTime = System.currentTimeMillis()
+                else if (!hasData) _topArtistsError.value = "No hay artistas escuchados"
+            } catch (e: Exception) {
+                if (!hasData) _topArtistsError.value = "Error al cargar tus artistas más escuchados"
+            } finally {
+                _topArtistsLoading.value = false
+            }
+        }
+    }
+
+    fun loadTopAlbums(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastTopAlbumsFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _topAlbums.value != null
+
+        if (hasData && !forceRefresh && !isExpired) return
+
+        if (!hasData) _topAlbumsLoading.value = true
+        _topAlbumsError.value = null
+
+        viewModelScope.launch {
+            try {
+                val result = AlbumManager.getMostListenedAlbums(getApplication(), limit = 20)
+                _topAlbums.value = result
+                if (result.isNotEmpty()) lastTopAlbumsFetchTime = System.currentTimeMillis()
+                else if (!hasData) _topAlbumsError.value = "No hay álbumes escuchados"
+            } catch (e: Exception) {
+                if (!hasData) _topAlbumsError.value = "Error al cargar tus álbumes más escuchados"
+            } finally {
+                _topAlbumsLoading.value = false
             }
         }
     }

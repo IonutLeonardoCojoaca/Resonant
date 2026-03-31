@@ -63,12 +63,9 @@ class SearchHistoryAdapter(
             Glide.with(holder.itemView.context)
                 .load(item.imageUrl)
                 .centerCrop()
-                .placeholder(R.drawable.ic_recent)
-                .error(R.drawable.ic_recent)
                 .into(holder.iconRecent)
             holder.iconRecent.imageTintList = null
         } else {
-            holder.iconRecent.setImageResource(R.drawable.ic_recent)
             holder.iconRecent.imageTintList = android.content.res.ColorStateList.valueOf(
                 androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.white)
             )

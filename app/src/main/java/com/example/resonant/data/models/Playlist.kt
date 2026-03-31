@@ -24,6 +24,9 @@ data class Playlist(
     @SerializedName("songsHash")
     var songsHash: String? = null,
 
+    @SerializedName("isSystemPlaylist")
+    val isSystemPlaylist: Boolean = false,
+
     // Campo local no serializado: se rellena tras obtener info del usuario
     @Transient
     var ownerName: String? = null

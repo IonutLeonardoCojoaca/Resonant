@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Shuffle/mix icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17.17,10.5l1.21,-1.21a0.5,0.5 0,0 0,0 -0.71l-3,-3a0.5,0.5 0,0 0,-0.71 0l-1.21,1.21L10.5,3.83a0.5,0.5 0,0 0,-0.71 0l-3,3a0.5,0.5 0,0 0,0 0.71l2.96,2.96L6.83,13.42a0.5,0.5 0,0 0,0 0.71l3,3a0.5,0.5 0,0 0,0.71 0l2.96,-2.96 1.21,1.21a0.5,0.5 0,0 0,0.71 0l3,-3a0.5,0.5 0,0 0,0 -0.71L17.17,10.5zM10.15,15.72L7.9,13.47 10.15,11.22 12.4,13.47 10.15,15.72zM10.15,9.78L7.9,7.53 10.15,5.28 12.4,7.53 10.15,9.78zM14.03,13.66L11.78,11.41 14.03,9.16 16.28,11.41 14.03,13.66z" />
+</vector>

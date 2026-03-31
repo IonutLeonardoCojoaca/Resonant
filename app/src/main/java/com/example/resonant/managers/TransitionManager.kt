@@ -196,7 +196,8 @@ class TransitionManager(
                         automixEnabled: Boolean,
                         crossfadeDurationMs: Long,
                         oldSongTargetVolume: Float = 1.0f,
-                        nextSongTargetVolume: Float = 1.0f
+                        nextSongTargetVolume: Float = 1.0f,
+                        nextSongStartPositionMs: Long = 0L
     ) {
         Log.d("TransitionManager", "🎯 transitionToNextSong INICIADA - nextSong: ${nextSong.title}")
 
@@ -254,7 +255,7 @@ class TransitionManager(
                 }
                 else -> {
                     // Modos normales usan la duración del slider
-                    performSimpleCrossfade(oldPlayer, oldSong, nextSong, nextSongIndex, onComplete, crossfadeMode, crossfadeDurationMs)
+                    performSimpleCrossfade(oldPlayer, oldSong, nextSong, nextSongIndex, onComplete, crossfadeMode, crossfadeDurationMs, nextSongStartPositionMs)
                 }
             }
         }
@@ -412,7 +413,8 @@ class TransitionManager(
         nextSongIndex: Int,
         onMixComplete: (newPlayer: ExoPlayer) -> Unit,
         crossfadeMode: CrossfadeMode,
-        crossfadeDurationMs: Long
+        crossfadeDurationMs: Long,
+        nextSongStartPositionMs: Long = 0L
     ) {
         Log.i("Crossfade", "🔄 Iniciando Crossfade Simple. Índice siguiente: $nextSongIndex")
         val newPlayer = ExoPlayer.Builder(context).build()
@@ -436,7 +438,8 @@ class TransitionManager(
                     return
                 }
 
-            val startPositionMs = newSong.audioAnalysis?.audioStartMs?.toLong() ?: 0L
+            val startPositionMs = if (nextSongStartPositionMs > 0L) nextSongStartPositionMs
+                                   else newSong.audioAnalysis?.audioStartMs?.toLong() ?: 0L
             newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, startPositionMs)
 
             newPlayer.addListener(object : Player.Listener {
@@ -485,7 +488,7 @@ class TransitionManager(
                                     withContext(Dispatchers.Main) {
                                         val ni = queue?.songs?.indexOf(fresh) ?: -1
                                         if (ni >= 0) {
-                                            performSimpleCrossfade(oldPlayer, oldSong, fresh, ni, onMixComplete, crossfadeMode, crossfadeDurationMs)
+                                            performSimpleCrossfade(oldPlayer, oldSong, fresh, ni, onMixComplete, crossfadeMode, crossfadeDurationMs, nextSongStartPositionMs)
                                         } else {
                                             handleMixFailure(oldPlayer, null)
                                         }

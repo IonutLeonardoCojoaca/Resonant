@@ -11,7 +11,8 @@ import com.example.resonant.data.models.Playlist
 
 data class PlaylistSection(
     val ownerName: String,
-    val playlists: List<Playlist>
+    val playlists: List<Playlist>,
+    val isSystem: Boolean = false
 )
 
 class PublicPlaylistSectionAdapter(
@@ -42,18 +43,37 @@ class PublicPlaylistSectionAdapter(
         private val onPlaylistClick: (Playlist) -> Unit
     ) : RecyclerView.ViewHolder(itemView) {
 
+        private val resonantAccentBar: View = itemView.findViewById(R.id.resonantAccentBar)
+        private val initialsContainer: View = itemView.findViewById(R.id.initialsContainer)
+        private val ivResonantAvatar: View = itemView.findViewById(R.id.ivResonantAvatar)
         private val tvOwnerInitial: TextView = itemView.findViewById(R.id.tvOwnerInitial)
         private val tvOwnerName: TextView = itemView.findViewById(R.id.tvSectionOwnerName)
+        private val tvOfficialBadge: TextView = itemView.findViewById(R.id.tvOfficialBadge)
         private val tvSubtitle: TextView = itemView.findViewById(R.id.tvSectionSubtitle)
         private val rvPlaylists: RecyclerView = itemView.findViewById(R.id.rvSectionPlaylists)
 
         fun bind(section: PlaylistSection) {
-            // Inicial del avatar
-            tvOwnerInitial.text = section.ownerName.firstOrNull()?.uppercase() ?: "U"
+            if (section.isSystem) {
+                // Resonant system section
+                resonantAccentBar.visibility = View.VISIBLE
+                initialsContainer.visibility = View.GONE
+                ivResonantAvatar.visibility = View.VISIBLE
+                tvOfficialBadge.visibility = View.VISIBLE
+            } else {
+                // User section
+                resonantAccentBar.visibility = View.GONE
+                initialsContainer.visibility = View.VISIBLE
+                ivResonantAvatar.visibility = View.GONE
+                tvOfficialBadge.visibility = View.GONE
+                tvOwnerInitial.text = section.ownerName.firstOrNull()?.uppercase() ?: "U"
+            }
+
             tvOwnerName.text = section.ownerName
 
             val count = section.playlists.size
             tvSubtitle.text = when {
+                section.isSystem && count == 1 -> "1 playlist curada"
+                section.isSystem -> "$count playlists curadas"
                 count == 1 -> "1 playlist pública"
                 else -> "$count playlists públicas"
             }
