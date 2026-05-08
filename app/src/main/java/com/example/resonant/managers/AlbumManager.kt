@@ -91,9 +91,11 @@ object AlbumManager {
 
     suspend fun getNewReleaseAlbums(context: Context, limit: Int = 20): List<Album> {
         return try {
-            ApiClient.getAlbumService(context).getNewReleaseAlbums(limit)
+            val result = ApiClient.getAlbumService(context).getNewReleaseAlbums(limit)
+            Log.d("AlbumManager", "getNewReleaseAlbums: OK, ${result.size} items")
+            result
         } catch (e: Exception) {
-            Log.e("AlbumManager", "Error fetching new release albums", e)
+            Log.e("AlbumManager", "getNewReleaseAlbums: EXCEPTION ${e.javaClass.simpleName}: ${e.message}", e)
             emptyList()
         }
     }

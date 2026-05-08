@@ -161,7 +161,6 @@ class ExploreFragment : Fragment() {
             if (errorMsg != null) Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_LONG).show()
         }
 
-        // ── Género favorito en el círculo central ───────────────────────────
         viewModel.favoriteGenreName.observe(viewLifecycleOwner) { genreName ->
             val overlay = view?.findViewById<LinearLayout>(R.id.genreOverlayContainer) ?: return@observe
             val tvGenre = view?.findViewById<TextView>(R.id.tvFavoriteGenre) ?: return@observe

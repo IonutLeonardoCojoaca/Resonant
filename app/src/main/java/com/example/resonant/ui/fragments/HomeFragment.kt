@@ -71,6 +71,18 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     private lateinit var tvTopAlbumsTitle: TextView
     private lateinit var shimmerTopAlbums: ShimmerFrameLayout
 
+    private lateinit var recyclerViewRecentArtists: RecyclerView
+    private lateinit var recentArtistAdapter: ArtistAdapter
+    private lateinit var recentArtistsContainer: View
+    private lateinit var tvRecentArtistsTitle: TextView
+    private lateinit var shimmerRecentArtists: ShimmerFrameLayout
+
+    private lateinit var recyclerViewRecentAlbums: RecyclerView
+    private lateinit var recentAlbumAdapter: AlbumAdapter
+    private lateinit var recentAlbumsContainer: View
+    private lateinit var tvRecentAlbumsTitle: TextView
+    private lateinit var shimmerRecentAlbums: ShimmerFrameLayout
+
     private lateinit var songsFeaturedTitle: TextView
     private lateinit var songsFeaturedTitleAlbums: TextView
     private lateinit var songsFeaturedTitleArtists: TextView
@@ -141,6 +153,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         homeViewModel.loadSongs()
         homeViewModel.loadArtists()
         homeViewModel.loadAlbums()
+        homeViewModel.loadRecentArtists()
+        homeViewModel.loadRecentAlbums()
         homeViewModel.loadTopSongs()
         homeViewModel.loadTopArtists()
         homeViewModel.loadTopAlbums()
@@ -192,6 +206,16 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         topAlbumsContainer = view.findViewById(R.id.topAlbumsContainer)
         recyclerViewTopAlbums = view.findViewById(R.id.listTopAlbums)
         shimmerTopAlbums = view.findViewById(R.id.shimmerTopAlbums)
+
+        tvRecentArtistsTitle = view.findViewById(R.id.tvRecentArtistsTitle)
+        recentArtistsContainer = view.findViewById(R.id.recentArtistsContainer)
+        recyclerViewRecentArtists = view.findViewById(R.id.listRecentArtists)
+        shimmerRecentArtists = view.findViewById(R.id.shimmerRecentArtists)
+
+        tvRecentAlbumsTitle = view.findViewById(R.id.tvRecentAlbumsTitle)
+        recentAlbumsContainer = view.findViewById(R.id.recentAlbumsContainer)
+        recyclerViewRecentAlbums = view.findViewById(R.id.listRecentAlbums)
+        shimmerRecentAlbums = view.findViewById(R.id.shimmerRecentAlbums)
 
         userProfileImage = view.findViewById(R.id.userProfile)
         Utils.loadUserProfile(requireContext(), userProfileImage)
@@ -412,6 +436,34 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         val screenPx = resources.displayMetrics.widthPixels
         topAlbumAdapter.itemWidthOverride = (screenPx - dpToPx(24)) / 3
 
+        // Recently added artists — horizontal
+        recyclerViewRecentArtists.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        recentArtistAdapter = ArtistAdapter(mutableListOf())
+        recentArtistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_GRID)
+        recentArtistAdapter.onArtistClick = { artist, sharedImage ->
+            val bundle = Bundle().apply {
+                putString("artistId", artist.id)
+                putString("artistName", artist.name)
+                putString("artistImageUrl", artist.url)
+                putString("artistImageTransitionName", sharedImage.transitionName)
+            }
+            val extras = androidx.navigation.fragment.FragmentNavigatorExtras(sharedImage to sharedImage.transitionName)
+            findNavController().navigate(R.id.action_homeFragment_to_artistFragment, bundle, null, extras)
+        }
+        recyclerViewRecentArtists.adapter = recentArtistAdapter
+        recyclerViewRecentArtists.isNestedScrollingEnabled = false
+
+        // New release albums — horizontal
+        recyclerViewRecentAlbums.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        recentAlbumAdapter = AlbumAdapter(mutableListOf(), 0)
+        recentAlbumAdapter.onAlbumClick = { album ->
+            val bundle = Bundle().apply { putString("albumId", album.id) }
+            findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
+        }
+        recentAlbumAdapter.itemWidthOverride = (screenPx - dpToPx(24)) / 3
+        recyclerViewRecentAlbums.adapter = recentAlbumAdapter
+        recyclerViewRecentAlbums.isNestedScrollingEnabled = false
+
         // Songs - NestedScrollView handles the scrolling
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
@@ -546,6 +598,58 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             if (error != null) {
                 topArtistsContainer.visibility = View.GONE
                 tvTopArtistsTitle.visibility = View.GONE
+            }
+        }
+
+        // --- OBSERVAR ARTISTAS RECIENTEMENTE AÑADIDOS ---
+        homeViewModel.recentArtists.observe(viewLifecycleOwner) { artists ->
+            if (artists.isNullOrEmpty()) {
+                recentArtistsContainer.visibility = View.GONE
+                tvRecentArtistsTitle.visibility = View.GONE
+            } else {
+                recentArtistsContainer.visibility = View.VISIBLE
+                tvRecentArtistsTitle.visibility = View.VISIBLE
+                recentArtistAdapter.submitArtists(artists)
+                shimmerRecentArtists.stopShimmer()
+                shimmerRecentArtists.visibility = View.GONE
+                recyclerViewRecentArtists.visibility = View.VISIBLE
+            }
+        }
+        homeViewModel.recentArtistsLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) {
+                recyclerViewRecentArtists.visibility = View.INVISIBLE
+                shimmerRecentArtists.visibility = View.VISIBLE
+                shimmerRecentArtists.startShimmer()
+            } else {
+                shimmerRecentArtists.stopShimmer()
+                shimmerRecentArtists.visibility = View.GONE
+                recyclerViewRecentArtists.visibility = View.VISIBLE
+            }
+        }
+
+        // --- OBSERVAR ÁLBUMES RECIENTEMENTE AÑADIDOS ---
+        homeViewModel.recentAlbums.observe(viewLifecycleOwner) { albums ->
+            if (albums.isNullOrEmpty()) {
+                recentAlbumsContainer.visibility = View.GONE
+                tvRecentAlbumsTitle.visibility = View.GONE
+            } else {
+                recentAlbumsContainer.visibility = View.VISIBLE
+                tvRecentAlbumsTitle.visibility = View.VISIBLE
+                recentAlbumAdapter.updateList(albums)
+                shimmerRecentAlbums.stopShimmer()
+                shimmerRecentAlbums.visibility = View.GONE
+                recyclerViewRecentAlbums.visibility = View.VISIBLE
+            }
+        }
+        homeViewModel.recentAlbumsLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) {
+                recyclerViewRecentAlbums.visibility = View.INVISIBLE
+                shimmerRecentAlbums.visibility = View.VISIBLE
+                shimmerRecentAlbums.startShimmer()
+            } else {
+                shimmerRecentAlbums.stopShimmer()
+                shimmerRecentAlbums.visibility = View.GONE
+                recyclerViewRecentAlbums.visibility = View.VISIBLE
             }
         }
 

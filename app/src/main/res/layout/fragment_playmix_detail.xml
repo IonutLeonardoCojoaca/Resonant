@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -7,217 +8,228 @@
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.PlaymixDetailFragment">
 
-    <!-- Top bar -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/topBar"
+    <!-- ═══════════════════════════════════════════
+         PARALLAX HEADER
+    ═══════════════════════════════════════════ -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp"
-        android:layout_alignParentTop="true">
+        android:layout_height="350dp"
+        android:background="@color/primaryColorTheme"
+        app:liftOnScroll="false">
 
-        <ImageButton
-            android:id="@+id/arrowGoBackButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:scaleX="0.8"
-            android:scaleY="0.8"
-            android:background="@color/transparent"
-            android:src="@drawable/ic_arrow_back"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <TextView
-            android:id="@+id/playmixTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_medium"
-            android:gravity="center"
-            android:maxLines="1"
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/settingsBackground"
-            app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <FrameLayout
-            android:id="@+id/settingsBackground"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/settingsButton"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="center"
-                android:background="@drawable/ic_item_settings_vertical"
-                android:clickable="false"
-                android:focusable="false" />
-
-        </FrameLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- Main scrollable content -->
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/topBar"
-        android:fillViewport="true"
-        android:overScrollMode="never">
-
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:id="@+id/collapsingToolbar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="match_parent"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed"
+            app:titleEnabled="false"
+            app:contentScrim="@color/primaryColorTheme">
 
-            <!-- Cover image -->
-            <FrameLayout
-                android:id="@+id/coverContainer"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_marginHorizontal="40dp"
-                android:layout_marginTop="12dp"
-                app:layout_constraintDimensionRatio="1:1"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent">
+            <!-- Cover image – parallax background (full bleed) -->
+            <ImageView
+                android:id="@+id/playmixCoverImage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:background="@color/cardsTheme"
+                app:layout_collapseMode="parallax"
+                app:layout_collapseParallaxMultiplier="0.55" />
 
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/playmixCoverImage"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:background="@color/cardsTheme"
-                    app:shapeAppearanceOverlay="@style/RoundedCornersAlbumImage" />
+            <!-- Dark gradient scrim from transparent-top → black-bottom -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_playmix_header_scrim"
+                app:layout_collapseMode="pin" />
 
-            </FrameLayout>
+            <!-- Floating PlayMix icon – atmospheric, very transparent -->
+            <ImageView
+                android:layout_width="220dp"
+                android:layout_height="220dp"
+                android:layout_gravity="center"
+                android:layout_marginBottom="40dp"
+                android:src="@drawable/ic_playmix"
+                android:alpha="0.06"
+                app:tint="@color/white"
+                app:layout_collapseMode="parallax"
+                app:layout_collapseParallaxMultiplier="0.3" />
 
-            <!-- Info section -->
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <!-- Info panel at bottom of header -->
+            <LinearLayout
                 android:id="@+id/playmixDataContainer"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:orientation="vertical"
                 android:paddingHorizontal="20dp"
-                android:paddingTop="16dp"
-                android:paddingBottom="8dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/coverContainer">
+                android:paddingBottom="16dp"
+                android:paddingTop="80dp"
+                app:layout_collapseMode="none">
 
-                <!-- Left text column -->
+                <!-- Title row + play button -->
                 <LinearLayout
-                    android:id="@+id/textColumn"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingEnd="16dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toStartOf="@+id/playButton"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
                         android:id="@+id/playmixName"
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:ellipsize="end"
                         android:fontFamily="@font/unageo_bold"
-                        android:maxLines="2"
+                        android:maxLines="1"
                         android:textColor="@color/white"
-                        android:textSize="22sp" />
+                        android:textSize="24sp" />
 
-                    <TextView
-                        android:id="@+id/playmixDescription"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:ellipsize="end"
-                        android:fontFamily="@font/unageo_regular"
-                        android:maxLines="2"
-                        android:textColor="#99FFFFFF"
-                        android:textSize="13sp"
-                        android:visibility="gone" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:layout_marginEnd="5dp"
-                            android:src="@drawable/ic_sound"
-                            app:tint="#77FFFFFF" />
-
-                        <TextView
-                            android:id="@+id/playmixNumberOfTracks"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_regular"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="13sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginHorizontal="6dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:text="·"
-                            android:textColor="#55FFFFFF"
-                            android:textSize="16sp" />
-
-                        <TextView
-                            android:id="@+id/playmixDuration"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_regular"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="13sp" />
-
-                    </LinearLayout>
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/playButton"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:layout_marginStart="12dp"
+                        android:backgroundTint="@color/secondaryColorTheme"
+                        android:insetBottom="0dp"
+                        android:insetTop="0dp"
+                        app:cornerRadius="40dp"
+                        app:icon="@drawable/ic_play"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="36dp"
+                        app:iconTint="@color/white" />
 
                 </LinearLayout>
 
-                <!-- Circular play button (Spotify-style) -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/playButton"
-                    android:layout_width="54dp"
-                    android:layout_height="54dp"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    android:insetBottom="0dp"
-                    android:insetTop="0dp"
-                    app:cornerRadius="40dp"
-                    app:icon="@drawable/ic_play"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="40dp"
-                    app:iconTint="@color/white"
+                <TextView
+                    android:id="@+id/playmixDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_regular"
+                    android:maxLines="1"
+                    android:textColor="#99FFFFFF"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="13dp"
+                        android:layout_height="13dp"
+                        android:layout_marginEnd="5dp"
+                        android:src="@drawable/ic_sound"
+                        app:tint="#77FFFFFF" />
+
+                    <TextView
+                        android:id="@+id/playmixNumberOfTracks"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:textColor="#88FFFFFF"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="6dp"
+                        android:text="·"
+                        android:textColor="#44FFFFFF"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/playmixDuration"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:textColor="#88FFFFFF"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Pinned top bar (back + title on collapse + settings) -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/topBar"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_gravity="top"
+                android:paddingHorizontal="10dp"
+                app:layout_collapseMode="pin">
+
+                <ImageButton
+                    android:id="@+id/arrowGoBackButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@null"
+                    android:src="@drawable/ic_arrow_back"
                     app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
-                <!-- Divider -->
-                <View
-                    android:id="@+id/divider"
+                <TextView
+                    android:id="@+id/playmixTitle"
                     android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="14dp"
-                    android:background="#18FFFFFF"
+                    android:layout_height="wrap_content"
+                    android:alpha="0"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_medium"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@+id/settingsBackground"
+                    app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <FrameLayout
+                    android:id="@+id/settingsBackground"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/textColumn" />
+                    app:layout_constraintTop_toTopOf="parent">
+
+                    <ImageView
+                        android:id="@+id/settingsButton"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/ic_item_settings_vertical"
+                        android:clickable="false"
+                        android:focusable="false" />
+
+                </FrameLayout>
 
             </androidx.constraintlayout.widget.ConstraintLayout>
+
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- ═══════════════════════════════════════════
+         SCROLLABLE CONTENT
+    ═══════════════════════════════════════════ -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:overScrollMode="never"
+        android:fillViewport="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
             <!-- Song + transition list -->
             <androidx.recyclerview.widget.RecyclerView
@@ -227,29 +239,24 @@
                 android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
                 android:overScrollMode="never"
-                android:paddingHorizontal="10dp"
-                android:paddingBottom="250dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/playmixDataContainer" />
+                android:paddingHorizontal="12dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="250dp" />
 
             <!-- Empty state -->
             <TextView
                 android:id="@+id/noSongsText"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="36dp"
                 android:fontFamily="@font/unageo_regular"
                 android:gravity="center"
                 android:text="Este PlayMix está vacío.\nAñade canciones para empezar a mezclar."
-                android:textColor="#66FFFFFF"
+                android:textColor="#55FFFFFF"
                 android:textSize="14sp"
-                android:visibility="gone"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/playmixDataContainer" />
+                android:visibility="gone" />
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
+        </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>
 
@@ -258,11 +265,11 @@
         android:id="@+id/lottieLoader"
         android:layout_width="220dp"
         android:layout_height="220dp"
-        android:layout_centerInParent="true"
+        android:layout_gravity="center"
         app:lottie_fileName="loader.json"
         app:lottie_autoPlay="false"
         app:lottie_loop="true"
         app:lottie_repeatCount="-1"
         app:lottie_enableMergePathsForKitKatAndAbove="true" />
 
-</RelativeLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

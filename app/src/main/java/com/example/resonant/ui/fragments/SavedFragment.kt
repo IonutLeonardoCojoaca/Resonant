@@ -13,6 +13,7 @@ import androidx.core.view.children
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -21,22 +22,28 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.managers.PlaylistManager
+import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.PlaylistAdapter
+import com.example.resonant.ui.adapters.PlaymixListAdapter
 import com.example.resonant.ui.adapters.SearchResult
 import com.example.resonant.ui.adapters.SearchResultAdapter
 import com.example.resonant.ui.bottomsheets.AlbumOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.ArtistOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.ArtistSelectorBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaylistOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.PlaymixListOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
+import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.PlaylistsListViewModel
 import com.example.resonant.ui.viewmodels.PlaylistsListViewModelFactory
+import com.example.resonant.ui.viewmodels.PlaymixListViewModel
+import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.AnimationsUtils
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
@@ -55,8 +62,11 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private lateinit var playlistsContainerView: View
     private lateinit var favoritesRecyclerView: RecyclerView
     private lateinit var downloadsItemContainer: View
-    private lateinit var playmixItemContainer: View
     private var lastCheckedId = View.NO_ID
+
+    // Playmixes Section
+    private lateinit var playmixAdapter: PlaymixListAdapter
+    private lateinit var playmixEmptyState: View
     
     // Playlists Section
     private lateinit var playlistRecyclerView: RecyclerView
@@ -76,6 +86,8 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private val favoritesViewModel: FavoritesViewModel by viewModels()
     private val downloadViewModel: DownloadViewModel by activityViewModels()
     private val songViewModel: SongViewModel by activityViewModels()
+    
+    private lateinit var playmixListViewModel: PlaymixListViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -88,6 +100,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         super.onViewCreated(view, savedInstanceState)
 
         initViews(view)
+        setupPlaymixViewModel()
         setupAdapters()
         setupClickListeners()
         setupChipListener()
@@ -140,16 +153,24 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         playlistsContainerView = view.findViewById(R.id.playlistsContainerView)
         favoritesRecyclerView = view.findViewById(R.id.favoritesRecyclerView)
         downloadsItemContainer = view.findViewById(R.id.downloadsItemContainer)
-        playmixItemContainer = view.findViewById(R.id.playmixItemContainer)
         
         playlistRecyclerView = view.findViewById(R.id.playlistList)
         newPlaylistOption = view.findViewById(R.id.noPlaylistContainer)
         userProfileImage = view.findViewById(R.id.userProfile)
+        playmixEmptyState = view.findViewById(R.id.playmixEmptyState)
         
         Utils.loadUserProfile(requireContext(), userProfileImage)
         setupChipStyles()
     }
-
+    
+    private fun setupPlaymixViewModel() {
+        val playmixManager = PlaymixManager(requireContext())
+        playmixListViewModel = ViewModelProvider(
+            this,
+            PlaymixListViewModelFactory(playmixManager)
+        ).get(PlaymixListViewModel::class.java)
+    }
+    
     private fun setupAdapters() {
         // 1. Playlist Adapter
         playlistAdapter = PlaylistAdapter(
@@ -294,6 +315,31 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         favoritesRecyclerView.layoutManager = LinearLayoutManager(context)
         favoritesRecyclerView.setItemViewCacheSize(20) // Optimización básica
         // Por defecto no asignamos adapter aquí, se asigna en show...View()
+
+        // 3. Playmix Adapter
+        playmixAdapter = PlaymixListAdapter(
+            onClick = { playmix ->
+                val bundle = Bundle().apply { putString("playmixId", playmix.id) }
+                findNavController().navigate(R.id.action_global_to_playmixDetailFragment, bundle)
+            },
+            onOptionsClick = { playmix ->
+                PlaymixListOptionsBottomSheet(
+                    playmix = playmix,
+                    onDeleteClick = { p ->
+                        ResonantDialog(requireContext())
+                            .setSection("PlayMix")
+                            .setTitle("Borrar PlayMix")
+                            .setMessage("¿Borrar \"${p.name}\"? Esta acción no se puede deshacer.")
+                            .setDestructive()
+                            .setPositiveButton("Borrar") {
+                                playmixListViewModel.deletePlaymix(p.id)
+                            }
+                            .setNegativeButton("Cancelar")
+                            .show()
+                    }
+                ).show(childFragmentManager, "PlaymixListOptions")
+            }
+        )
     }
     
     private fun setupChipListener() {
@@ -326,6 +372,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                 R.id.chipSongs -> showSongsView()
                 R.id.chipArtists -> showArtistsView()
                 R.id.chipAlbums -> showAlbumsView()
+                R.id.chipPlaymixes -> showPlaymixesView()
             }
         }
     }
@@ -355,6 +402,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         favoritesAdapter.submitList(emptyList()) // Ensure adapter is clean
         playlistsContainerView.visibility = View.VISIBLE
         favoritesRecyclerView.visibility = View.GONE
+        playmixEmptyState.visibility = View.GONE
         favoritesRecyclerView.adapter = null // Ensure hidden view is clean
     }
 
@@ -363,6 +411,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         // Clear immediate view state
         favoritesRecyclerView.adapter = null // Detach FIRST to prevent ghosting
         playlistsContainerView.visibility = View.GONE
+        playmixEmptyState.visibility = View.GONE
         favoritesRecyclerView.visibility = View.VISIBLE
         
         lifecycleScope.launch {
@@ -382,6 +431,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         favoritesAdapter.submitList(emptyList()) // Clean adapter state to prevent ghosting
         favoritesRecyclerView.adapter = null // Detach FIRST to prevent ghosting
         playlistsContainerView.visibility = View.GONE
+        playmixEmptyState.visibility = View.GONE
         favoritesRecyclerView.visibility = View.VISIBLE
         
         lifecycleScope.launch {
@@ -400,6 +450,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         favoritesAdapter.submitList(emptyList()) // Clean adapter state to prevent ghosting
         favoritesRecyclerView.adapter = null // Detach FIRST to prevent ghosting
         playlistsContainerView.visibility = View.GONE
+        playmixEmptyState.visibility = View.GONE
         favoritesRecyclerView.visibility = View.VISIBLE
         
         lifecycleScope.launch {
@@ -411,6 +462,36 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             // Re-attach and submit
             favoritesRecyclerView.adapter = favoritesAdapter
             favoritesAdapter.submitList(items)
+        }
+    }
+
+    private fun showPlaymixesView() {
+        favoritesRecyclerView.adapter = null
+        playlistsContainerView.visibility = View.GONE
+
+        val current = playmixListViewModel.playmixes.value
+        if (!current.isNullOrEmpty()) {
+            playmixAdapter.submitList(current)
+            favoritesRecyclerView.adapter = playmixAdapter
+            favoritesRecyclerView.visibility = View.VISIBLE
+            playmixEmptyState.visibility = View.GONE
+        } else {
+            playmixListViewModel.loadMyPlaymixes()
+        }
+
+        playmixListViewModel.playmixes.observe(viewLifecycleOwner) { playmixes ->
+            if (chipGroup.checkedChipId == R.id.chipPlaymixes) {
+                val empty = playmixes.isNullOrEmpty()
+                playmixAdapter.submitList(playmixes ?: emptyList())
+                if (empty) {
+                    favoritesRecyclerView.visibility = View.GONE
+                    playmixEmptyState.visibility = View.VISIBLE
+                } else {
+                    favoritesRecyclerView.adapter = playmixAdapter
+                    favoritesRecyclerView.visibility = View.VISIBLE
+                    playmixEmptyState.visibility = View.GONE
+                }
+            }
         }
     }
 
@@ -455,18 +536,12 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     }
 
     private fun setupClickListeners() {
-        // Downloads Item Click
         downloadsItemContainer.setOnClickListener {
              findNavController().navigate(R.id.action_savedFragment_to_downloadedSongsFragment)
         }
 
         newPlaylistOption.setOnClickListener {
             findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
-        }
-
-        // PlayMix Item Click
-        playmixItemContainer.setOnClickListener {
-            findNavController().navigate(R.id.action_savedFragment_to_playmixListFragment)
         }
     }
 

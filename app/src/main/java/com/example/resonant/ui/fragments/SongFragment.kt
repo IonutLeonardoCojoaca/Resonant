@@ -2,6 +2,7 @@
 
 import android.content.ComponentName
 import android.content.Context
+import android.animation.ObjectAnimator
 
 import android.content.Intent
 import android.content.ServiceConnection
@@ -81,6 +82,7 @@ class SongFragment : DialogFragment() {
     private lateinit var replayButton: ImageButton
     private lateinit var shuffleButton: ImageButton
     private lateinit var playPauseButton: ImageButton
+    private var playmixRingAnimator: ObjectAnimator? = null
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
     
@@ -210,6 +212,8 @@ class SongFragment : DialogFragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        playmixRingAnimator?.cancel()
+        playmixRingAnimator = null
         stopLyricsSync()
         lyricsHandler.removeCallbacksAndMessages(null)
     }
@@ -621,6 +625,10 @@ class SongFragment : DialogFragment() {
             updatePlayPauseButton(isPlayingUpdate)
         }
 
+        songViewModel.queueSourceLiveData.observe(viewLifecycleOwner) { source ->
+            updatePlaymixMode(source == com.example.resonant.playback.QueueSource.PLAYMIX)
+        }
+
         songViewModel.playbackPositionLiveData.observe(viewLifecycleOwner) { positionInfo ->
             if (!seekBar.isPressed && !userIsSeeking && System.currentTimeMillis() > ignoreUpdatesUntilMs) {
                 if (positionInfo.duration > 0) {
@@ -823,6 +831,28 @@ class SongFragment : DialogFragment() {
         playPauseButton.setImageResource(
             if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
         )
+    }
+
+    private fun updatePlaymixMode(isPlaymix: Boolean) {
+        val container = view?.findViewById<android.widget.FrameLayout>(R.id.playButtonContainer) ?: return
+        val ring = view?.findViewById<android.view.View>(R.id.playmixRing)
+        if (isPlaymix) {
+            container.setBackgroundResource(R.drawable.bg_play_background_playmix)
+            ring?.visibility = android.view.View.VISIBLE
+            if (playmixRingAnimator == null || playmixRingAnimator?.isRunning == false) {
+                playmixRingAnimator = ObjectAnimator.ofFloat(ring, "rotation", 0f, 360f).apply {
+                    duration = 3000
+                    repeatCount = ObjectAnimator.INFINITE
+                    interpolator = android.view.animation.LinearInterpolator()
+                }
+                playmixRingAnimator?.start()
+            }
+        } else {
+            container.setBackgroundResource(R.drawable.bg_play_background)
+            ring?.visibility = android.view.View.GONE
+            playmixRingAnimator?.cancel()
+            playmixRingAnimator = null
+        }
     }
 
     private fun setSongImage(imageView: ImageView, file: File) {

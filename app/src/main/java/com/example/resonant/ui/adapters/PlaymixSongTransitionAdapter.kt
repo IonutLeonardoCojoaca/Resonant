@@ -21,7 +21,9 @@ sealed class PlaymixDetailItem {
 class PlaymixSongTransitionAdapter(
     private val onTransitionClick: (PlaymixTransitionDTO) -> Unit,
     private val onSongClick: ((PlaymixSongDTO) -> Unit)? = null,
-    private val onSongOptionsClick: ((PlaymixSongDTO) -> Unit)? = null
+    private val onSongOptionsClick: ((PlaymixSongDTO) -> Unit)? = null,
+    private val onPreviewClick: ((PlaymixTransitionDTO) -> Unit)? = null,
+    private val onCopyTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -111,9 +113,9 @@ class PlaymixSongTransitionAdapter(
             duration.text = formatDurationMs(song.duration)
 
             Glide.with(itemView.context)
-                .load(song.coverUrl)
-                .placeholder(R.drawable.ic_sound)
-                .error(R.drawable.ic_sound)
+                .load(song.imageUrl ?: song.coverUrl)
+                .placeholder(R.drawable.ic_disc)
+                .error(R.drawable.ic_disc)
                 .centerCrop()
                 .into(cover)
 
@@ -136,6 +138,11 @@ class PlaymixSongTransitionAdapter(
         private val icon: ImageView = view.findViewById(R.id.transitionIcon)
         private val score: TextView = view.findViewById(R.id.transitionScore)
         private val verdict: TextView = view.findViewById(R.id.transitionVerdict)
+        private val bpmChip: TextView = view.findViewById(R.id.transitionBpmChip)
+        private val keyChip: TextView = view.findViewById(R.id.transitionKeyChip)
+        private val previewBtn: ImageView = view.findViewById(R.id.waveformPreviewButton)
+        private val copyBtn: ImageView = view.findViewById(R.id.copyTransitionButton)
+        private val editBtn: ImageView = view.findViewById(R.id.editTransitionButton)
 
         fun bind(transition: PlaymixTransitionDTO) {
             val compat = transition.compatibility
@@ -166,12 +173,41 @@ class PlaymixSongTransitionAdapter(
             }
 
             icon.setColorFilter(color)
-            score.text = "${compat?.overallScore ?: 0}/100"
+            if (compat != null && compat.overallScore > 0) {
+                score.text = "${compat.overallScore}/100"
+                score.visibility = View.VISIBLE
+            } else {
+                score.visibility = View.GONE
+            }
             score.setTextColor(color)
             verdict.text = label
             verdict.setTextColor(color)
 
+            // BPM chip
+            val bpmDelta = compat?.bpmDelta
+            if (bpmDelta != null) {
+                val sign = if (bpmDelta >= 0) "+" else ""
+                bpmChip.text = "${sign}${"%.1f".format(bpmDelta)} BPM"
+                bpmChip.setTextColor(color)
+                bpmChip.visibility = View.VISIBLE
+            } else {
+                bpmChip.visibility = View.GONE
+            }
+
+            // Key chip
+            val keyRelation = compat?.keyRelationship
+            if (!keyRelation.isNullOrEmpty() && keyRelation != "unknown") {
+                keyChip.text = keyRelation.replace("_", " ").replaceFirstChar { it.uppercase() }
+                keyChip.setTextColor(color)
+                keyChip.visibility = View.VISIBLE
+            } else {
+                keyChip.visibility = View.GONE
+            }
+
             itemView.setOnClickListener { onTransitionClick(transition) }
+            previewBtn.setOnClickListener { onPreviewClick?.invoke(transition) }
+            copyBtn.setOnClickListener { onCopyTransitionClick?.invoke(transition) }
+            editBtn.setOnClickListener { onTransitionClick(transition) }
         }
     }
 }

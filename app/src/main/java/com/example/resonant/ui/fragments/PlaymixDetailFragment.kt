@@ -1,10 +1,16 @@
 package com.example.resonant.ui.fragments
 
+import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.os.Bundle
 import android.view.View
+import android.widget.EditText
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import com.example.resonant.ui.bottomsheets.CopyTransitionBottomSheet
+import com.google.android.material.appbar.AppBarLayout
+import kotlin.math.abs
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -19,6 +25,10 @@ import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.PlaymixSongTransitionAdapter
+import com.example.resonant.ui.bottomsheets.PlaymixOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.PlaymixSongOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
+import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModel
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModelFactory
 
@@ -43,6 +53,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
 
         setupRecyclerView()
         setupListeners()
+        setupParallaxTitle()
         observeViewModel()
 
         viewModel.loadPlaymixDetail(playmixId)
@@ -51,22 +62,48 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     private fun setupRecyclerView() {
         adapter = PlaymixSongTransitionAdapter(
             onTransitionClick = { transition -> navigateToCrossfadeEditor(transition) },
+            onPreviewClick = { transition ->
+                WaveformPreviewBottomSheet(playmixId, transition)
+                    .show(childFragmentManager, "WaveformPreview")
+            },
+            onCopyTransitionClick = { transition ->
+                showCopyTransitionDialog(transition)
+            },
             onSongClick = { song ->
                 playPlaymix(startSongId = song.songId)
             },
             onSongOptionsClick = { song ->
-                AlertDialog.Builder(requireContext(), R.style.Theme_Resonant_Dialog)
-                    .setTitle("Eliminar canción")
-                    .setMessage("¿Eliminar \"${song.title}\" del PlayMix?")
-                    .setPositiveButton("Eliminar") { _, _ ->
-                        viewModel.removeSong(song.playmixSongId)
+                PlaymixSongOptionsBottomSheet(
+                    song = song,
+                    onPlayClick = { s -> playPlaymix(startSongId = s.songId) },
+                    onSeeSongClick = { s ->
+                        val bundle = Bundle().apply { putString("songId", s.songId) }
+                        findNavController().navigate(R.id.songFragment, bundle)
+                    },
+                    onRemoveClick = { s ->
+                        ResonantDialog(requireContext())
+                            .setSection("PlayMix")
+                            .setTitle("Eliminar canción")
+                            .setMessage("¿Eliminar \"${s.title ?: "esta canción"}\" del PlayMix?")
+                            .setDestructive()
+                            .setPositiveButton("Eliminar") {
+                                viewModel.removeSong(s.playmixSongId)
+                            }
+                            .setNegativeButton("Cancelar")
+                            .show()
                     }
-                    .setNegativeButton("Cancelar", null)
-                    .show()
+                ).show(childFragmentManager, "PlaymixSongOptions")
             }
         )
         binding.songTransitionList.layoutManager = LinearLayoutManager(requireContext())
         binding.songTransitionList.adapter = adapter
+    }
+
+    private fun setupParallaxTitle() {
+        binding.appBarLayout.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBar, offset ->
+            val ratio = abs(offset).toFloat() / appBar.totalScrollRange.toFloat()
+            binding.playmixTitle.alpha = if (ratio > 0.7f) (ratio - 0.7f) / 0.3f else 0f
+        })
     }
 
     private fun setupListeners() {
@@ -154,6 +191,9 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                         .error(R.drawable.ic_playmix)
                         .centerCrop()
                         .into(binding.playmixCoverImage)
+                    binding.playmixCoverImage.setRenderEffect(
+                        RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
+                    )
                 }
 
                 if (detail.songs.isEmpty()) {
@@ -179,11 +219,18 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     }
 
     private fun showSettingsMenu() {
-        AlertDialog.Builder(requireContext(), R.style.Theme_Resonant_Dialog)
-            .setTitle("Opciones")
-            .setItems(arrayOf("Eliminar PlayMix")) { _, which ->
-                when (which) {
-                    0 -> {
+        val detail = viewModel.screenState.value?.detail ?: return
+        PlaymixOptionsBottomSheet(
+            detail = detail,
+            onPlayClick = { playPlaymix() },
+            onEditNameClick = { showRenameDialog(detail.name) },
+            onDeleteClick = {
+                ResonantDialog(requireContext())
+                    .setSection("PlayMix")
+                    .setTitle("Eliminar PlayMix")
+                    .setMessage("¿Estás seguro de que quieres eliminar \"${detail.name}\"? Esta acción no se puede deshacer.")
+                    .setDestructive()
+                    .setPositiveButton("Eliminar") {
                         viewModel.deletePlaymix(
                             onSuccess = {
                                 Toast.makeText(requireContext(), "PlayMix eliminado", Toast.LENGTH_SHORT).show()
@@ -194,7 +241,40 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                             }
                         )
                     }
+                    .setNegativeButton("Cancelar")
+                    .show()
+            }
+        ).show(childFragmentManager, "PlaymixOptions")
+    }
+
+    private fun showRenameDialog(currentName: String) {
+        val input = EditText(requireContext()).apply {
+            setText(currentName)
+            selectAll()
+            setSingleLine()
+        }
+        val padding = (16 * resources.displayMetrics.density).toInt()
+        input.setPadding(padding, padding / 2, padding, padding / 2)
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Editar nombre")
+            .setView(input)
+            .setPositiveButton("Guardar") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isBlank()) {
+                    Toast.makeText(requireContext(), "El nombre no puede estar vacío", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
                 }
+                viewModel.renamePlaymix(
+                    newName = newName,
+                    onSuccess = {
+                        binding.playmixName.text = newName
+                        binding.playmixTitle.text = newName
+                    },
+                    onError = { msg ->
+                        Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
             .setNegativeButton("Cancelar", null)
             .show()
@@ -206,6 +286,14 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             putString("transitionId", transition.id)
         }
         findNavController().navigate(R.id.action_playmixDetailFragment_to_crossfadeEditorFragment, bundle)
+    }
+
+    private fun showCopyTransitionDialog(transition: PlaymixTransitionDTO) {
+        val songs = viewModel.screenState.value?.detail?.songs
+        val songA = songs?.find { it.playmixSongId == transition.fromPlaymixSongId }?.title ?: "Canción A"
+        val songB = songs?.find { it.playmixSongId == transition.toPlaymixSongId }?.title ?: "Canción B"
+        CopyTransitionBottomSheet(transition, playmixId, songA, songB)
+            .show(childFragmentManager, "CopyTransition")
     }
 
     private fun formatDuration(seconds: Int): String {

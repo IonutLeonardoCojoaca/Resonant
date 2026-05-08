@@ -2,9 +2,7 @@ package com.example.resonant.ui.fragments
 
 import android.os.Bundle
 import android.view.View
-import android.widget.EditText
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -13,6 +11,8 @@ import com.example.resonant.data.network.PlaymixDTO
 import com.example.resonant.databinding.FragmentPlaymixListBinding
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.ui.adapters.PlaymixListAdapter
+import com.example.resonant.ui.bottomsheets.PlaymixListOptionsBottomSheet
+import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.PlaymixListViewModel
 import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
 
@@ -42,7 +42,7 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
     private fun setupRecyclerView() {
         adapter = PlaymixListAdapter(
             onClick = { playmix -> navigateToDetail(playmix) },
-            onDeleteClick = { playmix -> showDeleteDialog(playmix) }
+            onOptionsClick = { playmix -> showOptionsSheet(playmix) }
         )
         binding.playmixRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.playmixRecyclerView.adapter = adapter
@@ -54,7 +54,7 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
         }
 
         binding.fabCreatePlaymix.setOnClickListener {
-            showCreateDialog()
+            findNavController().navigate(R.id.action_global_to_createPlaymixFragment)
         }
 
         binding.swipeRefresh.setOnRefreshListener {
@@ -94,36 +94,22 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
         }
     }
 
-    private fun showCreateDialog() {
-        val input = EditText(requireContext()).apply {
-            hint = "Nombre del PlayMix"
-            setTextColor(resources.getColor(R.color.white, null))
-            setHintTextColor(resources.getColor(R.color.textTheme, null))
-            setPadding(48, 32, 48, 32)
-        }
-
-        AlertDialog.Builder(requireContext(), R.style.Theme_Resonant_Dialog)
-            .setTitle("Nuevo PlayMix")
-            .setView(input)
-            .setPositiveButton("Crear") { _, _ ->
-                val name = input.text.toString().trim()
-                if (name.isNotEmpty()) {
-                    viewModel.createPlaymix(name)
-                }
+    private fun showOptionsSheet(playmix: PlaymixDTO) {
+        PlaymixListOptionsBottomSheet(
+            playmix = playmix,
+            onDeleteClick = { p ->
+                ResonantDialog(requireContext())
+                    .setSection("PlayMix")
+                    .setTitle("Borrar PlayMix")
+                    .setMessage("¿Borrar \"${p.name}\"? Esta acción no se puede deshacer.")
+                    .setDestructive()
+                    .setPositiveButton("Borrar") {
+                        viewModel.deletePlaymix(p.id)
+                    }
+                    .setNegativeButton("Cancelar")
+                    .show()
             }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
-
-    private fun showDeleteDialog(playmix: PlaymixDTO) {
-        AlertDialog.Builder(requireContext(), R.style.Theme_Resonant_Dialog)
-            .setTitle("Eliminar PlayMix")
-            .setMessage("¿Eliminar \"${playmix.name}\"?")
-            .setPositiveButton("Eliminar") { _, _ ->
-                viewModel.deletePlaymix(playmix.id)
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
+        ).show(childFragmentManager, "PlaymixListOptions")
     }
 
     private fun navigateToDetail(playmix: PlaymixDTO) {

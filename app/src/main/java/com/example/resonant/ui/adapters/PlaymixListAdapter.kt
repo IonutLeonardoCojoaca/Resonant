@@ -14,7 +14,7 @@ import com.example.resonant.data.network.PlaymixDTO
 
 class PlaymixListAdapter(
     private val onClick: (PlaymixDTO) -> Unit,
-    private val onDeleteClick: (PlaymixDTO) -> Unit
+    private val onOptionsClick: (PlaymixDTO) -> Unit
 ) : ListAdapter<PlaymixDTO, PlaymixListAdapter.PlaymixViewHolder>(PlaymixDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaymixViewHolder {
@@ -29,8 +29,7 @@ class PlaymixListAdapter(
     inner class PlaymixViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val cover: ImageView = view.findViewById(R.id.playmixCover)
         private val name: TextView = view.findViewById(R.id.playmixName)
-        private val trackCount: TextView = view.findViewById(R.id.playmixTrackCount)
-        private val duration: TextView = view.findViewById(R.id.playmixDuration)
+        private val info: TextView = view.findViewById(R.id.playmixInfo)
         private val settings: View = view.findViewById(R.id.settingsPlaymix)
 
         fun bind(playmix: PlaymixDTO) {
@@ -38,9 +37,7 @@ class PlaymixListAdapter(
 
             val count = playmix.numberOfTracks
             val songText = if (count == 1) "canción" else "canciones"
-            trackCount.text = "$count $songText"
-
-            duration.text = formatDuration(playmix.duration)
+            info.text = "Playmix ● $count $songText · ${formatDuration(playmix.duration)}"
 
             if (!playmix.coverUrl.isNullOrEmpty()) {
                 Glide.with(cover.context)
@@ -55,7 +52,7 @@ class PlaymixListAdapter(
             }
 
             itemView.setOnClickListener { onClick(playmix) }
-            settings.setOnClickListener { onDeleteClick(playmix) }
+            settings.setOnClickListener { onOptionsClick(playmix) }
         }
 
         private fun formatDuration(seconds: Int): String {

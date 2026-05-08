@@ -6,15 +6,19 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.resonant.data.network.BandFadeTypesDTO
 import com.example.resonant.data.network.EqBandDTO
 import com.example.resonant.data.network.EqSettingsDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.PlaymixTransitionUpdateDTO
+import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.WaveformResponseDTO
 import com.example.resonant.managers.PlaymixManager
+import com.example.resonant.managers.TransitionPresetManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
 
 data class CrossfadeEditorState(
     val isLoading: Boolean = true,
@@ -24,22 +28,37 @@ data class CrossfadeEditorState(
     val crossfadeDurationMs: Int = 8000,
     val fadeCurveType: String = "linear",
     val eqSettings: EqSettingsDTO = defaultEq(),
+    val eqSettingsA: EqSettingsDTO = defaultEq(),
+    val eqSettingsB: EqSettingsDTO = defaultEq(),
+    val mixMode: String = "crossfade",
     val isSaving: Boolean = false,
     val error: String? = null,
     val savedSuccess: Boolean = false,
     // BPM matching
     val bpmA: Double = 0.0,
     val bpmB: Double = 0.0,
-    val targetBpm: Double = 0.0,
-    val bpmSynced: Boolean = false,
-    val beatAlignScore: Int = 0
+    // ─── Preset fields ─────────────────────────
+    val availablePresets: List<TransitionPresetDTO> = emptyList(),
+    val presetsLoading: Boolean = false,
+    val presetsError: String? = null,
+    val activePresetCode: String? = null,
+    val activePresetName: String? = null,
+    val isPresetModified: Boolean = false,
+    val gapMs: Int = 0,
+    val showGapSlider: Boolean = false,
+    val bandFadeTypes: BandFadeTypesDTO = BandFadeTypesDTO(),
+    // ─── Pre-listen state ─────────────────────────
+    val prelistenTarget: String? = null // "songA" or "songB" or null
 )
 
 fun defaultEq() = EqSettingsDTO(
     bands = listOf(60, 250, 1000, 4000, 12000).map { EqBandDTO(it, 0.0) }
 )
 
-class CrossfadeEditorViewModel(private val playmixManager: PlaymixManager) : ViewModel() {
+class CrossfadeEditorViewModel(
+    private val playmixManager: PlaymixManager,
+    private val presetManager: TransitionPresetManager
+) : ViewModel() {
 
     private val _state = MutableLiveData(CrossfadeEditorState())
     val state: LiveData<CrossfadeEditorState> get() = _state
@@ -47,11 +66,24 @@ class CrossfadeEditorViewModel(private val playmixManager: PlaymixManager) : Vie
     private var playmixId: String = ""
     private var transitionId: String = ""
 
+    // Snapshot of values right after applying a preset, used to detect manual edits
+    private var presetSnapshot: PresetValuesSnapshot? = null
+
+    private data class PresetValuesSnapshot(
+        val exitPointMs: Int,
+        val entryPointMs: Int,
+        val crossfadeDurationMs: Int,
+        val gapMs: Int
+    )
+
     fun loadWaveformData(playmixId: String, transitionId: String) {
         this.playmixId = playmixId
         this.transitionId = transitionId
 
         _state.value = _state.value?.copy(isLoading = true, error = null)
+
+        // Load presets in parallel
+        loadPresets()
 
         viewModelScope.launch {
             try {
@@ -61,64 +93,263 @@ class CrossfadeEditorViewModel(private val playmixManager: PlaymixManager) : Vie
                 val transition = data.transition
                 val bA = data.songA.bpm ?: 0.0
                 val bB = data.songB.bpm ?: 0.0
-                val target = if (bA > 0 && bB > 0) (bA + bB) / 2.0 else bA.coerceAtLeast(bB)
-                _state.postValue(
-                    CrossfadeEditorState(
-                        isLoading = false,
-                        waveformData = data,
+
+                _state.value = _state.value?.copy(
+                    isLoading = false,
+                    waveformData = data,
+                    exitPointMs = transition.exitPointMs,
+                    entryPointMs = transition.entryPointMs,
+                    crossfadeDurationMs = transition.crossfadeDurationMs,
+                    fadeCurveType = transition.fadeCurveType,
+                    eqSettings = transition.eqSettings ?: defaultEq(),
+                    eqSettingsA = transition.eqSettingsA ?: (transition.eqSettings ?: defaultEq()),
+                    eqSettingsB = transition.eqSettingsB ?: (transition.eqSettings ?: defaultEq()),
+                    mixMode = transition.mixMode ?: "crossfade",
+                    error = null,
+                    bpmA = bA,
+                    bpmB = bB,
+                    // Preset fields from backend
+                    activePresetCode = transition.presetCode,
+                    activePresetName = transition.presetName,
+                    isPresetModified = transition.isPresetModified,
+                    gapMs = transition.gapMs,
+                    showGapSlider = transition.gapMs > 0 || transition.crossfadeDurationMs == 0,
+                    bandFadeTypes = transition.bandFadeTypes ?: BandFadeTypesDTO()
+                )
+
+                // If preset was applied, save snapshot
+                if (transition.presetCode != null && !transition.isPresetModified) {
+                    presetSnapshot = PresetValuesSnapshot(
                         exitPointMs = transition.exitPointMs,
                         entryPointMs = transition.entryPointMs,
                         crossfadeDurationMs = transition.crossfadeDurationMs,
-                        fadeCurveType = transition.fadeCurveType,
-                        eqSettings = transition.eqSettings ?: defaultEq(),
-                        error = null,
-                        bpmA = bA,
-                        bpmB = bB,
-                        targetBpm = target,
-                        bpmSynced = false,
-                        beatAlignScore = calculateBeatAlignScore(
-                            data.songA.beatGrid, data.songB.beatGrid,
-                            bA, bB, target,
-                            transition.exitPointMs, transition.entryPointMs, transition.crossfadeDurationMs
-                        )
+                        gapMs = transition.gapMs
                     )
-                )
+                }
             } catch (e: Exception) {
                 Log.e("CrossfadeEditorVM", "Error loading waveform data", e)
-                _state.postValue(
-                    _state.value?.copy(isLoading = false, error = "Error al cargar datos: ${e.message}")
+                _state.value = _state.value?.copy(isLoading = false, error = "Error al cargar datos: ${e.message}")
+            }
+        }
+    }
+
+    // ─── Preset Loading ─────────────────────────
+
+    private fun loadPresets() {
+        _state.value = _state.value?.copy(presetsLoading = true, presetsError = null)
+        viewModelScope.launch {
+            try {
+                val presets = withContext(Dispatchers.IO) {
+                    presetManager.getPresets()
+                }
+                _state.value = _state.value?.copy(
+                    availablePresets = presets,
+                    presetsLoading = false,
+                    presetsError = null
+                )
+            } catch (e: Exception) {
+                Log.e("CrossfadeEditorVM", "Error loading presets", e)
+                _state.value = _state.value?.copy(
+                    presetsLoading = false,
+                    presetsError = "No se pudieron cargar los presets"
                 )
             }
         }
     }
 
+    fun retryLoadPresets() {
+        loadPresets()
+    }
+
+    // ─── Preset Selection & Apply ─────────────
+
+    fun onPresetSelected(presetCode: String) {
+        // Skip preview – apply and persist immediately
+        _state.value = _state.value?.copy(presetsLoading = true)
+        viewModelScope.launch {
+            try {
+                val updated = withContext(Dispatchers.IO) {
+                    presetManager.applyPreset(playmixId, transitionId, presetCode)
+                }
+                applyTransitionToState(updated)
+                saveAfterApply()
+            } catch (e: Exception) {
+                Log.e("CrossfadeEditorVM", "Error applying preset", e)
+                _state.value = _state.value?.copy(
+                    presetsLoading = false,
+                    error = "Error al aplicar el preset."
+                )
+            }
+        }
+    }
+
+    fun onDismissPreview() { /* no-op – preview step removed */ }
+
+    fun onApplyPreset(presetCode: String) = onPresetSelected(presetCode)
+
+    private fun saveAfterApply() {
+        val current = _state.value ?: return
+        viewModelScope.launch {
+            try {
+                val update = com.example.resonant.data.network.PlaymixTransitionUpdateDTO(
+                    exitPointMs = current.exitPointMs,
+                    entryPointMs = current.entryPointMs,
+                    crossfadeDurationMs = current.crossfadeDurationMs,
+                    fadeCurveType = current.fadeCurveType,
+                    eqSettings = current.eqSettings,
+                    eqSettingsA = current.eqSettingsA,
+                    eqSettingsB = current.eqSettingsB,
+                    mixMode = current.mixMode ?: "crossfade",
+                    bandFadeTypes = current.bandFadeTypes,
+                    gapMs = current.gapMs,
+                    presetCode = current.activePresetCode,
+                    isPresetModified = current.isPresetModified
+                )
+                withContext(Dispatchers.IO) {
+                    playmixManager.updateTransition(playmixId, transitionId, update)
+                }
+                _state.value = _state.value?.copy(presetsLoading = false, savedSuccess = true)
+            } catch (e: Exception) {
+                Log.e("CrossfadeEditorVM", "Error saving after apply", e)
+                _state.value = _state.value?.copy(presetsLoading = false)
+            }
+        }
+    }
+
+    fun onResetPreset() {
+        val current = _state.value ?: return
+        if (current.activePresetCode == null) return
+
+        _state.value = current.copy(presetsLoading = true)
+        viewModelScope.launch {
+            try {
+                val updated = withContext(Dispatchers.IO) {
+                    presetManager.resetPreset(playmixId, transitionId)
+                }
+                applyTransitionToState(updated)
+                saveAfterApply()
+            } catch (e: Exception) {
+                Log.e("CrossfadeEditorVM", "Error resetting preset", e)
+                _state.value = _state.value?.copy(
+                    presetsLoading = false,
+                    error = "Error al resetear el preset."
+                )
+            }
+        }
+    }
+
+    fun onManualSelected() {
+        _state.value = _state.value?.copy(
+            activePresetCode = null,
+            activePresetName = null,
+            isPresetModified = false
+        )
+        presetSnapshot = null
+    }
+
+    private fun applyTransitionToState(transition: PlaymixTransitionDTO) {
+        presetSnapshot = if (transition.presetCode != null) {
+            PresetValuesSnapshot(
+                exitPointMs = transition.exitPointMs,
+                entryPointMs = transition.entryPointMs,
+                crossfadeDurationMs = transition.crossfadeDurationMs,
+                gapMs = transition.gapMs
+            )
+        } else null
+
+        _state.value = _state.value?.copy(
+            exitPointMs = transition.exitPointMs,
+            entryPointMs = transition.entryPointMs,
+            crossfadeDurationMs = transition.crossfadeDurationMs,
+            fadeCurveType = transition.fadeCurveType,
+            eqSettings = transition.eqSettings ?: defaultEq(),
+            eqSettingsA = transition.eqSettingsA ?: (transition.eqSettings ?: defaultEq()),
+            eqSettingsB = transition.eqSettingsB ?: (transition.eqSettings ?: defaultEq()),
+            mixMode = transition.mixMode ?: "crossfade",
+            activePresetCode = transition.presetCode,
+            activePresetName = transition.presetName,
+            isPresetModified = transition.isPresetModified,
+            gapMs = transition.gapMs,
+            showGapSlider = transition.gapMs > 0 || transition.crossfadeDurationMs == 0,
+            bandFadeTypes = transition.bandFadeTypes ?: BandFadeTypesDTO(),
+            isSaving = false
+        )
+    }
+
+    private fun checkPresetModified() {
+        val current = _state.value ?: return
+        val snapshot = presetSnapshot ?: return
+        if (current.activePresetCode == null) return
+
+        val modified = current.exitPointMs != snapshot.exitPointMs ||
+                current.entryPointMs != snapshot.entryPointMs ||
+                current.crossfadeDurationMs != snapshot.crossfadeDurationMs ||
+                current.gapMs != snapshot.gapMs
+        if (modified != current.isPresetModified) {
+            _state.value = current.copy(isPresetModified = modified)
+        }
+    }
+
     fun setExitPoint(ms: Int) {
         _state.value = _state.value?.copy(exitPointMs = ms)
+        checkPresetModified()
     }
 
     fun setEntryPoint(ms: Int) {
         _state.value = _state.value?.copy(entryPointMs = ms)
+        checkPresetModified()
+    }
+
+    fun setPrelistenTarget(target: String?) {
+        _state.value = _state.value?.copy(prelistenTarget = target)
     }
 
     fun setCrossfadeDuration(ms: Int) {
-        _state.value = _state.value?.copy(crossfadeDurationMs = ms)
+        _state.value = _state.value?.copy(
+            crossfadeDurationMs = ms,
+            showGapSlider = ms == 0 || (_state.value?.gapMs ?: 0) > 0
+        )
+        checkPresetModified()
+    }
+
+    fun setGapMs(ms: Int) {
+        _state.value = _state.value?.copy(gapMs = ms)
+        checkPresetModified()
+    }
+
+    fun setMixMode(mode: String) {
+        _state.value = _state.value?.copy(mixMode = mode)
+        checkPresetModified()
     }
 
     fun setFadeCurveType(type: String) {
-        _state.value = _state.value?.copy(fadeCurveType = type)
+        _state.value = _state.value?.copy(
+            fadeCurveType = type,
+            bandFadeTypes = BandFadeTypesDTO(bass = type, mid = type, treble = type)
+        )
+        checkPresetModified()
     }
 
-    fun updateEqBand(index: Int, gainDb: Double) {
-        val current = _state.value?.eqSettings ?: return
-        val updatedBands = current.bands.toMutableList()
-        if (index in updatedBands.indices) {
-            updatedBands[index] = updatedBands[index].copy(gainDb = gainDb)
-            _state.value = _state.value?.copy(eqSettings = EqSettingsDTO(updatedBands))
+    fun setBandFadeType(band: String, type: String) {
+        val current = _state.value ?: return
+        val updated = when (band) {
+            "bass" -> current.bandFadeTypes.copy(bass = type)
+            "mid" -> current.bandFadeTypes.copy(mid = type)
+            "treble" -> current.bandFadeTypes.copy(treble = type)
+            else -> return
         }
+        // Derive the global fadeCurveType from band consensus
+        val consensus = if (updated.bass == updated.mid && updated.mid == updated.treble)
+            updated.bass else "custom"
+        _state.value = current.copy(
+            bandFadeTypes = updated,
+            fadeCurveType = consensus
+        )
+        checkPresetModified()
     }
 
-    fun resetEq() {
-        _state.value = _state.value?.copy(eqSettings = defaultEq())
+    fun toggleGapSlider(show: Boolean) {
+        _state.value = _state.value?.copy(showGapSlider = show, gapMs = if (!show) 0 else _state.value?.gapMs ?: 0)
     }
 
     fun saveTransition() {
@@ -132,15 +363,22 @@ class CrossfadeEditorViewModel(private val playmixManager: PlaymixManager) : Vie
                     entryPointMs = current.entryPointMs,
                     crossfadeDurationMs = current.crossfadeDurationMs,
                     fadeCurveType = current.fadeCurveType,
-                    eqSettings = current.eqSettings
+                    eqSettings = current.eqSettings,
+                    eqSettingsA = current.eqSettingsA,
+                    eqSettingsB = current.eqSettingsB,
+                    mixMode = current.mixMode,
+                    bandFadeTypes = current.bandFadeTypes,
+                    gapMs = current.gapMs,
+                    presetCode = current.activePresetCode,
+                    isPresetModified = current.isPresetModified
                 )
                 withContext(Dispatchers.IO) {
                     playmixManager.updateTransition(playmixId, transitionId, update)
                 }
-                _state.postValue(current.copy(isSaving = false, savedSuccess = true))
+                _state.value = current.copy(isSaving = false, savedSuccess = true)
             } catch (e: Exception) {
                 Log.e("CrossfadeEditorVM", "Error saving transition", e)
-                _state.postValue(current.copy(isSaving = false, error = "Error al guardar: ${e.message}"))
+                _state.value = current.copy(isSaving = false, error = "Error al guardar: ${e.message}")
             }
         }
     }
@@ -148,145 +386,16 @@ class CrossfadeEditorViewModel(private val playmixManager: PlaymixManager) : Vie
     fun onSaveHandled() {
         _state.value = _state.value?.copy(savedSuccess = false, error = null)
     }
-
-    // ─── BPM Matching ───────────────────────────
-
-    fun setTargetBpm(bpm: Double) {
-        val current = _state.value ?: return
-        val synced = current.bpmA > 0 && current.bpmB > 0
-        _state.value = current.copy(targetBpm = bpm, bpmSynced = synced)
-        recalcBeatAlign()
-    }
-
-    fun syncBpmToA() {
-        val current = _state.value ?: return
-        if (current.bpmA > 0) setTargetBpm(current.bpmA)
-    }
-
-    fun syncBpmToB() {
-        val current = _state.value ?: return
-        if (current.bpmB > 0) setTargetBpm(current.bpmB)
-    }
-
-    fun autoMatch() {
-        val current = _state.value ?: return
-        val data = current.waveformData ?: return
-        val beatsA = data.songA.beatGrid ?: return
-        val beatsB = data.songB.beatGrid ?: return
-        if (current.bpmA <= 0 || current.bpmB <= 0) return
-
-        // Find the target BPM and exit/entry that maximise beat alignment
-        val bpmMin = minOf(current.bpmA, current.bpmB) * 0.95
-        val bpmMax = maxOf(current.bpmA, current.bpmB) * 1.05
-        val durationA = data.songA.durationMs
-        val durationB = data.songB.durationMs
-        val cfDuration = current.crossfadeDurationMs
-
-        var bestScore = -1
-        var bestBpm = current.targetBpm
-        var bestExitMs = current.exitPointMs
-        var bestEntryMs = current.entryPointMs
-
-        // Test BPM in 0.5 increments
-        var testBpm = bpmMin
-        while (testBpm <= bpmMax) {
-            val ratioA = (testBpm / current.bpmA).toFloat()
-            val ratioB = (testBpm / current.bpmB).toFloat()
-
-            // Scale beat grids
-            val scaledA = beatsA.map { (it / ratioA).toInt() }
-            val scaledB = beatsB.map { (it / ratioB).toInt() }
-
-            // Try exit points at each beat of A in the last 30%
-            val exitStartMs = (durationA * 0.6).toInt()
-            for (exitBeat in scaledA) {
-                if (exitBeat < exitStartMs) continue
-                if (exitBeat + cfDuration > durationA) continue
-
-                // Try entry points at each beat of B in the first 30%
-                val entryEndMs = (durationB * 0.35).toInt()
-                for (entryBeat in scaledB) {
-                    if (entryBeat > entryEndMs) break
-
-                    val score = countAlignedBeats(
-                        scaledA, scaledB,
-                        exitBeat, entryBeat, cfDuration
-                    )
-                    if (score > bestScore) {
-                        bestScore = score
-                        bestBpm = testBpm
-                        bestExitMs = exitBeat
-                        bestEntryMs = entryBeat
-                    }
-                }
-            }
-            testBpm += 0.5
-        }
-
-        _state.value = current.copy(
-            targetBpm = bestBpm,
-            exitPointMs = bestExitMs,
-            entryPointMs = bestEntryMs,
-            bpmSynced = true,
-            beatAlignScore = bestScore.coerceIn(0, 100)
-        )
-    }
-
-    private fun recalcBeatAlign() {
-        val current = _state.value ?: return
-        val data = current.waveformData ?: return
-        val score = calculateBeatAlignScore(
-            data.songA.beatGrid, data.songB.beatGrid,
-            current.bpmA, current.bpmB, current.targetBpm,
-            current.exitPointMs, current.entryPointMs, current.crossfadeDurationMs
-        )
-        _state.value = current.copy(beatAlignScore = score)
-    }
-
-    private fun calculateBeatAlignScore(
-        beatsA: List<Int>?, beatsB: List<Int>?,
-        bpmA: Double, bpmB: Double, targetBpm: Double,
-        exitMs: Int, entryMs: Int, cfMs: Int
-    ): Int {
-        if (beatsA.isNullOrEmpty() || beatsB.isNullOrEmpty() || bpmA <= 0 || bpmB <= 0 || targetBpm <= 0) return 0
-
-        val ratioA = (targetBpm / bpmA).toFloat()
-        val ratioB = (targetBpm / bpmB).toFloat()
-        val scaledA = beatsA.map { (it / ratioA).toInt() }
-        val scaledB = beatsB.map { (it / ratioB).toInt() }
-
-        return countAlignedBeats(scaledA, scaledB, exitMs, entryMs, cfMs)
-    }
-
-    private fun countAlignedBeats(
-        scaledA: List<Int>, scaledB: List<Int>,
-        exitMs: Int, entryMs: Int, cfMs: Int
-    ): Int {
-        val tolerance = 30 // ms
-        var count = 0
-        val cfEnd = exitMs + cfMs
-
-        for (beatA in scaledA) {
-            if (beatA < exitMs || beatA > cfEnd) continue
-            val progress = (beatA - exitMs).toFloat() / cfMs
-            val correspondingBMs = entryMs + (progress * cfMs).toInt()
-
-            for (beatB in scaledB) {
-                if (kotlin.math.abs(beatB - correspondingBMs) <= tolerance) {
-                    count++
-                    break
-                }
-            }
-        }
-        return count
-    }
 }
 
-class CrossfadeEditorViewModelFactory(private val playmixManager: PlaymixManager) : ViewModelProvider.Factory {
+class CrossfadeEditorViewModelFactory(
+    private val playmixManager: PlaymixManager,
+    private val presetManager: TransitionPresetManager
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CrossfadeEditorViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return CrossfadeEditorViewModel(playmixManager) as T
+            return CrossfadeEditorViewModel(playmixManager, presetManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

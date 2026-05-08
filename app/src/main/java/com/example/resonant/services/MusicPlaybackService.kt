@@ -52,6 +52,7 @@ class MusicPlaybackService : Service(), PlayerController {
         const val EXTRA_CURRENT_IMAGE_PATH = "com.resonant.EXTRA_CURRENT_IMAGE_PATH"
         const val ACTION_SEEK_TO = "com.resonant.ACTION_SEEK_TO"
         const val EXTRA_SEEK_POSITION = "com.resonant.EXTRA_SEEK_POSITION"
+        const val EXTRA_START_POSITION_MS = "com.resonant.EXTRA_START_POSITION_MS"
         const val ACTION_REQUEST_STATE = "com.resonant.ACTION_REQUEST_STATE"
         const val EXTRA_QUEUE_SOURCE = "com.resonant.EXTRA_QUEUE_SOURCE"
         const val EXTRA_QUEUE_SOURCE_ID = "com.resonant.EXTRA_QUEUE_SOURCE_ID"
@@ -107,6 +108,7 @@ class MusicPlaybackService : Service(), PlayerController {
     // PlayMix crossfade — map key: "fromSongId:toSongId"
     private var playmixTransitions: Map<String, PlaymixTransitionDTO> = emptyMap()
     private var playmixSongIdMap: Map<String, String> = emptyMap() // songId -> playmixSongId
+    private var pendingStartPositionMs: Long = 0L
 
     private val seekBarHandler = Handler(Looper.getMainLooper())
     private val updateSeekBarRunnable = object : Runnable {
@@ -791,7 +793,9 @@ class MusicPlaybackService : Service(), PlayerController {
                 return@launch
             }
 
-            player.setMediaItems(validItems.map { it.second }, adjustedStartIndex, 0L)
+            val startPos = pendingStartPositionMs
+            pendingStartPositionMs = 0L
+            player.setMediaItems(validItems.map { it.second }, adjustedStartIndex, startPos)
             player.prepare()
             player.play()
             applyLoudnessNormalization(songToPlay)
@@ -1026,6 +1030,7 @@ class MusicPlaybackService : Service(), PlayerController {
                         playmixSongIdMap = emptyMap()
                     }
 
+                    pendingStartPositionMs = intent.getIntExtra(EXTRA_START_POSITION_MS, 0).toLong()
                     playSongFromQueue()
 
                     // Reset shuffle state on new play

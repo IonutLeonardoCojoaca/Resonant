@@ -11,6 +11,7 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.managers.AlbumManager
 import com.example.resonant.managers.ArtistManager
 import com.example.resonant.managers.SongManager
+import android.util.Log
 import kotlinx.coroutines.launch
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -232,18 +233,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastRecentArtistsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _recentArtists.value != null
 
-        if (hasData && !forceRefresh && !isExpired) return
+        Log.d("HomeVM", "loadRecentArtists: hasData=$hasData forceRefresh=$forceRefresh isExpired=$isExpired")
+        if (hasData && !forceRefresh && !isExpired) {
+            Log.d("HomeVM", "loadRecentArtists: skipped (cache, ${_recentArtists.value?.size} items)")
+            return
+        }
 
         if (!hasData) _recentArtistsLoading.value = true
         _recentArtistsError.value = null
 
         viewModelScope.launch {
             try {
+                Log.d("HomeVM", "loadRecentArtists: calling API...")
                 val result = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 20)
+                Log.d("HomeVM", "loadRecentArtists: got ${result.size} artists")
                 _recentArtists.value = result
                 if (result.isNotEmpty()) lastRecentArtistsFetchTime = System.currentTimeMillis()
                 else if (!hasData) _recentArtistsError.value = "No hay artistas recientes"
             } catch (e: Exception) {
+                Log.e("HomeVM", "loadRecentArtists: EXCEPTION", e)
                 if (!hasData) _recentArtistsError.value = "Error al cargar artistas recientes"
             } finally {
                 _recentArtistsLoading.value = false
@@ -256,18 +264,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastRecentAlbumsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _recentAlbums.value != null
 
-        if (hasData && !forceRefresh && !isExpired) return
+        Log.d("HomeVM", "loadRecentAlbums: hasData=$hasData forceRefresh=$forceRefresh isExpired=$isExpired")
+        if (hasData && !forceRefresh && !isExpired) {
+            Log.d("HomeVM", "loadRecentAlbums: skipped (cache, ${_recentAlbums.value?.size} items)")
+            return
+        }
 
         if (!hasData) _recentAlbumsLoading.value = true
         _recentAlbumsError.value = null
 
         viewModelScope.launch {
             try {
+                Log.d("HomeVM", "loadRecentAlbums: calling API...")
                 val result = AlbumManager.getNewReleaseAlbums(getApplication(), limit = 20)
+                Log.d("HomeVM", "loadRecentAlbums: got ${result.size} albums")
                 _recentAlbums.value = result
                 if (result.isNotEmpty()) lastRecentAlbumsFetchTime = System.currentTimeMillis()
                 else if (!hasData) _recentAlbumsError.value = "No hay álbumes recientes"
             } catch (e: Exception) {
+                Log.e("HomeVM", "loadRecentAlbums: EXCEPTION", e)
                 if (!hasData) _recentAlbumsError.value = "Error al cargar álbumes recientes"
             } finally {
                 _recentAlbumsLoading.value = false

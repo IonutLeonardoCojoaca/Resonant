@@ -174,9 +174,11 @@ object ArtistManager {
 
     suspend fun getRecentlyAddedArtists(context: Context, limit: Int = 20): List<Artist> {
         return try {
-            ApiClient.getArtistService(context).getRecentlyAddedArtists(limit)
+            val result = ApiClient.getArtistService(context).getRecentlyAddedArtists(limit)
+            Log.d("ArtistManager", "getRecentlyAddedArtists: OK, ${result.size} items")
+            result
         } catch (e: Exception) {
-            Log.e("ArtistManager", "Error fetching recently added artists", e)
+            Log.e("ArtistManager", "getRecentlyAddedArtists: EXCEPTION ${e.javaClass.simpleName}: ${e.message}", e)
             emptyList()
         }
     }

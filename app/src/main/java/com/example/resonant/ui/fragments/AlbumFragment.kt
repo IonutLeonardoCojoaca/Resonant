@@ -26,6 +26,7 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.R
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
+import com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.ui.adapters.SongAdapter
@@ -336,6 +337,15 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                             onNoPlaylistsFound = { findNavController().navigate(R.id.action_global_to_createPlaylistFragment) }
                         )
                         selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                    },
+                    onAddToPlaymixClick = { songToAdd ->
+                        val sheet = SelectPlaymixBottomSheet(
+                            song = songToAdd,
+                            onNoPlaymixesFound = {
+                                findNavController().navigate(R.id.action_global_to_playmixListFragment)
+                            }
+                        )
+                        sheet.show(parentFragmentManager, "SelectPlaymixBottomSheet")
                     },
                     onDownloadClick = { songToDownload ->
                         downloadViewModel.downloadSong(songToDownload)

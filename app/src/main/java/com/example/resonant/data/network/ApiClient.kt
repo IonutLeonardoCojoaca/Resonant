@@ -12,6 +12,7 @@ import com.example.resonant.data.network.services.LyricsService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.PlaymixService
 import com.example.resonant.data.network.services.SongService
+import com.example.resonant.data.network.services.TransitionPresetService
 
 import com.example.resonant.data.network.services.UserService
 import com.example.resonant.managers.SessionManager
@@ -86,6 +87,10 @@ object ApiClient {
 
     fun getPlaymixService(context: Context): PlaymixService {
         return getRetrofitInstance(context).create(PlaymixService::class.java)
+    }
+
+    fun getTransitionPresetService(context: Context): TransitionPresetService {
+        return getRetrofitInstance(context).create(TransitionPresetService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

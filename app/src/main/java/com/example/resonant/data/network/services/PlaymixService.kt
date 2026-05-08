@@ -7,7 +7,10 @@ import com.example.resonant.data.network.PlaymixDTO
 import com.example.resonant.data.network.PlaymixDetailDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.PlaymixTransitionUpdateDTO
+import com.example.resonant.data.network.RenamePlaymixRequest
 import com.example.resonant.data.network.ReorderSongsRequest
+import com.example.resonant.data.network.CopyTransitionRequest
+import com.example.resonant.data.network.CopyTransitionResponseDTO
 import com.example.resonant.data.network.WaveformResponseDTO
 import retrofit2.Response
 import retrofit2.http.Body
@@ -31,6 +34,12 @@ interface PlaymixService {
 
     @DELETE("api/playmix/{id}")
     suspend fun deletePlaymix(@Path("id") id: String): Response<Unit>
+
+    @PATCH("api/playmix/{id}")
+    suspend fun renamePlaymix(
+        @Path("id") id: String,
+        @Body request: RenamePlaymixRequest
+    ): PlaymixDetailDTO
 
     @POST("api/playmix/{id}/songs")
     suspend fun addSongToPlaymix(
@@ -69,4 +78,11 @@ interface PlaymixService {
         @Path("id") playmixId: String,
         @Path("tId") transitionId: String
     ): WaveformResponseDTO
+
+    @POST("api/playmix/{id}/transitions/{tId}/copy-to")
+    suspend fun copyTransition(
+        @Path("id") playmixId: String,
+        @Path("tId") transitionId: String,
+        @Body request: CopyTransitionRequest
+    ): CopyTransitionResponseDTO
 }

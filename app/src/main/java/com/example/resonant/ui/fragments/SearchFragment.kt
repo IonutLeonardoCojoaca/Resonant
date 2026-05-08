@@ -43,6 +43,7 @@ import com.example.resonant.ui.adapters.SearchResult
 import com.example.resonant.ui.adapters.SearchResultAdapter
 import com.example.resonant.ui.adapters.SuggestionAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
+import com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
@@ -330,6 +331,16 @@ class SearchFragment : Fragment() {
                     }
                         )
                         selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                    },
+                    onAddToPlaymixClick = { songToAdd ->
+                        val sheet = SelectPlaymixBottomSheet(
+                            song = songToAdd,
+                            onNoPlaymixesFound = {
+                                requireActivity().findNavController(R.id.nav_host_fragment)
+                                    .navigate(R.id.action_global_to_playmixListFragment)
+                            }
+                        )
+                        sheet.show(parentFragmentManager, "SelectPlaymixBottomSheet")
                     },
                     onDownloadClick = { songToDownload ->
                         downloadViewModel.downloadSong(songToDownload)

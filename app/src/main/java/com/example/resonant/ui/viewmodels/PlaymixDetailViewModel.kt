@@ -124,6 +124,22 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         }
     }
 
+    fun renamePlaymix(newName: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val playmixId = currentPlaymixId ?: return
+        viewModelScope.launch {
+            try {
+                val updated = withContext(Dispatchers.IO) {
+                    playmixManager.renamePlaymix(playmixId, newName)
+                }
+                _screenState.value = _screenState.value?.copy(detail = updated)
+                withContext(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                Log.e("PlaymixDetailVM", "Error renaming playmix", e)
+                withContext(Dispatchers.Main) { onError(e.message ?: "Error desconocido al renombrar") }
+            }
+        }
+    }
+
     // Pair-based: transitions between pairs (0-1, 2-3, 4-5, ...)
     fun getTransitionForPair(pairIndex: Int): PlaymixTransitionDTO? {
         val detail = _screenState.value?.detail ?: return null

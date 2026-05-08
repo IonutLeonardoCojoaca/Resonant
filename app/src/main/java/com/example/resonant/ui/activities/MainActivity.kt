@@ -1,6 +1,7 @@
 package com.example.resonant.ui.activities
 
 import android.Manifest
+import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
@@ -72,6 +73,7 @@ import androidx.core.graphics.toColorInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.resonant.managers.DownloadStatus
+import com.example.resonant.playback.QueueSource
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -84,6 +86,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var seekBar: SeekBar
     private lateinit var songDataPlayer: LinearLayout
     private lateinit var playPauseButton: ImageButton
+    private var playmixRingAnimator: ObjectAnimator? = null
     private lateinit var previousSongButton: ImageButton
     private lateinit var nextSongButton: ImageButton
     private lateinit var songImage: ImageView
@@ -686,6 +689,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             updatePlayPauseButton(isPlaying) // Actualiza el icono del botón
         }
 
+        songViewModel.queueSourceLiveData.observe(this) { source ->
+            updatePlaymixMode(source == QueueSource.PLAYMIX)
+        }
+
         songViewModel.playbackPositionLiveData.observe(this) { positionInfo ->
             if (positionInfo.duration > 0) {
                 seekBar.max = positionInfo.duration.toInt()
@@ -756,6 +763,27 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             playPauseButton.setImageResource(R.drawable.ic_pause)
         } else {
             playPauseButton.setImageResource(R.drawable.ic_play)
+        }
+    }
+
+    private fun updatePlaymixMode(isPlaymix: Boolean) {
+        val ring = findViewById<View>(R.id.playmixRing)
+        if (isPlaymix) {
+            playPauseButton.setBackgroundResource(R.drawable.bg_play_background_playmix)
+            ring?.visibility = View.VISIBLE
+            if (playmixRingAnimator == null || playmixRingAnimator?.isRunning == false) {
+                playmixRingAnimator = ObjectAnimator.ofFloat(ring, "rotation", 0f, 360f).apply {
+                    duration = 3000
+                    repeatCount = ObjectAnimator.INFINITE
+                    interpolator = android.view.animation.LinearInterpolator()
+                }
+                playmixRingAnimator?.start()
+            }
+        } else {
+            playPauseButton.setBackgroundResource(R.drawable.bg_play_background)
+            ring?.visibility = View.GONE
+            playmixRingAnimator?.cancel()
+            playmixRingAnimator = null
         }
     }
 

@@ -36,6 +36,7 @@ data class PlaymixSongDTO(
     val duration: Int,
     @com.google.gson.annotations.SerializedName("coverUrl")
     val coverUrl: String? = null,
+    val imageUrl: String? = null,
     val customEntryMs: Int?,
     val customExitMs: Int?,
     val audioAnalysis: PlaymixAudioAnalysisDTO?
@@ -61,7 +62,19 @@ data class PlaymixTransitionDTO(
     val crossfadeDurationMs: Int,
     val fadeCurveType: String,
     val eqSettings: EqSettingsDTO?,
-    val compatibility: CompatibilityDTO?
+    @SerializedName("eqSettingsA") val eqSettingsA: EqSettingsDTO? = null,
+    @SerializedName("eqSettingsB") val eqSettingsB: EqSettingsDTO? = null,
+    @SerializedName("mixMode") val mixMode: String? = "crossfade",
+    val compatibility: CompatibilityDTO?,
+    // ─── Per-band fade types ───────────────────
+    val bandFadeTypes: BandFadeTypesDTO? = null,
+    // ─── Preset fields ─────────────────────────
+    val presetId: String? = null,
+    val presetCode: String? = null,
+    val presetName: String? = null,
+    val presetAppliedAt: String? = null,
+    val isPresetModified: Boolean = false,
+    val gapMs: Int = 0
 )
 
 data class EqSettingsDTO(
@@ -71,6 +84,12 @@ data class EqSettingsDTO(
 data class EqBandDTO(
     val freq: Int,
     val gainDb: Double
+)
+
+data class BandFadeTypesDTO(
+    val bass: String = "linear",
+    val mid: String = "linear",
+    val treble: String = "linear"
 )
 
 data class CompatibilityDTO(
@@ -110,6 +129,10 @@ data class CreatePlaymixRequest(
     val description: String? = null
 )
 
+data class RenamePlaymixRequest(
+    val name: String
+)
+
 data class AddSongToPlaymixRequest(
     val songId: String
 )
@@ -128,5 +151,66 @@ data class PlaymixTransitionUpdateDTO(
     val entryPointMs: Int,
     val crossfadeDurationMs: Int,
     val fadeCurveType: String,
-    val eqSettings: EqSettingsDTO?
+    val eqSettings: EqSettingsDTO?,
+    @SerializedName("eqSettingsA") val eqSettingsA: EqSettingsDTO? = null,
+    @SerializedName("eqSettingsB") val eqSettingsB: EqSettingsDTO? = null,
+    @SerializedName("mixMode") val mixMode: String = "crossfade",
+    val bandFadeTypes: BandFadeTypesDTO? = null,
+    val gapMs: Int = 0,
+    val presetCode: String? = null,
+    val isPresetModified: Boolean = false
+)
+
+// ─── Transition Presets ─────────────────────
+data class TransitionPresetDTO(
+    val id: String,
+    val code: String,
+    val name: String,
+    val description: String,
+    val iconName: String,
+    val category: String,
+    val isSystem: Boolean,
+    val sortOrder: Int
+)
+
+data class ApplyPresetRequest(
+    val presetCode: String
+)
+
+data class TransitionPresetPreviewDTO(
+    val presetCode: String,
+    val presetName: String,
+    val calculatedValues: CalculatedTransitionValues,
+    val metadata: TransitionMetadata,
+    val warnings: List<String>,
+    val appliedFallbacks: List<String>
+)
+
+data class CalculatedTransitionValues(
+    val exitPointMs: Int,
+    val entryPointMs: Int,
+    val crossfadeDurationMs: Int,
+    val fadeCurveType: String,
+    val eqSettingsJson: com.google.gson.JsonObject?,
+    val gapMs: Int
+)
+
+data class TransitionMetadata(
+    val fromSongBpm: Double?,
+    val toSongBpm: Double?,
+    val bpmDelta: Double?,
+    val keyCompatibility: String?,
+    val loudnessDeltaLufs: Double?
+)
+
+// ─── Copy Transition ────────────────────────
+data class CopyTransitionRequest(
+    val targetPlaymixId: String
+)
+
+data class CopyTransitionResponseDTO(
+    val targetPlaymixId: String,
+    val newFromPlaymixSongId: String,
+    val newToPlaymixSongId: String,
+    val newTransitionId: String
 )

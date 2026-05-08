@@ -3,43 +3,153 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center"
-    android:orientation="horizontal"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="4dp"
-    android:background="@drawable/bg_transition_indicator">
+    android:orientation="vertical"
+    android:paddingHorizontal="8dp"
+    android:paddingVertical="2dp">
 
-    <ImageView
-        android:id="@+id/transitionIcon"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:src="@drawable/ic_compare_arrows" />
-
-    <TextView
-        android:id="@+id/transitionScore"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:fontFamily="@font/unageo_bold"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/transitionVerdict"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="6dp"
-        android:fontFamily="@font/unageo_medium"
-        android:textSize="11sp" />
-
+    <!-- Connector line top -->
     <View
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_width="2dp"
+        android:layout_height="8dp"
+        android:layout_gravity="center_horizontal"
+        android:background="#22FFFFFF" />
 
-    <ImageView
-        android:layout_width="16dp"
-        android:layout_height="16dp"
-        android:src="@drawable/ic_edit"
-        app:tint="#66FFFFFF" />
+    <!-- Card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_transition_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="10dp">
+
+        <!-- Left: icon + details -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- Colored icon -->
+            <ImageView
+                android:id="@+id/transitionIcon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_compare_arrows" />
+
+            <!-- Score + verdict + chips -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+
+                <!-- Score + verdict row -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/transitionScore"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/transitionVerdict"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.05" />
+
+                </LinearLayout>
+
+                <!-- BPM + Key chips -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/transitionBpmChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_compat_chip"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:textSize="10sp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/transitionKeyChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_compat_chip"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:textSize="10sp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Right: action buttons -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/waveformPreviewButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="7dp"
+                android:src="@drawable/ic_visibility"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="#88FFFFFF" />
+
+            <ImageView
+                android:id="@+id/copyTransitionButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="8dp"
+                android:src="@drawable/ic_playmix"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="#88FFFFFF" />
+
+            <ImageView
+                android:id="@+id/editTransitionButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="8dp"
+                android:src="@drawable/ic_edit"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="#66FFFFFF" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Connector line bottom -->
+    <View
+        android:layout_width="2dp"
+        android:layout_height="8dp"
+        android:layout_gravity="center_horizontal"
+        android:background="#22FFFFFF" />
 
 </LinearLayout>

@@ -449,6 +449,12 @@
 
     <!-- ═══ PlayMix ═══ -->
     <fragment
+        android:id="@+id/createPlaymixFragment"
+        android:name="com.example.resonant.ui.fragments.CreatePlaymixFragment"
+        android:label="Nuevo PlayMix"
+        tools:layout="@layout/fragment_create_playmix" />
+
+    <fragment
         android:id="@+id/playmixListFragment"
         android:name="com.example.resonant.ui.fragments.PlaymixListFragment"
         android:label="Mis PlayMixes"
@@ -485,6 +491,10 @@
     <action
         android:id="@+id/action_global_to_playmixListFragment"
         app:destination="@id/playmixListFragment" />
+
+    <action
+        android:id="@+id/action_global_to_createPlaymixFragment"
+        app:destination="@id/createPlaymixFragment" />
 
     <action
         android:id="@+id/action_global_to_playmixDetailFragment"

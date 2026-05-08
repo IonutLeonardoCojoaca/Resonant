@@ -45,6 +45,11 @@ class CreationMenuDialog : DialogFragment() {
             dismiss()
             findNavController().navigate(R.id.createPlaylistFragment)
         }
+
+        view.findViewById<LinearLayout>(R.id.optionCreatePlaymix).setOnClickListener {
+            dismiss()
+            findNavController().navigate(R.id.action_global_to_createPlaymixFragment)
+        }
     }
 
     override fun onStart() {

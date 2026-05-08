@@ -49,11 +49,10 @@
         android:id="@+id/chipsScrollView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:scrollbars="none"
-        android:paddingHorizontal="15dp"
-        android:paddingBottom="10dp"
-        android:clipToPadding="false"
         android:layout_marginTop="5dp"
+        android:paddingBottom="4dp"
+        android:scrollbars="none"
+        android:fillViewport="false"
         app:layout_constraintTop_toBottomOf="@+id/superiorToolbar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -62,8 +61,11 @@
             android:id="@+id/chipGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:paddingHorizontal="15dp"
             app:singleSelection="true"
             app:selectionRequired="true"
+            app:chipSpacingHorizontal="6dp"
+            app:singleLine="true"
             android:theme="@style/Theme.MaterialComponents.Light">
 
             <com.google.android.material.chip.Chip
@@ -130,6 +132,22 @@
                 app:rippleColor="@android:color/transparent"
                 app:useMaterialThemeColors="false" />
 
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipPlaymixes"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:checkable="true"
+                android:text="PlayMixes"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:checkedIconVisible="false"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipCornerRadius="35dp"
+                app:chipStrokeColor="@android:color/transparent"
+                app:fontFamily="@font/unageo_medium"
+                app:rippleColor="@android:color/transparent"
+                app:useMaterialThemeColors="false" />
+
         </com.google.android.material.chip.ChipGroup>
 
     </HorizontalScrollView>
@@ -185,52 +203,6 @@
                     android:layout_centerVertical="true"
                     android:layout_marginStart="15dp"
                     android:text="Descargas"
-                    android:fontFamily="@font/unageo_bold"
-                    android:textSize="17sp"
-                    android:textColor="@color/white" />
-
-            </RelativeLayout>
-
-            <!-- Separator -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginHorizontal="20dp"
-                android:background="#1AFFFFFF"/>
-
-            <!-- PLAYMIXES ITEM -->
-            <RelativeLayout
-                android:id="@+id/playmixItemContainer"
-                android:layout_width="match_parent"
-                android:layout_height="70dp"
-                android:paddingHorizontal="15dp"
-                android:layout_marginVertical="5dp"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true">
-
-                <FrameLayout
-                    android:id="@+id/playmixIconContainer"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp"
-                    android:layout_centerVertical="true"
-                    android:background="@drawable/bg_circle_secondary_20">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_playmix"
-                        app:tint="@color/white" />
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_toEndOf="@id/playmixIconContainer"
-                    android:layout_centerVertical="true"
-                    android:layout_marginStart="15dp"
-                    android:text="PlayMixes"
                     android:fontFamily="@font/unageo_bold"
                     android:textSize="17sp"
                     android:textColor="@color/white" />
@@ -335,7 +307,7 @@
 
     </androidx.core.widget.NestedScrollView>
 
-    <!-- FAVORITES VIEW (RecyclerView for Songs, Artists, Albums) -->
+    <!-- FAVORITES VIEW (RecyclerView for Songs, Artists, Albums, PlayMixes) -->
     <!-- Direct child of ConstraintLayout, filling remaining space -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/favoritesRecyclerView"
@@ -349,6 +321,64 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- PLAYMIX EMPTY STATE -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/playmixEmptyState"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.4">
+
+            <FrameLayout
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:background="@drawable/bg_circle_secondary_20">
+
+                <ImageView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_playmix"
+                    app:tint="@color/white" />
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Sin PlayMixes aún"
+                android:textColor="@color/white"
+                android:textSize="20sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="@font/unageo_medium"
+                android:gravity="center"
+                android:text="Crea tu primer PlayMix con el botón +"
+                android:textColor="#80FFFFFF"
+                android:textSize="15sp" />
+
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 

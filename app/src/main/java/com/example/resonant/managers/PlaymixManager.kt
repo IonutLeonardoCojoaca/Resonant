@@ -4,18 +4,23 @@ import android.content.Context
 import com.example.resonant.data.network.AddSongToPlaymixRequest
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.CreatePlaymixRequest
+import com.example.resonant.data.network.CopyTransitionRequest
+import com.example.resonant.data.network.CopyTransitionResponseDTO
 import com.example.resonant.data.network.EditPlaymixSongRequest
 import com.example.resonant.data.network.PlaymixDTO
 import com.example.resonant.data.network.PlaymixDetailDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.PlaymixTransitionUpdateDTO
+import com.example.resonant.data.network.RenamePlaymixRequest
 import com.example.resonant.data.network.ReorderSongsRequest
 import com.example.resonant.data.network.WaveformResponseDTO
 import com.example.resonant.data.network.services.PlaymixService
 
-class PlaymixManager(private val context: Context) {
+open class PlaymixManager(private val context: Context?) {
 
-    private val playmixService: PlaymixService = ApiClient.getPlaymixService(context)
+    private val playmixService: PlaymixService by lazy {
+        ApiClient.getPlaymixService(context!!)
+    }
 
     suspend fun createPlaymix(name: String, description: String? = null): PlaymixDTO {
         return playmixService.createPlaymix(CreatePlaymixRequest(name, description))
@@ -35,6 +40,10 @@ class PlaymixManager(private val context: Context) {
             val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
             throw Exception("Error ${response.code()}: $errorMsg")
         }
+    }
+
+    suspend fun renamePlaymix(id: String, newName: String): PlaymixDetailDTO {
+        return playmixService.renamePlaymix(id, RenamePlaymixRequest(newName))
     }
 
     suspend fun addSongToPlaymix(playmixId: String, songId: String) {
@@ -72,7 +81,7 @@ class PlaymixManager(private val context: Context) {
         }
     }
 
-    suspend fun updateTransition(
+    open suspend fun updateTransition(
         playmixId: String,
         transitionId: String,
         update: PlaymixTransitionUpdateDTO
@@ -80,7 +89,15 @@ class PlaymixManager(private val context: Context) {
         return playmixService.updateTransition(playmixId, transitionId, update)
     }
 
-    suspend fun getWaveformData(playmixId: String, transitionId: String): WaveformResponseDTO {
+    open suspend fun getWaveformData(playmixId: String, transitionId: String): WaveformResponseDTO {
         return playmixService.getWaveformData(playmixId, transitionId)
+    }
+
+    open suspend fun copyTransition(
+        playmixId: String,
+        transitionId: String,
+        targetPlaymixId: String
+    ): CopyTransitionResponseDTO {
+        return playmixService.copyTransition(playmixId, transitionId, CopyTransitionRequest(targetPlaymixId))
     }
 }

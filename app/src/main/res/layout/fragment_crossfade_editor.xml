@@ -32,17 +32,17 @@
             android:id="@+id/editorTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
             android:ellipsize="end"
             android:fontFamily="@font/unageo_medium"
             android:gravity="center"
             android:maxLines="1"
-            android:text="Editor de Crossfade"
+            android:paddingHorizontal="20dp"
+            android:text="Editor de transición"
             android:textColor="@color/white"
             android:textSize="16sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -60,7 +60,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="16dp"
-            android:paddingBottom="120dp">
+            android:paddingBottom="220dp">
 
             <!-- Song A → Song B header -->
             <LinearLayout
@@ -135,6 +135,146 @@
                         android:textSize="11sp" />
 
                 </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- ═══ Preset Selector Strip ═══ -->
+            <LinearLayout
+                android:id="@+id/presetSelectorContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- Shimmer loading placeholder -->
+                <LinearLayout
+                    android:id="@+id/presetShimmer"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <View
+                        android:layout_width="80dp"
+                        android:layout_height="36dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_preset_selector_chip" />
+                    <View
+                        android:layout_width="80dp"
+                        android:layout_height="36dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_preset_selector_chip" />
+                    <View
+                        android:layout_width="80dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_preset_selector_chip" />
+
+                </LinearLayout>
+
+                <!-- Horizontal scroll of preset chips -->
+                <HorizontalScrollView
+                    android:id="@+id/presetScrollView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:id="@+id/presetChipsContainer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp" />
+
+                </HorizontalScrollView>
+
+                <!-- Error banner -->
+                <LinearLayout
+                    android:id="@+id/presetErrorBanner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_preset_error_banner"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="10dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="No se pudieron cargar los presets"
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/presetRetryButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_preset_chip"
+                        android:fontFamily="@font/unageo_bold"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="4dp"
+                        android:text="Reintentar"
+                        android:textColor="#E21616"
+                        android:textSize="11sp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- ═══ Active Preset Banner ═══ -->
+            <LinearLayout
+                android:id="@+id/activePresetBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_preset_active_banner"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/activePresetLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/activePresetSubtitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Puedes ajustar manualmente."
+                        android:textColor="#99FFFFFF"
+                        android:textSize="11sp" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/resetPresetButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_preset_chip"
+                    android:fontFamily="@font/unageo_bold"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="6dp"
+                    android:text="Resetear"
+                    android:textColor="#FF9800"
+                    android:textSize="12sp" />
 
             </LinearLayout>
 
@@ -249,232 +389,6 @@
 
             </LinearLayout>
 
-            <!-- ═══ BPM Sync Panel ═══ -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_crossfade_panel"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_bold"
-                    android:text="BPM Sync"
-                    android:textColor="@color/white"
-                    android:textSize="15sp" />
-
-                <!-- BPM Display Row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <!-- Song A BPM -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_medium"
-                            android:text="Song A"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="11sp" />
-
-                        <TextView
-                            android:id="@+id/bpmAValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_bold"
-                            android:textColor="#E21616"
-                            android:textSize="20sp"
-                            android:text="-- BPM" />
-
-                        <TextView
-                            android:id="@+id/syncToAButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:background="@drawable/bg_preset_chip"
-                            android:fontFamily="@font/unageo_medium"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="4dp"
-                            android:text="Usar este"
-                            android:textColor="@color/white"
-                            android:textSize="11sp" />
-
-                    </LinearLayout>
-
-                    <!-- Arrow + Target BPM -->
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingHorizontal="8dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_medium"
-                            android:text="Target"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="11sp" />
-
-                        <TextView
-                            android:id="@+id/targetBpmValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_bold"
-                            android:textColor="#4CAF50"
-                            android:textSize="22sp"
-                            android:text="-- BPM" />
-
-                    </LinearLayout>
-
-                    <!-- Song B BPM -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_medium"
-                            android:text="Song B"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="11sp" />
-
-                        <TextView
-                            android:id="@+id/bpmBValue"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_bold"
-                            android:textColor="#BB86FC"
-                            android:textSize="20sp"
-                            android:text="-- BPM" />
-
-                        <TextView
-                            android:id="@+id/syncToBButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:background="@drawable/bg_preset_chip"
-                            android:fontFamily="@font/unageo_medium"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="4dp"
-                            android:text="Usar este"
-                            android:textColor="@color/white"
-                            android:textSize="11sp" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-                <!-- BPM Slider -->
-                <com.google.android.material.slider.Slider
-                    android:id="@+id/bpmSlider"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:valueFrom="60"
-                    android:valueTo="200"
-                    android:stepSize="0"
-                    app:trackColorActive="#4CAF50"
-                    app:trackColorInactive="#2A2A2A"
-                    app:thumbColor="#4CAF50" />
-
-                <!-- Pitch indicators -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/pitchALabel"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:textColor="#99FFFFFF"
-                        android:textSize="11sp"
-                        android:text="A: ±0.0%" />
-
-                    <TextView
-                        android:id="@+id/pitchBLabel"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="end"
-                        android:textColor="#99FFFFFF"
-                        android:textSize="11sp"
-                        android:text="B: ±0.0%" />
-
-                </LinearLayout>
-
-                <!-- Auto Match button + score -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/autoMatchButton"
-                        android:layout_width="0dp"
-                        android:layout_height="40dp"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="8dp"
-                        android:background="@drawable/bg_preview_button"
-                        android:fontFamily="@font/unageo_bold"
-                        android:gravity="center"
-                        android:text="Auto Beat Match"
-                        android:textColor="@color/white"
-                        android:textSize="13sp" />
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/beatAlignScoreLabel"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_bold"
-                            android:textColor="#4CAF50"
-                            android:textSize="16sp"
-                            android:text="0" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="@font/unageo_medium"
-                            android:textColor="#66FFFFFF"
-                            android:textSize="10sp"
-                            android:text="beats alineados" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-            </LinearLayout>
-
             <!-- ═══ Waveform Visualizer ═══ -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -525,12 +439,27 @@
                     android:layout_height="300dp"
                     android:layout_marginTop="12dp" />
 
-                <!-- Current timecodes row -->
+                <!-- Timecodes row (compact) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
+
+                    <!-- Snap-to-beat button (far left) -->
+                    <TextView
+                        android:id="@+id/snapToBeatButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginEnd="10dp"
+                        android:background="@drawable/bg_preset_chip"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="10dp"
+                        android:text="⬡ Beat"
+                        android:textColor="#AAFFFFFF"
+                        android:textSize="11sp" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -542,9 +471,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/unageo_medium"
-                            android:text="Exit point"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="11sp" />
+                            android:text="Salida"
+                            android:textColor="#66FFFFFF"
+                            android:textSize="10sp" />
 
                         <TextView
                             android:id="@+id/exitPointLabel"
@@ -552,7 +481,7 @@
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/unageo_bold"
                             android:textColor="#E21616"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:text="0:00.0" />
 
                     </LinearLayout>
@@ -562,15 +491,15 @@
                         android:layout_height="wrap_content"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:paddingHorizontal="12dp">
+                        android:paddingHorizontal="16dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/unageo_medium"
                             android:text="Crossfade"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="11sp" />
+                            android:textColor="#66FFFFFF"
+                            android:textSize="10sp" />
 
                         <TextView
                             android:id="@+id/crossfadeLabel"
@@ -578,7 +507,7 @@
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/unageo_bold"
                             android:textColor="@color/white"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:text="8s" />
 
                     </LinearLayout>
@@ -594,20 +523,526 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/unageo_medium"
-                            android:text="Entry point"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="11sp" />
+                            android:text="Entrada"
+                            android:textColor="#66FFFFFF"
+                            android:textSize="10sp" />
 
                         <TextView
                             android:id="@+id/entryPointLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/unageo_bold"
-                            android:textColor="#BB86FC"
-                            android:textSize="14sp"
+                            android:textColor="@color/white"
+                            android:textSize="13sp"
                             android:text="0:00.0" />
 
                     </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- ═══ Pre-escucha individual ═══ -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_horizontal"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/prelistenExitButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_preset_chip"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:text="▶ Salida"
+                        android:textColor="#E21616"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/prelistenEntryButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_preset_chip"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:text="▶ Entrada"
+                        android:textColor="#BB86FC"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <!-- ═══ Mix Mode Selector ═══ -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Modo de mezcla"
+                        android:textColor="#99FFFFFF"
+                        android:textSize="12sp" />
+
+                    <!-- Dropdown selector row -->
+                    <LinearLayout
+                        android:id="@+id/mixModeDropdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_mix_mode_selector"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="14dp">
+
+                        <TextView
+                            android:id="@+id/mixModeSelectedLabel"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Crossfade"
+                            android:textColor="@color/white"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="▾"
+                            android:textColor="#88FFFFFF"
+                            android:textSize="16sp" />
+
+                    </LinearLayout>
+
+                    <!-- Description of the selected mode -->
+                    <TextView
+                        android:id="@+id/mixModeDescription"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Fade suave entre las dos canciones con volumen cruzado."
+                        android:textColor="#66FFFFFF"
+                        android:textSize="10sp" />
+
+                    <!-- Visual graph of the selected mode -->
+                    <com.example.resonant.ui.views.MixModeGraphView
+                        android:id="@+id/mixModeGraph"
+                        android:layout_width="match_parent"
+                        android:layout_height="100dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_preset_chip"
+                        android:padding="4dp" />
+
+                </LinearLayout>
+
+                <!-- ═══ Fade Curve Type Selector ═══ -->
+                <LinearLayout
+                    android:id="@+id/fadeCurvePanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Tipo de crossfade"
+                        android:textColor="#99FFFFFF"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Aplica a las 3 bandas. Personaliza abajo individualmente."
+                        android:textColor="#55FFFFFF"
+                        android:textSize="10sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_horizontal"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/curveLinear"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:background="@drawable/bg_preset_chip"
+                            android:fontFamily="@font/unageo_medium"
+                            android:gravity="center"
+                            android:text="Linear"
+                            android:textColor="@color/white"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/curveLogarithmic"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:layout_marginHorizontal="4dp"
+                            android:background="@drawable/bg_preset_chip"
+                            android:fontFamily="@font/unageo_medium"
+                            android:gravity="center"
+                            android:text="Logarítmico"
+                            android:textColor="@color/white"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/curveExponential"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="4dp"
+                            android:background="@drawable/bg_preset_chip"
+                            android:fontFamily="@font/unageo_medium"
+                            android:gravity="center"
+                            android:text="Exponencial"
+                            android:textColor="@color/white"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/curveCustomHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="⚠ Configuración personalizada por banda activa"
+                        android:textColor="#CCFF9800"
+                        android:textSize="10sp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <!-- ═══ Per-Band Fade Type Selectors ═══ -->
+                <LinearLayout
+                    android:id="@+id/bandFadePanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical">
+
+                    <!-- Header row with toggle -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="🎚  Fade por banda"
+                            android:textColor="#CCFFFFFF"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/bandFadeInfoToggle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="26dp"
+                            android:background="@drawable/bg_preset_chip"
+                            android:fontFamily="@font/unageo_medium"
+                            android:gravity="center"
+                            android:paddingHorizontal="10dp"
+                            android:text="ⓘ"
+                            android:textColor="#88FFFFFF"
+                            android:textSize="13sp" />
+
+                    </LinearLayout>
+
+                    <!-- Info card (hidden by default) -->
+                    <LinearLayout
+                        android:id="@+id/bandFadeInfoCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_preset_chip"
+                        android:orientation="vertical"
+                        android:padding="10dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Ajuste fino por banda de frecuencia. Sobrescribe el tipo de crossfade global para cada banda."
+                            android:textColor="#BBFFFFFF"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/unageo_regular"
+                            android:lineSpacingExtra="3dp"
+                            android:text="Linear — Atenuación uniforme y constante\nTemprano — Baja rápido al inicio, suave al final\nTardío — Suave al inicio, cae rápido al final\nMantener — Sin fade, nivel constante\nCorte — Corte abrupto instantáneo"
+                            android:textColor="#88FFFFFF"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="💡 El selector global de arriba aplica a las 3 bandas. Aquí puedes personalizar cada una."
+                            android:textColor="#CC4CAF50"
+                            android:textSize="10sp" />
+
+                    </LinearLayout>
+
+                    <!-- ─── Bass / Mids / Treble – horizontal row ─── -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <!-- Graves -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:layout_marginEnd="4dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="4dp">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fontFamily="@font/unageo_bold"
+                                    android:text="Graves"
+                                    android:textColor="#FFFF5030"
+                                    android:textSize="10sp" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="@font/unageo_regular"
+                                    android:text="20–250Hz"
+                                    android:textColor="#55FF5030"
+                                    android:textSize="8sp" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/bassDropdown"
+                                android:layout_width="match_parent"
+                                android:layout_height="36dp"
+                                android:background="@drawable/bg_mix_mode_selector"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="8dp">
+                                <TextView
+                                    android:id="@+id/bassSelectedLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fontFamily="@font/unageo_medium"
+                                    android:text="Linear"
+                                    android:textColor="@color/white"
+                                    android:textSize="11sp" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="@font/unageo_medium"
+                                    android:text="▾"
+                                    android:textColor="#88FFFFFF"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Medios -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:layout_marginHorizontal="4dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="4dp">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fontFamily="@font/unageo_bold"
+                                    android:text="Medios"
+                                    android:textColor="#FFFF9820"
+                                    android:textSize="10sp" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="@font/unageo_regular"
+                                    android:text="250–4kHz"
+                                    android:textColor="#55FF9820"
+                                    android:textSize="8sp" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/midDropdown"
+                                android:layout_width="match_parent"
+                                android:layout_height="36dp"
+                                android:background="@drawable/bg_mix_mode_selector"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="8dp">
+                                <TextView
+                                    android:id="@+id/midSelectedLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fontFamily="@font/unageo_medium"
+                                    android:text="Linear"
+                                    android:textColor="@color/white"
+                                    android:textSize="11sp" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="@font/unageo_medium"
+                                    android:text="▾"
+                                    android:textColor="#88FFFFFF"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Altos -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:layout_marginStart="4dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="4dp">
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fontFamily="@font/unageo_bold"
+                                    android:text="Altos"
+                                    android:textColor="#FFBB86FC"
+                                    android:textSize="10sp" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="@font/unageo_regular"
+                                    android:text="4k–20kHz"
+                                    android:textColor="#55BB86FC"
+                                    android:textSize="8sp" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/trebleDropdown"
+                                android:layout_width="match_parent"
+                                android:layout_height="36dp"
+                                android:background="@drawable/bg_mix_mode_selector"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="8dp">
+                                <TextView
+                                    android:id="@+id/trebleSelectedLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fontFamily="@font/unageo_medium"
+                                    android:text="Linear"
+                                    android:textColor="@color/white"
+                                    android:textSize="11sp" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:fontFamily="@font/unageo_medium"
+                                    android:text="▾"
+                                    android:textColor="#88FFFFFF"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- Gap slider panel -->
+                <LinearLayout
+                    android:id="@+id/gapSliderPanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/unageo_medium"
+                            android:text="Gap entre canciones"
+                            android:textColor="#99FFFFFF"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/gapValueLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_bold"
+                            android:text="0ms"
+                            android:textColor="@color/white"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/gapSlider"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:valueFrom="0"
+                        android:valueTo="10000"
+                        android:stepSize="100"
+                        android:value="0"
+                        app:thumbColor="@color/white"
+                        app:trackColorActive="#CCFFFFFF"
+                        app:trackColorInactive="#44FFFFFF" />
 
                 </LinearLayout>
 
@@ -631,11 +1066,12 @@
                     android:textSize="15sp" />
 
                 <TextView
+                    android:id="@+id/beatPresetsSubtitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:fontFamily="@font/unageo_regular"
-                    android:text="Duraciones alineadas al BPM de la mezcla"
+                    android:text="Toca para ajustar la duración · compatible con cualquier preset activo"
                     android:textColor="#88FFFFFF"
                     android:textSize="11sp" />
 
@@ -703,135 +1139,6 @@
 
             </LinearLayout>
 
-            <!-- ═══ Fade Curve Selector (kept, no sliders) ═══ -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_crossfade_panel"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- Fade Curve Selector -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:text="Curva de Fade"
-                    android:textColor="#CCFFFFFF"
-                    android:textSize="13sp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/curveLinear"
-                        android:layout_width="0dp"
-                        android:layout_height="36dp"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:background="@drawable/bg_curve_selector"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="center"
-                        android:text="Linear"
-                        android:textColor="@color/white"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/curveExp"
-                        android:layout_width="0dp"
-                        android:layout_height="36dp"
-                        android:layout_weight="1"
-                        android:layout_marginHorizontal="2dp"
-                        android:background="@drawable/bg_curve_selector"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="center"
-                        android:text="Exp"
-                        android:textColor="@color/white"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/curveLog"
-                        android:layout_width="0dp"
-                        android:layout_height="36dp"
-                        android:layout_weight="1"
-                        android:layout_marginHorizontal="2dp"
-                        android:background="@drawable/bg_curve_selector"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="center"
-                        android:text="Log"
-                        android:textColor="@color/white"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/curveCustom"
-                        android:layout_width="0dp"
-                        android:layout_height="36dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="4dp"
-                        android:background="@drawable/bg_curve_selector"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="center"
-                        android:text="Custom"
-                        android:textColor="@color/white"
-                        android:textSize="12sp" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-            <!-- ═══ Equalizer (5 bands) ═══ -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_eq_panel"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_bold"
-                        android:text="Ecualizador"
-                        android:textColor="@color/white"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:id="@+id/resetEqButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Reset"
-                        android:textColor="#E21616"
-                        android:textSize="13sp"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="4dp" />
-
-                </LinearLayout>
-
-                <!-- EQ Sliders container -->
-                <LinearLayout
-                    android:id="@+id/eqSlidersContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="220dp"
-                    android:layout_marginTop="12dp"
-                    android:gravity="center"
-                    android:orientation="horizontal" />
-
-            </LinearLayout>
-
             <!-- ═══ Action Buttons ═══ -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -848,7 +1155,7 @@
                     android:background="@drawable/bg_preview_button"
                     android:fontFamily="@font/unageo_bold"
                     android:gravity="center"
-                    android:text="Preview"
+                    android:text="Vista previa"
                     android:textColor="@color/white"
                     android:textSize="14sp" />
 

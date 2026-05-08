@@ -38,6 +38,18 @@ Ranking: Álbumes más populares (Top Charts).
 
 
 GET
+/api/albums/charts/new-releases
+Obtiene los álbumes añadidos más recientemente al catálogo.
+
+
+
+GET
+/api/albums/by-year
+Filtra álbumes por año de lanzamiento o rango de años.
+
+
+
+GET
 /api/albums/{id}
 Obtiene el detalle completo de un álbum por su ID.
 
@@ -56,8 +68,26 @@ Sub-recurso: Canciones del álbum.
 
 
 GET
+/api/albums/{id}/stats
+Obtiene estadísticas agregadas de un álbum (canciones, streams, duración, favoritos).
+
+
+
+GET
+/api/albums/{id}/artists
+Obtiene los artistas que participan en un álbum.
+
+
+
+GET
 /api/albums/recommendations
 Recomendaciones de álbumes para el usuario actual.
+
+
+
+GET
+/api/albums/most-listened
+Obtiene los álbumes más escuchados por el usuario autenticado basado en su historial.
 
 
 
@@ -140,13 +170,13 @@ Aria
 
 
 POST
-/api/chatbot/ask
+/api/aria/ask
 Envía un prompt al asistente musical y recibe una respuesta en streaming.
 
 
 
 DELETE
-/api/chatbot/user/{userId}/session
+/api/aria/user/{userId}/session
 Limpia el historial de sesión de conversación de Aria para el usuario autenticado.
 
 
@@ -214,6 +244,12 @@ Elimina un artista y todos sus datos asociados del catálogo.
 
 
 GET
+/api/artists/charts/recently-added
+Obtiene los artistas añadidos más recientemente al catálogo.
+
+
+
+GET
 /api/artists/charts/top
 Obtiene el ranking de artistas más escuchados (Top Charts).
 
@@ -250,6 +286,12 @@ Obtiene recomendaciones personalizadas de artistas para el usuario autenticado.
 
 
 GET
+/api/artists/most-listened
+Obtiene los artistas más escuchados por el usuario autenticado basado en su historial.
+
+
+
+GET
 /api/artists/favorites
 Obtiene todos los artistas favoritos del usuario autenticado.
 
@@ -270,6 +312,30 @@ Elimina un artista de los favoritos del usuario autenticado.
 GET
 /api/artists/{id}/favorites/check
 Verifica si un artista está en los favoritos del usuario autenticado.
+
+
+
+GET
+/api/artists/{id}/stats
+Obtiene estadísticas agregadas de un artista (canciones, álbumes, streams, favoritos).
+
+
+
+GET
+/api/artists/{id}/genres
+Obtiene los géneros musicales asociados a un artista.
+
+
+
+POST
+/api/artists/{id}/genres
+Asigna manualmente un género a un artista.
+
+
+
+GET
+/api/artists/{id}/collaborators
+Obtiene los artistas con los que ha colaborado un artista (comparten canciones).
 
 
 
@@ -330,12 +396,6 @@ Elimina una imagen de la galería de un artista.
 PATCH
 /api/artists/{id}/name
 Cambia el nombre de un artista.
-
-
-
-POST
-/api/artists/{id}/genres
-Asigna manualmente un género a un artista.
 
 
 
@@ -530,6 +590,76 @@ GET
 Verifica si una canción está incluida en una playlist.
 
 
+Playmix
+
+
+POST
+/api/playmix
+
+
+
+GET
+/api/playmix
+
+
+
+GET
+/api/playmix/{playmixId}
+
+
+
+DELETE
+/api/playmix/{playmixId}
+
+
+
+POST
+/api/playmix/{playmixId}/songs
+
+
+
+DELETE
+/api/playmix/{playmixId}/songs/{playmixSongId}
+
+
+
+PATCH
+/api/playmix/{playmixId}/songs/{playmixSongId}
+
+
+
+PATCH
+/api/playmix/{playmixId}/songs/reorder
+
+
+
+PUT
+/api/playmix/{playmixId}/transitions/{transitionId}
+
+
+
+GET
+/api/playmix/{playmixId}/transitions/{transitionId}/waveforms
+
+
+
+POST
+/api/playmix/{playmixId}/transitions/{transitionId}/preview-preset
+Preview a preset on a transition without persisting. Returns calculated values.
+
+
+
+POST
+/api/playmix/{playmixId}/transitions/{transitionId}/apply-preset
+Apply a preset to a transition. Calculates and persists all values.
+
+
+
+POST
+/api/playmix/{playmixId}/transitions/{transitionId}/reset-preset
+Re-apply the currently assigned preset, resetting any manual modifications.
+
+
 Song
 
 
@@ -572,6 +702,36 @@ Obtiene el ranking de canciones más escuchadas (Top Charts Global).
 GET
 /api/songs/charts/trending
 Obtiene canciones en tendencia (virales y recientes con alto tráfico).
+
+
+
+GET
+/api/songs/charts/new-releases
+Obtiene las canciones añadidas más recientemente al catálogo.
+
+
+
+GET
+/api/songs/by-year
+Filtra canciones por año de lanzamiento o rango de años.
+
+
+
+GET
+/api/songs/most-favorited
+Obtiene las canciones con más favoritos globalmente (más gustadas por los usuarios).
+
+
+
+GET
+/api/songs/most-listened
+Obtiene las canciones más escuchadas por el usuario autenticado basado en su historial.
+
+
+
+GET
+/api/songs/{id}/related
+Obtiene canciones relacionadas (del mismo artista o álbum) a una canción dada.
 
 
 
@@ -676,6 +836,20 @@ Tag
 GET
 /api/tags
 Obtiene todas las etiquetas para las canciones.
+
+
+TransitionPreset
+
+
+GET
+/api/v1/transition-presets
+Returns all transition presets ordered by SortOrder.
+
+
+
+GET
+/api/v1/transition-presets/{code}
+Returns a single transition preset by its unique code.
 
 
 User

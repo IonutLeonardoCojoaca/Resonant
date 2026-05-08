@@ -357,6 +357,7 @@
                     android:src="@drawable/ic_skip_previous" />
 
                 <FrameLayout
+                    android:id="@+id/playButtonContainer"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
                     android:layout_centerInParent="true"
@@ -370,6 +371,14 @@
                         android:background="@android:color/transparent"
                         android:scaleType="centerCrop"
                         android:src="@drawable/ic_play" />
+
+                    <View
+                        android:id="@+id/playmixRing"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_playmix_ring"
+                        android:visibility="gone"
+                        android:elevation="1dp" />
 
                 </FrameLayout>
 
