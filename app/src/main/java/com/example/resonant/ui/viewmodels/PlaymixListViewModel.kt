@@ -24,16 +24,28 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
     private val _playmixCreated = MutableLiveData(false)
     val playmixCreated: LiveData<Boolean> get() = _playmixCreated
 
+    private var hasLoadedOnce = false
+
     fun loadMyPlaymixes() {
-        _isLoading.value = true
+        val cached = playmixManager.getCachedMyPlaymixes()
+        if (cached != null) {
+            _playmixes.value = cached
+        }
+
+        val shouldShowLoader = !hasLoadedOnce && cached == null
+        _isLoading.value = shouldShowLoader
         viewModelScope.launch {
             try {
-                val list = playmixManager.getMyPlaymixes()
+                val shouldForceRefresh = hasLoadedOnce || !playmixManager.isPlaymixCacheFresh()
+                val list = playmixManager.getMyPlaymixes(forceRefresh = shouldForceRefresh)
                 _playmixes.postValue(list)
+                hasLoadedOnce = true
             } catch (e: Exception) {
                 Log.e("PlaymixListVM", "Error loading playmixes", e)
                 _error.postValue("Error al obtener los playmixes: ${e.message}")
-                _playmixes.postValue(emptyList())
+                if (_playmixes.value.isNullOrEmpty()) {
+                    _playmixes.postValue(emptyList())
+                }
             } finally {
                 _isLoading.postValue(false)
             }
@@ -41,7 +53,19 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
     }
 
     fun refreshPlaymixes() {
-        loadMyPlaymixes()
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                val list = playmixManager.getMyPlaymixes(forceRefresh = true)
+                _playmixes.postValue(list)
+                hasLoadedOnce = true
+            } catch (e: Exception) {
+                Log.e("PlaymixListVM", "Error refreshing playmixes", e)
+                _error.postValue("Error al actualizar los playmixes: ${e.message}")
+            } finally {
+                _isLoading.postValue(false)
+            }
+        }
     }
 
     fun createPlaymix(name: String, description: String? = null) {

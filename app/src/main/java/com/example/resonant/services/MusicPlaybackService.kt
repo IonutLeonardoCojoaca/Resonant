@@ -607,12 +607,23 @@ class MusicPlaybackService : Service(), PlayerController {
             return -1L
         }
 
-        // —— PlayMix mode: trigger exactly at the configured exit point ——
+        // —— PlayMix mode: trigger at exitPointMs (which already accounts for crossfade + gap) ——
         if (isPlaymixMode) {
             val transition = playmixTransitions["${song.id}:${nextSong.id}"]
             if (transition != null) {
-                Log.d("TriggerPos", "🎹 PlayMix trigger at exitPointMs=${transition.exitPointMs}ms")
-                return transition.exitPointMs.toLong()
+                val exitMs = transition.exitPointMs.toLong()
+                val crossfadeMs = transition.crossfadeDurationMs.toLong()
+                val gapMs = transition.gapMs.toLong()
+                val mixMode = transition.mixMode ?: "crossfade"
+
+                // For hard_edit with a gap, we need extra time for fade-out + gap
+                val triggerMs = when {
+                    mixMode == "hard_edit" && gapMs > 0 -> exitMs - 300L // 300ms for fade-out animation
+                    crossfadeMs == 0L && gapMs > 0 -> exitMs - 300L
+                    else -> exitMs // exitPointMs is already set by the editor to be crossfadeMs before the end
+                }
+                Log.d("TriggerPos", "🎹 PlayMix trigger at ${triggerMs}ms (exit=${exitMs}ms, crossfade=${crossfadeMs}ms, gap=${gapMs}ms, mode=$mixMode)")
+                return triggerMs.coerceAtLeast(0L)
             }
             Log.d("TriggerPos", "PlayMix but no transition configured — no trigger")
             return -1L
@@ -1384,16 +1395,10 @@ class MusicPlaybackService : Service(), PlayerController {
         Log.d("MusicService", "🎬 INICIANDO TRANSICIÓN DESDE TRIGGER")
         Log.d("MusicService", "⚙️ Parámetros - Modo: $crossfadeMode, Duración: ${crossfadeDurationMs}ms")
 
-        // PlayMix: use transition-defined parameters instead of global settings
+        // PlayMix: use the full transition object (mixMode, fadeCurveType, bandFadeTypes, gapMs)
+        // instead of the global crossfadeMode setting — Spotify-style per-transition config.
         val isPlaymixMode = queue.sourceType == QueueSource.PLAYMIX
         val playmixTransition = if (isPlaymixMode) playmixTransitions["${oldSong.id}:${nextSong.id}"] else null
-        val effectiveCrossfadeDurationMs = playmixTransition?.crossfadeDurationMs?.toLong() ?: crossfadeDurationMs
-        val effectiveCrossfadeMode = playmixTransition?.fadeCurveType?.toPlaymixCrossfadeMode() ?: crossfadeMode
-        val nextSongEntryPointMs = playmixTransition?.entryPointMs?.toLong() ?: 0L
-
-        if (playmixTransition != null) {
-            Log.d("MusicService", "🎹 PlayMix transition: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, curve=${playmixTransition.fadeCurveType}")
-        }
 
         // Update UI immediately to the next song
         PlaybackStateRepository.setCurrentSong(nextSong)
@@ -1403,19 +1408,32 @@ class MusicPlaybackService : Service(), PlayerController {
         val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
         PlaybackStateRepository.updatePlaybackPosition(0, newDuration)
 
-        transitionManager.startTransition(
-            oldPlayer = player,
-            oldSong = oldSong,
-            nextSong = nextSong,
-            nextSongIndex = nextIndex,
-            crossfadeMode = effectiveCrossfadeMode,
-            isAlbumMode = queue.sourceType == QueueSource.ALBUM,
-            automixEnabled = automixEnabled,
-            crossfadeDurationMs = effectiveCrossfadeDurationMs,
-            oldSongTargetVolume = getNormalizedVolume(oldSong),
-            nextSongTargetVolume = getNormalizedVolume(nextSong),
-            nextSongStartPositionMs = nextSongEntryPointMs
-        )
+        if (playmixTransition != null) {
+            Log.d("MusicService", "🎹 PlayMix — using dedicated engine: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, mixMode=${playmixTransition.mixMode}, curve=${playmixTransition.fadeCurveType}, gap=${playmixTransition.gapMs}ms")
+            transitionManager.startPlaymixTransition(
+                oldPlayer = player,
+                oldSong = oldSong,
+                nextSong = nextSong,
+                nextSongIndex = nextIndex,
+                transition = playmixTransition,
+                oldSongTargetVolume = getNormalizedVolume(oldSong),
+                nextSongTargetVolume = getNormalizedVolume(nextSong)
+            )
+        } else {
+            transitionManager.startTransition(
+                oldPlayer = player,
+                oldSong = oldSong,
+                nextSong = nextSong,
+                nextSongIndex = nextIndex,
+                crossfadeMode = crossfadeMode,
+                isAlbumMode = queue.sourceType == QueueSource.ALBUM,
+                automixEnabled = automixEnabled,
+                crossfadeDurationMs = crossfadeDurationMs,
+                oldSongTargetVolume = getNormalizedVolume(oldSong),
+                nextSongTargetVolume = getNormalizedVolume(nextSong),
+                nextSongStartPositionMs = 0L
+            )
+        }
     }
 
 

@@ -104,6 +104,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         setupAdapters()
         setupClickListeners()
         setupChipListener()
+        observePlaymixes()
 
         // Observe Downloads to update icons (adapter must be initialized first)
         viewLifecycleOwner.lifecycleScope.launch {
@@ -478,19 +479,21 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         } else {
             playmixListViewModel.loadMyPlaymixes()
         }
+    }
 
+    private fun observePlaymixes() {
         playmixListViewModel.playmixes.observe(viewLifecycleOwner) { playmixes ->
-            if (chipGroup.checkedChipId == R.id.chipPlaymixes) {
-                val empty = playmixes.isNullOrEmpty()
-                playmixAdapter.submitList(playmixes ?: emptyList())
-                if (empty) {
-                    favoritesRecyclerView.visibility = View.GONE
-                    playmixEmptyState.visibility = View.VISIBLE
-                } else {
-                    favoritesRecyclerView.adapter = playmixAdapter
-                    favoritesRecyclerView.visibility = View.VISIBLE
-                    playmixEmptyState.visibility = View.GONE
-                }
+            if (chipGroup.checkedChipId != R.id.chipPlaymixes) return@observe
+
+            val empty = playmixes.isNullOrEmpty()
+            playmixAdapter.submitList(playmixes ?: emptyList())
+            if (empty) {
+                favoritesRecyclerView.visibility = View.GONE
+                playmixEmptyState.visibility = View.VISIBLE
+            } else {
+                favoritesRecyclerView.adapter = playmixAdapter
+                favoritesRecyclerView.visibility = View.VISIBLE
+                playmixEmptyState.visibility = View.GONE
             }
         }
     }

@@ -2,54 +2,56 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="72dp"
-    android:layout_marginVertical="3dp"
-    android:paddingHorizontal="12dp"
-    android:background="?attr/selectableItemBackground"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="4dp"
+    android:background="@drawable/bg_song_header_chip"
     android:clickable="true"
-    android:focusable="true">
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:padding="10dp">
 
     <TextView
         android:id="@+id/songPosition"
-        android:layout_width="20dp"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_medium"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:background="@drawable/bg_compat_chip"
+        android:fontFamily="@font/unageo_bold"
         android:gravity="center"
-        android:textColor="#66FFFFFF"
-        android:textSize="12sp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:textColor="@color/white"
+        android:textSize="11sp"
+        app:layout_constraintBottom_toBottomOf="@id/songCover"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="@id/songCover" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/songCover"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_marginStart="8dp"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginStart="10dp"
         android:scaleType="centerCrop"
-        android:background="@color/cardsTheme"
-        app:shapeAppearanceOverlay="@style/RoundedCornersImage"
+        android:src="@drawable/ic_disc"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/songPosition"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintStart_toEndOf="@id/songPosition"
+        app:layout_constraintTop_toTopOf="parent"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
-        android:layout_marginEnd="4dp"
+        android:layout_marginEnd="8dp"
         android:orientation="vertical"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/songOptionsButton"
-        app:layout_constraintStart_toEndOf="@+id/songCover"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintBottom_toBottomOf="@id/songCover"
+        app:layout_constraintEnd_toStartOf="@id/songOptionsButton"
+        app:layout_constraintStart_toEndOf="@id/songCover"
+        app:layout_constraintTop_toTopOf="@id/songCover">
 
         <TextView
             android:id="@+id/songTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
-            android:fontFamily="@font/unageo_medium"
+            android:fontFamily="@font/unageo_bold"
             android:maxLines="1"
             android:textColor="@color/white"
             android:textSize="14sp" />
@@ -58,35 +60,57 @@
             android:id="@+id/songArtist"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:fontFamily="@font/unageo_regular"
             android:maxLines="1"
-            android:textColor="#99FFFFFF"
+            android:textColor="#A6FFFFFF"
             android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/songDuration"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:fontFamily="@font/unageo_regular"
-            android:textColor="#55FFFFFF"
-            android:textSize="11sp" />
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/songDuration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_compat_chip"
+                android:fontFamily="@font/unageo_medium"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textColor="#D9FFFFFF"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/songBpm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_bpm_chip_a"
+                android:fontFamily="@font/unageo_bold"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:text="120 bpm"
+                android:textColor="@color/white"
+                android:textSize="10sp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
     <ImageButton
         android:id="@+id/songOptionsButton"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true"
         android:src="@drawable/ic_item_settings"
-        app:tint="#BDBDBD"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toBottomOf="@id/songCover"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="@id/songCover"
+        app:tint="#CCFFFFFF" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

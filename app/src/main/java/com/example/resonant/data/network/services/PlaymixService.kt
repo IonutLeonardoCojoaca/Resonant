@@ -12,6 +12,7 @@ import com.example.resonant.data.network.ReorderSongsRequest
 import com.example.resonant.data.network.CopyTransitionRequest
 import com.example.resonant.data.network.CopyTransitionResponseDTO
 import com.example.resonant.data.network.WaveformResponseDTO
+import com.google.gson.JsonObject
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -71,6 +72,13 @@ interface PlaymixService {
         @Path("id") playmixId: String,
         @Path("tId") transitionId: String,
         @Body request: PlaymixTransitionUpdateDTO
+    ): PlaymixTransitionDTO
+
+    @PUT("api/playmix/{id}/transitions/{tId}")
+    suspend fun updateTransitionRaw(
+        @Path("id") playmixId: String,
+        @Path("tId") transitionId: String,
+        @Body request: JsonObject
     ): PlaymixTransitionDTO
 
     @GET("api/playmix/{id}/transitions/{tId}/waveforms")

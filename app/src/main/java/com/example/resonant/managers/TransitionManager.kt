@@ -19,6 +19,7 @@ import com.example.resonant.playback.MixStrategy
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.data.models.AudioAnalysis
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.PlaymixTransitionDTO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -197,9 +198,16 @@ class TransitionManager(
                         crossfadeDurationMs: Long,
                         oldSongTargetVolume: Float = 1.0f,
                         nextSongTargetVolume: Float = 1.0f,
-                        nextSongStartPositionMs: Long = 0L
+                        nextSongStartPositionMs: Long = 0L,
+                        playmixTransition: PlaymixTransitionDTO? = null
     ) {
         Log.d("TransitionManager", "🎯 transitionToNextSong INICIADA - nextSong: ${nextSong.title}")
+
+        // Check for Playmix transition first
+        if (playmixTransition != null) {
+            startPlaymixTransition(oldPlayer, oldSong, nextSong, nextSongIndex, playmixTransition, oldSongTargetVolume, nextSongTargetVolume)
+            return
+        }
 
         // ✅ LÓGICA CORREGIDA: Verificar si debe hacer transición
         val shouldTransition = when {
@@ -259,6 +267,55 @@ class TransitionManager(
                 }
             }
         }
+    }
+
+    /**
+     * Spotify-style PlayMix transition: fully respects mixMode, fadeCurveType, bandFadeTypes and gapMs
+     * configured in the CrossfadeEditor. Called by MusicPlaybackService when sourceType == PLAYMIX.
+     */
+    fun startPlaymixTransition(
+        oldPlayer: ExoPlayer,
+        oldSong: Song,
+        nextSong: Song,
+        nextSongIndex: Int,
+        transition: PlaymixTransitionDTO,
+        oldSongTargetVolume: Float = 1.0f,
+        nextSongTargetVolume: Float = 1.0f
+    ) {
+        Log.d("TransitionManager", "🎹 PlayMix transition INICIADA: ${oldSong.title} → ${nextSong.title}")
+        Log.d("TransitionManager", "   mixMode=${transition.mixMode}, curve=${transition.fadeCurveType}, crossfade=${transition.crossfadeDurationMs}ms, gap=${transition.gapMs}ms")
+        Log.d("TransitionManager", "   bass=${transition.bandFadeTypes?.bass}, mid=${transition.bandFadeTypes?.mid}, treble=${transition.bandFadeTypes?.treble}")
+
+        // hard_edit: instant cut (no crossfade engine needed)
+        if (transition.mixMode == "hard_edit" || transition.crossfadeDurationMs == 0) {
+            if (transition.gapMs > 0) {
+                // Gap before next song: fade out old, wait gapMs, then start new
+                performGapTransition(oldPlayer, nextSong, nextSongIndex, transition, oldSongTargetVolume, nextSongTargetVolume)
+            } else {
+                Log.d("TransitionManager", "✂️ hard_edit / 0ms → jumping directly")
+                onTransitionFailed(oldPlayer) // triggers seekToNextMediaItem in service
+            }
+            return
+        }
+
+        synchronized(this) {
+            if (isTransitioning) {
+                Log.w("TransitionManager", "Ignorando trigger, ya hay una transición en curso.")
+                return
+            }
+            isTransitioning = true
+            transitionProgress = 0f
+            this.currentPlayer = oldPlayer
+            this.currentSong = oldSong
+            this.targetOldPlayerVolume = oldSongTargetVolume
+            this.targetNewPlayerVolume = nextSongTargetVolume
+        }
+
+        val onComplete: (newPlayer: ExoPlayer) -> Unit = { newPlayer ->
+            handleMixCompletion(newPlayer, oldPlayer, nextSong)
+        }
+
+        performPlaymixTransition(oldPlayer, oldSong, nextSong, nextSongIndex, transition, onComplete)
     }
 
     fun cancelCurrentTransition() {
@@ -357,6 +414,394 @@ class TransitionManager(
         return result
     }
 
+
+    // =================================================================================================
+    // ===                         MOTOR DE TRANSICIÓN PLAYMIX (ESTILO SPOTIFY)                    ===
+    // =================================================================================================
+
+    /**
+     * Handles hard_edit/0ms transitions that have a gap (silence) before the next song.
+     * Fades out the current player over ~300ms, waits gapMs, then starts the next song.
+     */
+    private fun performGapTransition(
+        oldPlayer: ExoPlayer,
+        nextSong: Song,
+        nextSongIndex: Int,
+        transition: PlaymixTransitionDTO,
+        oldSongTargetVolume: Float,
+        nextSongTargetVolume: Float
+    ) {
+        synchronized(this) {
+            if (isTransitioning) {
+                Log.w("TransitionManager", "Gap: ya hay transición en curso. Ignorando.")
+                return
+            }
+            isTransitioning = true
+            this.currentPlayer = oldPlayer
+            this.targetOldPlayerVolume = oldSongTargetVolume
+            this.targetNewPlayerVolume = nextSongTargetVolume
+        }
+
+        val handler = Handler(Looper.getMainLooper())
+        val fadeDurationMs = 300L
+        val startTime = SystemClock.uptimeMillis()
+        val startVol = oldPlayer.volume
+
+        val fadeRunnable = object : Runnable {
+            override fun run() {
+                val elapsed = SystemClock.uptimeMillis() - startTime
+                val progress = (elapsed.toFloat() / fadeDurationMs).coerceIn(0f, 1f)
+                try {
+                    oldPlayer.volume = startVol * (1f - progress)
+                } catch (_: Exception) {}
+                if (progress < 1f) {
+                    handler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
+                } else {
+                    oldPlayer.pause()
+                    // Wait gapMs then start next
+                    handler.postDelayed({
+                        val newPlayer = ExoPlayer.Builder(context).build()
+                        this@TransitionManager.nextPlayer = newPlayer
+                        try {
+                            val queue = PlaybackStateRepository.activeQueue ?: run {
+                                handleMixFailure(oldPlayer, null); return@postDelayed
+                            }
+                            val validPairs = buildValidMediaItems(queue.songs)
+                            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }.takeIf { it >= 0 } ?: run {
+                                handleMixFailure(oldPlayer, newPlayer); return@postDelayed
+                            }
+                            val entryMs = transition.entryPointMs.toLong()
+                            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, entryMs)
+                            newPlayer.volume = nextSongTargetVolume
+                            newPlayer.addListener(object : Player.Listener {
+                                override fun onPlaybackStateChanged(playbackState: Int) {
+                                    if (playbackState == Player.STATE_READY) {
+                                        newPlayer.removeListener(this)
+                                        newPlayer.play()
+                                        handleMixCompletion(newPlayer, oldPlayer, nextSong)
+                                    }
+                                }
+                                override fun onPlayerError(error: PlaybackException) {
+                                    newPlayer.removeListener(this)
+                                    handleMixFailure(oldPlayer, newPlayer)
+                                }
+                            })
+                            newPlayer.prepare()
+                        } catch (e: Exception) {
+                            handleMixFailure(oldPlayer, newPlayer)
+                        }
+                    }, transition.gapMs.toLong().coerceAtLeast(0))
+                }
+            }
+        }
+        handler.post(fadeRunnable)
+    }
+
+    /**
+     * Spotify-style PlayMix crossfade engine. Supports all mixModes:
+     *  - crossfade: equal-power or per-band fade based on fadeCurveType/bandFadeTypes
+     *  - overlap: both songs at full volume simultaneously
+     *  - freq_split: bass from A fades while treble from B fades in (via EQ)
+     *  - club_drop: dramatic bass drop of A while B enters progressively
+     *  - hard_edit: handled before this method is called
+     */
+    private fun performPlaymixTransition(
+        oldPlayer: ExoPlayer,
+        oldSong: Song,
+        nextSong: Song,
+        nextSongIndex: Int,
+        transition: PlaymixTransitionDTO,
+        onMixComplete: (newPlayer: ExoPlayer) -> Unit
+    ) {
+        Log.i("PlaymixEngine", "🎛️ Iniciando motor PlayMix. mixMode=${transition.mixMode}")
+
+        // Use preloaded player if available (filled by preloadNextSong), else create fresh
+        val newPlayer = this.nextPlayer?.also {
+            Log.d("PlaymixEngine", "✅ Usando player precargado")
+        } ?: ExoPlayer.Builder(context).build().also {
+            Log.d("PlaymixEngine", "⚠️ No había player precargado, creando nuevo")
+        }
+        this.nextPlayer = newPlayer
+
+        try {
+            val queue = PlaybackStateRepository.activeQueue
+            if (queue == null || queue.songs.isEmpty()) {
+                handleMixFailure(oldPlayer, newPlayer); return
+            }
+
+            val validPairs = buildValidMediaItems(queue.songs)
+            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }.takeIf { it >= 0 } ?: run {
+                Log.e("PlaymixEngine", "❌ Next song at $nextSongIndex has no valid URL")
+                handleMixFailure(oldPlayer, newPlayer); return
+            }
+
+            val entryMs = transition.entryPointMs.toLong()
+            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, entryMs)
+            newPlayer.volume = 0f
+
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        newPlayer.removeListener(this)
+                        Log.d("PlaymixEngine", "▶️ NewPlayer listo. Iniciando animación PlayMix.")
+                        try {
+                            newPlayer.play()
+                            animatePlaymixCrossfade(oldPlayer, newPlayer, transition, onMixComplete)
+                        } catch (e: Exception) {
+                            handleMixFailure(oldPlayer, newPlayer)
+                        }
+                    }
+                }
+                override fun onPlayerError(error: PlaybackException) {
+                    newPlayer.removeListener(this)
+                    val isSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+                    if (isSourceError) {
+                        Log.w("PlaymixEngine", "⚠️ Source error on newPlayer — retrying with fresh URL")
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val songManager = SongManager(context)
+                                songManager.invalidateCache(nextSong.id)
+                                val fresh = songManager.getSongById(nextSong.id)
+                                if (fresh != null && !fresh.url.isNullOrEmpty()) {
+                                    withContext(Dispatchers.Main) {
+                                        val q = PlaybackStateRepository.activeQueue
+                                        if (q != null) {
+                                            val idx = q.songs.indexOfFirst { it.id == nextSong.id }
+                                            if (idx >= 0) {
+                                                val m = q.songs.toMutableList(); m[idx] = fresh; q.songs = m.toList()
+                                            }
+                                        }
+                                        newPlayer.release()
+                                        if (newPlayer === this@TransitionManager.nextPlayer) this@TransitionManager.nextPlayer = null
+                                        performPlaymixTransition(oldPlayer, oldSong, fresh, nextSongIndex, transition, onMixComplete)
+                                    }
+                                } else { withContext(Dispatchers.Main) { handleMixFailure(oldPlayer, newPlayer) } }
+                            } catch (e: Exception) { withContext(Dispatchers.Main) { handleMixFailure(oldPlayer, newPlayer) } }
+                        }
+                    } else {
+                        handleMixFailure(oldPlayer, newPlayer)
+                    }
+                }
+            }
+            newPlayer.addListener(listener)
+            newPlayer.prepare()
+
+        } catch (e: Exception) {
+            Log.e("PlaymixEngine", "❌ Error preparando PlayMix transition", e)
+            handleMixFailure(oldPlayer, newPlayer)
+        }
+    }
+
+    /**
+     * Per-frame animation loop for PlayMix crossfades.
+     * Applies volume curves and EQ based on mixMode, fadeCurveType, and bandFadeTypes.
+     */
+    private fun animatePlaymixCrossfade(
+        oldPlayer: ExoPlayer,
+        newPlayer: ExoPlayer,
+        transition: PlaymixTransitionDTO,
+        onMixComplete: (newPlayer: ExoPlayer) -> Unit
+    ) {
+        val durationMs = transition.crossfadeDurationMs.toLong().coerceAtLeast(100L)
+        val mixMode = transition.mixMode ?: "crossfade"
+        val bandFade = transition.bandFadeTypes
+
+        // Initialize EQ for frequency-aware modes and per-band crossfades.
+        if (mixMode == "freq_split" || mixMode == "club_drop" || mixMode == "crossfade" || bandFade != null) {
+            initializeIntelligentEQ(oldPlayer, newPlayer)
+        }
+
+        val handler = Handler(Looper.getMainLooper())
+        val startTime = SystemClock.uptimeMillis()
+
+        Log.i("PlaymixEngine", "🎬 ANIMACIÓN PlayMix - duración=${durationMs}ms, mixMode=$mixMode, curve=${transition.fadeCurveType}")
+
+        val animRunnable = object : Runnable {
+            override fun run() {
+                if (!isTransitioning) {
+                    handler.removeCallbacks(this); return
+                }
+
+                val elapsed = SystemClock.uptimeMillis() - startTime
+                val rawProgress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                transitionProgress = rawProgress
+
+                try {
+                    when (mixMode) {
+                        "overlap" -> {
+                            // Both at full volume — Spotify's "overlap" mode
+                            oldPlayer.volume = targetOldPlayerVolume
+                            newPlayer.volume = targetNewPlayerVolume
+                        }
+                        "freq_split" -> {
+                            // Freq split: bass of A fades, treble of B fades in via EQ
+                            val p = applyFadeCurve(rawProgress, transition.fadeCurveType)
+                            oldPlayer.volume = sqrt(1f - p) * targetOldPlayerVolume
+                            newPlayer.volume = sqrt(p) * targetNewPlayerVolume
+                            applyFreqSplitEq(oldPlayerEq, newPlayerEq, p)
+                        }
+                        "club_drop" -> {
+                            // Club drop: dramatic bass drop of A, B enters from treble first
+                            val p = applyFadeCurve(rawProgress, transition.fadeCurveType)
+                            oldPlayer.volume = (1f - p.pow(1.5f)).coerceIn(0f, 1f) * targetOldPlayerVolume
+                            newPlayer.volume = p.pow(0.7f).coerceIn(0f, 1f) * targetNewPlayerVolume
+                            applyClubDropEq(oldPlayerEq, newPlayerEq, p)
+                        }
+                        else -> {
+                            // crossfade (default): per-band fade curves or global fadeCurveType
+                            val (oldVol, newVol) = computePlaymixVolumes(rawProgress, transition)
+                            oldPlayer.volume = oldVol * targetOldPlayerVolume
+                            newPlayer.volume = newVol * targetNewPlayerVolume
+                            applyCrossfadeBandEq(oldPlayerEq, newPlayerEq, rawProgress, transition)
+                        }
+                    }
+
+                    // Update seekbar every ~500ms
+                    if (elapsed % 500 < ANIMATION_FRAME_DELAY_MS) {
+                        val pos = newPlayer.currentPosition
+                        val dur = newPlayer.duration
+                        if (dur > 0) onTransitionProgress?.invoke(pos, dur)
+                    }
+                } catch (e: Exception) {
+                    Log.e("PlaymixEngine", "❌ Error en animación PlayMix", e)
+                    handler.removeCallbacks(this)
+                    handleMixFailure(oldPlayer, newPlayer)
+                    return
+                }
+
+                if (rawProgress < 1f) {
+                    handler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
+                } else {
+                    Log.i("PlaymixEngine", "✅ Animación PlayMix COMPLETADA")
+                    onMixComplete(newPlayer)
+                }
+            }
+        }
+        handler.post(animRunnable)
+    }
+
+    /**
+     * Computes (oldVol, newVol) for crossfade mixMode using fadeCurveType/bandFadeTypes.
+     * Follows the per-band approach: bass, mid, treble can each have different curves.
+     * The volume output represents the "average" weighting across bands.
+     * (Full per-band EQ is a future enhancement; for now we blend the curves.)
+     */
+    private fun computePlaymixVolumes(progress: Float, transition: PlaymixTransitionDTO): Pair<Float, Float> {
+        val bandFade = transition.bandFadeTypes
+        val bassCurve = applyFadeCurve(progress, bandFade?.bass ?: transition.fadeCurveType)
+        val midCurve  = applyFadeCurve(progress, bandFade?.mid  ?: transition.fadeCurveType)
+        val trebleCurve = applyFadeCurve(progress, bandFade?.treble ?: transition.fadeCurveType)
+        val avgCurve = (bassCurve + midCurve + trebleCurve) / 3f
+
+        // Equal-power fade using averaged per-band curve
+        val oldVol = sqrt((1f - avgCurve).coerceIn(0f, 1f))
+        val newVol = sqrt(avgCurve.coerceIn(0f, 1f))
+        return Pair(oldVol, newVol)
+    }
+
+    /**
+     * Applies a named fade curve to raw progress ∈ [0,1] → curve output ∈ [0,1].
+     *  - linear: unchanged
+     *  - logarithmic (Early): fast start, slow end
+     *  - exponential (Late): slow start, fast end
+     *  - hold: 0 until 80%, then snap to 1
+     *  - cut: snap at 50%
+     */
+    private fun applyFadeCurve(p: Float, curveType: String?): Float = when (curveType?.lowercase()) {
+        "logarithmic" -> p.pow(0.4f)      // Early: rushes to 1 quickly
+        "exponential" -> p.pow(2.5f)      // Late: stays low then rises sharply
+        "scurve", "s_curve" -> (3f * p.pow(2f)) - (2f * p.pow(3f))
+        "constantpower", "constant_power" -> (1f - cos(p * Math.PI.toFloat())) / 2f
+        "hold"        -> if (p < 0.8f) 0f else (p - 0.8f) / 0.2f
+        "cut"         -> if (p < 0.5f) 0f else 1f
+        else          -> p                // linear (default)
+    }
+
+    /**
+     * Applies the editor's bass/mid/treble fade curves to the actual EQ.
+     * Volume still uses equal-power blending; this shapes the spectrum so DJ-style
+     * transitions can swap lows, mids or highs independently.
+     */
+    private fun applyCrossfadeBandEq(
+        oldEq: Equalizer?,
+        newEq: Equalizer?,
+        progress: Float,
+        transition: PlaymixTransitionDTO
+    ) {
+        if (oldEq == null || newEq == null) return
+        val bandFade = transition.bandFadeTypes
+        val bass = applyFadeCurve(progress, bandFade?.bass ?: transition.fadeCurveType)
+        val mid = applyFadeCurve(progress, bandFade?.mid ?: transition.fadeCurveType)
+        val treble = applyFadeCurve(progress, bandFade?.treble ?: transition.fadeCurveType)
+
+        setSafeBandLevel(oldEq, 0, EQ_MAX_ATTENUATION * bass)
+        setSafeBandLevel(oldEq, 1, EQ_MEDIUM_ATTENUATION * bass)
+        setSafeBandLevel(oldEq, 2, EQ_MEDIUM_ATTENUATION * mid)
+        setSafeBandLevel(oldEq, 3, EQ_LIGHT_ATTENUATION * treble)
+        setSafeBandLevel(oldEq, 4, EQ_MEDIUM_ATTENUATION * treble)
+
+        setSafeBandLevel(newEq, 0, EQ_MAX_ATTENUATION * (1f - bass))
+        setSafeBandLevel(newEq, 1, EQ_MEDIUM_ATTENUATION * (1f - bass))
+        setSafeBandLevel(newEq, 2, EQ_MEDIUM_ATTENUATION * (1f - mid))
+        setSafeBandLevel(newEq, 3, EQ_LIGHT_ATTENUATION * (1f - treble))
+        setSafeBandLevel(newEq, 4, EQ_MEDIUM_ATTENUATION * (1f - treble))
+    }
+
+    private fun setSafeBandLevel(eq: Equalizer, bandIndex: Int, rawLevel: Float) {
+        try {
+            if (bandIndex >= eq.numberOfBands) return
+            val range = eq.bandLevelRange
+            val minLevel = range.getOrNull(0) ?: EQ_MAX_ATTENUATION
+            val maxLevel = range.getOrNull(1) ?: 0
+            val level = rawLevel.toInt().coerceIn(minLevel.toInt(), maxLevel.toInt()).toShort()
+            eq.setBandLevel(bandIndex.toShort(), level)
+        } catch (e: Exception) {
+            Log.w("PlaymixEngine", "Unable to set EQ band $bandIndex", e)
+        }
+    }
+
+    /** Freq Split: bass of old song fades, treble of new song fades in */
+    private fun applyFreqSplitEq(oldEq: Equalizer?, newEq: Equalizer?, progress: Float) {
+        if (oldEq == null || newEq == null) return
+        val bands = shortArrayOf(0, 1, 2, 3, 4)
+        val bassProgress = (progress / 0.5f).coerceIn(0f, 1f)
+        val trebleProgress = ((progress - 0.3f) / 0.7f).coerceIn(0f, 1f)
+        // Bass of old fades out
+        oldEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * bassProgress).toInt().toShort())
+        oldEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * bassProgress * 0.7f).toInt().toShort())
+        // Treble of old stays longer
+        oldEq.setBandLevel(bands[3], (EQ_MAX_ATTENUATION * trebleProgress).toInt().toShort())
+        oldEq.setBandLevel(bands[4], (EQ_MAX_ATTENUATION * trebleProgress).toInt().toShort())
+        // New song: start with only treble, bass fades in later
+        newEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * (1f - bassProgress)).toInt().toShort())
+        newEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * (1f - bassProgress) * 0.5f).toInt().toShort())
+        newEq.setBandLevel(bands[3], (EQ_MAX_ATTENUATION * (1f - trebleProgress)).toInt().toShort())
+        newEq.setBandLevel(bands[4], (EQ_MAX_ATTENUATION * (1f - trebleProgress)).toInt().toShort())
+    }
+
+    /** Club Drop: bass of old drops hard at midpoint, new enters from top frequencies down */
+    private fun applyClubDropEq(oldEq: Equalizer?, newEq: Equalizer?, progress: Float) {
+        if (oldEq == null || newEq == null) return
+        val bands = shortArrayOf(0, 1, 2, 3, 4)
+        // Old: bass drops very fast (like a DJ "low cut" filter closing)
+        val oldBassProgress = (progress / 0.4f).coerceIn(0f, 1f)
+        oldEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * oldBassProgress).toInt().toShort())
+        oldEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * oldBassProgress * 0.8f).toInt().toShort())
+        oldEq.setBandLevel(bands[2], (EQ_MAX_ATTENUATION * (progress / 0.7f).coerceIn(0f, 1f) * 0.5f).toInt().toShort())
+        // New: enters top-first (treble → mid → bass)
+        val newTrebleProgress = progress.pow(0.5f)
+        val newMidProgress = (progress / 0.6f).coerceIn(0f, 1f).pow(1.5f)
+        val newBassProgress = (progress / 0.8f - 0.25f).coerceIn(0f, 1f)
+        newEq.setBandLevel(bands[4], (EQ_MAX_ATTENUATION * (1f - newTrebleProgress)).toInt().toShort())
+        newEq.setBandLevel(bands[3], (EQ_MAX_ATTENUATION * (1f - newTrebleProgress * 0.9f)).toInt().toShort())
+        newEq.setBandLevel(bands[2], (EQ_MAX_ATTENUATION * (1f - newMidProgress)).toInt().toShort())
+        newEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * (1f - newBassProgress)).toInt().toShort())
+        newEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * (1f - newBassProgress)).toInt().toShort())
+    }
 
     // =================================================================================================
     // ===                                  AUTOMIX BÁSICO (PARA ÁLBUMES)                            ===

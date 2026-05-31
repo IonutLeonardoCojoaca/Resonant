@@ -44,8 +44,8 @@ class MixModeGraphView @JvmOverloads constructor(
         pathEffect = DashPathEffect(floatArrayOf(6f, 4f), 0f)
     }
 
-    private val colorA = Color.parseColor("#E21616")
-    private val colorB = Color.parseColor("#BB86FC")
+    private val colorA = Color.parseColor("#1ED760")
+    private val colorB = Color.parseColor("#40C4FF")
     private val pathA = Path()
     private val pathB = Path()
     private val fillPath = Path()

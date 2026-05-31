@@ -4,151 +4,166 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="8dp"
+    android:paddingHorizontal="10dp"
     android:paddingVertical="2dp">
 
-    <!-- Connector line top -->
     <View
         android:layout_width="2dp"
-        android:layout_height="8dp"
+        android:layout_height="10dp"
         android:layout_gravity="center_horizontal"
         android:background="#22FFFFFF" />
 
-    <!-- Card -->
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_transition_card"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="10dp">
+        android:background="@drawable/bg_playmix_transition_item"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:padding="12dp">
 
-        <!-- Left: icon + details -->
-        <LinearLayout
+        <ImageView
+            android:id="@+id/transitionIcon"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/bg_compat_chip"
+            android:padding="7dp"
+            android:src="@drawable/ic_compare_arrows"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/transitionVerdict"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_compat_chip"
+            android:fontFamily="@font/unageo_bold"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:text="BUENA"
+            android:textColor="@color/white"
+            android:textSize="10sp"
+            app:layout_constraintStart_toEndOf="@id/transitionIcon"
+            app:layout_constraintTop_toTopOf="@id/transitionIcon"
+            android:layout_marginStart="10dp" />
+
+        <TextView
+            android:id="@+id/transitionModeChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_measure_dropdown"
+            android:fontFamily="@font/unageo_medium"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:text="Crossfade"
+            android:textColor="#D9FFFFFF"
+            android:textSize="10sp"
+            app:layout_constraintBaseline_toBaselineOf="@id/transitionVerdict"
+            app:layout_constraintStart_toEndOf="@id/transitionVerdict" />
+
+        <TextView
+            android:id="@+id/transitionDetails"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:maxLines="1"
+            android:text="4.8s · preset aplicado"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            app:layout_constraintEnd_toStartOf="@id/transitionActions"
+            app:layout_constraintStart_toStartOf="@id/transitionVerdict"
+            app:layout_constraintTop_toBottomOf="@id/transitionVerdict" />
+
+        <LinearLayout
+            android:id="@+id/transitionMetaRow"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
+            app:layout_constraintEnd_toStartOf="@id/transitionActions"
+            app:layout_constraintStart_toStartOf="@id/transitionVerdict"
+            app:layout_constraintTop_toBottomOf="@id/transitionDetails">
 
-            <!-- Colored icon -->
-            <ImageView
-                android:id="@+id/transitionIcon"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@drawable/ic_compare_arrows" />
-
-            <!-- Score + verdict + chips -->
-            <LinearLayout
+            <TextView
+                android:id="@+id/transitionKeyChip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:orientation="vertical">
+                android:background="@drawable/bg_compat_chip"
+                android:fontFamily="@font/unageo_medium"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:text="Relative minor"
+                android:textColor="#D9FFFFFF"
+                android:textSize="10sp"
+                android:visibility="gone" />
 
-                <!-- Score + verdict row -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/transitionScore"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:id="@+id/transitionVerdict"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:textSize="11sp"
-                        android:letterSpacing="0.05" />
-
-                </LinearLayout>
-
-                <!-- BPM + Key chips -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/transitionBpmChip"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_compat_chip"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="center"
-                        android:paddingHorizontal="8dp"
-                        android:textSize="10sp"
-                        android:visibility="gone" />
-
-                    <TextView
-                        android:id="@+id/transitionKeyChip"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_compat_chip"
-                        android:fontFamily="@font/unageo_medium"
-                        android:gravity="center"
-                        android:paddingHorizontal="8dp"
-                        android:textSize="10sp"
-                        android:visibility="gone" />
-
-                </LinearLayout>
-
-            </LinearLayout>
+            <TextView
+                android:id="@+id/transitionPresetChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_compat_chip"
+                android:fontFamily="@font/unageo_medium"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:text="Preset"
+                android:textColor="#D9FFFFFF"
+                android:textSize="10sp"
+                android:visibility="gone" />
 
         </LinearLayout>
 
-        <!-- Right: action buttons -->
         <LinearLayout
+            android:id="@+id/transitionActions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="@id/transitionMetaRow"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/transitionDetails">
 
             <ImageView
                 android:id="@+id/waveformPreviewButton"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:padding="7dp"
-                android:src="@drawable/ic_visibility"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="#88FFFFFF" />
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_preview_overlay_button"
+                android:padding="9dp"
+                android:src="@drawable/ic_play"
+                app:tint="@color/white" />
 
             <ImageView
                 android:id="@+id/copyTransitionButton"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="8dp"
                 android:src="@drawable/ic_playmix"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="#88FFFFFF" />
+                app:tint="#CCFFFFFF" />
 
             <ImageView
                 android:id="@+id/editTransitionButton"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
+                android:layout_marginStart="2dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="8dp"
                 android:src="@drawable/ic_edit"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                app:tint="#66FFFFFF" />
+                app:tint="#CCFFFFFF" />
 
         </LinearLayout>
 
-    </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Connector line bottom -->
     <View
         android:layout_width="2dp"
-        android:layout_height="8dp"
+        android:layout_height="10dp"
         android:layout_gravity="center_horizontal"
         android:background="#22FFFFFF" />
 

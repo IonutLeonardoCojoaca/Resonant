@@ -27,7 +27,7 @@ class CrossfadeEditorViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakePlaymixManager = FakePlaymixManager()
         fakePresetManager = FakeTransitionPresetManager()
-        viewModel = CrossfadeEditorViewModel(fakePlaymixManager, fakePresetManager)
+        viewModel = CrossfadeEditorViewModel(fakePlaymixManager, fakePresetManager, testDispatcher)
     }
 
     @After
@@ -113,6 +113,24 @@ class CrossfadeEditorViewModelTest {
         assertEquals("smooth-fade", state.activePresetCode)
     }
 
+    @Test
+    fun `onPresetSelected does not issue manual update after apply`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        fakePresetManager.applyResponse = createTransitionDTO(
+            presetCode = "smooth-fade",
+            presetName = "Smooth Fade"
+        )
+
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        viewModel.onPresetSelected("smooth-fade")
+        advanceUntilIdle()
+
+        assertEquals(0, fakePlaymixManager.updateRequests.size)
+        assertFalse(viewModel.state.value!!.isPresetModified)
+    }
+
     // ─── Apply Preset ───────────────────────────
 
     @Test
@@ -168,6 +186,28 @@ class CrossfadeEditorViewModelTest {
     }
 
     @Test
+    fun `saving modified preset clears presetCode and keeps manual mix mode`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse(
+            presetCode = "smooth-fade",
+            presetName = "Smooth Fade"
+        )
+
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        viewModel.setMixMode("club_drop")
+        assertTrue(viewModel.state.value!!.isPresetModified)
+
+        viewModel.saveTransition()
+        advanceUntilIdle()
+
+        val update = fakePlaymixManager.updateRequests.single()
+        assertEquals("club_drop", update.mixMode)
+        assertNull(update.presetCode)
+        assertNull(viewModel.state.value!!.activePresetCode)
+    }
+
+    @Test
     fun `switching to Manual clears activePresetCode`() = runTest {
         fakePlaymixManager.waveformResponse = createWaveformResponse(presetCode = "smooth-fade")
         fakePresetManager.presets = listOf(createPresetDTO("smooth-fade", "Smooth Fade", 1))
@@ -181,6 +221,21 @@ class CrossfadeEditorViewModelTest {
 
         assertNull(viewModel.state.value!!.activePresetCode)
         assertFalse(viewModel.state.value!!.isPresetModified)
+    }
+
+    @Test
+    fun `setCrossfadeDurationWithAutoFit moves exit earlier when measure preset needs more room`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse(exitPointMs = 220000, entryPointMs = 0)
+
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        viewModel.setCrossfadeDurationWithAutoFit(60000)
+
+        val state = viewModel.state.value!!
+        assertEquals(180000, state.exitPointMs)
+        assertEquals(0, state.entryPointMs)
+        assertEquals(60000, state.crossfadeDurationMs)
     }
 
     // ─── Reset Preset ───────────────────────────
@@ -299,8 +354,9 @@ class CrossfadeEditorViewModelTest {
 
     // ─── Fake Managers ──────────────────────────
 
-    class FakePlaymixManager : PlaymixManager(null!!) {
+    class FakePlaymixManager : PlaymixManager(null) {
         var waveformResponse: WaveformResponseDTO? = null
+        val updateRequests = mutableListOf<PlaymixTransitionUpdateDTO>()
 
         override suspend fun getWaveformData(playmixId: String, transitionId: String): WaveformResponseDTO {
             return waveformResponse ?: throw Exception("No waveform response configured")
@@ -309,17 +365,25 @@ class CrossfadeEditorViewModelTest {
         override suspend fun updateTransition(
             playmixId: String, transitionId: String, update: PlaymixTransitionUpdateDTO
         ): PlaymixTransitionDTO {
+            updateRequests.add(update)
             return PlaymixTransitionDTO(
                 id = transitionId, fromPlaymixSongId = "ps1", toPlaymixSongId = "ps2",
                 exitPointMs = update.exitPointMs, entryPointMs = update.entryPointMs,
                 crossfadeDurationMs = update.crossfadeDurationMs, fadeCurveType = update.fadeCurveType,
-                eqSettings = update.eqSettings, compatibility = null,
-                presetCode = update.presetCode, isPresetModified = update.isPresetModified
+                eqSettings = update.eqSettings,
+                eqSettingsA = update.eqSettingsA,
+                eqSettingsB = update.eqSettingsB,
+                mixMode = update.mixMode,
+                compatibility = null,
+                bandFadeTypes = update.bandFadeTypes,
+                presetCode = update.presetCode,
+                isPresetModified = update.isPresetModified,
+                gapMs = update.gapMs
             )
         }
     }
 
-    class FakeTransitionPresetManager : TransitionPresetManager(null!!) {
+    class FakeTransitionPresetManager : TransitionPresetManager(null) {
         var presets: List<TransitionPresetDTO> = emptyList()
         var shouldFailPresets = false
         var previewResponse: TransitionPresetPreviewDTO? = null

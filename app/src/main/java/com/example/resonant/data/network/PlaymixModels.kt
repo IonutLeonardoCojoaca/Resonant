@@ -74,6 +74,7 @@ data class PlaymixTransitionDTO(
     val presetName: String? = null,
     val presetAppliedAt: String? = null,
     val isPresetModified: Boolean = false,
+    val isActive: Boolean = false,
     val gapMs: Int = 0
 )
 
@@ -158,7 +159,8 @@ data class PlaymixTransitionUpdateDTO(
     val bandFadeTypes: BandFadeTypesDTO? = null,
     val gapMs: Int = 0,
     val presetCode: String? = null,
-    val isPresetModified: Boolean = false
+    val isPresetModified: Boolean = false,
+    val isActive: Boolean = true
 )
 
 // ─── Transition Presets ─────────────────────

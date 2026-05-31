@@ -62,6 +62,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     private fun setupRecyclerView() {
         adapter = PlaymixSongTransitionAdapter(
             onTransitionClick = { transition -> navigateToCrossfadeEditor(transition) },
+            onAddTransitionClick = { transition -> navigateToCrossfadeEditor(transition) },
             onPreviewClick = { transition ->
                 WaveformPreviewBottomSheet(playmixId, transition)
                     .show(childFragmentManager, "WaveformPreview")

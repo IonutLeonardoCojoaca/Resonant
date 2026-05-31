@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.resonant.R
 import com.example.resonant.data.network.ApiClient
@@ -56,6 +57,7 @@ class WaveformPreviewBottomSheet(
 
         closeButton.setOnClickListener { dismiss() }
 
+        waveform.canvasBackgroundColor = ContextCompat.getColor(requireContext(), R.color.pointersTheme)
         waveform.fadeCurveType = transition.fadeCurveType
         waveform.mixMode = transition.mixMode ?: "crossfade"
         transition.bandFadeTypes?.let {

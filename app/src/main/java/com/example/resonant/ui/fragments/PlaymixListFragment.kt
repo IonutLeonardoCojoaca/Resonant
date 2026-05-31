@@ -5,6 +5,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDTO
@@ -23,6 +24,7 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
 
     private lateinit var viewModel: PlaymixListViewModel
     private lateinit var adapter: PlaymixListAdapter
+    private var hasAnimatedPlaymixList = false
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -46,6 +48,17 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
         )
         binding.playmixRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.playmixRecyclerView.adapter = adapter
+        binding.playmixRecyclerView.itemAnimator = DefaultItemAnimator().apply {
+            addDuration = 180
+            moveDuration = 180
+            changeDuration = 120
+            removeDuration = 120
+        }
+        binding.playmixRecyclerView.alpha = 0f
+        binding.playmixRecyclerView.translationY = 18.dp.toFloat()
+        binding.playmixRecyclerView.visibility = View.INVISIBLE
+        binding.emptyState.alpha = 0f
+        binding.emptyState.translationY = 18.dp.toFloat()
     }
 
     private fun setupListeners() {
@@ -64,14 +77,28 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
 
     private fun observeViewModel() {
         viewModel.playmixes.observe(viewLifecycleOwner) { list ->
-            adapter.submitList(list)
-            binding.emptyState.visibility = if (list.isNullOrEmpty()) View.VISIBLE else View.GONE
-            binding.playmixRecyclerView.visibility = if (list.isNullOrEmpty()) View.GONE else View.VISIBLE
+            adapter.submitList(list) {
+                val hasItems = !list.isNullOrEmpty()
+                if (hasItems) {
+                    binding.emptyState.visibility = View.GONE
+                    binding.playmixRecyclerView.visibility = View.VISIBLE
+                } else {
+                    binding.playmixRecyclerView.visibility = View.GONE
+                    binding.emptyState.visibility = View.VISIBLE
+                }
+
+                if (hasItems) {
+                    animatePlaymixContent(binding.playmixRecyclerView)
+                } else {
+                    animatePlaymixContent(binding.emptyState)
+                }
+            }
         }
 
         viewModel.isLoading.observe(viewLifecycleOwner) { loading ->
-            binding.swipeRefresh.isRefreshing = false
-            if (loading) {
+            val hasContent = adapter.currentList.isNotEmpty()
+            binding.swipeRefresh.isRefreshing = loading && hasContent
+            if (loading && !hasContent) {
                 binding.lottieLoader.visibility = View.VISIBLE
                 binding.lottieLoader.playAnimation()
             } else {
@@ -93,6 +120,28 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
             }
         }
     }
+
+    private fun animatePlaymixContent(target: View) {
+        target.post {
+            if (_binding == null || target.visibility != View.VISIBLE) return@post
+            if (!hasAnimatedPlaymixList) {
+                hasAnimatedPlaymixList = true
+                target.alpha = 0f
+                target.translationY = 18.dp.toFloat()
+                target.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(220)
+                    .start()
+            } else {
+                target.alpha = 1f
+                target.translationY = 0f
+            }
+        }
+    }
+
+    private val Int.dp: Int
+        get() = (this * resources.displayMetrics.density).toInt()
 
     private fun showOptionsSheet(playmix: PlaymixDTO) {
         PlaymixListOptionsBottomSheet(
