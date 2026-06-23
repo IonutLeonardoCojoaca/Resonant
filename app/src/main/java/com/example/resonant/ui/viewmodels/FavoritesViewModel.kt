@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
 class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = FavoriteManager(app.applicationContext)
+    private val dataExpirationTime = 5 * 60 * 1000L
+    private var lastFavoriteSongsFetchTime = 0L
+    private var favoriteSongsLoading = false
 
     // --- LiveData ---
     private val _favoriteSongs = MutableLiveData<List<Song>>(emptyList())
@@ -49,11 +52,23 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun loadFavoriteSongs() {
+    fun loadFavoriteSongs(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastFavoriteSongsFetchTime) > dataExpirationTime
+
+        if (favoriteSongsLoading) return
+        if (!forceRefresh && lastFavoriteSongsFetchTime > 0L && !isExpired) return
+
+        favoriteSongsLoading = true
         viewModelScope.launch {
-            val favSongs = repo.getFavoritesSongs()
-            _favoriteSongs.value = favSongs
-            _favoriteSongIds.value = favSongs.map { it.id }.toSet()
+            try {
+                val favSongs = repo.getFavoritesSongs()
+                _favoriteSongs.value = favSongs
+                _favoriteSongIds.value = favSongs.map { it.id }.toSet()
+                lastFavoriteSongsFetchTime = System.currentTimeMillis()
+            } finally {
+                favoriteSongsLoading = false
+            }
         }
     }
 
@@ -91,12 +106,12 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
 
                 // Llamada a BD/Red
                 val result = repo.deleteFavoriteSong(song.id)
-                if (!result) loadFavoriteSongs() // Revertir si falla
+                if (!result) loadFavoriteSongs(forceRefresh = true) // Revertir si falla
                 onResult(result, false)
             } else {
                 // Agregar
                 val result = repo.addFavoriteSong(song.id)
-                if (result) loadFavoriteSongs()
+                if (result) loadFavoriteSongs(forceRefresh = true)
                 onResult(result, true)
             }
         }

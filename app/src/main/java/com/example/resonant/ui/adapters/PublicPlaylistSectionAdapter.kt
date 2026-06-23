@@ -4,7 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
@@ -50,17 +50,16 @@ class PublicPlaylistSectionAdapter(
         private val tvOwnerName: TextView = itemView.findViewById(R.id.tvSectionOwnerName)
         private val tvOfficialBadge: TextView = itemView.findViewById(R.id.tvOfficialBadge)
         private val tvSubtitle: TextView = itemView.findViewById(R.id.tvSectionSubtitle)
+        private val tvCountPill: TextView = itemView.findViewById(R.id.tvSectionCountPill)
         private val rvPlaylists: RecyclerView = itemView.findViewById(R.id.rvSectionPlaylists)
 
         fun bind(section: PlaylistSection) {
             if (section.isSystem) {
-                // Resonant system section
                 resonantAccentBar.visibility = View.VISIBLE
                 initialsContainer.visibility = View.GONE
                 ivResonantAvatar.visibility = View.VISIBLE
                 tvOfficialBadge.visibility = View.VISIBLE
             } else {
-                // User section
                 resonantAccentBar.visibility = View.GONE
                 initialsContainer.visibility = View.VISIBLE
                 ivResonantAvatar.visibility = View.GONE
@@ -71,20 +70,18 @@ class PublicPlaylistSectionAdapter(
             tvOwnerName.text = section.ownerName
 
             val count = section.playlists.size
+            tvCountPill.text = count.toString()
             tvSubtitle.text = when {
                 section.isSystem && count == 1 -> "1 playlist curada"
                 section.isSystem -> "$count playlists curadas"
-                count == 1 -> "1 playlist pública"
-                else -> "$count playlists públicas"
+                count == 1 -> "1 playlist publica"
+                else -> "$count playlists publicas"
             }
 
-            // Nested horizontal RecyclerView
             val adapter = PublicPlaylistAdapter(onPlaylistClick)
-            rvPlaylists.layoutManager = LinearLayoutManager(
-                itemView.context,
-                LinearLayoutManager.HORIZONTAL,
-                false
-            )
+            rvPlaylists.layoutManager = GridLayoutManager(itemView.context, 2).apply {
+                initialPrefetchItemCount = 6
+            }
             rvPlaylists.adapter = adapter
             rvPlaylists.isNestedScrollingEnabled = false
             adapter.submitList(section.playlists)

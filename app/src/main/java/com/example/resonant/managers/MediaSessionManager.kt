@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Bundle
 import android.os.SystemClock
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
@@ -38,6 +39,9 @@ class MediaSessionManager(
                 override fun onSkipToPrevious() { playerController.playPrevious() }
                 override fun onStop() { playerController.stop() }
                 override fun onSeekTo(pos: Long) { playerController.seekTo(pos) }
+                override fun onPlayFromSearch(query: String?, extras: Bundle?) {
+                    playerController.playFromSearch(query, extras)
+                }
             })
 
             val intent = Intent(context, MainActivity::class.java).apply {
@@ -52,7 +56,14 @@ class MediaSessionManager(
 
     fun updatePlaybackState(currentPosition: Long) {
         val state = if (PlaybackStateRepository.isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
-        val actions = (PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO)
+        val actions = (PlaybackStateCompat.ACTION_PLAY or
+            PlaybackStateCompat.ACTION_PAUSE or
+            PlaybackStateCompat.ACTION_PLAY_PAUSE or
+            PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
+            PlaybackStateCompat.ACTION_SEEK_TO or
+            PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH or
+            PlaybackStateCompat.ACTION_PREPARE_FROM_SEARCH)
 
         val pbState = PlaybackStateCompat.Builder()
             .setActions(actions)

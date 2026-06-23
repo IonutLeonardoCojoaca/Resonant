@@ -9,9 +9,10 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.utils.ImageRequestHelper
 
 class PublicPlaylistAdapter(
     private val onPlaylistClick: (Playlist) -> Unit
@@ -27,10 +28,17 @@ class PublicPlaylistAdapter(
         holder.bind(getItem(position))
     }
 
-    class PlaylistViewHolder(itemView: View, val onClick: (Playlist) -> Unit) :
-        RecyclerView.ViewHolder(itemView) {
+    override fun onViewRecycled(holder: PlaylistViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.ivCover)
+    }
 
-        private val ivCover: ImageView = itemView.findViewById(R.id.ivPlaylistCover)
+    class PlaylistViewHolder(
+        itemView: View,
+        private val onClick: (Playlist) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
+
+        val ivCover: ImageView = itemView.findViewById(R.id.ivPlaylistCover)
         private val tvName: TextView = itemView.findViewById(R.id.tvPlaylistName)
         private val tvOwner: TextView = itemView.findViewById(R.id.tvOwnerName)
         private val tvTracks: TextView = itemView.findViewById(R.id.tvTracksCount)
@@ -41,30 +49,29 @@ class PublicPlaylistAdapter(
             val trackCount = playlist.numberOfTracks
             tvTracks.text = when {
                 trackCount == 0 -> "Sin canciones"
-                trackCount == 1 -> "1 canción"
+                trackCount == 1 -> "1 cancion"
                 else -> "$trackCount canciones"
             }
 
-            // Owner name: "Resonant" for system playlists, otherwise user name
             val owner = when {
                 playlist.isSystemPlaylist -> "Resonant"
                 else -> playlist.ownerName?.takeIf { it.isNotBlank() } ?: "Usuario"
             }
             tvOwner.text = "Por $owner"
 
-            // Cargar imagen de portada
-            if (!playlist.imageUrl.isNullOrEmpty()) {
-                Glide.with(itemView.context)
-                    .load(playlist.imageUrl)
-                    .transform(CenterCrop())
-                    .placeholder(R.drawable.ic_playlist_stack)
-                    .error(R.drawable.ic_playlist_stack)
-                    .into(ivCover)
-            } else {
-                ivCover.setImageResource(R.drawable.ic_playlist_stack)
-                ivCover.scaleType = ImageView.ScaleType.CENTER_INSIDE
-                ivCover.setBackgroundColor(0xFF222222.toInt())
-            }
+            ivCover.scaleType = ImageView.ScaleType.CENTER_CROP
+            Glide.with(itemView.context)
+                .load(playlist.imageUrl?.takeIf { it.isNotBlank() }?.let {
+                    ImageRequestHelper.buildGlideModel(itemView.context, it)
+                })
+                .override(420, 420)
+                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                .timeout(10_000)
+                .placeholder(R.drawable.ic_playlist_stack)
+                .error(R.drawable.ic_playlist_stack)
+                .centerCrop()
+                .dontAnimate()
+                .into(ivCover)
 
             itemView.setOnClickListener {
                 onClick(playlist)

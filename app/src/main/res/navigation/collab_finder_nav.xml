@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/collab_finder_nav"
+    app:startDestination="@id/collabSearchFragment">
+
+    <fragment
+        android:id="@+id/collabSearchFragment"
+        android:name="com.example.resonant.feature.collabfinder.ui.fragments.CollabSearchFragment"
+        android:label="Collab Search"
+        tools:layout="@layout/fragment_collab_search">
+        <action
+            android:id="@+id/action_search_to_bubble"
+            app:destination="@id/collabBubbleFragment"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+        <action
+            android:id="@+id/action_collabSearchFragment_to_collabDetailFragment"
+            app:destination="@id/collabDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/collabBubbleFragment"
+        android:name="com.example.resonant.feature.collabfinder.ui.fragments.CollabBubbleFragment"
+        android:label="Collab Bubble"
+        tools:layout="@layout/fragment_collab_bubble">
+        <argument
+            android:name="artistId"
+            app:argType="string" />
+        <argument
+            android:name="artistName"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_bubble_to_detail"
+            app:destination="@id/collabDetailFragment" />
+        <action
+            android:id="@+id/action_bubble_to_path"
+            app:destination="@id/collabPathFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/collabDetailFragment"
+        android:name="com.example.resonant.feature.collabfinder.ui.fragments.CollabDetailFragment"
+        android:label="Collab Detail"
+        tools:layout="@layout/fragment_collab_detail">
+        <argument
+            android:name="artistId"
+            app:argType="string" />
+        <argument
+            android:name="collaboratorId"
+            app:argType="string" />
+        <argument
+            android:name="collaboratorName"
+            app:argType="string" />
+        <argument
+            android:name="collaboratorImageUrl"
+            app:argType="string"
+            app:nullable="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/collabPathFragment"
+        android:name="com.example.resonant.feature.collabfinder.ui.fragments.CollabPathFragment"
+        android:label="Collab Path"
+        tools:layout="@layout/fragment_collab_path">
+        <argument
+            android:name="preselectedArtistId"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+        <action
+            android:id="@+id/action_path_to_bubble"
+            app:destination="@id/collabBubbleFragment" />
+    </fragment>
+</navigation>

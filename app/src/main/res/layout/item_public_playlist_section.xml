@@ -1,135 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingBottom="8dp">
+    android:layout_marginHorizontal="1dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/transparent"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="0dp">
 
-    <!-- Resonant accent top bar (only visible for system sections) -->
-    <View
-        android:id="@+id/resonantAccentBar"
-        android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:background="@color/secondaryColorTheme"
-        android:visibility="gone" />
-
-    <!-- Section header: avatar + name + subtitle -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="18dp"
+        android:background="@drawable/bg_public_playlists_section"
+        android:orientation="vertical"
         android:paddingBottom="10dp">
 
-        <!-- Avatar: shows either initials OR Resonant logo -->
-        <FrameLayout
-            android:layout_width="44dp"
-            android:layout_height="44dp">
+        <View
+            android:id="@+id/resonantAccentBar"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:background="@color/secondaryColorTheme"
+            android:visibility="gone" />
 
-            <!-- User initials circle (default) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="14dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="10dp">
+
             <FrameLayout
-                android:id="@+id/initialsContainer"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@drawable/bg_accent_pill">
+                android:id="@+id/sectionAvatarFrame"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
 
-                <TextView
-                    android:id="@+id/tvOwnerInitial"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:text="U"
-                    android:textColor="@color/white"
-                    android:textSize="18sp"
-                    android:fontFamily="@font/unageo_bold" />
+                <FrameLayout
+                    android:id="@+id/initialsContainer"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_public_playlists_avatar">
+
+                    <TextView
+                        android:id="@+id/tvOwnerInitial"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="U"
+                        android:textColor="@color/white"
+                        android:textSize="18sp" />
+
+                </FrameLayout>
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/ivResonantAvatar"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/image_resonant_logo_v2"
+                    android:visibility="gone"
+                    app:shapeAppearanceOverlay="@style/CircularUserImage" />
+
             </FrameLayout>
 
-            <!-- Resonant logo (only for system sections) -->
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/ivResonantAvatar"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:src="@drawable/image_resonant_logo_v2"
-                android:scaleType="centerCrop"
-                android:visibility="gone"
-                app:shapeAppearanceOverlay="@style/CircularUserImage" />
-
-        </FrameLayout>
-
-        <!-- Name + subtitle column -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:layout_marginStart="12dp">
-
-            <!-- Name row with optional "OFICIAL" badge -->
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:id="@+id/sectionTextColumn"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="10dp"
+                android:orientation="vertical"
+                app:layout_constraintBottom_toBottomOf="@id/sectionAvatarFrame"
+                app:layout_constraintEnd_toStartOf="@id/tvSectionCountPill"
+                app:layout_constraintStart_toEndOf="@id/sectionAvatarFrame"
+                app:layout_constraintTop_toTopOf="@id/sectionAvatarFrame">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvSectionOwnerName"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_bold"
+                        android:maxLines="1"
+                        android:text="Usuario"
+                        android:textColor="@color/white"
+                    android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/tvOfficialBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_resonant_badge"
+                        android:fontFamily="@font/unageo_black"
+                        android:letterSpacing="0.08"
+                        android:paddingHorizontal="5dp"
+                        android:paddingVertical="2dp"
+                        android:text="OFICIAL"
+                        android:textColor="@color/secondaryColorTheme"
+                        android:textSize="8sp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
 
                 <TextView
-                    android:id="@+id/tvSectionOwnerName"
+                    android:id="@+id/tvSectionSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Usuario"
-                    android:textColor="@color/white"
-                    android:textSize="16sp"
-                    android:fontFamily="@font/unageo_bold" />
-
-                <TextView
-                    android:id="@+id/tvOfficialBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:text="OFICIAL"
-                    android:textColor="@color/secondaryColorTheme"
-                    android:textSize="8sp"
-                    android:fontFamily="@font/unageo_black"
-                    android:letterSpacing="0.08"
-                    android:background="@drawable/bg_resonant_badge"
-                    android:paddingHorizontal="5dp"
-                    android:paddingVertical="2dp"
-                    android:visibility="gone" />
+                android:layout_marginTop="3dp"
+                android:fontFamily="@font/unageo_medium"
+                android:text="1 playlist publica"
+                android:textColor="#9EFFFFFF"
+                android:textSize="11sp" />
 
             </LinearLayout>
 
             <TextView
-                android:id="@+id/tvSectionSubtitle"
+                android:id="@+id/tvSectionCountPill"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="1 playlist pública"
-                android:textColor="#99FFFFFF"
+                android:layout_height="28dp"
+                android:background="@drawable/bg_public_playlists_count_pill"
+                android:fontFamily="@font/unageo_bold"
+                android:gravity="center"
+                android:minWidth="42dp"
+                android:paddingHorizontal="10dp"
+                android:text="2"
+                android:textColor="@color/white"
                 android:textSize="12sp"
-                android:fontFamily="@font/unageo_medium"
-                android:layout_marginTop="2dp" />
+                app:layout_constraintBottom_toBottomOf="@id/sectionAvatarFrame"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="@id/sectionAvatarFrame" />
 
-        </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvSectionPlaylists"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="9dp" />
 
     </LinearLayout>
 
-    <!-- Horizontal scroll of playlists for this section -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvSectionPlaylists"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="10dp"
-        android:clipToPadding="false"
-        android:overScrollMode="never" />
-
-    <!-- Separator -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="16dp"
-        android:background="#15FFFFFF" />
-
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -115,6 +115,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastSongsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _songs.value != null
 
+        if (!forceRefresh && _songsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) return
 
         val showLoading = !hasData
@@ -146,6 +147,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastHistoryFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _history.value != null
 
+        if (!forceRefresh && _historyLoading.value == true) return
         // Refresh always if forceRefresh is true, otherwise respect cache
         if (hasData && !forceRefresh && !isExpired) return
 
@@ -175,6 +177,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastArtistsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _artists.value != null
 
+        if (!forceRefresh && _artistsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) return
 
         val showLoading = !hasData
@@ -204,6 +207,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastAlbumsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _albums.value != null
 
+        if (!forceRefresh && _albumsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) return
 
         val showLoading = !hasData
@@ -234,6 +238,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val hasData = _recentArtists.value != null
 
         Log.d("HomeVM", "loadRecentArtists: hasData=$hasData forceRefresh=$forceRefresh isExpired=$isExpired")
+        if (!forceRefresh && _recentArtistsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) {
             Log.d("HomeVM", "loadRecentArtists: skipped (cache, ${_recentArtists.value?.size} items)")
             return
@@ -265,6 +270,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val hasData = _recentAlbums.value != null
 
         Log.d("HomeVM", "loadRecentAlbums: hasData=$hasData forceRefresh=$forceRefresh isExpired=$isExpired")
+        if (!forceRefresh && _recentAlbumsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) {
             Log.d("HomeVM", "loadRecentAlbums: skipped (cache, ${_recentAlbums.value?.size} items)")
             return
@@ -295,6 +301,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastTopSongsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _topSongs.value != null
 
+        if (!forceRefresh && _topSongsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) return
 
         if (!hasData) _topSongsLoading.value = true
@@ -319,6 +326,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastTopArtistsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _topArtists.value != null
 
+        if (!forceRefresh && _topArtistsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) return
 
         if (!hasData) _topArtistsLoading.value = true
@@ -343,6 +351,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val isExpired = (currentTime - lastTopAlbumsFetchTime) > DATA_EXPIRATION_TIME
         val hasData = _topAlbums.value != null
 
+        if (!forceRefresh && _topAlbumsLoading.value == true) return
         if (hasData && !forceRefresh && !isExpired) return
 
         if (!hasData) _topAlbumsLoading.value = true

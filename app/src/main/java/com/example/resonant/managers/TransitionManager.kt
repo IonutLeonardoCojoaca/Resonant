@@ -8,6 +8,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -38,12 +40,23 @@ class TransitionManager(
     private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null
 ) {
 
+    private val musicAudioAttributes = AudioAttributes.Builder()
+        .setUsage(C.USAGE_MEDIA)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+        .build()
+
     companion object {
         private const val BEATMATCH_BPM_TOLERANCE = 0.06
         private const val ANIMATION_FRAME_DELAY_MS = 16L
         private const val EQ_MAX_ATTENUATION: Short = -1500
         private const val EQ_MEDIUM_ATTENUATION: Short = -800
         private const val EQ_LIGHT_ATTENUATION: Short = -400
+    }
+
+    private fun createTransitionPlayer(): ExoPlayer {
+        return ExoPlayer.Builder(context)
+            .build()
+            .apply { setAudioAttributes(musicAudioAttributes, false) }
     }
 
     @Volatile
@@ -367,7 +380,7 @@ class TransitionManager(
         Log.i("TransitionManager", "⚡️ PRE-CARGANDO siguiente canción: ${nextSong.title}")
 
         try {
-            val newPlayer = ExoPlayer.Builder(context).build()
+            val newPlayer = createTransitionPlayer()
             val mediaItem = MediaItem.fromUri(nextSong.url ?: "")
 
             // NO le damos la cola completa, solo la canción que necesita para prepararse.
@@ -460,7 +473,7 @@ class TransitionManager(
                     oldPlayer.pause()
                     // Wait gapMs then start next
                     handler.postDelayed({
-                        val newPlayer = ExoPlayer.Builder(context).build()
+                        val newPlayer = createTransitionPlayer()
                         this@TransitionManager.nextPlayer = newPlayer
                         try {
                             val queue = PlaybackStateRepository.activeQueue ?: run {
@@ -518,7 +531,7 @@ class TransitionManager(
         // Use preloaded player if available (filled by preloadNextSong), else create fresh
         val newPlayer = this.nextPlayer?.also {
             Log.d("PlaymixEngine", "✅ Usando player precargado")
-        } ?: ExoPlayer.Builder(context).build().also {
+        } ?: createTransitionPlayer().also {
             Log.d("PlaymixEngine", "⚠️ No había player precargado, creando nuevo")
         }
         this.nextPlayer = newPlayer
@@ -862,7 +875,7 @@ class TransitionManager(
         nextSongStartPositionMs: Long = 0L
     ) {
         Log.i("Crossfade", "🔄 Iniciando Crossfade Simple. Índice siguiente: $nextSongIndex")
-        val newPlayer = ExoPlayer.Builder(context).build()
+        val newPlayer = createTransitionPlayer()
         this.nextPlayer = newPlayer
 
         try {
@@ -1067,7 +1080,7 @@ class TransitionManager(
         Log.i("IntelligentCrossfade", "🚀 Preparando mezcla inteligente. Índice Siguiente: $nextSongIndex")
         Log.i("IntelligentCrossfade", "📍 Puntos: Salida=${optimalOutPoint}ms, Entrada=${optimalInPoint}ms")
 
-        val newPlayer = ExoPlayer.Builder(context).build()
+        val newPlayer = createTransitionPlayer()
         // Release any previously preloaded player before replacing it.
         // (It was prepared silently; releasing it prevents resource leaks.)
         val existingPreloaded = this.nextPlayer

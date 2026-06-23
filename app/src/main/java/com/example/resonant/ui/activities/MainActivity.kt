@@ -36,6 +36,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
@@ -63,6 +64,7 @@ import com.example.resonant.ui.fragments.CreationMenuDialog
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,6 +80,7 @@ import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListener {
 
     private val REQUEST_NOTIFICATION_PERMISSION = 123
@@ -349,11 +352,15 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.searchFragment,
             R.id.playmixListFragment,
             R.id.playmixDetailFragment,
-            R.id.crossfadeEditorFragment
+            R.id.crossfadeEditorFragment,
+            R.id.collabBubbleFragment,
+            R.id.collabDetailFragment,
+            R.id.collabPathFragment
         )
 
         val fragmentsNoToolbarNoBottomNav = setOf(
-            R.id.songFragment
+            R.id.songFragment,
+            R.id.collabSearchFragment
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
@@ -453,27 +460,19 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             
             when (item.itemId) {
                 R.id.homeFragment -> {
-                    if (navController.currentDestination?.id != R.id.homeFragment) {
-                        navController.navigate(R.id.homeFragment)
-                    }
+                    navigateToTopLevelDestination(R.id.homeFragment)
                     true
                 }
                 R.id.exploreFragment -> {
-                    if (navController.currentDestination?.id != R.id.exploreFragment) {
-                        navController.navigate(R.id.exploreFragment)
-                    }
+                    navigateToTopLevelDestination(R.id.exploreFragment)
                     true
                 }
                 R.id.savedFragment -> {
-                    if (navController.currentDestination?.id != R.id.savedFragment) {
-                        navController.navigate(R.id.savedFragment)
-                    }
+                    navigateToTopLevelDestination(R.id.savedFragment)
                     true
                 }
                 R.id.ariaFragment -> {
-                    if (navController.currentDestination?.id != R.id.ariaFragment) {
-                        navController.navigate(R.id.ariaFragment)
-                    }
+                    navigateToTopLevelDestination(R.id.ariaFragment)
                     true
                 }
                 R.id.createPlaylistFragment -> {
@@ -577,6 +576,18 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
+    private fun navigateToTopLevelDestination(destinationId: Int) {
+        if (navController.currentDestination?.id == destinationId) return
+
+        val navOptions = NavOptions.Builder()
+            .setLaunchSingleTop(true)
+            .setRestoreState(true)
+            .setPopUpTo(navController.graph.findStartDestination().id, false, true)
+            .build()
+
+        navController.navigate(destinationId, null, navOptions)
+    }
+
     private fun setupDrawerNavigation() {
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
@@ -605,17 +616,17 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val historyButton = findViewById<TextView>(R.id.historyButton)
 
         homeButton?.setOnClickListener {
-            navController.navigate(R.id.homeFragment)
+            navigateToTopLevelDestination(R.id.homeFragment)
             drawerLayout.closeDrawers()
         }
 
         exploreButton?.setOnClickListener {
-            navController.navigate(R.id.exploreFragment)
+            navigateToTopLevelDestination(R.id.exploreFragment)
             drawerLayout.closeDrawers()
         }
 
         settingsButton?.setOnClickListener {
-            navController.navigate(R.id.settingsFragment)
+            navigateToTopLevelDestination(R.id.settingsFragment)
             drawerLayout.closeDrawers()
         }
 
@@ -631,7 +642,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         savedButton?.setOnClickListener {
-            navController.navigate(R.id.savedFragment)
+            navigateToTopLevelDestination(R.id.savedFragment)
             drawerLayout.closeDrawers()
         }
 

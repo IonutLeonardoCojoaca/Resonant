@@ -1,5 +1,7 @@
 package com.example.resonant.playback
 
+import android.os.Bundle
+
 /**
  * Define un contrato para controlar el reproductor de música.
  * Permite que componentes como MediaSessionManager den órdenes
@@ -12,4 +14,5 @@ interface PlayerController {
     fun playPrevious()
     fun stop()
     fun seekTo(position: Long)
+    fun playFromSearch(query: String?, extras: Bundle?) {}
 }

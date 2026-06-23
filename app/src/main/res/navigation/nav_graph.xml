@@ -97,6 +97,13 @@
             app:exitAnim="@anim/scale_down_fade_out"
             app:popEnterAnim="@anim/scale_up_fade_in"
             app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_exploreFragment_to_collab_finder_nav"
+            app:destination="@id/collab_finder_nav"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
     </fragment>
 
     <fragment
@@ -499,5 +506,7 @@
     <action
         android:id="@+id/action_global_to_playmixDetailFragment"
         app:destination="@id/playmixDetailFragment" />
+
+    <include app:graph="@navigation/collab_finder_nav" />
 
 </navigation>

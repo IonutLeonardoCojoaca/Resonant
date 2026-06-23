@@ -8,19 +8,17 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.widget.NestedScrollView
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.R
-import com.example.resonant.data.network.ApiClient
-import com.example.resonant.data.network.services.ArtistService
-import com.example.resonant.managers.UserManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.AlbumAdapter
@@ -39,6 +37,7 @@ import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.launch
 import com.example.resonant.ui.viewmodels.DownloadViewModel
+import kotlinx.coroutines.delay
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
@@ -112,8 +111,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     private lateinit var userViewModel: UserViewModel
     private lateinit var homeViewModel: HomeViewModel
 
-    private lateinit var artistService: ArtistService
-
     private lateinit var downloadViewModel: DownloadViewModel
 
     private var scrollBehavior: ScrollHeaderBehavior? = null
@@ -126,7 +123,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         initViews(view)
         setupRecyclerViews()
 
-        artistService = ApiClient.getArtistService(requireContext())
         setupViewModels()
 
         return view
@@ -150,23 +146,44 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         )
         scrollBehavior?.attachToNestedScrollView(homeScrollView)
 
-        homeViewModel.loadSongs()
-        homeViewModel.loadArtists()
-        homeViewModel.loadAlbums()
-        homeViewModel.loadRecentArtists()
-        homeViewModel.loadRecentAlbums()
-        homeViewModel.loadTopSongs()
-        homeViewModel.loadTopArtists()
-        homeViewModel.loadTopAlbums()
-
-        homeViewModel.loadHistory()
+        view.post {
+            if (viewLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
+                loadHomeContent()
+            }
+        }
         // view.findViewById<View>(R.id.historyPrincipalContainer)?.visibility = View.GONE // Removed
 
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                songAdapter.downloadedSongIds = downloadedIds
-                historyAdapter.downloadedSongIds = downloadedIds
-                topSongAdapter.downloadedSongIds = downloadedIds
+        observeDownloadedSongIds()
+    }
+
+    private fun loadHomeContent() {
+        homeViewModel.loadHistory()
+        homeViewModel.loadArtists()
+        homeViewModel.loadAlbums()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            delay(80L)
+            homeViewModel.loadSongs()
+
+            delay(120L)
+            homeViewModel.loadRecentArtists()
+            homeViewModel.loadRecentAlbums()
+
+            delay(120L)
+            homeViewModel.loadTopSongs()
+            homeViewModel.loadTopArtists()
+            homeViewModel.loadTopAlbums()
+        }
+    }
+
+    private fun observeDownloadedSongIds() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    songAdapter.downloadedSongIds = downloadedIds
+                    historyAdapter.downloadedSongIds = downloadedIds
+                    topSongAdapter.downloadedSongIds = downloadedIds
+                }
             }
         }
     }

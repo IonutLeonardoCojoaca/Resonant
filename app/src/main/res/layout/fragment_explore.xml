@@ -1,337 +1,601 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.ExploreFragment">
 
-    <!-- ── NORMAL EXPLORE CONTENT ──────────────────────────────────── -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/exploreScrollView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:overScrollMode="never">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/superiorToolbar"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingVertical="5dp"
-            android:paddingHorizontal="14dp">
+            android:orientation="vertical"
+            android:paddingBottom="188dp">
 
-            <TextView
-                android:id="@+id/textView2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Explorar"
-                android:textColor="@color/white"
-                android:textSize="22sp"
-                android:layout_marginStart="14dp"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/userProfile"
-                app:layout_constraintTop_toTopOf="parent" />
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/superiorToolbar"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:paddingHorizontal="14dp">
 
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/userProfile"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/ic_user"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:shapeAppearanceOverlay="@style/CircularUserImage" />
-
-            <ImageView
-                android:id="@+id/searchButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="8dp"
-                android:src="@drawable/ic_search"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:tint="@color/white" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-
-        <FrameLayout
-            android:id="@+id/chartsTextContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="15dp">
-
-            <TextView
-                android:id="@+id/chartsFeatured"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Descubre la variedad de Resonant"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="start"/>
-
-        </FrameLayout>
-
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:padding="7dp">
-
-            <ImageView
-                android:id="@+id/centerCircle"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:elevation="10dp"
-                android:src="@drawable/placeholder_circle"
-                app:layout_constraintDimensionRatio="1:1"
-                app:layout_constraintWidth_percent="0.39"
-                android:layout_marginVertical="12dp"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintVertical_bias="0.45" />
-
-            <!-- Texto del género favorito — superpuesto en el centro del círculo -->
-            <LinearLayout
-                android:id="@+id/genreOverlayContainer"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:elevation="12dp"
-                android:alpha="0"
-                app:layout_constraintWidth_percent="0.38"
-                app:layout_constraintDimensionRatio="1:1"
-                app:layout_constraintTop_toTopOf="@id/centerCircle"
-                app:layout_constraintBottom_toBottomOf="@id/centerCircle"
-                app:layout_constraintStart_toStartOf="@id/centerCircle"
-                app:layout_constraintEnd_toEndOf="@id/centerCircle">
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/userProfile"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_user"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:shapeAppearanceOverlay="@style/CircularUserImage" />
 
                 <TextView
-                    android:id="@+id/tvGenreLabel"
+                    android:id="@+id/textView2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Tu género"
+                    android:layout_marginStart="12dp"
                     android:fontFamily="@font/unageo_bold"
-                    android:textColor="#80FFFFFF"
-                    android:textSize="9sp"
-                    android:letterSpacing="0.12"
-                    android:textAllCaps="true" />
-
-                <TextView
-                    android:id="@+id/tvFavoriteGenre"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="@font/unageo_bold"
+                    android:text="Explorar"
                     android:textColor="@color/white"
-                    android:textSize="13sp"
-                    android:textAlignment="center"
-                    android:maxLines="2"
-                    android:gravity="center"
-                    android:paddingHorizontal="8dp"
-                    tools:text="Pop" />
+                    android:textSize="20sp"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/userProfile"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <ImageView
+                    android:id="@+id/searchButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_search"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:tint="@color/white" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <LinearLayout
+                android:id="@+id/exploreIntro"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="12dp">
+
+                <TextView
+                    android:id="@+id/exploreHeroTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:text="Descubre sin ruido"
+                    android:textColor="@color/white"
+                    android:textSize="28sp" />
+
+                <TextView
+                    android:id="@+id/exploreHeroSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:fontFamily="@font/unageo_regular"
+                    android:lineSpacingExtra="2dp"
+                    android:text="Atajos, artistas, albumes y generos para abrir rapido."
+                    android:textColor="#A7A7A7"
+                    android:textSize="14sp" />
 
             </LinearLayout>
 
-
-            <ImageView
-                android:id="@+id/rotatingRings"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:src="@drawable/ic_rings_dashed"
-                app:layout_constraintWidth_percent="0.43"
-                app:layout_constraintVertical_bias="0.45"
-                app:layout_constraintDimensionRatio="1:1"
-                android:alpha="0.8"
-                android:elevation="11dp"
-                app:layout_constraintTop_toTopOf="@id/centerCircle"
-                app:layout_constraintBottom_toBottomOf="@id/centerCircle"
-                app:layout_constraintStart_toStartOf="@id/centerCircle"
-                app:layout_constraintEnd_toEndOf="@id/centerCircle"/>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnArtistas"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="-22dp"
-                android:layout_marginBottom="7dp"
-                android:paddingStart="10dp"
-                android:textAlignment="center"
-                android:background="@drawable/bg_button_ripple_top_left"
-                android:elevation="5dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Artistas"
-                android:textColor="@color/white"
-                android:textSize="12sp"
-                app:backgroundTint="@null"
-                app:iconTint="@color/white"
-                app:layout_constraintBottom_toTopOf="@+id/btnGeneros"
-                app:layout_constraintEnd_toStartOf="@id/centerCircle"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintVertical_chainStyle="spread"
-                app:layout_constraintVertical_weight="1" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnGeneros"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:background="@drawable/bg_button_ripple_middle_left"
-                app:backgroundTint="@null"
-                android:padding="0dp"
-                android:text="Géneros"
-                android:elevation="5dp"
-                android:textAlignment="center"
-                android:textColor="@color/white"
-                android:fontFamily="@font/unageo_bold"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="6dp"
-                android:layout_marginBottom="7dp"
-                app:layout_constraintVertical_weight="1"
-                android:textSize="12sp"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toStartOf="@+id/centerCircle"
-                app:layout_constraintTop_toBottomOf="@+id/btnArtistas"
-                app:layout_constraintBottom_toTopOf="@+id/btnPopulares" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnPopulares"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="-22dp"
-                android:paddingStart="10dp"
-                android:background="@drawable/bg_button_ripple_bottom_left"
-                android:elevation="5dp"
-                android:textAlignment="center"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Éxitos"
-                android:textColor="@color/white"
-                android:textSize="12sp"
-                app:backgroundTint="@null"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toStartOf="@id/centerCircle"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/btnGeneros"
-                app:layout_constraintVertical_weight="1" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAlbumes"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_marginStart="-22dp"
-                android:layout_marginEnd="10dp"
-                android:layout_marginBottom="7dp"
-                android:paddingEnd="10dp"
-                android:background="@drawable/bg_button_ripple_top_right"
-                android:elevation="5dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Álbumes"
-                android:textAlignment="center"
-                android:textColor="@color/white"
-                android:textSize="12sp"
-                app:backgroundTint="@null"
-                app:layout_constraintBottom_toTopOf="@+id/btnPlaylists"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@id/centerCircle"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintVertical_chainStyle="spread"
-                app:layout_constraintVertical_weight="1" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnPlaylists"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:background="@drawable/bg_button_ripple_middle_right"
-                app:backgroundTint="@null"
-                android:text="Playlists"
-                android:elevation="5dp"
-                android:padding="0dp"
-                android:textAlignment="center"
-                android:textColor="@color/white"
-                android:fontFamily="@font/unageo_bold"
-                android:layout_marginEnd="10dp"
-                android:layout_marginStart="6dp"
-                android:layout_marginBottom="7dp"
-                app:layout_constraintVertical_weight="1"
-                android:textSize="12sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/centerCircle"
-                app:layout_constraintTop_toBottomOf="@+id/btnAlbumes"
-                app:layout_constraintBottom_toTopOf="@+id/btnTrending" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnTrending"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_marginStart="-22dp"
-                android:layout_marginEnd="10dp"
-                android:paddingEnd="10dp"
-                android:background="@drawable/bg_button_ripple_bottom_right"
-                android:elevation="5dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Tendencias"
-                android:textColor="@color/white"
-                android:textSize="12sp"
-                android:textAlignment="center"
-                app:backgroundTint="@null"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@id/centerCircle"
-                app:layout_constraintTop_toBottomOf="@+id/btnPlaylists"
-                app:layout_constraintVertical_weight="1" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-
-        <FrameLayout
-            android:id="@+id/genreTextContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="15dp">
-
-            <TextView
-                android:id="@+id/genreFeatured"
-                android:layout_width="wrap_content"
+            <HorizontalScrollView
+                android:id="@+id/quickActionsScroll"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Géneros más populares"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="start"/>
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:paddingBottom="6dp"
+                android:scrollbars="none">
 
-        </FrameLayout>
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/quickActionsGroup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="15dp"
+                    android:theme="@style/Theme.MaterialComponents.Light"
+                    app:chipSpacingHorizontal="6dp"
+                    app:selectionRequired="true"
+                    app:singleSelection="true"
+                    app:singleLine="true">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerViewGenres"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:nestedScrollingEnabled="false"
-            android:paddingBottom="220dp"
-            android:clipToPadding="false"
-            android:paddingHorizontal="8dp"
-            android:scrollbars="vertical" />
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/btnArtistas"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:checkable="true"
+                        android:text="Artistas"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        app:checkedIconVisible="false"
+                        app:chipBackgroundColor="@color/chip_background_selector"
+                        app:chipCornerRadius="35dp"
+                        app:chipStrokeColor="@android:color/transparent"
+                        app:fontFamily="@font/unageo_medium"
+                        app:rippleColor="@android:color/transparent"
+                        app:useMaterialThemeColors="false" />
 
-    </LinearLayout>
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/btnAlbumes"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:checkable="true"
+                        android:text="Albumes"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        app:checkedIconVisible="false"
+                        app:chipBackgroundColor="@color/chip_background_selector"
+                        app:chipCornerRadius="35dp"
+                        app:chipStrokeColor="@android:color/transparent"
+                        app:fontFamily="@font/unageo_medium"
+                        app:rippleColor="@android:color/transparent"
+                        app:useMaterialThemeColors="false" />
 
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/btnPopulares"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:checkable="true"
+                        android:text="Top diario"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        app:checkedIconVisible="false"
+                        app:chipBackgroundColor="@color/chip_background_selector"
+                        app:chipCornerRadius="35dp"
+                        app:chipStrokeColor="@android:color/transparent"
+                        app:fontFamily="@font/unageo_medium"
+                        app:rippleColor="@android:color/transparent"
+                        app:useMaterialThemeColors="false" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/btnTrending"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:checkable="true"
+                        android:text="Tendencias"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        app:checkedIconVisible="false"
+                        app:chipBackgroundColor="@color/chip_background_selector"
+                        app:chipCornerRadius="35dp"
+                        app:chipStrokeColor="@android:color/transparent"
+                        app:fontFamily="@font/unageo_medium"
+                        app:rippleColor="@android:color/transparent"
+                        app:useMaterialThemeColors="false" />
+
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/collabFinderSection"
+                android:layout_width="match_parent"
+                android:layout_height="260dp"
+                android:layout_marginHorizontal="18dp"
+                android:layout_marginTop="16dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:cardBackgroundColor="@color/transparent"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_explore_collab_card"
+                    android:padding="18dp">
+
+                    <TextView
+                        android:id="@+id/collabEyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="24dp"
+                        android:background="@drawable/bg_explore_badge"
+                        android:fontFamily="@font/unageo_bold"
+                        android:gravity="center"
+                        android:letterSpacing="0.06"
+                        android:paddingHorizontal="9dp"
+                        android:text="COLLAB FINDER"
+                        android:textColor="#D8D8D8"
+                        android:textSize="9sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:id="@+id/collabVisualPanel"
+                        android:layout_width="132dp"
+                        android:layout_height="150dp"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="parent">
+
+                        <FrameLayout
+                            android:id="@+id/collabPrimaryArtistFrame"
+                            android:layout_width="78dp"
+                            android:layout_height="78dp"
+                            android:background="@drawable/bg_explore_collab_avatar_ring"
+                            android:elevation="4dp"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent">
+
+                            <com.google.android.material.imageview.ShapeableImageView
+                                android:id="@+id/collabPrimaryArtistImage"
+                                android:layout_width="70dp"
+                                android:layout_height="70dp"
+                                android:layout_gravity="center"
+                                android:background="#242424"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_user"
+                                app:shapeAppearanceOverlay="@style/CircularUserImage"
+                                tools:src="@drawable/ic_user" />
+
+                        </FrameLayout>
+
+                        <FrameLayout
+                            android:id="@+id/collabSecondaryArtistFrame"
+                            android:layout_width="74dp"
+                            android:layout_height="74dp"
+                            android:background="@drawable/bg_explore_collab_avatar_ring"
+                            android:elevation="5dp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toTopOf="@id/collabPrimaryArtistFrame"
+                            app:layout_constraintVertical_bias="0.55"
+                            app:layout_constraintBottom_toBottomOf="@id/collabPrimaryArtistFrame">
+
+                            <com.google.android.material.imageview.ShapeableImageView
+                                android:id="@+id/collabSecondaryArtistImage"
+                                android:layout_width="66dp"
+                                android:layout_height="66dp"
+                                android:layout_gravity="center"
+                                android:background="#242424"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_user"
+                                app:shapeAppearanceOverlay="@style/CircularUserImage"
+                                tools:src="@drawable/ic_user" />
+
+                        </FrameLayout>
+
+                        <TextView
+                            android:id="@+id/collabPlus"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:background="@drawable/bg_explore_collab_plus"
+                            android:elevation="6dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:gravity="center"
+                            android:text="+"
+                            android:textColor="@color/white"
+                            android:textSize="17sp"
+                            app:layout_constraintBottom_toBottomOf="@id/collabPrimaryArtistFrame"
+                            app:layout_constraintEnd_toEndOf="@id/collabPrimaryArtistFrame"
+                            app:layout_constraintStart_toStartOf="@id/collabSecondaryArtistFrame"
+                            app:layout_constraintTop_toTopOf="@id/collabSecondaryArtistFrame" />
+
+                        <TextView
+                            android:id="@+id/collabPrimaryArtistName"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/unageo_bold"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:text="Tu artista top"
+                            android:textColor="@color/white"
+                            android:textSize="12sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@id/collabPrimaryArtistFrame" />
+
+                        <TextView
+                            android:id="@+id/collabSecondaryArtistName"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/unageo_medium"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:text="Segundo artista"
+                            android:textColor="#B8B8B8"
+                            android:textSize="11sp"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toBottomOf="@id/collabPrimaryArtistName" />
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    <TextView
+                        android:id="@+id/collabTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginEnd="16dp"
+                        android:fontFamily="@font/unageo_bold"
+                        android:includeFontPadding="false"
+                        android:lineSpacingExtra="1dp"
+                        android:maxLines="2"
+                        android:text="Encuentra conexiones"
+                        android:textColor="@color/white"
+                        android:textSize="21sp"
+                        app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/collabEyebrow" />
+
+                    <TextView
+                        android:id="@+id/collabSubtitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginEnd="16dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:lineSpacingExtra="2dp"
+                        android:maxLines="2"
+                        android:text="Cruza tus artistas top y descubre colaboraciones que ya existen."
+                        android:textColor="#B8B8B8"
+                        android:textSize="13sp"
+                        app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/collabTitle" />
+
+                    <TextView
+                        android:id="@+id/collabPairMeta"
+                        android:layout_width="0dp"
+                        android:layout_height="28dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginEnd="16dp"
+                        android:background="@drawable/bg_explore_collab_metric"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center_vertical"
+                        android:maxLines="1"
+                        android:paddingHorizontal="10dp"
+                        android:text="Basado en tus escuchas"
+                        android:textColor="#D6D6D6"
+                        android:textSize="11sp"
+                        app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/collabSubtitle" />
+
+                    <TextView
+                        android:id="@+id/collabFinderButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="14dp"
+                        android:background="@drawable/bg_explore_collab_button"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_bold"
+                        android:gravity="center"
+                        android:minWidth="164dp"
+                        android:paddingHorizontal="16dp"
+                        android:text="Abrir buscador"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/collabPairMeta" />
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:id="@+id/playlistsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:orientation="vertical">
+
+                <include
+                    android:id="@+id/playlistsHeader"
+                    layout="@layout/view_explore_section_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/playlistsSectionSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="-2dp"
+                    android:fontFamily="@font/unageo_regular"
+                    android:paddingHorizontal="18dp"
+                    android:text="Seleccionadas para descubrir musica nueva sin salir de Explorar."
+                    android:textColor="#8E8E8E"
+                    android:textSize="13sp" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:minHeight="372dp">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewPlaylists"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
+                        android:paddingHorizontal="13dp"
+                        android:scrollbars="none"
+                        tools:itemCount="7"
+                        tools:listitem="@layout/item_explore_playlist" />
+
+                    <TextView
+                        android:id="@+id/playlistsPlaceholder"
+                        android:layout_width="match_parent"
+                        android:layout_height="180dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="18dp"
+                        android:text="Cargando playlists..."
+                        android:textColor="#707070"
+                        android:textSize="14sp" />
+
+                </FrameLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/artistsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical">
+
+                <include
+                    android:id="@+id/artistsHeader"
+                    layout="@layout/view_explore_section_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="194dp">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewArtists"
+                        android:layout_width="match_parent"
+                        android:layout_height="194dp"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
+                        android:paddingStart="13dp"
+                        android:paddingEnd="18dp"
+                        android:scrollbars="none"
+                        tools:itemCount="6"
+                        tools:listitem="@layout/item_explore_artist" />
+
+                    <TextView
+                        android:id="@+id/artistsPlaceholder"
+                        android:layout_width="match_parent"
+                        android:layout_height="184dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="18dp"
+                        android:text="Cargando artistas..."
+                        android:textColor="#707070"
+                        android:textSize="14sp" />
+
+                </FrameLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/albumsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical">
+
+                <include
+                    android:id="@+id/albumsHeader"
+                    layout="@layout/view_explore_section_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="142dp">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewAlbums"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
+                        android:paddingHorizontal="8dp"
+                        android:scrollbars="none"
+                        tools:itemCount="6"
+                        tools:listitem="@layout/item_explore_album" />
+
+                    <TextView
+                        android:id="@+id/albumsPlaceholder"
+                        android:layout_width="match_parent"
+                        android:layout_height="132dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="18dp"
+                        android:text="Cargando albumes..."
+                        android:textColor="#707070"
+                        android:textSize="14sp" />
+
+                </FrameLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/genresSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:orientation="vertical">
+
+                <include
+                    android:id="@+id/genresHeader"
+                    layout="@layout/view_explore_section_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="142dp">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewGenres"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
+                        android:paddingHorizontal="8dp"
+                        android:scrollbars="none"
+                        tools:itemCount="8"
+                        tools:listitem="@layout/item_genre" />
+
+                    <TextView
+                        android:id="@+id/genresPlaceholder"
+                        android:layout_width="match_parent"
+                        android:layout_height="132dp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="18dp"
+                        android:text="Cargando generos..."
+                        android:textColor="#707070"
+                        android:textSize="14sp" />
+
+                </FrameLayout>
+            </LinearLayout>
+
+        </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Floating search header — always rendered on top -->
     <include
         layout="@layout/view_search_header"
         android:layout_width="match_parent"
-        android:layout_height="56dp"/>
+        android:layout_height="56dp" />
 
 </FrameLayout>

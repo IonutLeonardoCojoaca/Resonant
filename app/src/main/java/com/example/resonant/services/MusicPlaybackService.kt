@@ -1,17 +1,26 @@
 package com.example.resonant.services
 
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.AudioAttributes as AndroidAudioAttributes
 import android.net.Uri
 import android.os.Binder
+import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.media.session.MediaButtonReceiver
+import androidx.media3.common.AudioAttributes as ExoAudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -72,6 +81,7 @@ class MusicPlaybackService : Service(), PlayerController {
         const val EXTRA_SONG_ID = "com.resonant.EXTRA_SONG_ID"
         const val ACTION_TOGGLE_SHUFFLE = "com.resonant.ACTION_TOGGLE_SHUFFLE"
         const val ACTION_TOGGLE_REPEAT = "com.resonant.ACTION_TOGGLE_REPEAT"
+        private const val AUDIO_DUCK_VOLUME_MULTIPLIER = 0.2f
     }
 
     inner class MusicServiceBinder : Binder() {
@@ -86,9 +96,15 @@ class MusicPlaybackService : Service(), PlayerController {
     private lateinit var notificationManager: AppNotificationManager
     private lateinit var mediaSessionManager: MediaSessionManager
     private lateinit var transitionManager: TransitionManager
+    private lateinit var audioManager: AudioManager
+    private lateinit var audioFocusRequest: AudioFocusRequest
 
     private var exoPlayer: ExoPlayer? = null
     private lateinit var playerListener: Player.Listener
+    private var hasAudioFocus: Boolean = false
+    private var resumeOnAudioFocusGain: Boolean = false
+    private var duckedByAudioFocus: Boolean = false
+    private var noisyReceiverRegistered: Boolean = false
     private var automixEnabled: Boolean = false
     private var crossfadeDurationMs: Long = 5000L
     private var crossfadeMode: CrossfadeMode = CrossfadeMode.SOFT_MIX
@@ -109,6 +125,60 @@ class MusicPlaybackService : Service(), PlayerController {
     private var playmixTransitions: Map<String, PlaymixTransitionDTO> = emptyMap()
     private var playmixSongIdMap: Map<String, String> = emptyMap() // songId -> playmixSongId
     private var pendingStartPositionMs: Long = 0L
+
+    private val exoAudioAttributes = ExoAudioAttributes.Builder()
+        .setUsage(C.USAGE_MEDIA)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+        .build()
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                Log.d("AudioFocus", "Foco recuperado")
+                hasAudioFocus = true
+                if (duckedByAudioFocus) {
+                    duckedByAudioFocus = false
+                    applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+                }
+                if (resumeOnAudioFocusGain) {
+                    resumeOnAudioFocusGain = false
+                    exoPlayer?.play()
+                }
+            }
+
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                Log.d("AudioFocus", "Foco perdido permanentemente")
+                resumeOnAudioFocusGain = false
+                duckedByAudioFocus = false
+                pauseForAudioFocus(shouldResume = false)
+                abandonAudioFocus()
+            }
+
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                Log.d("AudioFocus", "Foco perdido temporalmente")
+                duckedByAudioFocus = false
+                pauseForAudioFocus(shouldResume = exoPlayer?.isPlaying == true)
+            }
+
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                Log.d("AudioFocus", "Foco perdido con ducking")
+                if (exoPlayer?.isPlaying == true) {
+                    duckedByAudioFocus = true
+                    applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+                }
+            }
+        }
+    }
+
+    private val becomingNoisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                Log.d("AudioFocus", "Salida de audio desconectada. Pausando reproducción.")
+                resumeOnAudioFocusGain = false
+                pause()
+            }
+        }
+    }
 
     private val seekBarHandler = Handler(Looper.getMainLooper())
     private val updateSeekBarRunnable = object : Runnable {
@@ -157,8 +227,59 @@ class MusicPlaybackService : Service(), PlayerController {
         seekBarHandler.removeCallbacks(updateSeekBarRunnable)
     }
 
-    override fun resume() { exoPlayer?.play() }
+    private fun requestAudioFocus(): Boolean {
+        val result = audioManager.requestAudioFocus(audioFocusRequest)
+        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        if (!hasAudioFocus) {
+            Log.w("AudioFocus", "No se pudo obtener foco de audio. Reproducción bloqueada.")
+        }
+        return hasAudioFocus
+    }
+
+    private fun abandonAudioFocus() {
+        if (!::audioManager.isInitialized || !::audioFocusRequest.isInitialized) return
+        audioManager.abandonAudioFocusRequest(audioFocusRequest)
+        hasAudioFocus = false
+        resumeOnAudioFocusGain = false
+        duckedByAudioFocus = false
+    }
+
+    private fun pauseForAudioFocus(shouldResume: Boolean) {
+        resumeOnAudioFocusGain = shouldResume
+        if (transitionManager.isTransitioning) {
+            transitionManager.forceCompleteTransition()
+        }
+        exoPlayer?.pause()
+    }
+
+    private fun registerBecomingNoisyReceiver() {
+        if (noisyReceiverRegistered) return
+        registerReceiver(
+            becomingNoisyReceiver,
+            IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+        noisyReceiverRegistered = true
+    }
+
+    private fun unregisterBecomingNoisyReceiver() {
+        if (!noisyReceiverRegistered) return
+        try {
+            unregisterReceiver(becomingNoisyReceiver)
+        } catch (e: IllegalArgumentException) {
+            Log.w("AudioFocus", "Receiver de audio ya estaba desregistrado.", e)
+        } finally {
+            noisyReceiverRegistered = false
+        }
+    }
+
+    override fun resume() {
+        if (!requestAudioFocus()) return
+        registerBecomingNoisyReceiver()
+        exoPlayer?.play()
+    }
     override fun pause() {
+        resumeOnAudioFocusGain = false
         if (transitionManager.isTransitioning) {
             Log.w("MusicService", "PAUSA durante transición. Forzando completado para pausar la nueva canción.")
 
@@ -176,6 +297,8 @@ class MusicPlaybackService : Service(), PlayerController {
             // No hay transición, solo pausar normalmente
             exoPlayer?.pause()
         }
+        unregisterBecomingNoisyReceiver()
+        abandonAudioFocus()
     }
     override fun playNext() {
         reportCurrentSongFinished(wasSkipped = true)
@@ -220,6 +343,8 @@ class MusicPlaybackService : Service(), PlayerController {
         if (transitionManager.isTransitioning) {
             transitionManager.cancelCurrentTransition()
         }
+        unregisterBecomingNoisyReceiver()
+        abandonAudioFocus()
         stopForeground(true)
         stopSelf()
     }
@@ -245,23 +370,66 @@ class MusicPlaybackService : Service(), PlayerController {
         player.seekTo(position)
     }
 
+    override fun playFromSearch(query: String?, extras: Bundle?) {
+        reportCurrentSongFinished(wasSkipped = true)
+        if (transitionManager.isTransitioning) {
+            transitionManager.cancelCurrentTransition()
+        }
+
+        serviceScope.launch(Dispatchers.Main) {
+            val songs = withContext(Dispatchers.IO) {
+                val manager = SongManager(applicationContext)
+                val resolvedQuery = query?.takeIf { it.isNotBlank() }
+
+                runCatching {
+                    if (resolvedQuery == null) {
+                        manager.getPlaybackHistory(20).ifEmpty { manager.getTrendingSongs(20) }
+                    } else {
+                        manager.searchSongs(resolvedQuery, 20).results
+                    }
+                }.onFailure {
+                    Log.e("MusicService", "Error en busqueda por voz: $query", it)
+                }.getOrDefault(emptyList())
+            }
+
+            if (songs.isEmpty()) {
+                Log.w("MusicService", "Busqueda por voz sin resultados: $query")
+                return@launch
+            }
+
+            playmixTransitions = emptyMap()
+            playmixSongIdMap = emptyMap()
+            pendingStartPositionMs = 0L
+            PlaybackStateRepository.activeQueue = PlaybackQueue(
+                songs = songs,
+                currentIndex = 0,
+                sourceId = query?.takeIf { it.isNotBlank() }?.let { "voice:$it" } ?: "voice_default",
+                sourceType = QueueSource.SEARCH
+            )
+            PlaybackStateRepository.setIsShuffleEnabled(false)
+            originalQueueSongs = null
+            playSongFromQueue()
+        }
+    }
+
 
     override fun onBind(intent: Intent?): IBinder? {
         return binder
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("MusicService", "Action received: ${intent?.action}")
-        val action = intent?.action
+        val incomingIntent = intent ?: return START_STICKY
+        val action = incomingIntent.action
 
         // Manejo del botón multimedia de Android
         if (action == Intent.ACTION_MEDIA_BUTTON) {
-            intent.let { MediaButtonReceiver.handleIntent(mediaSessionManager.mediaSession, it) }
+            MediaButtonReceiver.handleIntent(mediaSessionManager.mediaSession, incomingIntent)
             return START_STICKY
         }
 
         // Manejo de nuestras acciones personalizadas
-        if (action != null && intent != null) {
-            handleAction(action, intent)
+        if (action != null) {
+            handleAction(action, incomingIntent)
         }
 
         return START_STICKY
@@ -271,6 +439,17 @@ class MusicPlaybackService : Service(), PlayerController {
 
         settingsManager = SettingsManager(applicationContext)
         observeSettings() // <-- Movido aquí
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AndroidAudioAttributes.Builder()
+                    .setUsage(AndroidAudioAttributes.USAGE_MEDIA)
+                    .setContentType(AndroidAudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener(audioFocusChangeListener, Handler(Looper.getMainLooper()))
+            .build()
 
         mediaSessionManager = MediaSessionManager(this, this)
         notificationManager = AppNotificationManager(this, mediaSessionManager.sessionToken)
@@ -299,6 +478,8 @@ class MusicPlaybackService : Service(), PlayerController {
         PlaybackStateRepository.reset()
         exoPlayer?.release()
         exoPlayer = null
+        unregisterBecomingNoisyReceiver()
+        abandonAudioFocus()
         mediaSessionManager.release()
         serviceScope.cancel()
     }
@@ -387,8 +568,10 @@ class MusicPlaybackService : Service(), PlayerController {
                 PlaybackStateRepository.setIsPlaying(isPlayingUpdate)
                 updateUiAndSystem()
                 if (isPlayingUpdate) {
+                    registerBecomingNoisyReceiver()
                     startSeekBarUpdates()
                 } else {
+                    unregisterBecomingNoisyReceiver()
                     stopSeekBarUpdates()
                 }
             }
@@ -492,6 +675,7 @@ class MusicPlaybackService : Service(), PlayerController {
     private fun createExoPlayer(): ExoPlayer {
         return ExoPlayer.Builder(this)
             .build().apply {
+                setAudioAttributes(exoAudioAttributes, false)
                 addListener(playerListener)
                 val initialMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
                 repeatMode = when (initialMode) {
@@ -553,6 +737,8 @@ class MusicPlaybackService : Service(), PlayerController {
 
                         player.setMediaItem(mediaItem)
                         player.prepare()
+                        if (!requestAudioFocus()) return@withContext
+                        registerBecomingNoisyReceiver()
                         player.play()
 
                         retryCount = 0 // Reset on success
@@ -808,6 +994,8 @@ class MusicPlaybackService : Service(), PlayerController {
             pendingStartPositionMs = 0L
             player.setMediaItems(validItems.map { it.second }, adjustedStartIndex, startPos)
             player.prepare()
+            if (!requestAudioFocus()) return@launch
+            registerBecomingNoisyReceiver()
             player.play()
             applyLoudnessNormalization(songToPlay)
             Log.d("MusicPlaybackService", "\u25B6\uFE0F Playback started for '${songToPlay.title}' (${validItems.size} valid items in ExoPlayer)")
@@ -841,6 +1029,8 @@ class MusicPlaybackService : Service(), PlayerController {
              val items = queue.songs.map { createMediaItem(it) }
              player.setMediaItems(items, queue.currentIndex, 0L)
              player.prepare()
+             if (!requestAudioFocus()) return
+             registerBecomingNoisyReceiver()
              player.play()
              return
         }
@@ -856,6 +1046,8 @@ class MusicPlaybackService : Service(), PlayerController {
              val items = newSongs.map { createMediaItem(it) }
              player.setMediaItems(items, 0, 0L)
              player.prepare()
+             if (!requestAudioFocus()) return
+             registerBecomingNoisyReceiver()
              player.play()
              return
         }
@@ -1258,14 +1450,19 @@ class MusicPlaybackService : Service(), PlayerController {
         return Math.pow(10.0, (gainDb / 20.0)).toFloat().coerceIn(0.05f, 1.0f)
     }
 
+    private fun getEffectivePlaybackVolume(song: Song?): Float {
+        val focusMultiplier = if (duckedByAudioFocus) AUDIO_DUCK_VOLUME_MULTIPLIER else 1.0f
+        return (getNormalizedVolume(song) * focusMultiplier).coerceIn(0.0f, 1.0f)
+    }
+
     /**
      * Aplica el volumen normalizado a ExoPlayer.
      */
     private fun applyLoudnessNormalization(song: Song?) {
         val player = exoPlayer ?: return
-        val linearVolume = getNormalizedVolume(song)
+        val linearVolume = getEffectivePlaybackVolume(song)
         player.volume = linearVolume
-        Log.d("Loudness", "Aplicando volumen absoluto normalizado para '${song?.title}': $linearVolume")
+        Log.d("Loudness", "Aplicando volumen efectivo para '${song?.title}': $linearVolume")
     }
 
     private fun preloadNextSongMetadata(index: Int) {
@@ -1416,8 +1613,8 @@ class MusicPlaybackService : Service(), PlayerController {
                 nextSong = nextSong,
                 nextSongIndex = nextIndex,
                 transition = playmixTransition,
-                oldSongTargetVolume = getNormalizedVolume(oldSong),
-                nextSongTargetVolume = getNormalizedVolume(nextSong)
+                oldSongTargetVolume = getEffectivePlaybackVolume(oldSong),
+                nextSongTargetVolume = getEffectivePlaybackVolume(nextSong)
             )
         } else {
             transitionManager.startTransition(
@@ -1429,8 +1626,8 @@ class MusicPlaybackService : Service(), PlayerController {
                 isAlbumMode = queue.sourceType == QueueSource.ALBUM,
                 automixEnabled = automixEnabled,
                 crossfadeDurationMs = crossfadeDurationMs,
-                oldSongTargetVolume = getNormalizedVolume(oldSong),
-                nextSongTargetVolume = getNormalizedVolume(nextSong),
+                oldSongTargetVolume = getEffectivePlaybackVolume(oldSong),
+                nextSongTargetVolume = getEffectivePlaybackVolume(nextSong),
                 nextSongStartPositionMs = 0L
             )
         }

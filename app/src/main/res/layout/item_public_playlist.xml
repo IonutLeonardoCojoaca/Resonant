@@ -1,119 +1,115 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/cardPlaylist"
-    android:layout_width="160dp"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="5dp"
-    android:layout_marginVertical="4dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="4dp"
-    android:foreground="?attr/selectableItemBackground"
+    android:layout_width="match_parent"
+    android:layout_height="206dp"
+    android:layout_margin="5dp"
     android:clickable="true"
     android:focusable="true"
-    app:rippleColor="@color/ripple_white"
-    app:cardBackgroundColor="@android:color/transparent">
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/transparent"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp"
+    app:strokeColor="#1EFFFFFF"
+    app:strokeWidth="1dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#1E1E1E">
+        android:background="@drawable/bg_public_playlist_card">
 
-        <!-- Cover image square -->
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/ivPlaylistCover"
             android:layout_width="0dp"
             android:layout_height="0dp"
+            android:background="#242424"
             android:scaleType="centerCrop"
-            android:background="#252525"
             app:layout_constraintDimensionRatio="1:1"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:shapeAppearanceOverlay="@style/RoundedCornersImage"
+            tools:src="@drawable/ic_playlist_stack" />
 
-        <!-- Gradient overlay at bottom of image -->
         <View
             android:layout_width="0dp"
-            android:layout_height="80dp"
-            android:background="@drawable/bg_gradient_artist"
+            android:layout_height="76dp"
+            android:background="@drawable/bg_public_playlist_cover_scrim"
             app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            app:layout_constraintEnd_toEndOf="@id/ivPlaylistCover"
+            app:layout_constraintStart_toStartOf="@id/ivPlaylistCover" />
 
-        <!-- Track count badge bottom-left of image -->
         <TextView
             android:id="@+id/tvTracksCount"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:text="0"
-            android:textColor="@color/white"
+            android:layout_height="24dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="10dp"
+            android:ellipsize="end"
             android:fontFamily="@font/unageo_black"
-            android:textAllCaps="true"
+            android:gravity="center_vertical"
             android:letterSpacing="0.04"
-            android:textSize="9sp"
+            android:maxLines="1"
             android:shadowColor="#99000000"
             android:shadowDx="0"
             android:shadowDy="1"
             android:shadowRadius="3"
-            android:layout_marginBottom="7dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="4dp"
+            android:text="30 canciones"
+            android:textAllCaps="true"
+            android:textColor="@color/white"
+            android:textSize="9sp"
             app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/ivPublicBadge" />
+            app:layout_constraintEnd_toStartOf="@+id/ivPublicBadge"
+            app:layout_constraintStart_toStartOf="@id/ivPlaylistCover" />
 
-        <!-- Sound icon badge bottom-right of image -->
         <ImageView
             android:id="@+id/ivPublicBadge"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:src="@drawable/ic_sound"
-            app:tint="#BBFFFFFF"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="7dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginBottom="12dp"
             android:alpha="0.9"
+            android:src="@drawable/ic_sound"
             app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintEnd_toEndOf="parent" />
+            app:layout_constraintEnd_toEndOf="@id/ivPlaylistCover"
+            app:tint="#D6FFFFFF" />
 
-        <!-- Playlist title -->
         <TextView
             android:id="@+id/tvPlaylistName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginHorizontal="8dp"
-            android:layout_marginBottom="2dp"
-            android:text=""
-            android:textColor="@color/white"
-            android:fontFamily="@font/unageo_bold"
-            android:textSize="12sp"
-            android:maxLines="2"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="10dp"
             android:ellipsize="end"
-            app:layout_constraintTop_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintStart_toStartOf="parent"
+            android:fontFamily="@font/unageo_bold"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:textColor="@color/white"
+            android:textSize="13sp"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/tvOwnerName" />
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/ivPlaylistCover"
+            tools:text="2000s Gold" />
 
-        <!-- Owner name — visible, shown below title -->
         <TextView
             android:id="@+id/tvOwnerName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="8dp"
-            android:layout_marginBottom="8dp"
-            android:text=""
-            android:textColor="#99FFFFFF"
-            android:fontFamily="@font/unageo_medium"
-            android:textSize="10sp"
-            android:maxLines="1"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="3dp"
             android:ellipsize="end"
-            app:layout_constraintTop_toBottomOf="@id/tvPlaylistName"
-            app:layout_constraintStart_toStartOf="parent"
+            android:fontFamily="@font/unageo_medium"
+            android:maxLines="1"
+            android:textColor="#94FFFFFF"
+            android:textSize="11sp"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvPlaylistName"
+            tools:text="Por Resonant" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

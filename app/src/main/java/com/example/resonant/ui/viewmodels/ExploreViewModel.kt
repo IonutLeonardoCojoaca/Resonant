@@ -9,59 +9,61 @@ import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Genre
-import com.example.resonant.data.network.ApiClient
-import com.example.resonant.data.network.services.UserService
+import com.example.resonant.data.models.Playlist
 import com.example.resonant.managers.AlbumManager
 import com.example.resonant.managers.ArtistManager
 import com.example.resonant.managers.GenreManager
+import com.example.resonant.managers.PlaylistManager
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 class ExploreViewModel(application: Application) : AndroidViewModel(application) {
 
     private val genreManager = GenreManager(application)
-    private val userService: UserService = ApiClient.getUserService(application)
+    private val playlistManager = PlaylistManager(application)
 
-    // LiveData para la lista de géneros
     private val _genres = MutableLiveData<List<Genre>>()
     val genres: LiveData<List<Genre>> get() = _genres
 
-    // LiveData para estado de carga
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> get() = _isLoading
 
-    // LiveData para errores
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> get() = _error
-
-    // Género favorito del usuario (nombre para mostrar en el círculo central)
-    private val _favoriteGenreName = MutableLiveData<String?>()
-    val favoriteGenreName: LiveData<String?> get() = _favoriteGenreName
-
-    // Colores de gradiente del género favorito
-    private val _favoriteGenreColors = MutableLiveData<String?>()
-    val favoriteGenreColors: LiveData<String?> get() = _favoriteGenreColors
 
     private val _recentArtists = MutableLiveData<List<Artist>>()
     val recentArtists: LiveData<List<Artist>> get() = _recentArtists
     private val _recentArtistsLoading = MutableLiveData<Boolean>()
     val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
 
+    private val _mostListenedArtists = MutableLiveData<List<Artist>>()
+    val mostListenedArtists: LiveData<List<Artist>> get() = _mostListenedArtists
+    private val _mostListenedArtistsLoading = MutableLiveData<Boolean>()
+    val mostListenedArtistsLoading: LiveData<Boolean> get() = _mostListenedArtistsLoading
+
     private val _newReleaseAlbums = MutableLiveData<List<Album>>()
     val newReleaseAlbums: LiveData<List<Album>> get() = _newReleaseAlbums
     private val _newReleaseAlbumsLoading = MutableLiveData<Boolean>()
     val newReleaseAlbumsLoading: LiveData<Boolean> get() = _newReleaseAlbumsLoading
 
+    private val _publicPlaylists = MutableLiveData<List<Playlist>>()
+    val publicPlaylists: LiveData<List<Playlist>> get() = _publicPlaylists
+    private val _publicPlaylistsLoading = MutableLiveData<Boolean>()
+    val publicPlaylistsLoading: LiveData<Boolean> get() = _publicPlaylistsLoading
+
     fun loadPopularGenres() {
+        if (_genres.value != null) return
         _isLoading.value = true
         _error.value = null
 
         viewModelScope.launch {
             try {
-                val result = genreManager.getPopularGenres(count = 20)
+                val result = genreManager.getPopularGenres(count = 32)
                 _genres.value = result
-                Log.i("ExploreVM", "Géneros cargados: ${result.size}")
+                Log.i("ExploreVM", "Generos cargados: ${result.size}")
             } catch (e: Exception) {
-                _error.value = "Error al cargar géneros: ${e.message}"
+                _error.value = "Error al cargar generos: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
@@ -74,12 +76,63 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             try {
-                val result = genreManager.getPopularGenres(count = 100)
-                _genres.value = result
+                _genres.value = genreManager.getPopularGenres(count = 100)
             } catch (e: Exception) {
-                _error.value = "Error al cargar géneros: ${e.message}"
+                _error.value = "Error al cargar generos: ${e.message}"
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadPublicPlaylists() {
+        if (_publicPlaylists.value != null) return
+        _publicPlaylistsLoading.value = true
+        _error.value = null
+
+        viewModelScope.launch {
+            try {
+                val playlists = playlistManager.getAllPublicPlaylists().take(7)
+                _publicPlaylists.value = playlists.map { playlist ->
+                    async {
+                        when {
+                            playlist.isSystemPlaylist -> playlist.ownerName = "Resonant"
+                            !playlist.userId.isNullOrEmpty() -> {
+                                playlist.ownerName = try {
+                                    playlistManager.getUserById(playlist.userId).name ?: "Usuario"
+                                } catch (_: Exception) {
+                                    "Usuario"
+                                }
+                            }
+                            else -> playlist.ownerName = "Usuario"
+                        }
+                        playlist
+                    }
+                }.awaitAll()
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando playlists publicas: ${e.message}")
+                _publicPlaylists.value = emptyList()
+            } finally {
+                _publicPlaylistsLoading.value = false
+            }
+        }
+    }
+
+    fun loadMostListenedArtists() {
+        if (_mostListenedArtists.value != null) return
+        _mostListenedArtistsLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                val topArtists = ArtistManager.getMostListenedArtists(getApplication(), limit = 2)
+                _mostListenedArtists.value = topArtists.ifEmpty {
+                    ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 2)
+                }
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando artistas mas escuchados: ${e.message}")
+                _mostListenedArtists.value = emptyList()
+            } finally {
+                _mostListenedArtistsLoading.value = false
             }
         }
     }
@@ -87,6 +140,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     fun loadRecentArtists() {
         if (_recentArtists.value != null) return
         _recentArtistsLoading.value = true
+
         viewModelScope.launch {
             try {
                 _recentArtists.value = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 20)
@@ -102,32 +156,15 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     fun loadNewReleaseAlbums() {
         if (_newReleaseAlbums.value != null) return
         _newReleaseAlbumsLoading.value = true
+
         viewModelScope.launch {
             try {
                 _newReleaseAlbums.value = AlbumManager.getNewReleaseAlbums(getApplication(), limit = 20)
             } catch (e: Exception) {
-                Log.w("ExploreVM", "Error cargando nuevos álbumes: ${e.message}")
+                Log.w("ExploreVM", "Error cargando nuevos albumes: ${e.message}")
                 _newReleaseAlbums.value = emptyList()
             } finally {
                 _newReleaseAlbumsLoading.value = false
-            }
-        }
-    }
-
-    fun loadFavoriteGenre() {
-        viewModelScope.launch {
-            try {
-                // Get the current user to extract their ID, then fetch their favourite genres
-                val user = userService.getCurrentUser()
-                val favorites = genreManager.getFavoriteGenres(user.id)
-                val top = favorites.firstOrNull()
-                _favoriteGenreName.value = top?.name
-                _favoriteGenreColors.value = top?.gradientColors
-                Log.d("ExploreVM", "Género favorito: ${top?.name}")
-            } catch (e: Exception) {
-                // Non-critical: silently leave the centre empty if this fails
-                Log.w("ExploreVM", "No se pudo cargar género favorito: ${e.message}")
-                _favoriteGenreName.value = null
             }
         }
     }

@@ -1,20 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/cardContainer"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="132dp"
+    android:layout_margin="5dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
     app:cardBackgroundColor="@color/transparent"
-    android:padding="8dp"
-    android:layout_margin="5dp">
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/cardContainer"
-        android:layout_width="match_parent"
-        android:layout_height="100dp"
-        app:cardCornerRadius="12dp"
-        app:strokeWidth="0dp">
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp"
+    app:strokeColor="#242424"
+    app:strokeWidth="1dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -22,19 +21,38 @@
 
         <View
             android:id="@+id/viewGradientBackground"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="#2C2C2C" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="#2C2C2C"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="@drawable/bg_explore_tile_scrim"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/textGenreName"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_margin="8dp"
+            android:layout_marginHorizontal="14dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
             android:gravity="center"
+            android:maxLines="2"
             android:textColor="@android:color/white"
             android:textSize="18sp"
-            android:fontFamily="@font/unageo_bold"
+            android:shadowColor="#99000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="4"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -42,7 +60,4 @@
             tools:text="Genre" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-
 </com.google.android.material.card.MaterialCardView>
-
-</androidx.cardview.widget.CardView>

@@ -25,7 +25,7 @@ object ApiClient {
 
     private var retrofit: Retrofit? = null
 
-    private fun getRetrofitInstance(context: Context): Retrofit {
+    fun getRetrofitInstance(context: Context): Retrofit {
         if (retrofit == null) {
             val appContext = context.applicationContext
             val session = SessionManager(appContext, BASE_URL)
