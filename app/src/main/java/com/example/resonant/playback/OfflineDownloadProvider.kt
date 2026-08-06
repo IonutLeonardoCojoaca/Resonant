@@ -131,8 +131,7 @@ object OfflineDownloadProvider {
                 val quality = SettingsManager(context)
                     .downloadQualityFlow
                     .first()
-                // Offline downloads keep using progressive audio even after HLS
-                // is enabled for 3.5.0 streaming clients.
+                // Downloads are stored as progressive audio for offline playback.
                 ApiClient.getSongService(context).getSongPlaybackInfo(
                     songId = songId,
                     deliveryMode = "progressive",

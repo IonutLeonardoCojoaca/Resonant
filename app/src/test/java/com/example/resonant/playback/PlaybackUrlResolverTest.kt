@@ -131,38 +131,6 @@ class PlaybackUrlResolverTest {
         assertTrue(uri.query.isNullOrBlank())
     }
 
-    @Test
-    fun `HLS preference uses the HLS resolver and accepts server rollback`() {
-        val progressiveRequests = AtomicInteger()
-        val hlsRequests = AtomicInteger()
-        val resolver = PlaybackUrlResolver(
-            loadPlaybackInfo = {
-                progressiveRequests.incrementAndGet()
-                playbackInfo("https://cdn.example/fallback.mp3").copy(
-                    deliveryMode = "progressive",
-                    mimeType = "audio/mpeg"
-                )
-            },
-            loadHlsPlaybackInfo = {
-                hlsRequests.incrementAndGet()
-                playbackInfo("https://cdn.example/rollback.mp3").copy(
-                    deliveryMode = "progressive",
-                    mimeType = "audio/mpeg"
-                )
-            },
-            clock = clock
-        )
-
-        resolver.preferDeliveryMode("song-hls", "hls")
-        assertEquals(
-            "https://cdn.example/rollback.mp3",
-            resolver.resolveBlocking("song-hls")
-        )
-        assertEquals(1, hlsRequests.get())
-        assertEquals(0, progressiveRequests.get())
-        assertEquals("progressive", resolver.preferredDeliveryMode("song-hls"))
-    }
-
     private fun playbackInfo(url: String) = SongPlaybackDTO(
         id = "song",
         streamUrl = url,

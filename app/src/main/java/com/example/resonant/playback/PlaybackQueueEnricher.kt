@@ -55,7 +55,7 @@ class PlaybackQueueEnricher(
                         preferredQuality = settingsManager.streamingQualityFlow.first().apiValue,
                         networkType = NetworkTypeDetector.current(appContext)
                     ),
-                    capabilities = ClientCompatibilityInterceptor.HLS_PLAYBACK_CAPABILITIES
+                    capabilities = ClientCompatibilityInterceptor.BASE_PLAYBACK_CAPABILITIES
                 )
             }
         } catch (error: Exception) {

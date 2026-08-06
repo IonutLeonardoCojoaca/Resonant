@@ -44,11 +44,10 @@ class PlaybackMediaSourceFactory(
         val streamingCacheFactory = CacheDataSource.Factory()
             .setCache(PlaybackCache.get(context))
             .setUpstreamDataSourceFactory(upstreamFactory)
-            // Progressive loads already carry a stable `song:<id>` key. HLS
-            // manifests and segments do not, so their default key is the full
-            // presigned URL: every signature refresh would otherwise create a
-            // brand-new cache entry for bytes already on disk, re-downloading
-            // audio and evicting the rest of the cache for no reason.
+            // Progressive loads carry a stable `song:<id>` cache key. If a
+            // request ever arrives without one, fall back to the URL without
+            // its query string so a refreshed signature does not create a
+            // brand-new cache entry for bytes already on disk.
             .setCacheKeyFactory { dataSpec ->
                 dataSpec.key
                     ?: PlaybackUrlResolver.normalizeUrl(dataSpec.uri.toString())

@@ -31,7 +31,5 @@ class ClientCompatibilityInterceptor : Interceptor {
 
         const val BASE_PLAYBACK_CAPABILITIES =
             "stable-uri-v1,progressive-v1,http-range-v1"
-        const val HLS_PLAYBACK_CAPABILITIES =
-            "$BASE_PLAYBACK_CAPABILITIES,hls-cmaf-v1"
     }
 }

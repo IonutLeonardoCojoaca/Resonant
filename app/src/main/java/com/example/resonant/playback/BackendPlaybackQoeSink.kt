@@ -119,7 +119,6 @@ class BackendPlaybackQoeSink(
 
     private fun String.toContractDeliveryMode(): String {
         return when (lowercase()) {
-            "hls" -> "hls"
             "offline" -> "offline"
             else -> "progressive"
         }

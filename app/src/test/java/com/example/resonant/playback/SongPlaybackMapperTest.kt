@@ -4,8 +4,6 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.PlaybackResolveItemDTO
 import com.example.resonant.data.network.SongPlaybackDTO
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SongPlaybackMapperTest {
@@ -50,42 +48,31 @@ class SongPlaybackMapperTest {
         )
         val resolution = PlaybackResolveItemDTO(
             id = "song-1",
-            streamUrl = "https://batch.example/transient.m3u8",
-            mimeType = "application/vnd.apple.mpegurl",
-            deliveryMode = "hls",
+            streamUrl = "https://batch.example/transient.mp3",
+            mimeType = "audio/mpeg",
+            deliveryMode = "progressive",
             quality = "high"
         )
 
         val enriched = song.withPlaybackQueueHints(resolution)
 
         assertEquals("https://catalog.example/original.mp3", enriched.url)
-        assertEquals("application/vnd.apple.mpegurl", enriched.playbackMimeType)
-        assertEquals("hls", enriched.playbackDeliveryMode)
+        assertEquals("audio/mpeg", enriched.playbackMimeType)
+        assertEquals("progressive", enriched.playbackDeliveryMode)
         assertEquals("high", enriched.playbackQuality)
     }
 
     @Test
-    fun `hls is only preferred when the song exposes an explicit manifest hint`() {
-        val ambiguous = Song(
+    fun `streaming delivery mode is always progressive`() {
+        val song = Song(
             id = "song-1",
-            playbackDeliveryMode = "hls",
-            url = "https://cdn.example/audio"
-        )
-        val verified = Song(
-            id = "song-2",
-            playbackDeliveryMode = "hls",
-            playbackMimeType = "application/vnd.apple.mpegurl"
+            playbackDeliveryMode = "progressive",
+            url = "https://cdn.example/audio.mp3"
         )
 
-        assertFalse(ambiguous.usesVerifiedHls())
         assertEquals(
             PlaybackUrlResolver.DELIVERY_MODE_PROGRESSIVE,
-            ambiguous.preferredStreamingDeliveryMode()
-        )
-        assertTrue(verified.usesVerifiedHls())
-        assertEquals(
-            PlaybackUrlResolver.DELIVERY_MODE_HLS,
-            verified.preferredStreamingDeliveryMode()
+            song.preferredStreamingDeliveryMode()
         )
     }
 }

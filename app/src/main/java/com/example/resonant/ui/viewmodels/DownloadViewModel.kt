@@ -494,7 +494,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                             download = true
                         ),
                         capabilities =
-                            ClientCompatibilityInterceptor.HLS_PLAYBACK_CAPABILITIES
+                            ClientCompatibilityInterceptor.BASE_PLAYBACK_CAPABILITIES
                     )
                 }
             }.onSuccess { response ->
