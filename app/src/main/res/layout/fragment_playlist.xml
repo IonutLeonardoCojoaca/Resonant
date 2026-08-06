@@ -41,9 +41,22 @@
             android:textColor="@color/white"
             android:textSize="16sp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/settingsBackground"
+            app:layout_constraintEnd_toStartOf="@+id/playlistFavoriteButton"
             app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageButton
+            android:id="@+id/playlistFavoriteButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Guardar playlist"
+            android:padding="9dp"
+            android:src="@drawable/ic_favorite_border"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/settingsBackground"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@color/white" />
 
         <FrameLayout
             android:id="@+id/settingsBackground"
@@ -187,6 +200,7 @@
 
                 <!-- Duration + tracks row -->
                 <LinearLayout
+                    android:id="@+id/playlistStatsRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -227,6 +241,67 @@
                         android:fontFamily="@font/unageo_regular"
                         android:textSize="13sp" />
 
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/reorderControls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/reorderPlaylistButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:fontFamily="@font/unageo_bold"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:text="Cambiar orden"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/savePlaylistOrderButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:fontFamily="@font/unageo_bold"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:text="Guardar"
+                        android:textColor="@color/secondaryColorTheme"
+                        android:textSize="13sp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/cancelPlaylistOrderButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="center"
+                        android:paddingHorizontal="8dp"
+                        android:text="Cancelar"
+                        android:textColor="@color/textTheme"
+                        android:textSize="13sp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/reorderHint"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/unageo_regular"
+                        android:gravity="end"
+                        android:text="Mantén pulsado y arrastra"
+                        android:textColor="@color/textTheme"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- Divider -->

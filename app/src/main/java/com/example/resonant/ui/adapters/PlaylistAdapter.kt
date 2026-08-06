@@ -143,7 +143,10 @@ class PlaylistAdapter(
         override fun areContentsTheSame(oldItem: Playlist, newItem: Playlist): Boolean {
             return oldItem.name == newItem.name &&
                     oldItem.numberOfTracks == newItem.numberOfTracks &&
-                    oldItem.imageUrl == newItem.imageUrl // Importante comparar la URL ahora
+                    oldItem.imageUrl == newItem.imageUrl &&
+                    oldItem.isPublic == newItem.isPublic &&
+                    oldItem.ownerName == newItem.ownerName &&
+                    oldItem.isSaved == newItem.isSaved
         }
     }
 

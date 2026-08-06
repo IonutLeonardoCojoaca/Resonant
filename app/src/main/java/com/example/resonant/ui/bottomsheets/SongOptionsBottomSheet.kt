@@ -16,6 +16,8 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.media3.session.SessionResult
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
@@ -27,6 +29,9 @@ import java.io.File
 import java.io.FileOutputStream
 import androidx.core.graphics.toColorInt
 import com.example.resonant.data.models.Artist
+import com.example.resonant.playback.PlaybackControllerConnection
+import com.example.resonant.playback.QueueCommands
+import kotlinx.coroutines.launch
 
 class SongOptionsBottomSheet(
     private val song: Song,
@@ -42,7 +47,7 @@ class SongOptionsBottomSheet(
     private val onGoToArtistClick: ((Artist) -> Unit)? = null,
     private val onAddToPlaymixClick: ((Song) -> Unit)? = null
 
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme
@@ -61,6 +66,8 @@ class SongOptionsBottomSheet(
 
         // Botones de acción
         val seeSongButton: TextView = view.findViewById(R.id.seeSongButton)
+        val playNextButton: TextView = view.findViewById(R.id.playNextButton)
+        val addToQueueButton: TextView = view.findViewById(R.id.addToQueueButton)
         val goToAlbumButton: TextView = view.findViewById(R.id.goToAlbumButton) // NEW
         val goToArtistButton: TextView = view.findViewById(R.id.goToArtistButton) // NEW
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
@@ -69,6 +76,13 @@ class SongOptionsBottomSheet(
         val downloadSongButton: TextView = view.findViewById(R.id.downloadSongButton)
         val shareSongButton: TextView = view.findViewById(R.id.shareSongButton)
         val cancelButton: TextView = view.findViewById(R.id.cancelButton)
+
+        playNextButton.setOnClickListener {
+            sendQueueCommand(QueueCommands.PLAY_NEXT)
+        }
+        addToQueueButton.setOnClickListener {
+            sendQueueCommand(QueueCommands.ADD)
+        }
 
         // Rellenar datos básicos
         songTitle.text = song.title
@@ -299,6 +313,44 @@ class SongOptionsBottomSheet(
             type = "text/plain"
         }
         startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
+    }
+
+    private fun sendQueueCommand(action: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = runCatching {
+                PlaybackControllerConnection.sendQueueCommand(
+                    requireContext(),
+                    action,
+                    Bundle().apply {
+                        putString(QueueCommands.ARG_SONG_ID, song.id)
+                    }
+                )
+            }.getOrElse { error ->
+                showResonantSnackbar(
+                    error.localizedMessage ?: "No se pudo modificar la cola",
+                    R.color.errorColor,
+                    R.drawable.ic_warning
+                )
+                return@launch
+            }
+            val message = result.extras
+                .getString(QueueCommands.RESULT_MESSAGE)
+                .orEmpty()
+            if (result.resultCode == SessionResult.RESULT_SUCCESS) {
+                showResonantSnackbar(
+                    message.ifBlank { "Cola actualizada" },
+                    R.color.successColor,
+                    R.drawable.ic_success
+                )
+                dismiss()
+            } else {
+                showResonantSnackbar(
+                    message.ifBlank { "No se pudo modificar la cola" },
+                    R.color.errorColor,
+                    R.drawable.ic_warning
+                )
+            }
+        }
     }
 
     private fun buildShareText(song: Song): String {

@@ -20,6 +20,8 @@ import com.example.resonant.managers.SettingsManager
 import com.example.resonant.databinding.FragmentSettingsBinding
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.activities.LoginActivity
+import com.example.resonant.ui.bottomsheets.AudioQualityBottomSheet
+import com.example.resonant.ui.bottomsheets.EqualizerBottomSheet
 import com.google.android.material.slider.Slider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
@@ -57,6 +59,9 @@ class SettingsFragment : Fragment() {
         setupCrossfadeSlider()
         setupCrossfadeModeToggle()
         setupNormalizationSwitch()
+        setupAutoplayRadioSwitch()
+        setupAudioQuality()
+        setupEqualizer()
     }
 
     private fun styleSlider() {
@@ -193,6 +198,56 @@ class SettingsFragment : Fragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 settingsManager.setLoudnessNormalizationEnabled(isChecked)
             }
+        }
+    }
+
+    private fun setupAutoplayRadioSwitch() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.autoplayRadioEnabledFlow.collect { isEnabled ->
+                if (binding.autoplayRadioSwitch.isChecked != isEnabled) {
+                    binding.autoplayRadioSwitch.isChecked = isEnabled
+                }
+            }
+        }
+
+        binding.autoplayRadioSwitch.setOnCheckedChangeListener { _, isChecked ->
+            viewLifecycleOwner.lifecycleScope.launch {
+                settingsManager.setAutoplayRadioEnabled(isChecked)
+            }
+        }
+    }
+
+    private fun setupAudioQuality() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.streamingQualityFlow.collect { quality ->
+                binding.streamingQualityValue.text = "Streaming · ${quality.displayName}"
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.downloadQualityFlow.collect { quality ->
+                binding.downloadQualityValue.text = "Descargas · ${quality.displayName}"
+            }
+        }
+        binding.audioQualityRow.setOnClickListener {
+            AudioQualityBottomSheet().show(
+                childFragmentManager,
+                "audio_quality"
+            )
+        }
+    }
+
+    private fun setupEqualizer() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.equalizerSettingsFlow.collect { state ->
+                val status = if (state.enabled) "Activado" else "Desactivado"
+                binding.equalizerSummary.text = "$status · ${state.preset.displayName}"
+            }
+        }
+        binding.equalizerRow.setOnClickListener {
+            EqualizerBottomSheet().show(
+                childFragmentManager,
+                "equalizer"
+            )
         }
     }
 

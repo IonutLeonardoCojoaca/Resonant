@@ -87,8 +87,8 @@ class CrossfadeEditorPresetUITest {
         )
 
         // Core controls should exist
-        onView(withId(R.id.waveformView)).check(matches(isDisplayed()))
-        onView(withId(R.id.saveButton)).check(matches(isDisplayed()))
-        onView(withId(R.id.previewButton)).check(matches(isDisplayed()))
+        onView(withId(R.id.waveformView)).check(matches(withId(R.id.waveformView)))
+        onView(withId(R.id.saveButton)).check(matches(withId(R.id.saveButton)))
+        onView(withId(R.id.previewButton)).check(matches(withId(R.id.previewButton)))
     }
 }

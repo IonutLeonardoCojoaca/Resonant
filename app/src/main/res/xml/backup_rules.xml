@@ -6,6 +6,14 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
+    <exclude domain="file" path="offline_media/" />
+    <exclude domain="file" path="offline_covers/" />
+    <exclude domain="root" path="files/offline_media/" />
+    <exclude domain="root" path="files/offline_covers/" />
+    <exclude domain="sharedpref" path="Auth.xml" />
+    <exclude domain="sharedpref" path="user_data.xml" />
+    <exclude domain="sharedpref" path="playback_resumption.xml" />
+    <exclude domain="sharedpref" path="home_v2_cache.xml" />
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>

@@ -1,11 +1,9 @@
 ﻿package com.example.resonant.ui.fragments
 
-import android.content.ComponentName
 import android.content.Context
 import android.animation.ObjectAnimator
 
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -16,7 +14,6 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.view.GestureDetector
@@ -38,7 +35,9 @@ import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.DialogFragment
 
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -54,6 +53,9 @@ import com.example.resonant.ui.adapters.LyricsAdapter
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.ArtistSelectorBottomSheet
+import com.example.resonant.ui.bottomsheets.PlaybackQueueBottomSheet
+import com.example.resonant.ui.bottomsheets.PlaybackDevicesBottomSheet
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import com.example.resonant.data.network.ApiClient
@@ -65,6 +67,8 @@ import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import androidx.palette.graphics.Palette
 import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.playback.PlaybackConnectRepository
+import com.example.resonant.data.models.Artist
 import com.google.android.material.card.MaterialCardView
 import java.io.File
 import kotlin.math.abs
@@ -88,6 +92,8 @@ class SongFragment : DialogFragment() {
     
     private lateinit var nextSongContainer: View
     private lateinit var nextSongInfo: TextView
+    private lateinit var playbackDeviceContainer: View
+    private lateinit var playbackDeviceText: TextView
 
     private lateinit var sharedPref: SharedPreferences
 
@@ -133,25 +139,8 @@ class SongFragment : DialogFragment() {
     private var hasTimedLyrics = false
     private var userIsSeeking = false
     private var ignoreUpdatesUntilMs = 0L
-
-    // Service binding for getCurrentPosition()
-    private var musicService: MusicPlaybackService? = null
-    private var serviceBound = false
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            val binder = service as MusicPlaybackService.MusicServiceBinder
-            musicService = binder.getService()
-            serviceBound = true
-            if (lyricLines.isNotEmpty()) {
-                startLyricsSync()
-            }
-        }
-        override fun onServiceDisconnected(name: ComponentName) {
-            musicService = null
-            serviceBound = false
-            stopLyricsSync()
-        }
+    private val playbackConnectRepository by lazy {
+        PlaybackConnectRepository.get(requireContext())
     }
 
     private val lyricsUpdateRunnable = object : Runnable {
@@ -162,10 +151,9 @@ class SongFragment : DialogFragment() {
                 return
             }
             
-            val service = musicService ?: return
-            
-            val positionMs = service.getCurrentPosition().toLong()
-            val durationMs = service.getDuration().toLong()
+            val position = PlaybackStateRepository.playbackPositionLiveData.value
+            val positionMs = position?.position ?: 0L
+            val durationMs = position?.duration?.toLong() ?: 0L
             Log.d("SongFragmentSync", "Syncing lyrics to pos: $positionMs")
             syncLyricsToPosition(positionMs, durationMs, forceScroll = false)
             lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
@@ -184,23 +172,12 @@ class SongFragment : DialogFragment() {
     override fun onStart() {
         super.onStart()
         dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
-
-        Intent(requireContext(), MusicPlaybackService::class.java).also { intent ->
-            requireContext().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (serviceBound) {
-            requireContext().unbindService(serviceConnection)
-            serviceBound = false
-        }
+        if (lyricLines.isNotEmpty()) startLyricsSync()
     }
 
     override fun onResume() {
         super.onResume()
-        if (lyricLines.isNotEmpty() && serviceBound) {
+        if (lyricLines.isNotEmpty()) {
             startLyricsSync()
         }
     }
@@ -226,6 +203,28 @@ class SongFragment : DialogFragment() {
             insets
         }
         AnimationsUtils.animateOpenFragment(view)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                playbackConnectRepository.uiState.collect { state ->
+                    val active = state.activeDevice
+                    val remoteIsActive =
+                        active != null &&
+                            active.deviceId != state.localDeviceId
+                    val visible = state.supported &&
+                        (remoteIsActive || state.hasAlternativeDevice)
+                    playbackDeviceContainer.isVisible = visible
+                    playbackDeviceText.text = when {
+                        remoteIsActive ->
+                            "Reproduciendo en ${active?.name}"
+                        state.hasAlternativeDevice ->
+                            "Elegir otro dispositivo"
+                        else -> ""
+                    }
+                }
+            }
+        }
+        playbackConnectRepository.refreshAsync()
     }
 
     override fun onCreateView(
@@ -261,6 +260,25 @@ class SongFragment : DialogFragment() {
         albumNameView = view.findViewById(R.id.songAlbumName)
         nextSongContainer = view.findViewById(R.id.nextSongContainer)
         nextSongInfo = view.findViewById(R.id.nextSongInfo)
+        playbackDeviceContainer =
+            view.findViewById(R.id.playbackDeviceContainer)
+        playbackDeviceText = view.findViewById(R.id.playbackDeviceText)
+
+        artistView.isClickable = true
+        artistView.isFocusable = true
+        artistView.setOnClickListener { openCurrentSongArtists() }
+        nextSongContainer.setOnClickListener {
+            PlaybackQueueBottomSheet().show(
+                parentFragmentManager,
+                "PlaybackQueueBottomSheet"
+            )
+        }
+        playbackDeviceContainer.setOnClickListener {
+            PlaybackDevicesBottomSheet().show(
+                parentFragmentManager,
+                "PlaybackDevicesBottomSheet"
+            )
+        }
 
         // Lyrics views
         nestedScrollView = view.findViewById(R.id.nestedScrollView)
@@ -469,7 +487,8 @@ class SongFragment : DialogFragment() {
                 if (fromUser) {
                     currentTimeText.text = Utils.formatTime(progress)
                     if (lyricLines.isNotEmpty()) {
-                        val durationMs = musicService?.getDuration()?.toLong() ?: 0L
+                        val durationMs = PlaybackStateRepository.playbackPositionLiveData.value
+                            ?.duration?.toLong() ?: 0L
                         syncLyricsToPosition(progress.toLong(), durationMs, forceScroll = true)
                     }
                 }
@@ -485,14 +504,18 @@ class SongFragment : DialogFragment() {
                 userIsSeeking = false
                 val seekProgress = seekBar?.progress ?: 0
                 
-                // Synchronous direct call to service eliminates Intent queuing latency
-                musicService?.seekTo(seekProgress.toLong())
+                val seekIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_SEEK_TO
+                    putExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, seekProgress)
+                }
+                requireContext().startService(seekIntent)
 
                 autoScrollEnabled = true
                 ignoreUpdatesUntilMs = System.currentTimeMillis() + 800L
                 
                 if (lyricLines.isNotEmpty()) {
-                    val durationMs = musicService?.getDuration()?.toLong() ?: 0L
+                    val durationMs = PlaybackStateRepository.playbackPositionLiveData.value
+                        ?.duration?.toLong() ?: 0L
                     lastActiveLine = -1 
                     lyricsAdapter.clearActiveLine() // Force adapter to forget previous highlight
                     syncLyricsToPosition(seekProgress.toLong(), durationMs, forceScroll = true)
@@ -511,30 +534,26 @@ class SongFragment : DialogFragment() {
 
         lifecycleScope.launch {
             try {
-                val albumId = song.album!!.id
+                val albumId = song.album?.id
 
                 // Si no hay albumId, es un Single (o archivo local suelto)
-                if (albumId == null) {
+                if (albumId.isNullOrBlank()) {
                     setSingleMode()
                     return@launch
                 }
 
                 val album = albumService.getAlbumById(albumId)
 
-                if (album != null) {
-                    // Lógica: Si el título del álbum es igual al de la canción, es un Single
-                    if (album.title.equals(song.title, ignoreCase = true)) {
-                        setSingleMode()
-                    } else {
-                        // ES UN ÁLBUM REAL
-                        albumTypeView.text = "ÁLBUM"
-                        albumTypeView.visibility = View.VISIBLE
-
-                        albumNameView.text = album.title
-                        albumNameView.visibility = View.VISIBLE
-                    }
-                } else {
+                // Lógica: Si el título del álbum es igual al de la canción, es un Single
+                if (album.title.equals(song.title, ignoreCase = true)) {
                     setSingleMode()
+                } else {
+                    // ES UN ÁLBUM REAL
+                    albumTypeView.text = "ÁLBUM"
+                    albumTypeView.visibility = View.VISIBLE
+
+                    albumNameView.text = album.title
+                    albumNameView.visibility = View.VISIBLE
                 }
 
             } catch (e: Exception) {
@@ -562,7 +581,10 @@ class SongFragment : DialogFragment() {
             updateNextSongInfo()
             currentSong?.let { song ->
                 view?.findViewById<TextView>(R.id.song_title)?.text = song.title ?: "Desconocido"
-                view?.findViewById<TextView>(R.id.songArtist)?.text = song.artistName ?: "Desconocido"
+                view?.findViewById<TextView>(R.id.songArtist)?.text =
+                    song.artistName
+                        ?: song.artists.joinToString(", ") { it.name }
+                            .ifBlank { "Desconocido" }
 
                 loadAlbumInfo(song)
 
@@ -686,15 +708,14 @@ class SongFragment : DialogFragment() {
 
                 if (!hasTimedLyrics) {
                     lyricsAdapter.clearActiveLine()
+                    val position = PlaybackStateRepository.playbackPositionLiveData.value
                     updateLinearLyricsProgress(
-                        musicService?.getCurrentPosition()?.toLong() ?: 0L,
-                        musicService?.getDuration()?.toLong() ?: 0L
+                        position?.position ?: 0L,
+                        position?.duration?.toLong() ?: 0L
                     )
                 }
 
-                if (serviceBound) {
-                    startLyricsSync()
-                }
+                startLyricsSync()
             }
 
             // Prefetch next song's lyrics so they're ready when it plays
@@ -827,6 +848,54 @@ class SongFragment : DialogFragment() {
         )
     }
 
+    private fun openCurrentSongArtists() {
+        val song = songViewModel.currentSongLiveData.value
+            ?: PlaybackStateRepository.currentSong
+            ?: return
+        val embeddedArtists = song.artists
+            .filter { it.id.isNotBlank() }
+            .map { it.toArtist() }
+        when {
+            embeddedArtists.size == 1 -> navigateToArtist(embeddedArtists.first())
+            embeddedArtists.size > 1 -> {
+                ArtistSelectorBottomSheet(embeddedArtists, ::navigateToArtist)
+                    .show(parentFragmentManager, "ArtistSelectorBottomSheet")
+            }
+            !song.artistName.isNullOrBlank() -> {
+                val expectedName = song.artistName!!.trim()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val exactArtist = runCatching {
+                        artistService.searchArtistsByQuery(expectedName)
+                            .results
+                            .firstOrNull { it.name.equals(expectedName, ignoreCase = true) }
+                    }.getOrNull()
+                    if (exactArtist != null) {
+                        navigateToArtist(exactArtist)
+                    } else {
+                        showResonantSnackbar(
+                            "No se encontró la ficha del artista",
+                            R.color.adviseColor,
+                            R.drawable.ic_warning
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun navigateToArtist(artist: Artist) {
+        if (artist.id.isBlank()) return
+        val bundle = Bundle().apply {
+            putString("artistId", artist.id)
+            putString("artistName", artist.name)
+            putString("artistImageUrl", artist.url)
+        }
+        requireActivity()
+            .findNavController(R.id.nav_host_fragment)
+            .navigate(R.id.artistFragment, bundle)
+        dismiss()
+    }
+
     private fun updatePlayPauseButton(isPlaying: Boolean) {
         playPauseButton.setImageResource(
             if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
@@ -872,7 +941,13 @@ class SongFragment : DialogFragment() {
         val currentSong = songViewModel.currentSongLiveData.value ?: PlaybackStateRepository.currentSong
         
         // Robustez: Buscar el índice real por ID, ya que currentIndex podría no estar sincronizado aún
-        val currentIndex = if (currentSong != null) {
+        val currentIndex = if (
+            queue != null &&
+            queue.currentIndex in songs.indices &&
+            songs[queue.currentIndex].id == currentSong?.id
+        ) {
+            queue.currentIndex
+        } else if (currentSong != null) {
             songs.indexOfFirst { it.id == currentSong.id }
         } else {
             queue?.currentIndex ?: -1

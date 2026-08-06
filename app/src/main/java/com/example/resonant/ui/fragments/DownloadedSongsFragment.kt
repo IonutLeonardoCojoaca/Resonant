@@ -11,6 +11,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 
+import androidx.annotation.OptIn
 import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -20,6 +21,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.data.models.Song
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.OfflineDownloadProvider
+import com.example.resonant.playback.PlaybackUrlResolver
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.common.util.UnstableApi
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
@@ -34,6 +39,7 @@ import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+@OptIn(UnstableApi::class)
 class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs) {
 
     private lateinit var recyclerView: RecyclerView
@@ -266,8 +272,22 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
                 showResonantSnackbar("Error: Ruta de archivo vacía", R.color.errorColor, R.drawable.ic_error)
                 isValid = false
             } else {
-                val file = java.io.File(path)
-                if (!file.exists() || file.length() == 0L) {
+                val isStableUri = path.startsWith(
+                    "${PlaybackUrlResolver.STABLE_SCHEME}://" +
+                        "${PlaybackUrlResolver.STABLE_AUTHORITY}/",
+                    ignoreCase = true
+                )
+                val exists = if (isStableUri) {
+                    OfflineDownloadProvider
+                        .getDownloadManager(requireContext())
+                        .downloadIndex
+                        .getDownload(song.id)
+                        ?.state == Download.STATE_COMPLETED
+                } else {
+                    val file = java.io.File(path)
+                    file.exists() && file.length() > 0L
+                }
+                if (!exists) {
                     showResonantSnackbar("Error: Archivo dañado o no existe", R.color.errorColor, R.drawable.ic_error)
                     isValid = false
                 }
@@ -286,7 +306,10 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
                     putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
                     putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
                     putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
-                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.PLAYLIST)
+                    putExtra(
+                        MusicPlaybackService.EXTRA_QUEUE_SOURCE,
+                        QueueSource.DOWNLOADED_SONGS
+                    )
                     putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, queueId)
                 }
                 try {

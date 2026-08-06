@@ -1,16 +1,11 @@
 package com.example.resonant.ui.fragments
 
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
@@ -27,7 +22,6 @@ import com.example.resonant.R
 import com.example.resonant.managers.LyricLine
 import com.example.resonant.managers.LyricsManager
 import com.example.resonant.playback.PlaybackStateRepository
-import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.LyricsAdapter
 import kotlinx.coroutines.launch
 
@@ -64,34 +58,16 @@ class LyricsExpandedFragment : DialogFragment() {
     private var hasTimedLyrics = false
     private var ignoreUpdatesUntilMs = 0L
 
-    private var musicService: MusicPlaybackService? = null
-    private var serviceBound = false
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            musicService = (binder as MusicPlaybackService.MusicServiceBinder).getService()
-            serviceBound = true
-            if (lyricLines.isNotEmpty()) startLyricsSync()
-        }
-
-        override fun onServiceDisconnected(name: ComponentName) {
-            musicService = null
-            serviceBound = false
-            stopLyricsSync()
-        }
-    }
-
     private val syncRunnable = object : Runnable {
         override fun run() {
-            val service = musicService ?: return
-
             if (System.currentTimeMillis() < ignoreUpdatesUntilMs) {
                 lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
                 return
             }
 
-            val positionMs = service.getCurrentPosition().toLong()
-            val durationMs = service.getDuration().toLong()
+            val position = PlaybackStateRepository.playbackPositionLiveData.value
+            val positionMs = position?.position ?: 0L
+            val durationMs = position?.duration?.toLong() ?: 0L
             syncLyricsToPosition(positionMs, durationMs, forceScroll = false)
             lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
         }
@@ -107,22 +83,12 @@ class LyricsExpandedFragment : DialogFragment() {
     override fun onStart() {
         super.onStart()
         dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
-        Intent(requireContext(), MusicPlaybackService::class.java).also {
-            requireContext().bindService(it, serviceConnection, Context.BIND_AUTO_CREATE)
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (serviceBound) {
-            requireContext().unbindService(serviceConnection)
-            serviceBound = false
-        }
+        if (lyricLines.isNotEmpty()) startLyricsSync()
     }
 
     override fun onResume() {
         super.onResume()
-        if (lyricLines.isNotEmpty() && serviceBound) startLyricsSync()
+        if (lyricLines.isNotEmpty()) startLyricsSync()
     }
 
     override fun onPause() {
@@ -193,12 +159,13 @@ class LyricsExpandedFragment : DialogFragment() {
             lyricsRecyclerView.scrollToPosition(0)
             if (!hasTimedLyrics && lyricLines.isNotEmpty()) {
                 lyricsAdapter.clearActiveLine()
+                val position = PlaybackStateRepository.playbackPositionLiveData.value
                 updateLinearLyricsProgress(
-                    musicService?.getCurrentPosition()?.toLong() ?: 0L,
-                    musicService?.getDuration()?.toLong() ?: 0L
+                    position?.position ?: 0L,
+                    position?.duration?.toLong() ?: 0L
                 )
             }
-            if (serviceBound && lyricLines.isNotEmpty()) {
+            if (lyricLines.isNotEmpty()) {
                 startLyricsSync()
             }
         }

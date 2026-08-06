@@ -33,7 +33,7 @@ import org.json.JSONArray
 class WaveformPreviewBottomSheet(
     private val playmixId: String,
     private val transition: PlaymixTransitionDTO
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 

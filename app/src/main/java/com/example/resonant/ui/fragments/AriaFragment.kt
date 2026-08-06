@@ -46,7 +46,15 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.managers.AriaManager
-
+import android.Manifest
+import android.content.pm.PackageManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.resonant.ui.customviews.VoiceSpectrumSphereView
 /**
  * AriaFragment — Aria DJ & AI music assistant chat screen.
  *
@@ -69,24 +77,22 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private lateinit var sendButton: ImageButton
     //private lateinit var clearButton: ImageButton
     private lateinit var welcomeContainer: View
-    private lateinit var welcomeIcon: ImageView
+
     private lateinit var userProfile: ShapeableImageView
     private lateinit var ariaOptionsButton: ImageButton
 
     // ── Welcome decorative views
     private lateinit var welcomeBg: View
     private lateinit var glowTop: View
-    private lateinit var orbitalRingOuter: View
-    private lateinit var orbitalRingInner: View
-    private lateinit var glowPulse1: View
-    private lateinit var glowPulse2: View
-    private lateinit var centerGroup: View
-    private lateinit var chip1: TextView
-    private lateinit var chip2: TextView
-    private lateinit var chip3: TextView
-    private lateinit var chip4: TextView
-    private lateinit var chip5: View
     private lateinit var chatTopFade: View
+
+    // ── Voice Mode Views
+    private lateinit var ariaMicButton: ImageButton
+    private lateinit var ariaVoiceContainer: View
+    private lateinit var ariaVoiceCloseButton: ImageButton
+    private lateinit var ariaVoiceRecordButton: ImageButton
+    private lateinit var ariaSpectrumView: VoiceSpectrumSphereView
+    private lateinit var ariaVoiceText: TextView
 
     // ── Ambient spectrum orbs (always visible)
     private lateinit var ambientOrb1: View
@@ -94,6 +100,19 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private lateinit var ambientOrb3: View
     private lateinit var ambientOrb4: View
     private lateinit var ambientOrb5: View
+
+    // ── Voice Recognition State
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isRecording = false
+
+    private val requestRecordAudioPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                startVoiceRecording()
+            } else {
+                showResonantSnackbar("Microphone permission is required for voice chat", R.color.secondaryColorTheme, R.drawable.ic_warning)
+            }
+        }
 
     // ── State ─────────────────────────────────────────────────────────────────
     private lateinit var ariaViewModel: AriaViewModel
@@ -126,12 +145,12 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         bindViews(view)
         setupRecyclerView()
         setupSendButton()
-        //setupClearButton()
         setupOrbitalChips()
+        setupPromptChips()
         Utils.loadUserProfile(requireContext(), userProfile)
-        startAmbientGlowAnimation()
         applyBottomOffset()
         setupAriaOptions()
+        setupVoiceRecorder()
 
         ariaViewModel = ViewModelProvider(requireActivity())[AriaViewModel::class.java]
         val messages = ariaViewModel.messages.value
@@ -156,24 +175,22 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         chatRecyclerView     = view.findViewById(R.id.ariaChatRecyclerView)
         inputField           = view.findViewById(R.id.ariaInputField)
         sendButton           = view.findViewById(R.id.ariaSendButton)
-        //clearButton          = view.findViewById(R.id.ariaClearButton)
         welcomeContainer     = view.findViewById(R.id.ariaWelcomeContainer)
-        welcomeIcon          = view.findViewById(R.id.ariaWelcomeIcon)
+
         userProfile          = view.findViewById(R.id.userProfile)
         ariaOptionsButton    = view.findViewById(R.id.ariaOptionsButton)
         welcomeBg            = view.findViewById(R.id.ariaWelcomeBg)
         glowTop              = view.findViewById(R.id.ariaGlowTop)
-        orbitalRingOuter     = view.findViewById(R.id.ariaOrbitalRingOuter)
-        orbitalRingInner     = view.findViewById(R.id.ariaOrbitalRingInner)
-        glowPulse1           = view.findViewById(R.id.ariaGlowPulse1)
-        glowPulse2           = view.findViewById(R.id.ariaGlowPulse2)
-        centerGroup          = view.findViewById(R.id.ariaCenterGroup)
-        chip1                = view.findViewById(R.id.ariaChip1)
-        chip2                = view.findViewById(R.id.ariaChip2)
-        chip3                = view.findViewById(R.id.ariaChip3)
-        chip4                = view.findViewById(R.id.ariaChip4)
-        chip5                = view.findViewById(R.id.ariaChip5)
         chatTopFade          = view.findViewById(R.id.ariaChatTopFade)
+        
+        // New Voice Mode Views
+        ariaMicButton        = view.findViewById(R.id.ariaMicButton)
+        ariaVoiceContainer   = view.findViewById(R.id.ariaVoiceContainer)
+        ariaVoiceCloseButton = view.findViewById(R.id.ariaVoiceCloseButton)
+        ariaVoiceRecordButton= view.findViewById(R.id.ariaVoiceRecordButton)
+        ariaSpectrumView     = view.findViewById(R.id.ariaSpectrumView)
+        ariaVoiceText        = view.findViewById(R.id.ariaVoiceText)
+
         ambientOrb1          = view.findViewById(R.id.ariaAmbientOrb1)
         ambientOrb2          = view.findViewById(R.id.ariaAmbientOrb2)
         ambientOrb3          = view.findViewById(R.id.ariaAmbientOrb3)
@@ -202,13 +219,32 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     }
 
     private fun setupOrbitalChips() {
+        val chip1 = view?.findViewById<View>(R.id.chip1)
+        val chip2 = view?.findViewById<View>(R.id.chip2)
+        val chip3 = view?.findViewById<View>(R.id.chip3)
+        val chip4 = view?.findViewById<View>(R.id.chip4)
         listOf(
-            chip1 to "Mezcla mi lista",
-            chip2 to "Consulta mis estadísticas",
-            chip3 to "Recomiéndame música nueva",
-            chip4 to "Crea una playlist pop"
+            chip1 to "Recomiéndame música",
+            chip2 to "Enséñame un resumen de mis estadísticas",
+            chip3 to "Créame una playlist",
+            chip4 to "Prepara una sesión DJ para mí"
         ).forEach { (chip, prompt) ->
-            chip.setOnClickListener {
+            chip?.setOnClickListener {
+                inputField.setText(prompt)
+                sendMessage()
+            }
+        }
+    }
+
+    private fun setupPromptChips() {
+        val v = view ?: return
+        listOf(
+            R.id.ariaPromptChip1 to "Ponme algo relajado",
+            R.id.ariaPromptChip2 to "Créame una playlist para correr",
+            R.id.ariaPromptChip3 to "Recomiéndame rock de los 80",
+            R.id.ariaPromptChip4 to "Descúbreme artistas nuevos que me puedan gustar"
+        ).forEach { (id, prompt) ->
+            v.findViewById<View>(id)?.setOnClickListener {
                 inputField.setText(prompt)
                 sendMessage()
             }
@@ -225,18 +261,18 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         chatTopFade.visibility = View.GONE
         welcomeContainer.visibility = View.VISIBLE
         welcomeContainer.alpha = 1f
-        setOrbitalChipsVisible(true)
-        animateWelcomeEntrance()
-        startBreathingAnimation()
+        welcomeBg.animate().cancel()
+        welcomeBg.alpha = 1f
+        glowTop.animate().cancel()
+        glowTop.alpha = 0.28f
     }
 
     private fun showChatState() {
         chatRecyclerView.visibility = View.VISIBLE
         chatTopFade.visibility = View.VISIBLE
         welcomeContainer.visibility = View.GONE
-        setOrbitalChipsVisible(false)
         welcomeBg.alpha = 0f
-        stopBreathingAnimation()
+        glowTop.alpha = 0f
     }
 
     private fun transitionToChatState() {
@@ -248,6 +284,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         }.start()
 
         welcomeBg.animate().alpha(0f).setDuration(400).start()
+        glowTop.animate().alpha(0f).setDuration(350).start()
 
         chatRecyclerView.visibility = View.VISIBLE
         chatRecyclerView.alpha = 0f
@@ -256,8 +293,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         chatTopFade.visibility = View.VISIBLE
         chatTopFade.alpha = 0f
         chatTopFade.animate().alpha(1f).setStartDelay(150).setDuration(300).start()
-
-        stopBreathingAnimation()
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -450,8 +485,8 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             inputField.isEnabled = false
             inputField.alpha = 0.5f
         } else {
-            sendButton.setImageResource(R.drawable.ic_arrow_back)
-            sendButton.rotation = 180f
+            sendButton.setImageResource(R.drawable.ic_send)
+            sendButton.rotation = 0f
             inputField.isEnabled = true
             inputField.alpha = 1f
             ariaViewModel.removeStatusMessage()
@@ -614,15 +649,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         driftOrb(ambientOrb5, -35f,  35f,  0f, -22f, 13000, 10500, 1600, 1000)
     }
 
-    private fun setOrbitalChipsVisible(visible: Boolean) {
-        val visibility = if (visible) View.VISIBLE else View.GONE
-        chip1.visibility = visibility
-        chip2.visibility = visibility
-        chip3.visibility = visibility
-        chip4.visibility = visibility
-        // chip5 es fantasma — ignorar
-    }
-
     private fun setupAriaOptions() {
         ariaOptionsButton.setOnClickListener { anchor ->
             showAriaMenu(anchor)
@@ -674,76 +700,87 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         )
     }
 
-    private fun animateWelcomeEntrance() {
-        // Logo: fade in desde abajo
-        centerGroup.alpha = 0f
-        centerGroup.translationY = 30f
-        centerGroup.animate()
-            .alpha(1f).translationY(0f)
-            .setDuration(500)
-            .setInterpolator(AccelerateDecelerateInterpolator())
-            .start()
-
-        // Título y subtítulo
-        view?.findViewById<View>(R.id.ariaTitleText)?.apply {
-            alpha = 0f
-            animate().alpha(1f).setDuration(400).setStartDelay(200).start()
+    private fun setupVoiceRecorder() {
+        ariaMicButton.setOnClickListener {
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestRecordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            } else {
+                startVoiceRecording()
+            }
         }
-        view?.findViewById<View>(R.id.ariaSubtitleText)?.apply {
-            alpha = 0f
-            animate().alpha(1f).setDuration(400).setStartDelay(300).start()
-        }
-
-        // Chips: aparecen desde abajo
-        view?.findViewById<View>(R.id.ariaChipsContainer)?.apply {
-            alpha = 0f
-            translationY = 20f
-            animate()
-                .alpha(1f).translationY(0f)
-                .setDuration(350)
-                .setStartDelay(400)
-                .setInterpolator(AccelerateDecelerateInterpolator())
-                .start()
-        }
+        ariaVoiceCloseButton.setOnClickListener { stopVoiceRecording() }
+        ariaVoiceRecordButton.setOnClickListener { stopVoiceRecording() }
     }
 
-    private fun startBreathingAnimation() {
-        // Outer AI glow pulse
-        parallaxAnimator?.cancel()
-        parallaxAnimator = ObjectAnimator.ofFloat(glowPulse1, View.ALPHA, 0.20f, 0.55f).apply {
-            duration = 3500
-            repeatCount = ObjectAnimator.INFINITE
-            repeatMode = ObjectAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
+    private fun startVoiceRecording() {
+        showVoiceState()
+        ariaVoiceText.text = "Escuchando..."
+        isRecording = true
+        
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(requireContext())
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
 
-        // Inner AI glow pulse — staggered
-        glow2Animator?.cancel()
-        glow2Animator = ObjectAnimator.ofFloat(glowPulse2, View.ALPHA, 0.15f, 0.45f).apply {
-            duration = 4500
-            startDelay = 800
-            repeatCount = ObjectAnimator.INFINITE
-            repeatMode = ObjectAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
-        }
+        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {
+                // Update 3D sphere amplitude
+                ariaSpectrumView.updateAmplitude(rmsdB)
+            }
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                stopVoiceRecording()
+                showResonantSnackbar("Error al escuchar (Código: $error)", R.color.secondaryColorTheme, R.drawable.ic_warning)
+            }
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    val text = matches[0]
+                    ariaVoiceText.text = text
+                    stopVoiceRecording()
+                    // Send message
+                    inputField.setText(text)
+                    sendMessage()
+                } else {
+                    stopVoiceRecording()
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    ariaVoiceText.text = matches[0]
+                }
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
 
-        // Slow pulse on orbital ring
-        ObjectAnimator.ofFloat(orbitalRingOuter, View.ALPHA, 0.35f, 0.7f).apply {
-            duration = 2000
-            repeatCount = ObjectAnimator.INFINITE
-            repeatMode = ObjectAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
-        }
+        speechRecognizer?.startListening(intent)
     }
 
-    private fun stopBreathingAnimation() {
-        parallaxAnimator?.cancel()
-        parallaxAnimator = null
-        glow2Animator?.cancel()
-        glow2Animator = null
+    private fun stopVoiceRecording() {
+        if (!isRecording) return
+        isRecording = false
+        speechRecognizer?.stopListening()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        hideVoiceState()
+        ariaSpectrumView.updateAmplitude(0f)
+    }
+
+    private fun showVoiceState() {
+        ariaVoiceContainer.alpha = 0f
+        ariaVoiceContainer.visibility = View.VISIBLE
+        ariaVoiceContainer.animate().alpha(1f).setDuration(300).start()
+    }
+
+    private fun hideVoiceState() {
+        ariaVoiceContainer.animate().alpha(0f).setDuration(300).withEndAction {
+            ariaVoiceContainer.visibility = View.GONE
+        }.start()
     }
 
     // ─────────────────────────────────────────────────────────────────────────

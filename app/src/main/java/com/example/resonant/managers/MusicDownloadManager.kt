@@ -1,23 +1,31 @@
 package com.example.resonant.managers
 
 import android.content.Context
-import android.util.Log
+import android.net.Uri
+import androidx.annotation.OptIn
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService
 import com.example.resonant.data.local.dao.DownloadedSongDao
 import com.example.resonant.data.local.entities.DownloadedSong
 import com.example.resonant.data.models.Song
-import com.example.resonant.data.network.ApiClient
+import com.example.resonant.playback.OfflineDownloadCatalog
+import com.example.resonant.playback.OfflineDownloadMetadata
+import com.example.resonant.playback.OfflineDownloadProvider
+import com.example.resonant.playback.PlaybackUrlResolver
+import com.example.resonant.services.ResonantDownloadService
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
 
-// Estados posibles de la descarga
 sealed class DownloadStatus {
     object Idle : DownloadStatus()
     object Started : DownloadStatus()
@@ -26,165 +34,140 @@ sealed class DownloadStatus {
     data class Error(val message: String) : DownloadStatus()
 }
 
+data class DownloadCollectionRef(
+    val type: String,
+    val id: String,
+    val title: String
+)
+
+/**
+ * UI-facing adapter over Media3's persistent DownloadManager. Downloads keep
+ * running when the ViewModel, Activity or application UI goes away.
+ */
+@OptIn(UnstableApi::class)
 class MusicDownloadManager(
-    private val context: Context,
+    context: Context,
     private val downloadedSongDao: DownloadedSongDao
 ) {
-    private val client = OkHttpClient()
-    private val gson = Gson()
+    private val appContext = context.applicationContext
 
-    fun downloadSong(song: Song, userId: String): Flow<DownloadStatus> = flow {
-        var downloadUrl = song.url
+    fun downloadSong(
+        song: Song,
+        userId: String,
+        collection: DownloadCollectionRef? = null
+    ): Flow<DownloadStatus> = callbackFlow {
+        trySend(DownloadStatus.Started)
+        trySend(DownloadStatus.Progress(0))
 
-        // 1. Emitir Started y FORZAR 0% inmediatamente
-        emit(DownloadStatus.Started)
-        emit(DownloadStatus.Progress(0))
-
-        val fileName = "${song.id}.mp3"
-        val existingFile = File(context.filesDir, fileName)
-
-        // Si el archivo físico ya existe (otro usuario lo descargó), sólo registramos en BD
-        if (existingFile.exists() && existingFile.length() > 0) {
-            var localImageName: String? = null
-            val coverFile = File(context.filesDir, "cover_${song.id}.jpg")
-            if (coverFile.exists()) localImageName = "cover_${song.id}.jpg"
-
-            val analysisJson = if (song.audioAnalysis != null) gson.toJson(song.audioAnalysis) else null
-            val entity = DownloadedSong(
-                userId = userId,
-                songId = song.id,
-                title = song.title,
-                artistName = song.artistName ?: "Desconocido",
-                album = song.album,
-                duration = song.duration,
-                localAudioPath = fileName,
-                localImagePath = localImageName,
-                downloadDate = System.currentTimeMillis(),
-                sizeBytes = existingFile.length() + (if (coverFile.exists()) coverFile.length() else 0L),
-                audioAnalysisJson = analysisJson
-            )
-            downloadedSongDao.insert(entity)
-            emit(DownloadStatus.Progress(100))
-            delay(300)
-            emit(DownloadStatus.Success(song.title))
-            return@flow
+        val legacyFile = File(appContext.filesDir, "${song.id}.mp3")
+        if (legacyFile.exists() && legacyFile.length() > 0L) {
+            registerLegacyDownload(song, userId, legacyFile, collection)
+            trySend(DownloadStatus.Progress(100))
+            trySend(DownloadStatus.Success(song.title))
+            close()
+            return@callbackFlow
         }
 
-        // 2. Si no hay URL, intentamos obtenerla del backend (Endpoints protegidos/dinámicos)
-        if (downloadUrl.isNullOrBlank()) {
-            try {
-                Log.d("DownloadManager", "URL vacía, solicitando playback info para ${song.title}...")
-                val songService = ApiClient.getSongService(context)
-                val playbackInfo = songService.getSongPlaybackInfo(song.id)
-                downloadUrl = playbackInfo.streamUrl
-                
-                if (downloadUrl.isNullOrBlank()) {
-                    emit(DownloadStatus.Error("No se pudo obtener URL de descarga"))
-                    return@flow
-                }
-                Log.d("DownloadManager", "URL obtenida: $downloadUrl")
-            } catch (e: Exception) {
-                Log.e("DownloadManager", "Error obteniendo playback info", e)
-                emit(DownloadStatus.Error("Error obt. URL: ${e.message}"))
-                return@flow
-            }
+        val metadata = OfflineDownloadMetadata.from(
+            song = song,
+            userId = userId,
+            collectionType = collection?.type,
+            collectionId = collection?.id
+        )
+        val downloadManager = OfflineDownloadProvider.getDownloadManager(appContext)
+        val existing = downloadManager.downloadIndex.getDownload(song.id)
+        if (existing?.state == Download.STATE_COMPLETED) {
+            OfflineDownloadCatalog.persistCompleted(appContext, existing, metadata)
+            trySend(DownloadStatus.Progress(100))
+            trySend(DownloadStatus.Success(song.title))
+            close()
+            return@callbackFlow
         }
 
-        try {
-            Log.d("DownloadManager", "⬇️ Iniciando: ${song.title}")
+        val listener = object : DownloadManager.Listener {
+            override fun onDownloadChanged(
+                manager: DownloadManager,
+                download: Download,
+                finalException: Exception?
+            ) {
+                if (download.request.id != song.id) return
+                when (download.state) {
+                    Download.STATE_QUEUED,
+                    Download.STATE_RESTARTING -> trySend(DownloadStatus.Started)
 
-            val request = Request.Builder().url(downloadUrl!!).build()
-            val response = client.newCall(request).execute()
+                    Download.STATE_DOWNLOADING -> {
+                        val progress = download.percentDownloaded
+                            .takeIf { it >= 0f }
+                            ?.toInt()
+                            ?.coerceIn(0, 99)
+                        if (progress != null) trySend(DownloadStatus.Progress(progress))
+                    }
 
-            if (!response.isSuccessful || response.body == null) {
-                emit(DownloadStatus.Error("Error servidor: ${response.code}"))
-                return@flow
-            }
+                    Download.STATE_COMPLETED -> launch(Dispatchers.IO) {
+                        OfflineDownloadCatalog.persistCompleted(appContext, download, metadata)
+                        trySend(DownloadStatus.Progress(100))
+                        trySend(DownloadStatus.Success(song.title))
+                        close()
+                    }
 
-            val body = response.body!!
-            val totalLength = body.contentLength()
-            val inputStream = body.byteStream()
-
-            val file = File(context.filesDir, fileName)
-            val outputStream = FileOutputStream(file)
-
-            val buffer = ByteArray(8 * 1024)
-            var bytesRead: Int
-            var totalBytesRead = 0L
-
-            // Variables para controlar la fluidez de la barra
-            var lastProgress = 0
-            var lastUpdateTime = 0L
-
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                outputStream.write(buffer, 0, bytesRead)
-                totalBytesRead += bytesRead
-
-                if (totalLength > 0) {
-                    val percent = ((totalBytesRead * 100) / totalLength).toInt()
-                    val currentTime = System.currentTimeMillis()
-
-                    // TRUCO: Solo actualizamos la UI si:
-                    // 1. El porcentaje cambió
-                    // 2. Y ha pasado suficiente tiempo (50ms) O hemos llegado al 100%
-                    // Esto evita que la barra salte locamente si la descarga es muy rápida
-                    if (percent > lastProgress && (currentTime - lastUpdateTime > 50 || percent == 100)) {
-                        lastProgress = percent
-                        lastUpdateTime = currentTime
-                        emit(DownloadStatus.Progress(percent))
+                    Download.STATE_FAILED -> {
+                        trySend(
+                            DownloadStatus.Error(
+                                finalException?.localizedMessage ?: "La descarga no pudo completarse"
+                            )
+                        )
+                        close()
                     }
                 }
             }
-
-            outputStream.flush()
-            outputStream.close()
-            inputStream.close()
-
-            // Asegurar que llegue al 100% si el cálculo falló o fue muy rápido
-            if (lastProgress < 100) emit(DownloadStatus.Progress(100))
-
-            // Descargar portada (sin cambios aquí)
-            var localImageName: String? = null
-            if (!song.coverUrl.isNullOrBlank()) {
-                try {
-                    val imgReq = Request.Builder().url(song.coverUrl!!).build()
-                    val imgRes = client.newCall(imgReq).execute()
-                    if (imgRes.isSuccessful && imgRes.body != null) {
-                        localImageName = "cover_${song.id}.jpg"
-                        val imgFile = File(context.filesDir, localImageName)
-                        FileOutputStream(imgFile).use { it.write(imgRes.body!!.bytes()) }
-                    }
-                } catch (e: Exception) { Log.w("DL", "Fallo portada", e) }
-            }
-
-            // Guardar en BD
-            val analysisJson = if (song.audioAnalysis != null) gson.toJson(song.audioAnalysis) else null
-            val entity = DownloadedSong(
-                userId = userId,
-                songId = song.id,
-                title = song.title,
-                artistName = song.artistName ?: "Desconocido",
-                album = song.album,
-                duration = song.duration,
-                localAudioPath = fileName,
-                localImagePath = localImageName,
-                downloadDate = System.currentTimeMillis(),
-                sizeBytes = totalBytesRead,
-                audioAnalysisJson = analysisJson
-            )
-            downloadedSongDao.insert(entity)
-
-            // Pequeña pausa para que el usuario vea el 100% completado con satisfaccion
-            delay(300)
-            emit(DownloadStatus.Success(song.title))
-
-        } catch (e: Exception) {
-            Log.e("DownloadManager", "Error crítico", e)
-            try { 
-                // Limpiar archivo parcial corrupto
-                File(context.filesDir, "${song.id}.mp3").delete() 
-            } catch (_: Exception) {}
-            emit(DownloadStatus.Error(e.message ?: "Error desconocido"))
         }
+        downloadManager.addListener(listener)
+
+        val request = DownloadRequest.Builder(
+            song.id,
+            Uri.parse(PlaybackUrlResolver.stableUriFor(song.id))
+        )
+            .setMimeType(MimeTypes.AUDIO_MPEG)
+            .setCustomCacheKey(PlaybackUrlResolver.CACHE_KEY_PREFIX + song.id)
+            .setData(metadata.encode())
+            .build()
+
+        if (collection == null) {
+            OfflineDownloadProvider.prepareDownload(song.id)
+        }
+        DownloadService.sendAddDownload(
+            appContext,
+            ResonantDownloadService::class.java,
+            request,
+            false
+        )
+
+        awaitClose { downloadManager.removeListener(listener) }
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun registerLegacyDownload(
+        song: Song,
+        userId: String,
+        file: File,
+        collection: DownloadCollectionRef?
+    ) {
+        val coverName = "cover_${song.id}.jpg"
+        val cover = File(appContext.filesDir, coverName).takeIf { it.exists() }
+        downloadedSongDao.insert(
+            DownloadedSong(
+                userId = userId,
+                songId = song.id,
+                title = song.title,
+                artistName = song.artistName ?: "Desconocido",
+                album = song.album,
+                duration = song.duration,
+                localAudioPath = file.name,
+                localImagePath = cover?.name,
+                downloadDate = System.currentTimeMillis(),
+                sizeBytes = file.length() + (cover?.length() ?: 0L),
+                audioAnalysisJson = song.audioAnalysis?.let(Gson()::toJson),
+                isIndividuallySaved = collection == null
+            )
+        )
+    }
 }

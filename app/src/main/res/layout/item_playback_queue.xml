@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="68dp"
+    android:background="?attr/selectableItemBackground"
+    android:paddingStart="16dp"
+    android:paddingEnd="8dp">
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/queue_song_image"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:scaleType="centerCrop"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"
+        tools:src="@drawable/ic_disc" />
+
+    <TextView
+        android:id="@+id/queue_song_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_bold"
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toTopOf="@id/queue_song_artist"
+        app:layout_constraintEnd_toStartOf="@id/queue_remove"
+        app:layout_constraintStart_toEndOf="@id/queue_song_image"
+        app:layout_constraintTop_toTopOf="@id/queue_song_image"
+        app:layout_constraintVertical_chainStyle="packed"
+        tools:text="Nombre de la canción" />
+
+    <TextView
+        android:id="@+id/queue_song_artist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_regular"
+        android:maxLines="1"
+        android:textColor="@color/textTheme"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="@id/queue_song_image"
+        app:layout_constraintEnd_toEndOf="@id/queue_song_title"
+        app:layout_constraintStart_toStartOf="@id/queue_song_title"
+        app:layout_constraintTop_toBottomOf="@id/queue_song_title"
+        tools:text="Artista" />
+
+    <ImageButton
+        android:id="@+id/queue_remove"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Eliminar de la cola"
+        android:padding="11dp"
+        android:src="@drawable/ic_delete"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/queue_drag_handle"
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@color/textTheme" />
+
+    <ImageView
+        android:id="@+id/queue_drag_handle"
+        android:layout_width="44dp"
+        android:layout_height="match_parent"
+        android:contentDescription="Mantén pulsado para reordenar"
+        android:padding="10dp"
+        android:src="@drawable/ic_drag_handle"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/queue_now_playing"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_bold"
+        android:text="SONANDO"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="10sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

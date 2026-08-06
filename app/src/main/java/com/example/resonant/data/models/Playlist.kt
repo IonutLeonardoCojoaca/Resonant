@@ -27,6 +27,15 @@ data class Playlist(
     @SerializedName("isSystemPlaylist")
     val isSystemPlaylist: Boolean = false,
 
+    @SerializedName("isSaved")
+    val isSaved: Boolean = false,
+
+    @SerializedName("canEdit")
+    val canEdit: Boolean? = null,
+
+    @SerializedName("revision")
+    val revision: String? = null,
+
     // Campo local no serializado: se rellena tras obtener info del usuario
     @Transient
     var ownerName: String? = null

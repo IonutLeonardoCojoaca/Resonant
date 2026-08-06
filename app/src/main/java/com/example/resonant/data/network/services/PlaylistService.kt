@@ -2,6 +2,10 @@ package com.example.resonant.data.network.services
 
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.PlaylistDetailV2DTO
+import com.example.resonant.data.network.ReorderPlaylistTracksRequestDTO
+import com.example.resonant.data.network.ReorderPlaylistTracksResponseDTO
+import com.example.resonant.data.network.SavedPlaylistsPageDTO
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -11,6 +15,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Header
 
 interface PlaylistService {
     @POST("api/playlists")
@@ -63,4 +68,33 @@ interface PlaylistService {
         @Path("id") id: String,
         @Query("isPublic") isPublic: Boolean
     ): Response<Unit>
+
+    @GET("api/v2/playlists/{id}")
+    suspend fun getPlaylistDetailV2(
+        @Path("id") id: String
+    ): Response<PlaylistDetailV2DTO>
+
+    @PATCH("api/v2/playlists/{id}/tracks/order")
+    suspend fun reorderPlaylistTracks(
+        @Path("id") id: String,
+        @Header("If-Match") revision: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: ReorderPlaylistTracksRequestDTO
+    ): Response<ReorderPlaylistTracksResponseDTO>
+
+    @PUT("api/v2/me/library/playlists/{id}")
+    suspend fun savePlaylist(
+        @Path("id") id: String
+    ): Response<Unit>
+
+    @DELETE("api/v2/me/library/playlists/{id}")
+    suspend fun removeSavedPlaylist(
+        @Path("id") id: String
+    ): Response<Unit>
+
+    @GET("api/v2/me/library/playlists")
+    suspend fun getSavedPlaylists(
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int = 50
+    ): Response<SavedPlaylistsPageDTO>
 }

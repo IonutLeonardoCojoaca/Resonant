@@ -28,7 +28,7 @@ class CopyTransitionBottomSheet(
     private val sourcePlaymixId: String,
     private val songATitle: String,
     private val songBTitle: String
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     private lateinit var playmixAdapter: PlaymixSelectorAdapter
     private lateinit var playmixRecyclerView: RecyclerView

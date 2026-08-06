@@ -1,10 +1,31 @@
 package com.example.resonant.playback
 
 import android.graphics.Bitmap
+import androidx.annotation.MainThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.data.models.Song
+import java.util.concurrent.atomic.AtomicLong
+
+data class QueueItemSnapshot(
+    val entryId: String,
+    val song: Song,
+    val queueIndex: Int,
+    val isCurrent: Boolean
+)
+
+data class QueueSnapshot(
+    val revision: Long,
+    val sourceId: String,
+    val sourceType: QueueSource,
+    val currentIndex: Int,
+    val items: List<QueueItemSnapshot>,
+    val shuffleEnabled: Boolean
+) {
+    val canReorderUpcoming: Boolean
+        get() = !shuffleEnabled && sourceType != QueueSource.PLAYMIX
+}
 
 object PlaybackStateRepository {
     const val REPEAT_MODE_OFF = 0
@@ -12,11 +33,18 @@ object PlaybackStateRepository {
     const val REPEAT_MODE_ALL = 2
     private val _queueSourceLiveData = MutableLiveData<QueueSource>()
     val queueSourceLiveData: LiveData<QueueSource> = _queueSourceLiveData
+    private val queueRevision = AtomicLong(0L)
+    private val _queueSnapshotLiveData = MutableLiveData<QueueSnapshot?>()
+    val queueSnapshotLiveData: LiveData<QueueSnapshot?> = _queueSnapshotLiveData
 
     var activeQueue: PlaybackQueue? = null
         set(value) {
             field = value
-            value?.let { _queueSourceLiveData.postValue(it.sourceType) }
+            value?.let {
+                it.ensureEntryIds()
+                _queueSourceLiveData.postValue(it.sourceType)
+            }
+            publishQueue()
         }
 
     var currentSong: Song? = null
@@ -46,6 +74,20 @@ object PlaybackStateRepository {
     private val _isShuffleEnabled = MutableLiveData(false)
     val isShuffleEnabledLiveData: LiveData<Boolean> = _isShuffleEnabled
 
+    /**
+     * Current Resonant Radio session (autoplay seed) or `null` when the
+     * queue is playing user-selected content only.  Observed by the UI
+     * to show "Resonant Radio · Basado en X" in the mini player.
+     */
+    private val _radioSession = MutableLiveData<RadioSession?>(null)
+    val radioSessionLiveData: LiveData<RadioSession?> = _radioSession
+
+    fun setRadioSession(session: RadioSession?) {
+        if (_radioSession.value != session) {
+            _radioSession.postValue(session)
+        }
+    }
+
     fun updatePlaybackPosition(position: Long, duration: Int) {
         // Solo actualizamos si hay un cambio real para ser eficientes
         if (_playbackPosition.value?.position != position || _playbackPosition.value?.duration?.toInt() != duration) {
@@ -54,10 +96,11 @@ object PlaybackStateRepository {
     }
 
     fun setCurrentSong(song: Song?) {
-        if (currentSong?.id != song?.id) {
+        if (currentSong != song) {
+            val songChanged = currentSong?.id != song?.id
             currentSong = song
             _currentSongLiveData.postValue(song)
-            if (song != null) {
+            if (song != null && songChanged) {
                 streamReported = false
             }
         }
@@ -83,7 +126,61 @@ object PlaybackStateRepository {
     fun setIsShuffleEnabled(enabled: Boolean) {
         if (_isShuffleEnabled.value != enabled) {
             _isShuffleEnabled.postValue(enabled)
+            publishQueue(shuffleOverride = enabled)
         }
+    }
+
+    fun publishQueue(shuffleOverride: Boolean? = null) {
+        val queue = activeQueue
+        if (queue == null || queue.songs.isEmpty()) {
+            _queueSnapshotLiveData.postValue(null)
+            return
+        }
+        queue.ensureEntryIds()
+        val revision = queueRevision.incrementAndGet()
+        val snapshot = QueueSnapshot(
+            revision = revision,
+            sourceId = queue.sourceId,
+            sourceType = queue.sourceType,
+            currentIndex = queue.currentIndex.coerceIn(queue.songs.indices),
+            items = queue.songs.mapIndexed { index, song ->
+                QueueItemSnapshot(
+                    entryId = queue.entryIds[index],
+                    song = song,
+                    queueIndex = index,
+                    isCurrent = index == queue.currentIndex
+                )
+            },
+            shuffleEnabled = shuffleOverride ?: (_isShuffleEnabled.value ?: false)
+        )
+        _queueSnapshotLiveData.postValue(snapshot)
+    }
+
+    fun currentQueueRevision(): Long = queueRevision.get()
+
+    /**
+     * Publishes a restored session as one coherent UI snapshot. The song is
+     * emitted last so observers never render it with stale artwork or progress.
+     */
+    @MainThread
+    fun restore(restored: RestoredPlaybackState) {
+        val song = restored.queue.songs.getOrNull(restored.queue.currentIndex) ?: return
+        activeQueue = restored.queue
+        currentSong = song
+        isPlaying = false
+        streamReported = false
+
+        _queueSourceLiveData.value = restored.queue.sourceType
+        _currentSongBitmap.value = null
+        _playbackPosition.value = PlaybackPosition(
+            position = restored.positionMs,
+            duration = restored.durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        )
+        _repeatMode.value = restored.repeatMode
+        _isShuffleEnabled.value = restored.shuffleEnabled
+        _isPlayingLiveData.value = false
+        _currentSongLiveData.value = song
+        publishQueue(shuffleOverride = restored.shuffleEnabled)
     }
 
     fun getNextSong(currentIndex: Int): Song? {
@@ -104,10 +201,17 @@ object PlaybackStateRepository {
         return queue.songs.getOrNull(previousIndex)
     }
 
+    @MainThread
     fun reset() {
         activeQueue = null
-        setCurrentSong(null)
-        setIsPlaying(false)
+        currentSong = null
+        isPlaying = false
         streamReported = false
+        _queueSourceLiveData.value = QueueSource.UNKNOWN
+        _currentSongBitmap.value = null
+        _playbackPosition.value = PlaybackPosition(0L, 0)
+        _isPlayingLiveData.value = false
+        _currentSongLiveData.value = null
+        _queueSnapshotLiveData.value = null
     }
 }

@@ -104,6 +104,34 @@
             android:textSize="15sp"/>
 
         <TextView
+            android:id="@+id/playNextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_play_next_compact"
+            android:drawablePadding="14dp"
+            android:drawableTint="@color/white"
+            android:fontFamily="@font/unageo_regular"
+            android:gravity="start|center_vertical"
+            android:padding="16dp"
+            android:text="Reproducir a continuación"
+            android:textColor="@color/white"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/addToQueueButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_queue_add"
+            android:drawablePadding="14dp"
+            android:drawableTint="@color/white"
+            android:fontFamily="@font/unageo_regular"
+            android:gravity="start|center_vertical"
+            android:padding="16dp"
+            android:text="Añadir a la cola"
+            android:textColor="@color/white"
+            android:textSize="15sp" />
+
+        <TextView
             android:id="@+id/goToAlbumButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -121,7 +149,7 @@
             android:id="@+id/goToArtistButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_artist"
+            android:drawableStart="@drawable/ic_artist_person"
             android:drawablePadding="10dp"
             android:gravity="start|center_vertical"
             android:fontFamily="@font/unageo_regular"

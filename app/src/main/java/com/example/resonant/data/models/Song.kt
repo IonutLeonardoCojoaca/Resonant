@@ -39,6 +39,21 @@ data class Song(
     val playCount: Int? = null,
 
     @SerializedName("positionChange")
-    val positionChange: Int? = null
+    val positionChange: Int? = null,
+
+    @SerializedName(value = "playbackMimeType", alternate = ["mimeType"])
+    var playbackMimeType: String? = null,
+
+    var playbackExpiresAtUtc: String? = null,
+
+    var playbackStreamId: String? = null,
+
+    var playbackDeliveryMode: String? = null,
+
+    var playbackQuality: String? = null,
+
+    var playbackContentLength: Long? = null,
+
+    var playbackSupportsRanges: Boolean? = null
 
 ) : Parcelable

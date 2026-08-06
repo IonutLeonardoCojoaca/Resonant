@@ -13,8 +13,10 @@ import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -36,6 +38,8 @@ import com.example.resonant.data.models.Album
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.managers.SongManager
+import com.example.resonant.ui.dialogs.ResonantDialog
+import com.example.resonant.ui.viewmodels.AlbumDownloadState
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.button.MaterialButton
@@ -55,6 +59,9 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
     private lateinit var albumTopBarText: TextView
     private lateinit var favoriteButton: FrameLayout
     private lateinit var albumMetadataText: TextView
+    private lateinit var albumDownloadStatus: TextView
+    private lateinit var albumDownloadBackground: FrameLayout
+    private lateinit var albumDownloadButton: ImageView
 
     private lateinit var songAdapter: SongAdapter
     private lateinit var songViewModel: SongViewModel
@@ -110,13 +117,31 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
-        // --- LÓGICA DE DESCARGAS ---
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                songAdapter.downloadedSongIds = downloadedIds
-                if (songAdapter.currentList.isNotEmpty()) {
-                    songAdapter.notifyDataSetChanged()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                        songAdapter.downloadedSongIds = downloadedIds
+                        if (songAdapter.currentList.isNotEmpty()) {
+                            songAdapter.notifyDataSetChanged()
+                        }
+                    }
+                }
+                launch {
+                    downloadViewModel.albumDownloadStates.collect { states ->
+                        val albumId = arguments?.getString("albumId")
+                        renderAlbumDownloadState(albumId?.let(states::get))
+                    }
+                }
+                launch {
+                    downloadViewModel.downloadEvent.collect { message ->
+                        showResonantSnackbar(
+                            text = message,
+                            colorRes = R.color.successColor,
+                            iconRes = R.drawable.ic_success
+                        )
+                    }
                 }
             }
         }
@@ -147,6 +172,9 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         albumArtistName = view.findViewById(R.id.albumArtistName)
         albumImage = view.findViewById(R.id.artistImage)
         albumMetadataText = view.findViewById(R.id.albumMetadataText)
+        albumDownloadStatus = view.findViewById(R.id.albumDownloadStatus)
+        albumDownloadBackground = view.findViewById(R.id.albumDownloadBackground)
+        albumDownloadButton = view.findViewById(R.id.albumDownloadButton)
         nestedScroll = view.findViewById(R.id.nested_scroll)
         favoriteButton = view.findViewById(R.id.favoriteBackground)
         favoriteIcon = view.findViewById(R.id.favoriteButton)
@@ -268,6 +296,29 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             }
         }
 
+        albumDownloadBackground.setOnClickListener {
+            val album = loadedAlbum ?: return@setOnClickListener
+            val songs = songAdapter.currentList
+            if (songs.isEmpty()) return@setOnClickListener
+            val state = downloadViewModel.albumDownloadStates.value[album.id]
+            when {
+                state?.isRunning == true ->
+                    downloadViewModel.cancelAlbumDownload(album.id)
+                state != null &&
+                    state.total > 0 &&
+                    state.completed == state.total ->
+                    showRemoveAlbumDownloadDialog(album)
+                state?.failedSongIds?.isNotEmpty() == true ->
+                    downloadViewModel.retryFailedAlbumDownloads(album.id)
+                else ->
+                    downloadViewModel.downloadAlbum(
+                        albumId = album.id,
+                        title = album.title.orEmpty(),
+                        songs = songs
+                    )
+            }
+        }
+
         // --- CORREGIDO: Lógica del botón Play ---
         playButton.setOnClickListener {
             val currentList = ArrayList(songAdapter.currentList)
@@ -297,8 +348,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
             }
         }
 
-        songAdapter.onItemClick = { (song, bitmap) ->
-            val currentIndex = songAdapter.currentList.indexOfFirst { it.id == song.id }
+        songAdapter.onItemClickAtPosition = { song, bitmap, currentIndex ->
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
             val albumId = loadedAlbum?.id ?: song.album?.id ?: ""
@@ -439,6 +489,11 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                         updatePlayPauseIcon(isPlaying)
                     }
                 }
+                downloadViewModel.initializeAlbumDownloadState(
+                    albumId = album.id,
+                    title = album.title.orEmpty(),
+                    songs = songs
+                )
 
                 shimmerLayout.visibility = View.GONE
                 recyclerViewSongs.visibility = View.VISIBLE
@@ -455,5 +510,64 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         favoriteIcon.setImageResource(
             if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border
         )
+    }
+
+    private fun renderAlbumDownloadState(state: AlbumDownloadState?) {
+        when {
+            state == null -> {
+                albumDownloadButton.setImageResource(R.drawable.ic_download)
+                albumDownloadStatus.visibility = View.GONE
+                albumDownloadBackground.contentDescription = "Descargar álbum"
+            }
+            state.isRunning -> {
+                albumDownloadButton.setImageResource(R.drawable.ic_close)
+                albumDownloadStatus.text =
+                    "Descargando ${state.progressPercent}% · " +
+                        "${state.completed} de ${state.total}"
+                albumDownloadStatus.visibility = View.VISIBLE
+                albumDownloadBackground.contentDescription =
+                    "Cancelar descarga del álbum"
+            }
+            state.total > 0 && state.completed == state.total -> {
+                albumDownloadButton.setImageResource(R.drawable.ic_download_delete)
+                albumDownloadStatus.text = "Álbum disponible sin conexión"
+                albumDownloadStatus.visibility = View.VISIBLE
+                albumDownloadBackground.contentDescription =
+                    "Eliminar descarga del álbum"
+            }
+            state.failed > 0 -> {
+                albumDownloadButton.setImageResource(R.drawable.ic_replay)
+                albumDownloadStatus.text =
+                    "${state.completed} de ${state.total} · " +
+                        "${state.failed} pendientes"
+                albumDownloadStatus.visibility = View.VISIBLE
+                albumDownloadBackground.contentDescription =
+                    "Reintentar descarga del álbum"
+            }
+            else -> {
+                albumDownloadButton.setImageResource(R.drawable.ic_download)
+                albumDownloadStatus.text =
+                    "${state.completed} de ${state.total} descargadas"
+                albumDownloadStatus.visibility = View.VISIBLE
+                albumDownloadBackground.contentDescription =
+                    "Continuar descarga del álbum"
+            }
+        }
+    }
+
+    private fun showRemoveAlbumDownloadDialog(album: Album) {
+        ResonantDialog(requireContext())
+            .setSection("Descargas")
+            .setTitle("¿Eliminar este álbum?")
+            .setMessage(
+                "Se eliminará la copia sin conexión. Las canciones guardadas " +
+                    "individualmente o por otra colección se conservarán."
+            )
+            .setPositiveButton("Eliminar") {
+                downloadViewModel.removeDownloadedAlbum(album.id)
+            }
+            .setNegativeButton("Cancelar")
+            .setDestructive()
+            .show()
     }
 }

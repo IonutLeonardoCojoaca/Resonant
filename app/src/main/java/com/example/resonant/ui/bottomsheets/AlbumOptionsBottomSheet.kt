@@ -25,7 +25,7 @@ class AlbumOptionsBottomSheet(
     private val onGoToAlbumClick: ((Album) -> Unit)? = null,
     private val onGoToArtistClick: ((Album) -> Unit)? = null,
     private val onViewDetailsClick: ((Album) -> Unit)? = null
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme

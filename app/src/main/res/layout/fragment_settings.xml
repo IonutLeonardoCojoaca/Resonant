@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:clipToPadding="false"
+    android:background="@color/primaryColorTheme"
+    tools:context=".ui.fragments.SettingsFragment">
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     tools:context=".ui.fragments.SettingsFragment"
     android:background="@color/primaryColorTheme"
     android:paddingHorizontal="20dp">
@@ -274,4 +282,141 @@
         app:thumbTint="@color/switch_thumb_selector"
         app:trackTint="@color/switch_track_selector" />
 
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_autoplay_radio"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Resonant Radio (autoplay)"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@+id/autoplay_radio_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/subtitle_normalization" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/subtitle_autoplay_radio"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_medium"
+        android:text="Cuando termine tu cola, seguirán sonando canciones nuevas relacionadas con lo que estabas escuchando."
+        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toStartOf="@+id/autoplay_radio_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/label_autoplay_radio" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/autoplay_radio_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@id/subtitle_autoplay_radio"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/label_autoplay_radio"
+        app:thumbTint="@color/switch_thumb_selector"
+        app:trackTint="@color/switch_track_selector" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/audio_quality_row"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="22dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:contentDescription="Configurar calidad de audio"
+        app:cardBackgroundColor="@color/cardsTheme"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="0dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/subtitle_autoplay_radio"
+        app:strokeColor="@color/discTheme"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Calidad de audio"
+                android:textColor="@color/white"
+                android:textSize="16sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/streaming_quality_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:fontFamily="@font/unageo_regular"
+                android:textColor="@color/textTheme"
+                android:textSize="13sp"
+                tools:text="Streaming · Automática" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/download_quality_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/unageo_regular"
+                android:textColor="@color/textTheme"
+                android:textSize="13sp"
+                tools:text="Descargas · Alta · hasta 320 kbps" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/equalizer_row"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="120dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:contentDescription="Abrir ecualizador"
+        app:cardBackgroundColor="@color/cardsTheme"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/audio_quality_row"
+        app:strokeColor="@color/discTheme"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Ecualizador"
+                android:textColor="@color/white"
+                android:textSize="16sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/equalizer_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:fontFamily="@font/unageo_regular"
+                android:textColor="@color/textTheme"
+                android:textSize="13sp"
+                tools:text="Desactivado · Plano" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>

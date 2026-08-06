@@ -21,7 +21,7 @@ class PlaylistOptionsBottomSheet(
     private val onDeleteClick: (Playlist) -> Unit,
     private val onEditClick: (Playlist) -> Unit,
     private val onToggleVisibilityClick: ((Playlist) -> Unit)? = null
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 

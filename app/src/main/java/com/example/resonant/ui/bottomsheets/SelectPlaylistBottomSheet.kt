@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 class SelectPlaylistBottomSheet(
     private val song: Song,
     private val onNoPlaylistsFound: () -> Unit
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     private lateinit var playlistAdapter: PlaylistAdapter
     private lateinit var playlistRecyclerView: RecyclerView
@@ -111,7 +111,7 @@ class SelectPlaylistBottomSheet(
                             // Nota: requireContext() aquí es redundante si el método
                             // addSongToPlaylist ya no lo pide (depende de cómo dejaste el VM),
                             // pero si lo pide, está bien dejarlo.
-                            playlistDetailViewModel.addSongToPlaylist(
+                            playlistDetailViewModel.addSongToPlaylistAwait(
                                 song.id,
                                 selectedPlaylist.id!!
                             )

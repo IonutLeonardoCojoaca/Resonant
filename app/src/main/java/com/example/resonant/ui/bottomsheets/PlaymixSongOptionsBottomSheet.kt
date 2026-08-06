@@ -16,7 +16,7 @@ class PlaymixSongOptionsBottomSheet(
     private val onPlayClick: ((PlaymixSongDTO) -> Unit)? = null,
     private val onSeeSongClick: ((PlaymixSongDTO) -> Unit)? = null,
     private val onRemoveClick: ((PlaymixSongDTO) -> Unit)? = null
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 

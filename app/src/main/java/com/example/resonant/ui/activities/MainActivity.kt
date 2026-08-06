@@ -3,9 +3,7 @@ package com.example.resonant.ui.activities
 import android.Manifest
 import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
-import android.content.ComponentName
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Resources
@@ -15,7 +13,6 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.util.Log
 import android.view.View
 import android.widget.ImageButton
@@ -49,7 +46,9 @@ import com.example.resonant.workers.HourlyNotificationWorker
 import com.example.resonant.utils.MiniPlayerColorizer
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.R
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.ui.viewmodels.SongViewModel
+import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.fragments.SongFragment
 import com.example.resonant.data.models.UpdateDecision
 import com.example.resonant.ui.fragments.UpdateDialogFragment
@@ -76,8 +75,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.resonant.managers.DownloadStatus
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.playback.PlaybackConnectRepository
+import com.example.resonant.playback.PlaybackConnectUiState
+import com.example.resonant.ui.bottomsheets.PlaybackDevicesBottomSheet
+import com.example.resonant.ui.bottomsheets.PlaybackQueueBottomSheet
+import com.example.resonant.ui.views.MiniPlayerSwipeHandler
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 
 @AndroidEntryPoint
@@ -88,10 +94,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var prefs: SharedPreferences
     private lateinit var seekBar: SeekBar
     private lateinit var songDataPlayer: LinearLayout
+    private lateinit var miniPlayerSwipeHandler: MiniPlayerSwipeHandler
     private lateinit var playPauseButton: ImageButton
     private var playmixRingAnimator: ObjectAnimator? = null
-    private lateinit var previousSongButton: ImageButton
-    private lateinit var nextSongButton: ImageButton
+    private lateinit var miniPlayerLikeButton: ImageButton
+    private lateinit var miniPlayerQueueButton: ImageButton
     private lateinit var songImage: ImageView
     private lateinit var songName: TextView
     private lateinit var songArtist: TextView
@@ -107,17 +114,28 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var drawerLayout: DrawerLayout
 
     private lateinit var dimOverlay: View // Variable para la sombra
-    private var musicService: MusicPlaybackService? = null
-    private var isBound = false
     private lateinit var miniPlayer: View
+    private lateinit var playbackDeviceBar: View
+    private lateinit var playbackDeviceText: TextView
     private var shouldShowMiniPlayer = true
+    private var latestConnectState: PlaybackConnectUiState? = null
+    /**
+     * Set to true when this device transfers playback to another device.
+     * Prevents the mini-player from reappearing until the user explicitly
+     * starts playback locally again (via the conflict dialog or a TRANSFER_IN).
+     */
+    private var playbackTransferredAway = false
 
     private val userService by lazy { ApiClient.getUserService(this) } // <-- NUEVO
     private val appService by lazy { ApiClient.getAppService(this) }
     private val updateManager by lazy { AppUpdateManager(this, appService, ApiClient.baseUrl()) }
 
     private lateinit var songViewModel: SongViewModel
+    private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var navController: NavController
+    private val playbackConnectRepository by lazy {
+        PlaybackConnectRepository.get(applicationContext)
+    }
 
     private var activeCreationDialog: CreationMenuDialog? = null
 
@@ -173,22 +191,24 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         setupDrawerNavigation()
 
-        val intent = Intent(this, MusicPlaybackService::class.java)
-        bindService(intent, serviceConnection, BIND_AUTO_CREATE)
-
         prefs = this@MainActivity.getSharedPreferences("user_data", MODE_PRIVATE)
 
-        songDataPlayer = findViewById(R.id.songDataPlayer)
-        playPauseButton = findViewById(R.id.playPauseButton)
-        previousSongButton = findViewById(R.id.previousSongButton)
-        nextSongButton = findViewById(R.id.nextSongButton)
-        songImage = findViewById(R.id.songImage)
-        songName = findViewById(R.id.songTitle)
-        songArtist = findViewById(R.id.songArtist)
         miniPlayer = findViewById(R.id.mini_player)
+        // Several fragment/recycler layouts reuse songTitle, songArtist and
+        // songImage. Resolve every mini-player child from its own root so Home
+        // cards can never receive playback-state updates by mistake.
+        songDataPlayer = miniPlayer.findViewById(R.id.songDataPlayer)
+        playPauseButton = miniPlayer.findViewById(R.id.playPauseButton)
+        miniPlayerLikeButton = miniPlayer.findViewById(R.id.miniPlayerLikeButton)
+        miniPlayerQueueButton = miniPlayer.findViewById(R.id.miniPlayerQueueButton)
+        songImage = miniPlayer.findViewById(R.id.songImage)
+        songName = miniPlayer.findViewById(R.id.songTitle)
+        songArtist = miniPlayer.findViewById(R.id.songArtist)
+        playbackDeviceBar = findViewById(R.id.playbackDeviceBar)
+        playbackDeviceText = playbackDeviceBar.findViewById(R.id.playbackDeviceText)
         dimOverlay = findViewById(R.id.dim_overlay)
         drawerLayout = findViewById(R.id.drawerLayout)
-        seekBar = findViewById(R.id.seekbarPlayer)
+        seekBar = miniPlayer.findViewById(R.id.seekbarPlayer)
         seekBar.max = 100
 
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
@@ -217,6 +237,39 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         songName.isSelected = true
         songArtist.isSelected = true
+
+        playbackConnectRepository.synchronizeUserScope()
+        playbackDeviceBar.setOnClickListener {
+            PlaybackDevicesBottomSheet().show(
+                supportFragmentManager,
+                "PlaybackDevicesBottomSheet"
+            )
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                playbackConnectRepository.uiState.collect { state ->
+                    latestConnectState = state
+                    renderPlaybackDeviceState(state)
+
+                    val active = state.activeDevice
+                    val remoteIsActive = active != null &&
+                        active.deviceId != state.localDeviceId
+
+                    if (remoteIsActive && !PlaybackStateRepository.isPlaying) {
+                        // Another device owns playback and we're not playing →
+                        // hide mini-player and mark as transferred away.
+                        playbackTransferredAway = true
+                        hideMiniPlayerForTransfer()
+                    } else if (!remoteIsActive && PlaybackStateRepository.isPlaying) {
+                        // We're the active device again (TRANSFER_IN or user
+                        // confirmed local play) → restore mini-player.
+                        playbackTransferredAway = false
+                    }
+                }
+            }
+        }
+        playbackConnectRepository.refreshAsync()
 
         downloadViewModel = ViewModelProvider(this)[DownloadViewModel::class.java]
 
@@ -284,7 +337,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         playPauseButton.setOnClickListener {
             val intent = Intent(this, MusicPlaybackService::class.java)
-            if (musicService?.isPlaying() == true) {
+            if (PlaybackStateRepository.isPlaying) {
                 intent.action = MusicPlaybackService.Companion.ACTION_PAUSE
             } else {
                 intent.action = MusicPlaybackService.Companion.ACTION_RESUME
@@ -292,23 +345,33 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             startService(intent)
         }
 
-        previousSongButton.setOnClickListener {
-            val intent = Intent(this, MusicPlaybackService::class.java).apply {
-                // 👇 CORREGIDO
-                action = MusicPlaybackService.ACTION_PREVIOUS
-            }
-            startService(intent)
-        }
-
-        nextSongButton.setOnClickListener {
-            val intent = Intent(this, MusicPlaybackService::class.java).apply {
-                // 👇 CORREGIDO
-                action = MusicPlaybackService.ACTION_NEXT
-            }
-            startService(intent)
-        }
-
         songViewModel = ViewModelProvider(this).get(SongViewModel::class.java)
+        favoritesViewModel = ViewModelProvider(this).get(FavoritesViewModel::class.java)
+
+        miniPlayerLikeButton.setOnClickListener {
+            val song = songViewModel.currentSongLiveData.value ?: return@setOnClickListener
+            favoritesViewModel.toggleFavoriteSong(song) { success, isNowFavorite ->
+                if (success) {
+                    showResonantSnackbar(
+                        text = if (isNowFavorite) "¡Canción añadida a favoritos!" else "Canción eliminada de favoritos",
+                        colorRes = R.color.successColor,
+                        iconRes = R.drawable.ic_success
+                    )
+                } else {
+                    showResonantSnackbar(
+                        text = "Error al actualizar favoritos",
+                        colorRes = R.color.errorColor,
+                        iconRes = R.drawable.ic_error
+                    )
+                }
+            }
+        }
+
+        miniPlayerQueueButton.setOnClickListener {
+            if (supportFragmentManager.findFragmentByTag(QUEUE_SHEET_TAG) == null) {
+                PlaybackQueueBottomSheet().show(supportFragmentManager, QUEUE_SHEET_TAG)
+            }
+        }
         setupViewModelObservers()
 
         val miniPlayerContainer = findViewById<MaterialCardView>(R.id.miniPlayerContainer)
@@ -321,6 +384,34 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 Log.w("MiniPlayerClick", "No se pudo abrir SongFragment: currentSong is null")
             }
         }
+
+        // ── Swipe-to-skip on the song info area ────────────────────────────
+        // Swipe left = next track, swipe right = previous.  The handler also
+        // forwards single taps to open the NowPlaying (SongFragment) so that
+        // the user experience is seamless with or without the gesture.
+        miniPlayerSwipeHandler = MiniPlayerSwipeHandler(
+            context = this,
+            songDataContainer = miniPlayer.findViewById(R.id.songTextContainer),
+            onSkipNext = {
+                val intent = Intent(this, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_NEXT
+                }
+                startService(intent)
+            },
+            onSkipPrevious = {
+                val intent = Intent(this, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_PREVIOUS
+                }
+                startService(intent)
+            },
+            onClick = {
+                val currentSong = songViewModel.currentSongLiveData.value
+                if (currentSong != null) {
+                    SongFragment().show(supportFragmentManager, "SongFragment")
+                }
+            }
+        )
+        songDataPlayer.setOnTouchListener(miniPlayerSwipeHandler)
 
         val fragmentsWithToolbar = setOf(
             R.id.homeFragment,
@@ -446,12 +537,15 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             }
 
             // 5. GESTIÓN MINIPLAYER (Tu código original)
-            val currentSong = musicService?.currentSongLiveData?.value
-            if (shouldShowMiniPlayer && currentSong != null && !currentSong.title.isNullOrEmpty()) {
+            val currentSong = PlaybackStateRepository.currentSongLiveData.value
+            if (shouldShowMiniPlayer && !playbackTransferredAway &&
+                currentSong != null && !currentSong.title.isNullOrEmpty()
+            ) {
                 AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this@MainActivity)
             } else {
                 AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this@MainActivity)
             }
+            latestConnectState?.let(::renderPlaybackDeviceState)
         }
 
         bottomNavigationView.setOnItemSelectedListener { item ->
@@ -687,28 +781,73 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     private fun setupViewModelObservers() {
+        favoritesViewModel.favoriteSongIds.observe(this) { favoriteIds ->
+            val currentSong = songViewModel.currentSongLiveData.value
+            val isFavorite = currentSong?.id?.let { favoriteIds.contains(it) } ?: false
+            miniPlayerLikeButton.setImageResource(if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border)
+        }
+
         songViewModel.currentSongLiveData.observe(this) { song ->
-            if (song != null && shouldShowMiniPlayer) {
-                updateDataPlayer(song) // ✅ CORRECTO: Solo actualiza texto
+            val favoriteIds = favoritesViewModel.favoriteSongIds.value
+            val isFavorite = song?.id?.let { favoriteIds?.contains(it) } ?: false
+            miniPlayerLikeButton.setImageResource(if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border)
+
+            if (song != null && shouldShowMiniPlayer && !playbackTransferredAway) {
+                updateDataPlayer(song)
                 AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this)
-            } else {
+                miniPlayerSwipeHandler.maybeShowHint()
+            } else if (playbackTransferredAway || song == null) {
                 AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this)
             }
         }
 
         songViewModel.isPlayingLiveData.observe(this) { isPlaying ->
-            updatePlayPauseButton(isPlaying) // Actualiza el icono del botón
+            updatePlayPauseButton(isPlaying)
+            // When playback resumes locally (TRANSFER_IN or user confirmed
+            // conflict dialog), clear the transfer-away flag so the
+            // mini-player can reappear.
+            if (isPlaying && playbackTransferredAway) {
+                val state = latestConnectState
+                val remoteIsActive = state?.activeDevice?.let {
+                    it.deviceId != state.localDeviceId
+                } ?: false
+                if (!remoteIsActive) {
+                    playbackTransferredAway = false
+                    val currentSong = songViewModel.currentSongLiveData.value
+                    if (currentSong != null && shouldShowMiniPlayer) {
+                        updateDataPlayer(currentSong)
+                        AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this)
+                        anchorDeviceBarToMiniPlayer()
+                    }
+                }
+            }
         }
 
         songViewModel.queueSourceLiveData.observe(this) { source ->
             updatePlaymixMode(source == QueueSource.PLAYMIX)
         }
 
+        // Refresh the mini-player subtitle when Resonant Radio starts or
+        // changes seed, so "Basado en X · Artist" appears/updates without
+        // needing to wait for a song transition.
+        PlaybackStateRepository.radioSessionLiveData.observe(this) { _ ->
+            songViewModel.currentSongLiveData.value?.let(::updateDataPlayer)
+        }
+
         songViewModel.playbackPositionLiveData.observe(this) { positionInfo ->
             if (positionInfo.duration > 0) {
                 seekBar.max = positionInfo.duration.toInt()
+                seekBar.progress = positionInfo.position
+                    .coerceIn(0L, positionInfo.duration.toLong())
+                    .toInt()
+                seekBar.isEnabled = true
+            } else {
+                // Avoid rendering a restored position against SeekBar's default
+                // max (100), which makes an unknown duration appear complete.
+                seekBar.max = 1
+                seekBar.progress = 0
+                seekBar.isEnabled = false
             }
-            seekBar.progress = positionInfo.position.toInt()
         }
 
         songViewModel.currentSongBitmapLiveData.observe(this) { bitmap ->
@@ -721,7 +860,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         container = findViewById<View>(R.id.miniPlayerContainer),
                         title = songName,
                         subtitle = songArtist,
-                        iconButtons = listOf(previousSongButton, playPauseButton, nextSongButton),
+                        iconButtons = listOf(miniPlayerLikeButton, playPauseButton, miniPlayerQueueButton),
                         seekBar = seekBar,
                     ),
                     fallbackColor = getColor(R.color.secondaryColorTheme)
@@ -753,19 +892,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     }
                 }
             }
-        }
-    }
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as MusicPlaybackService.MusicServiceBinder
-            musicService = binder.getService()
-            isBound = true
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            isBound = false
-            musicService = null
         }
     }
 
@@ -801,11 +927,90 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     fun updateDataPlayer(song: Song) {
         songName.text = song.title
             .removeSuffix(".mp3")
-            .replace(Regex("\\s*\\([^)]*\\)"), "")
-            .replace("-", "–")
             .trim()
 
-        songArtist.text = song.artistName ?: "Desconocido"
+        val artistText = song.artistName
+            ?.takeIf { it.isNotBlank() }
+            ?: song.artists
+                .joinToString(", ") { it.name }
+                .takeIf { it.isNotBlank() }
+            ?: getString(R.string.unknown_artist)
+
+        // If Resonant Radio is running, prefix the subtitle so the user
+        // knows autoplay is on and which seed is driving it. The observer
+        // set up in setupViewModelObservers() re-invokes updateDataPlayer
+        // when the radio session changes, so this stays in sync.
+        val radioSubtitle = PlaybackStateRepository.radioSessionLiveData
+            .value
+            ?.let { session -> session.reasonText?.takeIf { it.isNotBlank() } }
+        songArtist.text = if (radioSubtitle != null) {
+            "$radioSubtitle · $artistText"
+        } else {
+            artistText
+        }
+    }
+
+    companion object {
+        private const val QUEUE_SHEET_TAG = "PlaybackQueueBottomSheet"
+    }
+
+    private fun renderPlaybackDeviceState(state: PlaybackConnectUiState) {
+        if (!::playbackDeviceBar.isInitialized) return
+
+        val active = state.activeDevice
+        val remoteIsActive = active != null && active.deviceId != state.localDeviceId
+
+        // Show the bar if:
+        // 1. A remote device is currently playing (always show — the user needs
+        //    this to see where playback went and to get it back).
+        // 2. OR Connect is confirmed supported, there are alternative devices,
+        //    and the mini-player is visible (so there's something to transfer).
+        val shouldShow = remoteIsActive ||
+            (shouldShowMiniPlayer && !playbackTransferredAway &&
+                state.supported && state.hasAlternativeDevice)
+
+        if (!shouldShow) {
+            playbackDeviceBar.visibility = View.GONE
+            anchorDeviceBarToMiniPlayer()
+            return
+        }
+        playbackDeviceText.text = when {
+            remoteIsActive -> "Reproduciendo en ${active?.name}"
+            state.hasAlternativeDevice -> "Elegir otro dispositivo"
+            else -> "Este dispositivo"
+        }
+        playbackDeviceBar.visibility = View.VISIBLE
+
+        // When mini-player is hidden (transferred away), anchor the bar
+        // directly to bottom_navigation so it doesn't float.
+        if (playbackTransferredAway || miniPlayer.visibility == View.GONE) {
+            anchorDeviceBarToBottomNav()
+        } else {
+            anchorDeviceBarToMiniPlayer()
+        }
+    }
+
+    /**
+     * Hides mini-player after a successful transfer and re-anchors
+     * the device bar to sit just above the bottom navigation.
+     */
+    private fun hideMiniPlayerForTransfer() {
+        AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this)
+        anchorDeviceBarToBottomNav()
+    }
+
+    private fun anchorDeviceBarToBottomNav() {
+        val lp = playbackDeviceBar.layoutParams as? ConstraintLayout.LayoutParams ?: return
+        lp.bottomToTop = R.id.bottom_navigation
+        lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
+        playbackDeviceBar.layoutParams = lp
+    }
+
+    private fun anchorDeviceBarToMiniPlayer() {
+        val lp = playbackDeviceBar.layoutParams as? ConstraintLayout.LayoutParams ?: return
+        lp.bottomToTop = R.id.mini_player
+        lp.bottomMargin = (1 * resources.displayMetrics.density).toInt()
+        playbackDeviceBar.layoutParams = lp
     }
 
     fun openDrawer() {
@@ -816,9 +1021,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     override fun onStart() {
         super.onStart()
-        Intent(this, MusicPlaybackService::class.java).also { intent ->
-            bindService(intent, serviceConnection, BIND_AUTO_CREATE)
-        }
+        // Announce this device's presence immediately so other devices (e.g.
+        // the Xiaomi) see the emulator in their picker without waiting for the
+        // next 4s heartbeat from MusicPlaybackService.
+        playbackConnectRepository.announcePresenceAsync()
+        playbackConnectRepository.refreshAsync()
     }
 
     override fun onStop() {
@@ -835,10 +1042,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isBound) {
-            unbindService(serviceConnection)
-            isBound = false
-        }
     }
 
     private fun checkNotificationPermission() {

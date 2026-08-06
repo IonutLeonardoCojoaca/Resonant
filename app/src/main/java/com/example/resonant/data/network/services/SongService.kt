@@ -3,6 +3,8 @@ package com.example.resonant.data.network.services
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.AddStreamDTO
 import com.example.resonant.data.network.RecommendationResponse
+import com.example.resonant.data.network.PlaybackResolveRequestDTO
+import com.example.resonant.data.network.PlaybackResolveResponseDTO
 import com.example.resonant.data.network.SearchResponse
 import com.example.resonant.data.network.SongAudioAnalysisDTO
 import com.example.resonant.data.network.SongMetadataDTO
@@ -10,6 +12,7 @@ import com.example.resonant.data.network.SongPlaybackDTO
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -23,7 +26,18 @@ interface SongService {
     suspend fun getSongById(@Path("id") songId: String): Song
 
     @GET("api/songs/{id}/playback")
-    suspend fun getSongPlaybackInfo(@Path("id") songId: String): SongPlaybackDTO
+    suspend fun getSongPlaybackInfo(
+        @Path("id") songId: String,
+        @Query("deliveryMode") deliveryMode: String? = null,
+        @Query("preferredQuality") preferredQuality: String? = null,
+        @Header("X-Resonant-Playback-Capabilities") capabilities: String? = null
+    ): SongPlaybackDTO
+
+    @POST("api/v2/playback/resolve")
+    suspend fun resolvePlayback(
+        @Body request: PlaybackResolveRequestDTO,
+        @Header("X-Resonant-Playback-Capabilities") capabilities: String
+    ): PlaybackResolveResponseDTO
 
     @GET("api/songs/search")
     suspend fun searchSongs(@Query("q") query: String, @Query("limit") limit: Int = 30): SearchResponse<Song>

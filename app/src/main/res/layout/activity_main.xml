@@ -50,6 +50,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingHorizontal="12dp"
+            android:paddingTop="2dp"
             android:paddingBottom="8dp"
             app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
             app:layout_constraintStart_toStartOf="parent"
@@ -60,6 +61,7 @@
                 android:id="@+id/miniPlayerContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="0dp"
                 android:minHeight="64dp"
                 app:cardBackgroundColor="#1E1E1E"
                 app:cardCornerRadius="12dp"
@@ -91,41 +93,70 @@
                         android:id="@+id/songDataPlayer"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
+                        android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:paddingHorizontal="12dp"
+                        android:paddingHorizontal="4dp"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toStartOf="@+id/playerActions"
                         app:layout_constraintStart_toEndOf="@+id/songImage"
                         app:layout_constraintTop_toTopOf="parent">
 
-                        <TextView
-                            android:id="@+id/songTitle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:ellipsize="marquee"
-                            android:fontFamily="@font/unageo_medium"
-                            android:marqueeRepeatLimit="marquee_forever"
-                            android:scrollHorizontally="true"
-                            android:singleLine="true"
-                            android:text="Song Title"
-                            android:textColor="@color/secondaryColorTheme"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
+                        <ImageView
+                            android:id="@+id/swipeHintLeft"
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:src="@drawable/ic_chevron_left_mini"
+                            android:alpha="0.35"
+                            android:contentDescription="@null"
+                            app:tint="@color/secondaryColorTheme" />
 
-                        <TextView
-                            android:id="@+id/songArtist"
-                            android:layout_width="match_parent"
+                        <LinearLayout
+                            android:id="@+id/songTextContainer"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:ellipsize="marquee"
-                            android:fontFamily="@font/unageo_medium"
-                            android:marqueeRepeatLimit="marquee_forever"
-                            android:scrollHorizontally="true"
-                            android:singleLine="true"
-                            android:text="Artist Name"
-                            android:textColor="@color/textTheme"
-                            android:textSize="12sp"
-                            android:alpha="0.7"/>
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center_vertical"
+                            android:paddingHorizontal="4dp">
+
+                            <TextView
+                                android:id="@+id/songTitle"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="marquee"
+                                android:fontFamily="@font/unageo_medium"
+                                android:marqueeRepeatLimit="marquee_forever"
+                                android:scrollHorizontally="true"
+                                android:singleLine="true"
+                                android:text="Song Title"
+                                android:textColor="@color/secondaryColorTheme"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/songArtist"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="marquee"
+                                android:fontFamily="@font/unageo_medium"
+                                android:marqueeRepeatLimit="marquee_forever"
+                                android:scrollHorizontally="true"
+                                android:singleLine="true"
+                                android:text="Artist Name"
+                                android:textColor="@color/textTheme"
+                                android:textSize="12sp"
+                                android:alpha="0.7"/>
+                        </LinearLayout>
+
+                        <ImageView
+                            android:id="@+id/swipeHintRight"
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:src="@drawable/ic_chevron_right_mini"
+                            android:alpha="0.35"
+                            android:contentDescription="@null"
+                            app:tint="@color/secondaryColorTheme" />
+
                     </LinearLayout>
 
                     <LinearLayout
@@ -139,16 +170,19 @@
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintTop_toTopOf="parent">
 
+                        <!-- Like button -->
                         <ImageButton
-                            android:id="@+id/previousSongButton"
+                            android:id="@+id/miniPlayerLikeButton"
                             android:layout_width="36dp"
                             android:layout_height="36dp"
                             android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp"
+                            android:padding="6dp"
                             android:scaleType="centerInside"
-                            android:src="@drawable/ic_skip_previous"
+                            android:src="@drawable/ic_favorite_border"
+                            android:contentDescription="Me gusta"
                             app:tint="@color/secondaryColorTheme" />
 
+                        <!-- Play/Pause button -->
                         <FrameLayout
                             android:id="@+id/playButtonContainer"
                             android:layout_width="44dp"
@@ -175,14 +209,16 @@
 
                         </FrameLayout>
 
+                        <!-- Queue button -->
                         <ImageButton
-                            android:id="@+id/nextSongButton"
+                            android:id="@+id/miniPlayerQueueButton"
                             android:layout_width="36dp"
                             android:layout_height="36dp"
                             android:background="?attr/selectableItemBackgroundBorderless"
-                            android:padding="4dp"
+                            android:padding="6dp"
                             android:scaleType="centerInside"
-                            android:src="@drawable/ic_skip_next"
+                            android:src="@drawable/ic_queue_list"
+                            android:contentDescription="Cola de reproducción"
                             app:tint="@color/secondaryColorTheme" />
                     </LinearLayout>
 
@@ -203,7 +239,92 @@
 
                 </androidx.constraintlayout.widget.ConstraintLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/queueFloatingButton"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:layout_gravity="top|center_horizontal"
+                android:contentDescription="Abrir cola de reproducción"
+                android:elevation="12dp"
+                android:fontFamily="@font/unageo_bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="12dp"
+                android:text="Cola · 0"
+                android:textAllCaps="false"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:visibility="gone"
+                app:backgroundTint="#26262B"
+                app:cornerRadius="14dp"
+                app:icon="@drawable/ic_queue_list"
+                app:iconGravity="textStart"
+                app:iconPadding="5dp"
+                app:iconSize="15dp"
+                app:iconTint="@color/white"
+                app:rippleColor="#33FFFFFF"
+                app:strokeColor="#66E21616"
+                app:strokeWidth="1dp" />
         </FrameLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/playbackDeviceBar"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginBottom="1dp"
+            app:layout_goneMarginBottom="8dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="#241010"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="4dp"
+            app:layout_constraintBottom_toTopOf="@+id/mini_player"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:strokeColor="@android:color/transparent"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_devices"
+                    app:tint="@color/secondaryColorTheme" />
+
+                <TextView
+                    android:id="@+id/playbackDeviceText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
+                    android:maxLines="1"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:contentDescription="@null"
+                    android:rotation="180"
+                    android:src="@drawable/ic_arrow_back"
+                    app:tint="#A8A8A8" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"

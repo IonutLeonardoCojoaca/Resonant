@@ -9,4 +9,6 @@ enum class QueueSource {
     TOP_SONGS_ARTIST,
     COLLAB_FINDER,
     PLAYMIX,
+    DOWNLOADED_SONGS,
+    QUEUE,
     UNKNOWN }

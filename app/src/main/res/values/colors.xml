@@ -42,4 +42,13 @@
     <color name="chip_selected_background">#E21616</color>
     <color name="chip_unselected_background">#1F1F1F</color>
 
+    <!-- Login experience -->
+    <color name="login_background">#050506</color>
+    <color name="login_accent">#E21616</color>
+    <color name="login_text_primary">#FFF8F8</color>
+    <color name="login_text_secondary">#B8FFFFFF</color>
+    <color name="login_text_tertiary">#7AFFFFFF</color>
+    <color name="login_google_surface">#FFF8F8</color>
+    <color name="login_google_text">#161416</color>
+
 </resources>

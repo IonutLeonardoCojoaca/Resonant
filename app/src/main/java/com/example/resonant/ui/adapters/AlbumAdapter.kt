@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -85,8 +86,8 @@ class AlbumAdapter(
         when (holder) {
             is SimpleAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
             is DetailedAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
-            is FavoriteAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
-            is FeaturedAlbumViewHolder -> Glide.with(holder.itemView).clear(holder.albumImage)
+            is FavoriteAlbumViewHolder -> Glide.with(holder.albumImage).clear(holder.albumImage)
+            is FeaturedAlbumViewHolder -> Glide.with(holder.albumImage).clear(holder.albumImage)
         }
     }
 
@@ -100,8 +101,8 @@ class AlbumAdapter(
         val albumImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val albumName: TextView = itemView.findViewById(R.id.albumName)
         private val artistName: TextView = itemView.findViewById(R.id.artistName)
-        private val container: View = itemView.findViewById(R.id.itemContainer)
         private val btnSettings: View? = itemView.findViewById(R.id.btnSettings)
+        private val container: View? = itemView.findViewById(R.id.itemContainer) ?: itemView.findViewById(R.id.albumRoot) ?: itemView
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
@@ -110,7 +111,7 @@ class AlbumAdapter(
             val displayedArtistName = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown"
             artistName.text = displayedArtistName
 
-            loadAlbumCoverPalette(album.url, albumImage, container, albumName, artistName)
+            loadAlbumCover(album.url, albumImage, container, albumName, artistName)
 
             btnSettings?.visibility = View.VISIBLE
             btnSettings?.setOnClickListener {
@@ -142,6 +143,7 @@ class AlbumAdapter(
         val albumYear: TextView = itemView.findViewById(R.id.albumYear)
         val albumTracks: TextView = itemView.findViewById(R.id.albumTrackCount)
         private val btnSettings: View? = itemView.findViewById(R.id.btnSettings)
+        private val container: View? = itemView.findViewById(R.id.itemContainer) ?: itemView.findViewById(R.id.albumRoot) ?: itemView
 
         fun bind(album: Album) {
             albumTitle.text = album.title ?: "Not found"
@@ -153,7 +155,7 @@ class AlbumAdapter(
             val trackCount = album.numberOfTracks ?: 0
             albumTracks.text = "$trackCount canciones"
             albumType.text = if (trackCount > 6) "Álbum" else "EP/Single"
-            loadAlbumCover(album.url, albumImage)
+            loadAlbumCover(album.url, albumImage, container, albumTitle, artistName)
             
             btnSettings?.visibility = View.VISIBLE
             btnSettings?.setOnClickListener {
@@ -181,7 +183,8 @@ class AlbumAdapter(
         val albumImage: ImageView = itemView.findViewById(R.id.albumImage)
         private val albumName: TextView = itemView.findViewById(R.id.albumTitle)
         private val artistName: TextView = itemView.findViewById(R.id.albumArtistName)
-        private val settingsButton: View? = itemView.findViewById(R.id.settingsButton) // Changed to View? to use findViewById
+        private val settingsButton: View? = itemView.findViewById(R.id.settingsButton)
+        private val container: View? = itemView.findViewById(R.id.albumDataContainer) ?: itemView.findViewById(R.id.itemContainer) ?: itemView.findViewById(R.id.albumRoot) ?: itemView
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Unknown"
@@ -189,7 +192,7 @@ class AlbumAdapter(
             val displayedArtistName = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown"
             artistName.text = displayedArtistName
             
-            loadAlbumCover(album.url, albumImage)
+            loadAlbumCover(album.url, albumImage, container, albumName, artistName)
             
             settingsButton?.visibility = View.VISIBLE
             settingsButton?.setOnClickListener {
@@ -210,6 +213,7 @@ class AlbumAdapter(
         private val albumName: TextView = itemView.findViewById(R.id.albumName)
         private val trackCount: TextView = itemView.findViewById(R.id.textView) // El ID de "0" en tu XML
         private val featuredTag: TextView = itemView.findViewById(R.id.featuredTag) // El ID añadido al primer TextView
+        private val container: View? = itemView.findViewById(R.id.itemContainer) ?: itemView.findViewById(R.id.albumRoot) ?: itemView
 
         fun bind(album: Album) {
             albumName.text = album.title ?: "Sin título"
@@ -221,15 +225,11 @@ class AlbumAdapter(
 
             if (isNew) {
                 featuredTag.text = "Último lanzamiento"
-                // Opcional: Cambiar background tint si tienes drawables distintos
-                // featuredTag.setBackgroundResource(R.drawable.bg_rounded_secondary)
             } else {
                 featuredTag.text = "Álbum destacado"
-                // featuredTag.setBackgroundResource(R.drawable.bg_rounded_gold) // Ejemplo si tuvieras otro color
             }
 
-            // Usamos carga normal (sin Palette) para mejor rendimiento en items grandes
-            loadAlbumCover(album.url, albumImage)
+            loadAlbumCover(album.url, albumImage, container, albumName, trackCount)
 
             itemView.setOnClickListener {
                 onAlbumClick?.invoke(album) ?: run {
@@ -247,52 +247,33 @@ class AlbumAdapter(
 
     // --- HELPERS DE CARGA ---
 
-    private fun loadAlbumCover(url: String?, imageView: ImageView) {
-        val placeholderRes = R.drawable.ic_album_stack
-        Glide.with(imageView).clear(imageView)
-
-        if (url.isNullOrBlank()) {
-            imageView.setImageResource(placeholderRes)
-            return
-        }
-
-        val model = ImageRequestHelper.buildGlideModel(imageView.context, url)
-
-        Glide.with(imageView)
-            .load(model)
-            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .timeout(10_000)
-            .dontAnimate()
-            .placeholder(placeholderRes)
-            .error(placeholderRes)
-            .into(object : CustomTarget<Drawable>() {
-                 override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
-                     imageView.setImageDrawable(resource)
-                 }
-                 override fun onLoadCleared(placeholder: Drawable?) {
-                     imageView.setImageDrawable(placeholder)
-                 }
-            })
-    }
-
-    private fun loadAlbumCoverPalette(
+    private fun loadAlbumCover(
         url: String?,
         imageView: ImageView,
-        container: View,
-        albumName: TextView,
-        artistName: TextView
+        containerView: View? = null,
+        titleView: TextView? = null,
+        subtitleView: TextView? = null
     ) {
         val placeholderRes = R.drawable.ic_album_stack
         Glide.with(imageView).clear(imageView)
 
+        val fallbackColor = ContextCompat.getColor(imageView.context, R.color.cardsTheme)
+
+        if (containerView != null) {
+            MiniPlayerColorizer.applyFromImageView(
+                imageView = imageView,
+                targets = MiniPlayerColorizer.Targets(
+                    container = containerView,
+                    title = titleView,
+                    subtitle = subtitleView
+                ),
+                fallbackColor = fallbackColor,
+                animateMillis = 0L
+            )
+        }
+
         if (url.isNullOrBlank()) {
             imageView.setImageResource(placeholderRes)
-            MiniPlayerColorizer.applyFromImageView(
-                imageView,
-                MiniPlayerColorizer.Targets(container = container, title = albumName, subtitle = artistName),
-                fallbackColor = imageView.context.getColor(R.color.primaryColorTheme),
-                animateMillis = 400L
-            )
             return
         }
 
@@ -301,6 +282,7 @@ class AlbumAdapter(
         Glide.with(imageView)
             .asBitmap()
             .load(model)
+            .override(200, 200)
             .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
             .timeout(10_000)
             .dontAnimate()
@@ -309,15 +291,26 @@ class AlbumAdapter(
             .into(object : CustomTarget<Bitmap>() {
                 override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                     imageView.setImageBitmap(resource)
-                    MiniPlayerColorizer.applyFromImageView(
-                        imageView,
-                        MiniPlayerColorizer.Targets(container = container, title = albumName, subtitle = artistName),
-                        fallbackColor = imageView.context.getColor(R.color.primaryColorTheme),
-                        animateMillis = 400L
-                    )
+                    if (containerView != null) {
+                        MiniPlayerColorizer.applyFromImageView(
+                            imageView = imageView,
+                            targets = MiniPlayerColorizer.Targets(
+                                container = containerView,
+                                title = titleView,
+                                subtitle = subtitleView
+                            ),
+                            fallbackColor = fallbackColor,
+                            animateMillis = 300L
+                        )
+                    }
                 }
+
                 override fun onLoadCleared(placeholder: Drawable?) {
                     imageView.setImageDrawable(placeholder)
+                }
+
+                override fun onLoadFailed(errorDrawable: Drawable?) {
+                    imageView.setImageDrawable(errorDrawable)
                 }
             })
     }

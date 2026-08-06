@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
 class SelectPlaymixBottomSheet(
     private val song: Song,
     private val onNoPlaymixesFound: () -> Unit
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     private lateinit var playmixAdapter: PlaymixSelectorAdapter
     private lateinit var playmixRecyclerView: RecyclerView

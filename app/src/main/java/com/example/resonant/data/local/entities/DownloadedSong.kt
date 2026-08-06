@@ -19,5 +19,7 @@ data class DownloadedSong(
     val downloadDate: Long,
     val sizeBytes: Long,
 
-    val audioAnalysisJson: String?
+    val audioAnalysisJson: String?,
+
+    val isIndividuallySaved: Boolean = true
 )

@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="22dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="22dp"
+        android:paddingBottom="36dp">
+
+        <!-- Handle -->
+        <View
+            android:layout_width="42dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="20dp"
+            android:background="@drawable/bg_bottom_sheet_handle" />
+
+        <!-- Header row: title + enable switch -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Ecualizador"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_regular"
+                    android:text="Curva persistente para tu dispositivo"
+                    android:textColor="@color/textTheme"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/equalizer_enabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:thumbTint="@color/switch_thumb_selector"
+                app:trackTint="@color/switch_track_selector" />
+
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="16dp"
+            android:background="@color/discTheme" />
+
+        <!-- Preset section label -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:fontFamily="@font/unageo_bold"
+            android:letterSpacing="0.05"
+            android:text="PRESETS"
+            android:textColor="@color/secondaryColorTheme"
+            android:textSize="11sp" />
+
+        <!-- Preset chips -->
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/equalizer_presets"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:chipSpacingHorizontal="8dp"
+            app:chipSpacingVertical="4dp"
+            app:selectionRequired="false"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/preset_flat"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_medium"
+                android:text="Plano"
+                android:textColor="@color/chip_text_color_selector"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipStrokeColor="@color/chip_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:chipIconVisible="false"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/preset_bass"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_medium"
+                android:text="Graves"
+                android:textColor="@color/chip_text_color_selector"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipStrokeColor="@color/chip_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:chipIconVisible="false"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/preset_vocal"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_medium"
+                android:text="Voz"
+                android:textColor="@color/chip_text_color_selector"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipStrokeColor="@color/chip_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:chipIconVisible="false"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/preset_treble"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_medium"
+                android:text="Agudos"
+                android:textColor="@color/chip_text_color_selector"
+                app:chipBackgroundColor="@color/chip_background_selector"
+                app:chipStrokeColor="@color/chip_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:chipIconVisible="false"
+                app:checkedIconVisible="false" />
+
+        </com.google.android.material.chip.ChipGroup>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="16dp"
+            android:background="@color/discTheme" />
+
+        <!-- Bands section label -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:fontFamily="@font/unageo_bold"
+            android:letterSpacing="0.05"
+            android:text="BANDAS"
+            android:textColor="@color/secondaryColorTheme"
+            android:textSize="11sp" />
+
+        <!-- EQ Bands card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/eq_bands_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/cardsTheme"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/discTheme"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="6dp">
+
+                <!-- Band: 60 Hz -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="2dp">
+
+                    <TextView
+                        android:layout_width="52dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="60 Hz"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/eq_band_60"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:stepSize="1"
+                        android:valueFrom="-12"
+                        android:valueTo="12" />
+
+                    <TextView
+                        android:id="@+id/eq_band_60_label"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="end"
+                        android:text="0 dB"
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Band: 230 Hz -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="2dp">
+
+                    <TextView
+                        android:layout_width="52dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="230 Hz"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/eq_band_230"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:stepSize="1"
+                        android:valueFrom="-12"
+                        android:valueTo="12" />
+
+                    <TextView
+                        android:id="@+id/eq_band_230_label"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="end"
+                        android:text="0 dB"
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Band: 910 Hz -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="2dp">
+
+                    <TextView
+                        android:layout_width="52dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="910 Hz"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/eq_band_910"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:stepSize="1"
+                        android:valueFrom="-12"
+                        android:valueTo="12" />
+
+                    <TextView
+                        android:id="@+id/eq_band_910_label"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="end"
+                        android:text="0 dB"
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Band: 3.6 kHz -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="2dp">
+
+                    <TextView
+                        android:layout_width="52dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="3.6 kHz"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/eq_band_3600"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:stepSize="1"
+                        android:valueFrom="-12"
+                        android:valueTo="12" />
+
+                    <TextView
+                        android:id="@+id/eq_band_3600_label"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="end"
+                        android:text="0 dB"
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Band: 14 kHz -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="52dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="14 kHz"
+                        android:textColor="@color/white"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/eq_band_14000"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:stepSize="1"
+                        android:valueFrom="-12"
+                        android:valueTo="12" />
+
+                    <TextView
+                        android:id="@+id/eq_band_14000_label"
+                        android:layout_width="44dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_medium"
+                        android:gravity="end"
+                        android:text="0 dB"
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Footer note -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:fontFamily="@font/unageo_regular"
+            android:text="Se aplica margen automático para evitar clipping. Al activarlo se desactiva el crossfade inteligente."
+            android:textColor="@color/textBottomSheet"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

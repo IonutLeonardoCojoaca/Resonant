@@ -24,7 +24,7 @@ import com.example.resonant.utils.ImageRequestHelper
 class ArtistSelectorBottomSheet(
     private val artists: List<Artist>,
     private val onArtistSelected: (Artist) -> Unit
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme

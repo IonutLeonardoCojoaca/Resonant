@@ -1,6 +1,6 @@
 package com.example.resonant.services
 
-import android.app.Service
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,50 +10,80 @@ import android.graphics.drawable.Drawable
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioAttributes as AndroidAudioAttributes
-import android.net.Uri
-import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
-import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.lifecycle.LiveData
-import androidx.media.session.MediaButtonReceiver
 import androidx.media3.common.AudioAttributes as ExoAudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
+import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionResult
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
+import com.example.resonant.BuildConfig
 import com.example.resonant.data.network.AddStreamDTO
-import com.example.resonant.managers.AppNotificationManager
+import com.example.resonant.data.network.ClientCompatibilityInterceptor
 import com.example.resonant.managers.CrossfadeMode
+import com.example.resonant.managers.AudioQuality
+import com.example.resonant.playback.AudioEqualizerController
+import com.example.resonant.playback.PlaybackCache
 import com.example.resonant.playback.PlaybackQueue
+import com.example.resonant.playback.PlaybackQueueEnricher
+import com.example.resonant.playback.RadioRepository
+import com.example.resonant.playback.PlaybackMediaItemFactory
+import com.example.resonant.playback.PlaybackMediaSourceFactory
 import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.playback.PlaybackStateStore
+import com.example.resonant.playback.PlaybackUrlResolver
+import com.example.resonant.playback.PlaybackQoeTracker
+import com.example.resonant.playback.FirebasePlaybackQoeSink
+import com.example.resonant.playback.BackendPlaybackQoeSink
+import com.example.resonant.playback.CompositePlaybackQoeSink
+import com.example.resonant.playback.PlaybackQoeContext
 import com.example.resonant.playback.PlayerController
+import com.example.resonant.playback.QueueCommands
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.data.network.PlaymixTransitionDTO
+import com.example.resonant.data.network.PlaybackConnectCommandDTO
+import com.example.resonant.data.network.PlaybackConnectQueueItemDTO
+import com.example.resonant.data.network.PlaybackConnectStateDTO
+import com.example.resonant.data.network.SongPlaybackDTO
 import com.example.resonant.managers.SettingsManager
 import com.example.resonant.managers.TransitionManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.ApiClient
-import com.example.resonant.managers.MediaSessionManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.playback.withPlaybackInfo
+import com.example.resonant.playback.ResonantLibrarySessionCallback
+import com.example.resonant.playback.PlaybackConnectRepository
+import com.example.resonant.playback.ConnectConflictEvent
+import com.example.resonant.data.network.V2EndpointAvailability
+import com.example.resonant.ui.activities.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
 
-class MusicPlaybackService : Service(), PlayerController {
+@OptIn(UnstableApi::class)
+class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     companion object {
         const val EXTRA_CURRENT_SONG = "com.resonant.EXTRA_CURRENT_SONG"
@@ -71,6 +101,22 @@ class MusicPlaybackService : Service(), PlayerController {
         const val ACTION_PLAY = "com.resonant.ACTION_PLAY"
         const val ACTION_PAUSE = "com.resonant.ACTION_PAUSE"
         const val ACTION_RESUME = "com.resonant.ACTION_RESUME"
+        /**
+         * Starts the service (keeps it alive for Connect heartbeats) without
+         * requiring active audio playback.  Sent by [MainActivity] on start so
+         * the Connect presence heartbeat always runs while the app is open,
+         * allowing other devices to find this one and for this device to receive
+         * TRANSFER_IN commands even when it is not currently playing music.
+         */
+        const val ACTION_ENSURE_CONNECT = "com.resonant.ACTION_ENSURE_CONNECT"
+        /**
+         * Sent by the Activity after the user confirms "Escuchar aquí" in the
+         * Resonant Connect conflict dialog.  The extra [EXTRA_CONNECT_PENDING_TAG]
+         * must match the [ConnectConflictEvent.pendingActionTag] that was emitted
+         * when the conflict was detected.
+         */
+        const val ACTION_PLAY_CONNECT_CONFIRMED = "com.resonant.ACTION_PLAY_CONNECT_CONFIRMED"
+        const val EXTRA_CONNECT_PENDING_TAG     = "com.resonant.EXTRA_CONNECT_PENDING_TAG"
         const val ACTION_PREVIOUS = "com.resonant.ACTION_PREVIOUS"
         const val ACTION_NEXT = "com.resonant.ACTION_NEXT"
         const val SONG_LIST = "com.resonant.SONG_LIST"
@@ -81,21 +127,76 @@ class MusicPlaybackService : Service(), PlayerController {
         const val EXTRA_SONG_ID = "com.resonant.EXTRA_SONG_ID"
         const val ACTION_TOGGLE_SHUFFLE = "com.resonant.ACTION_TOGGLE_SHUFFLE"
         const val ACTION_TOGGLE_REPEAT = "com.resonant.ACTION_TOGGLE_REPEAT"
+        const val ACTION_CONNECT_SYNC = "com.resonant.ACTION_CONNECT_SYNC"
         private const val AUDIO_DUCK_VOLUME_MULTIPLIER = 0.2f
+        private const val PREVIOUS_RESTART_THRESHOLD_MS = 3_000L
+        private const val PLAYBACK_STATE_SAVE_INTERVAL_MS = 5_000L
+        // Shortened from 10s: this is also the maximum window during which the
+        // device that just lost playback could still be audible alongside the
+        // new active device, so keeping it tight matters for Resonant Connect.
+        private const val CONNECT_HEARTBEAT_INTERVAL_MS = 4_000L
+
+        /** Prefetch radio when this many songs (or fewer) remain in the queue. */
+        private const val RADIO_PREFETCH_THRESHOLD = 3
+        /** Rolling window size of recentSongIds we send to the server. */
+        private const val RADIO_RECENT_WINDOW_SIZE = 30
+        private const val CONNECT_MAX_QUEUE_ITEMS = 500
+        private val LEGACY_CUSTOM_ACTIONS = setOf(
+            ACTION_PLAY,
+            ACTION_PAUSE,
+            ACTION_RESUME,
+            ACTION_PLAY_CONNECT_CONFIRMED,
+            ACTION_ENSURE_CONNECT,
+            ACTION_PREVIOUS,
+            ACTION_NEXT,
+            ACTION_SEEK_TO,
+            ACTION_REQUEST_STATE,
+            ACTION_START_SEEK,
+            ACTION_STOP_SEEK,
+            ACTION_SHUTDOWN,
+            ACTION_UPDATE_QUEUE,
+            ACTION_PLAYLIST_MODIFIED,
+            ACTION_SONG_MARKED_FOR_DELETION,
+            ACTION_TOGGLE_SHUFFLE,
+            ACTION_TOGGLE_REPEAT,
+            ACTION_CONNECT_SYNC
+        )
     }
 
-    inner class MusicServiceBinder : Binder() {
-        fun getService(): MusicPlaybackService = this@MusicPlaybackService
-    }
-
-    private val binder = MusicServiceBinder()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val currentSongLiveData: LiveData<Song?> get() = PlaybackStateRepository.currentSongLiveData
 
     private lateinit var settingsManager: SettingsManager
-    private lateinit var notificationManager: AppNotificationManager
-    private lateinit var mediaSessionManager: MediaSessionManager
     private lateinit var transitionManager: TransitionManager
+    private lateinit var playbackUrlResolver: PlaybackUrlResolver
+    private lateinit var playbackMediaItemFactory: PlaybackMediaItemFactory
+    private lateinit var playbackMediaSourceFactory: PlaybackMediaSourceFactory
+    private lateinit var playbackQueueEnricher: PlaybackQueueEnricher
+    private lateinit var playbackQoeTracker: PlaybackQoeTracker
+    private lateinit var playbackStateStore: PlaybackStateStore
+    private lateinit var playbackConnectRepository: PlaybackConnectRepository
+    private lateinit var radioRepository: RadioRepository
+
+    /**
+     * Rolling window of the last songs the user has heard.  Sent with every
+     * radio request so the server never returns something we just played.
+     * Bounded to avoid runaway growth on long sessions.
+     */
+    private val radioRecentSongIds = ArrayDeque<String>(RADIO_RECENT_WINDOW_SIZE)
+
+    /**
+     * Guards against re-entering the pre-fetch coroutine while a fetch is
+     * already in flight; the mutex inside RadioRepository serialises the
+     * HTTP call itself but this atomic flag stops us from launching
+     * multiple coroutines that would all end up waiting on the mutex.
+     */
+    private val radioPrefetchInFlight = AtomicBoolean(false)
+
+    /** true iff the user has autoplay enabled in Settings. */
+    @Volatile private var autoplayRadioEnabled: Boolean = true
+    private lateinit var librarySessionCallback: ResonantLibrarySessionCallback
+    private val audioEqualizerController = AudioEqualizerController()
+    private var mediaLibrarySession: MediaLibrarySession? = null
     private lateinit var audioManager: AudioManager
     private lateinit var audioFocusRequest: AudioFocusRequest
 
@@ -116,15 +217,37 @@ class MusicPlaybackService : Service(), PlayerController {
 
     // Loudness normalization
     private var loudnessNormalizationEnabled: Boolean = true
+    private var streamingQuality: AudioQuality = AudioQuality.AUTO
     private val TARGET_LOUDNESS_LUFS = -14.0f  // Referencia estándar de streaming
 
     private var currentSongStartTimeMs: Long = 0L
+    private var lastPlaybackStateSaveAtMs: Long = 0L
+    private var clearPlaybackStateOnDestroy: Boolean = false
     private var originalQueueSongs: List<Song>? = null
 
     // PlayMix crossfade — map key: "fromSongId:toSongId"
     private var playmixTransitions: Map<String, PlaymixTransitionDTO> = emptyMap()
     private var playmixSongIdMap: Map<String, String> = emptyMap() // songId -> playmixSongId
     private var pendingStartPositionMs: Long = 0L
+    private val playbackLoadGeneration = AtomicLong(0L)
+    private val connectStateRevision = AtomicLong(0L)
+    private val connectSyncInFlight = AtomicBoolean(false)
+    // The activeDeviceId from the most recent heartbeat snapshot.
+    @Volatile private var connectPreviousActiveDeviceId: String? = null
+    // How many consecutive heartbeat ticks have found another device active
+    // while this device is playing. Reaches threshold → pause (grace period).
+    @Volatile private var connectNotActiveCount: Int = 0
+
+    /**
+     * When the user taps a song on this device while another Connect device
+     * is the active player, we intercept the [ACTION_PLAY] intent, stash it
+     * here, and emit a [ConnectConflictEvent] so the Activity can ask the
+     * user what to do.  On confirmation ([ACTION_PLAY_CONNECT_CONFIRMED]) we
+     * retrieve and execute it; on cancellation we simply drop it.
+     */
+    private val pendingConnectPlayIntents =
+        java.util.concurrent.ConcurrentHashMap<String, Intent>()
+    private var progressiveFallbackSongId: String? = null
 
     private val exoAudioAttributes = ExoAudioAttributes.Builder()
         .setUsage(C.USAGE_MEDIA)
@@ -193,17 +316,13 @@ class MusicPlaybackService : Service(), PlayerController {
             val duration = player.duration.toInt()
 
             // Diagnostic: log every ~5s so we can confirm the seekbar is running
-            if (position % 5000 < 250) {
+            if (BuildConfig.DEBUG && position % 5000 < 250) {
                 Log.d("SeekBar", "▶ pos=${position}ms dur=${duration}ms song=${PlaybackStateRepository.currentSong?.title} mode=$crossfadeMode")
             }
 
             if (duration <= 0) {
                 seekBarHandler.postDelayed(this, 200)
                 return
-            }
-
-            if (position % 2000 < 50) {
-                mediaSessionManager.updatePlaybackState(position)
             }
 
             val triggerPosition = calculateTriggerPosition()
@@ -215,6 +334,7 @@ class MusicPlaybackService : Service(), PlayerController {
             }
 
             PlaybackStateRepository.updatePlaybackPosition(position, duration)
+            persistPlaybackState()
             seekBarHandler.postDelayed(this, 200)
         }
     }
@@ -225,6 +345,23 @@ class MusicPlaybackService : Service(), PlayerController {
     }
     private fun stopSeekBarUpdates() {
         seekBarHandler.removeCallbacks(updateSeekBarRunnable)
+    }
+
+    private val connectHandler = Handler(Looper.getMainLooper())
+    private val connectHeartbeatRunnable = object : Runnable {
+        override fun run() {
+            syncPlaybackConnect()
+            connectHandler.postDelayed(this, CONNECT_HEARTBEAT_INTERVAL_MS)
+        }
+    }
+
+    private fun startConnectHeartbeats() {
+        connectHandler.removeCallbacks(connectHeartbeatRunnable)
+        connectHandler.post(connectHeartbeatRunnable)
+    }
+
+    private fun stopConnectHeartbeats() {
+        connectHandler.removeCallbacks(connectHeartbeatRunnable)
     }
 
     private fun requestAudioFocus(): Boolean {
@@ -276,7 +413,14 @@ class MusicPlaybackService : Service(), PlayerController {
     override fun resume() {
         if (!requestAudioFocus()) return
         registerBecomingNoisyReceiver()
-        exoPlayer?.play()
+        val player = exoPlayer ?: return
+        if (currentSongStartTimeMs <= 0L) {
+            currentSongStartTimeMs = System.currentTimeMillis()
+        }
+        if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount > 0) {
+            player.prepare()
+        }
+        player.play()
     }
     override fun pause() {
         resumeOnAudioFocusGain = false
@@ -297,57 +441,190 @@ class MusicPlaybackService : Service(), PlayerController {
             // No hay transición, solo pausar normalmente
             exoPlayer?.pause()
         }
+        // An errored player may already report isPlaying=false and therefore not
+        // emit another callback. Keep the observable state authoritative so the
+        // mini-player never keeps sending PAUSE while playback is stopped.
+        PlaybackStateRepository.setIsPlaying(false)
+        stopSeekBarUpdates()
         unregisterBecomingNoisyReceiver()
         abandonAudioFocus()
+        updateUiAndSystem()
+        syncPlaybackConnect()
+        persistPlaybackState(force = true)
     }
     override fun playNext() {
         reportCurrentSongFinished(wasSkipped = true)
 
         if (transitionManager.isTransitioning) {
-            transitionManager.cancelCurrentTransition()
+            cancelCurrentTransitionAndRestoreEffects()
         }
 
         val queue = PlaybackStateRepository.activeQueue ?: return
-        val nextIndex = queue.currentIndex + 1
+        val nextIndex = if (queue.currentIndex + 1 < queue.songs.size) {
+            queue.currentIndex + 1
+        } else if (PlaybackStateRepository.repeatModeLiveData.value ==
+            PlaybackStateRepository.REPEAT_MODE_ALL
+        ) {
+            0
+        } else {
+            -1
+        }
 
         lastManualChangeTimestamp = System.currentTimeMillis()
 
-        if (nextIndex < queue.songs.size) {
+        if (nextIndex in queue.songs.indices) {
             Log.d("MusicService", "Acción Proactiva: Saltando al índice $nextIndex")
-            queue.currentIndex = nextIndex
-            playSongFromQueue()
+            moveToQueueIndex(nextIndex)
         } else {
-             Log.d("MusicService", "Fin de la cola alcanzado en playNext")
+            Log.d("MusicService", "Fin de la cola alcanzado en playNext")
+            // Last-chance radio fetch: the prefetch in onMediaItemTransition
+            // may not have fired (very short queue, user tapped Next fast,
+            // network was slow…).  Try once more here; if the server
+            // responds we'll advance into the new tracks automatically.
+            tryStartRadioAtQueueEnd(queue)
+        }
+    }
+
+    /**
+     * Kick off a radio fetch as the user hits the end of the queue.  When
+     * the request comes back we advance the player into the first newly
+     * appended track.  Fire-and-forget: if the network is slow the queue
+     * simply ends as before.
+     */
+    private fun tryStartRadioAtQueueEnd(queue: PlaybackQueue) {
+        if (!autoplayRadioEnabled) return
+        if (queue.sourceType == QueueSource.PLAYMIX ||
+            queue.sourceType == QueueSource.DOWNLOADED_SONGS
+        ) return
+        if (!radioPrefetchInFlight.compareAndSet(false, true)) return
+
+        val sourceType = queue.sourceType.name
+        val sourceId = queue.sourceId
+        val lastSongId = queue.songs.getOrNull(queue.currentIndex)?.id
+        val recentIds = radioRecentSongIds.toList()
+        val queueSizeBefore = queue.songs.size
+
+        serviceScope.launch {
+            try {
+                val newSongs = radioRepository.fetchNextBatch(
+                    sourceType = sourceType,
+                    sourceId = sourceId,
+                    lastSongId = lastSongId,
+                    recentSongIds = recentIds
+                )
+                if (newSongs.isEmpty()) return@launch
+
+                withContext(Dispatchers.Main) {
+                    appendRadioSongsToQueue(newSongs)
+                    val liveQueue = PlaybackStateRepository.activeQueue ?: return@withContext
+                    // The append may have deduplicated; only advance if
+                    // there really are new songs after the current index.
+                    if (liveQueue.songs.size > queueSizeBefore) {
+                        moveToQueueIndex(queueSizeBefore)
+                    }
+                }
+            } finally {
+                radioPrefetchInFlight.set(false)
+            }
         }
     }
     override fun playPrevious() {
         reportCurrentSongFinished(wasSkipped = true)
 
         if (transitionManager.isTransitioning) {
-            transitionManager.cancelCurrentTransition()
+            cancelCurrentTransitionAndRestoreEffects()
+        }
+
+        val player = exoPlayer
+        if (player != null && player.currentPosition > PREVIOUS_RESTART_THRESHOLD_MS) {
+            lastManualChangeTimestamp = System.currentTimeMillis()
+            player.seekTo(0L)
+            return
         }
 
         lastManualChangeTimestamp = System.currentTimeMillis()
 
         val queue = PlaybackStateRepository.activeQueue ?: return
-        val prevIndex = queue.currentIndex - 1
+        val prevIndex = if (queue.currentIndex > 0) {
+            queue.currentIndex - 1
+        } else if (PlaybackStateRepository.repeatModeLiveData.value ==
+            PlaybackStateRepository.REPEAT_MODE_ALL
+        ) {
+            queue.songs.lastIndex
+        } else {
+            -1
+        }
 
-        if (prevIndex >= 0) {
+        if (prevIndex in queue.songs.indices) {
             Log.d("MusicService", "Acción Proactiva: Volviendo al índice $prevIndex")
-            queue.currentIndex = prevIndex
-            playSongFromQueue()
+            moveToQueueIndex(prevIndex)
         }
     }
+    private fun moveToQueueIndex(targetQueueIndex: Int) {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val targetSong = queue.songs.getOrNull(targetQueueIndex) ?: return
+        val player = exoPlayer
+        val playerIndex = if (player != null) {
+            targetQueueIndex.takeIf { index ->
+                index in 0 until player.mediaItemCount &&
+                    player.getMediaItemAt(index).mediaId == targetSong.id
+            } ?: (0 until player.mediaItemCount).firstOrNull { index ->
+                player.getMediaItemAt(index).mediaId == targetSong.id
+            }
+        } else {
+            null
+        }
+
+        queue.currentIndex = targetQueueIndex
+        progressiveFallbackSongId = null
+        retryCount = 0
+        expectedSeekPositionMs = -1L
+        PlaybackStateRepository.setCurrentSong(targetSong)
+        PlaybackStateRepository.publishQueue()
+        PlaybackStateRepository.updatePlaybackPosition(
+            position = 0L,
+            duration = targetSong.audioAnalysis?.durationMs ?: 0
+        )
+        currentSongStartTimeMs = System.currentTimeMillis()
+        PlaybackStateRepository.streamReported = false
+        lastManualChangeTimestamp = System.currentTimeMillis()
+        playbackQoeTracker.markPlayRequested(queue.sourceType.name, targetSong.id)
+        loadArtworkForSong(targetSong)
+        updateUiAndSystem()
+        updateMediaSessionMetadata()
+
+        if (player != null && playerIndex != null) {
+            player.seekTo(playerIndex, 0L)
+            if (requestAudioFocus()) {
+                registerBecomingNoisyReceiver()
+                player.play()
+            }
+            prepareNextTransitionPlayer(targetQueueIndex)
+        } else {
+            playSongFromQueue()
+        }
+        persistPlaybackState(force = true)
+        syncPlaybackConnect()
+    }
+
     override fun stop() {
         reportCurrentSongFinished(wasSkipped = true)
         if (transitionManager.isTransitioning) {
-            transitionManager.cancelCurrentTransition()
+            cancelCurrentTransitionAndRestoreEffects()
         }
         unregisterBecomingNoisyReceiver()
         abandonAudioFocus()
-        stopForeground(true)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
+
+    private fun cancelCurrentTransitionAndRestoreEffects() {
+        transitionManager.cancelCurrentTransition()
+        val player = exoPlayer ?: return
+        audioEqualizerController.resumeAfterTransition(player.audioSessionId)
+        applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+    }
+
     override fun seekTo(position: Long) {
         if (transitionManager.isTransitioning) {
             Log.w("MusicService", "Seek to durante transición. Forzando completado para buscar en la nueva canción.")
@@ -365,6 +642,7 @@ class MusicPlaybackService : Service(), PlayerController {
         }
 
         val player = exoPlayer ?: return
+        lastManualChangeTimestamp = System.currentTimeMillis()
         expectedSeekPositionMs = position
         seekIssuedAtMs = System.currentTimeMillis()
         player.seekTo(position)
@@ -373,7 +651,7 @@ class MusicPlaybackService : Service(), PlayerController {
     override fun playFromSearch(query: String?, extras: Bundle?) {
         reportCurrentSongFinished(wasSkipped = true)
         if (transitionManager.isTransitioning) {
-            transitionManager.cancelCurrentTransition()
+            cancelCurrentTransitionAndRestoreEffects()
         }
 
         serviceScope.launch(Dispatchers.Main) {
@@ -413,9 +691,10 @@ class MusicPlaybackService : Service(), PlayerController {
     }
 
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return binder
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+        return mediaLibrarySession
     }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("MusicService", "Action received: ${intent?.action}")
         val incomingIntent = intent ?: return START_STICKY
@@ -423,21 +702,34 @@ class MusicPlaybackService : Service(), PlayerController {
 
         // Manejo del botón multimedia de Android
         if (action == Intent.ACTION_MEDIA_BUTTON) {
-            MediaButtonReceiver.handleIntent(mediaSessionManager.mediaSession, incomingIntent)
-            return START_STICKY
+            return super.onStartCommand(intent, flags, startId)
         }
 
         // Manejo de nuestras acciones personalizadas
-        if (action != null) {
+        if (action != null && action in LEGACY_CUSTOM_ACTIONS) {
             handleAction(action, incomingIntent)
+            return START_STICKY
         }
 
-        return START_STICKY
+        return super.onStartCommand(intent, flags, startId)
     }
     override fun onCreate() {
         super.onCreate()
 
         settingsManager = SettingsManager(applicationContext)
+        playbackStateStore = PlaybackStateStore(applicationContext)
+        playbackConnectRepository =
+            PlaybackConnectRepository.get(applicationContext)
+        playbackConnectRepository.synchronizeUserScope()
+        radioRepository = RadioRepository.get(applicationContext)
+
+        // Reflect the user's setting so we don't hit the network when they
+        // disabled autoplay.  This coroutine lives as long as the service.
+        serviceScope.launch {
+            settingsManager.autoplayRadioEnabledFlow.collect { enabled ->
+                autoplayRadioEnabled = enabled
+            }
+        }
         observeSettings() // <-- Movido aquí
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -451,10 +743,59 @@ class MusicPlaybackService : Service(), PlayerController {
             .setOnAudioFocusChangeListener(audioFocusChangeListener, Handler(Looper.getMainLooper()))
             .build()
 
-        mediaSessionManager = MediaSessionManager(this, this)
-        notificationManager = AppNotificationManager(this, mediaSessionManager.sessionToken)
+        val songService = ApiClient.getSongService(applicationContext)
+
+        // Safety Net: En CADA respuesta de Connect, mirar el snapshot.activeDeviceId.
+        // Si este dispositivo está reproduciendo y activeDeviceId != localDeviceId => pausar.
+        serviceScope.launch {
+            playbackConnectRepository.uiState.collect { state ->
+                val localDeviceId = playbackConnectRepository.localDeviceId
+                val isAnotherDeviceActive = state.supported &&
+                    state.activeDeviceId != null &&
+                    state.activeDeviceId != localDeviceId
+
+                if (isAnotherDeviceActive && PlaybackStateRepository.isPlaying) {
+                    withContext(Dispatchers.Main) { 
+                        Log.w("MusicService", "Connect: Otro dispositivo tomó el control ($isAnotherDeviceActive). Pausando inmediatamente.")
+                        pause() 
+                    }
+                }
+            }
+        }
+
+        playbackUrlResolver = PlaybackUrlResolver(
+            loadPlaybackInfo = { songId ->
+                songService.getSongPlaybackInfo(
+                    songId = songId,
+                    deliveryMode = PlaybackUrlResolver.DELIVERY_MODE_PROGRESSIVE,
+                    preferredQuality = streamingQuality.apiValue
+                )
+            },
+            onPlaybackInfoResolved = ::handlePlaybackInfoResolved
+        )
+        playbackQueueEnricher = PlaybackQueueEnricher(
+            context = applicationContext,
+            songService = songService,
+            urlResolver = playbackUrlResolver
+        )
+        playbackMediaItemFactory = PlaybackMediaItemFactory(playbackUrlResolver)
+        playbackMediaSourceFactory = PlaybackMediaSourceFactory(
+            applicationContext,
+            playbackUrlResolver
+        )
+        playbackQoeTracker = PlaybackQoeTracker(
+            CompositePlaybackQoeSink(
+                FirebasePlaybackQoeSink(applicationContext),
+                BackendPlaybackQoeSink(
+                    context = applicationContext,
+                    contextProvider = ::playbackQoeContext
+                )
+            )
+        )
         transitionManager = TransitionManager(
             context = this,
+            mediaSourceFactoryProvider = playbackMediaSourceFactory::create,
+            mediaItemFactory = playbackMediaItemFactory::create,
             onTransitionComplete = ::handleTransitionComplete,
             onTransitionFailed = ::handleTransitionFailed,
             onTransitionProgress = { position, duration ->
@@ -464,24 +805,105 @@ class MusicPlaybackService : Service(), PlayerController {
 
         setupPlayerListener()
         exoPlayer = createExoPlayer()
+        restorePlaybackState()
+        librarySessionCallback = ResonantLibrarySessionCallback(
+            context = applicationContext,
+            mediaItemFactory = playbackMediaItemFactory,
+            onQueueSelected = { queue ->
+                queue.songs = playbackQueueEnricher.enrich(
+                    songs = queue.songs,
+                    currentIndex = queue.currentIndex
+                )
+                withContext(Dispatchers.Main) {
+                    cancelCurrentTransitionAndRestoreEffects()
+                    PlaybackStateRepository.activeQueue = queue
+                    queue.songs.getOrNull(queue.currentIndex)?.let { song ->
+                        PlaybackStateRepository.setCurrentSong(song)
+                        loadArtworkForSong(song)
+                    }
+                    playbackQoeTracker.markPlayRequested(
+                        queue.sourceType.name,
+                        queue.songs.getOrNull(queue.currentIndex)?.id
+                    )
+                    currentSongStartTimeMs = System.currentTimeMillis()
+                }
+            },
+            onQueueCommand = ::handleQueueCommand,
+            playbackPositionMs = { exoPlayer?.currentPosition ?: 0L }
+        )
+        mediaLibrarySession = MediaLibrarySession.Builder(
+            this,
+            requireNotNull(exoPlayer),
+            librarySessionCallback
+        )
+            .setSessionActivity(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    Intent(this, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra("fromNotification", true)
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            .setPeriodicPositionUpdateEnabled(true)
+            .build()
 
-        notificationManager.createNotificationChannel()
+        startConnectHeartbeats()
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        stop()
+        val player = exoPlayer
+        // Only stop if there is no active audio AND Connect is not supported/active.
+        // If Connect is available (user is logged in and the feature is reachable),
+        // keep the service alive so the heartbeat continues — other devices can
+        // still find this one and send TRANSFER_IN commands to it.
+        val connectActive = ::playbackConnectRepository.isInitialized &&
+            playbackConnectRepository.uiState.value.let { state ->
+                state.supported || V2EndpointAvailability.shouldTry(
+                    applicationContext,
+                    V2EndpointAvailability.FEATURE_CONNECT
+                )
+            }
+        if (
+            (player == null || (!player.playWhenReady && player.playbackState == Player.STATE_IDLE)) &&
+            !connectActive
+        ) {
+            stopSelf()
+        }
     }
     override fun onDestroy() {
-        super.onDestroy()
-        stop()
+        if (::playbackStateStore.isInitialized) {
+            if (clearPlaybackStateOnDestroy) {
+                playbackStateStore.clear()
+            } else {
+                persistPlaybackState(force = true)
+            }
+        }
+        stopSeekBarUpdates()
+        stopConnectHeartbeats()
 
+        if (::transitionManager.isInitialized) {
+            transitionManager.release()
+        }
+        if (::playbackQoeTracker.isInitialized) {
+            playbackQoeTracker.release()
+        }
+        if (::librarySessionCallback.isInitialized) {
+            librarySessionCallback.release()
+        }
+        mediaLibrarySession?.release()
+        mediaLibrarySession = null
         PlaybackStateRepository.reset()
+        audioEqualizerController.release()
         exoPlayer?.release()
         exoPlayer = null
         unregisterBecomingNoisyReceiver()
         abandonAudioFocus()
-        mediaSessionManager.release()
         serviceScope.cancel()
+        super.onDestroy()
     }
 
     fun isPlaying(): Boolean = PlaybackStateRepository.isPlaying
@@ -499,7 +921,7 @@ class MusicPlaybackService : Service(), PlayerController {
     fun updateSongs(newSongs: List<Song>) {
         val player = exoPlayer ?: return
         val queue = PlaybackStateRepository.activeQueue ?: return
-        transitionManager.cancelCurrentTransition()
+        cancelCurrentTransitionAndRestoreEffects()
 
         val currentPositionMs = player.currentPosition
         val oldIndex = queue.currentIndex
@@ -509,6 +931,7 @@ class MusicPlaybackService : Service(), PlayerController {
 
         // Actualizamos la cola en el Repository
         queue.songs = newSongs.toMutableList()
+        queue.resetEntriesForSongs()
 
         if (newSongs.isEmpty()) {
             stop()
@@ -523,6 +946,9 @@ class MusicPlaybackService : Service(), PlayerController {
 
         // Sincroniza ExoPlayer con la cola actualizada del Repository
         synchronizeExoPlayerQueue()
+        PlaybackStateRepository.publishQueue()
+        persistPlaybackState(force = true)
+        prepareNextTransitionPlayer(queue.currentIndex)
     }
     fun getCurrentSong(): Song? = PlaybackStateRepository.currentSong
     fun getDuration(): Int = exoPlayer?.duration?.toInt() ?: 0
@@ -543,6 +969,12 @@ class MusicPlaybackService : Service(), PlayerController {
 
     private fun setupPlayerListener() {
         playerListener = object : Player.Listener {
+
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                if (!transitionManager.isTransitioning) {
+                    audioEqualizerController.bindToSession(audioSessionId)
+                }
+            }
 
             override fun onIsPlayingChanged(isPlayingUpdate: Boolean) {
                 if (!isPlayingUpdate) {
@@ -567,6 +999,7 @@ class MusicPlaybackService : Service(), PlayerController {
 
                 PlaybackStateRepository.setIsPlaying(isPlayingUpdate)
                 updateUiAndSystem()
+                syncPlaybackConnect()
                 if (isPlayingUpdate) {
                     registerBecomingNoisyReceiver()
                     startSeekBarUpdates()
@@ -586,25 +1019,50 @@ class MusicPlaybackService : Service(), PlayerController {
                     reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
 
                     val mediaId = mediaItem?.mediaId
-                    val newQueueIndex = PlaybackStateRepository.activeQueue?.songs?.indexOfFirst { it.id == mediaId } ?: -1
-                    val newSong = PlaybackStateRepository.activeQueue?.songs?.getOrNull(newQueueIndex)
+                    val activeQueue = PlaybackStateRepository.activeQueue
+                    val directIndex = exoPlayer?.currentMediaItemIndex ?: -1
+                    val newQueueIndex = when {
+                        directIndex in activeQueue?.songs.orEmpty().indices &&
+                            activeQueue?.songs?.get(directIndex)?.id == mediaId -> directIndex
+                        else -> activeQueue?.songs?.indexOfFirst { it.id == mediaId } ?: -1
+                    }
+                    val newSong = activeQueue?.songs?.getOrNull(newQueueIndex)
 
-                    if (newSong != null && newSong.id != PlaybackStateRepository.currentSong?.id) {
+                    val queueIndexChanged = activeQueue != null &&
+                        newQueueIndex != activeQueue.currentIndex
+                    val currentSongChanged = newSong != null &&
+                        PlaybackStateRepository.currentSong?.id != newSong.id
+
+                    if (activeQueue != null && newSong != null &&
+                        (queueIndexChanged || currentSongChanged)
+                    ) {
                         Log.d("PlayerListener", "Transición de ExoPlayer a una NUEVA canción: ${newSong.title}")
 
                         expectedSeekPositionMs = -1L
+                        progressiveFallbackSongId = null
+                        retryCount = 0
 
                         PlaybackStateRepository.setCurrentSong(newSong)
-                        PlaybackStateRepository.activeQueue?.currentIndex = newQueueIndex
+                        activeQueue.currentIndex = newQueueIndex
+                        PlaybackStateRepository.publishQueue()
 
                         currentSongStartTimeMs = System.currentTimeMillis()
                         PlaybackStateRepository.streamReported = false
 
                         loadArtworkForSong(newSong)
                         updateUiAndSystem()
-                        
+                        persistPlaybackState(force = true)
+                        syncPlaybackConnect()
+
+                        // Track the last played song for Resonant Radio's
+                        // recentSongIds window, then check if we should
+                        // prefetch a batch of autoplay tracks (queue nearing
+                        // its end).
+                        recordRecentSong(newSong.id)
+                        maybePrefetchRadio()
+
                         // Proactively preload the song after next to maintain seamless native gapless
-                        preloadNextSongMetadata(newQueueIndex + 2)
+                        prepareNextTransitionPlayer(newQueueIndex)
                     } else {
                         Log.d("PlayerListener", "Transición de ExoPlayer a la misma canción (${newSong?.title}). Se ignora para evitar parpadeo.")
                     }
@@ -631,6 +1089,13 @@ class MusicPlaybackService : Service(), PlayerController {
                 Log.d("PlayerListener", "onPlaybackStateChanged: $playbackState")
 
                 if (playbackState == Player.STATE_READY) {
+                    retryCount = 0
+                    exoPlayer?.let { player ->
+                        applyStreamingQualityToPlayer(player)
+                        if (!transitionManager.isTransitioning) {
+                            audioEqualizerController.bindToSession(player.audioSessionId)
+                        }
+                    }
                     updateMediaSessionMetadata()
                 }
 
@@ -655,6 +1120,14 @@ class MusicPlaybackService : Service(), PlayerController {
                     return
                 }
 
+                // Errors can arrive inside the manual-change grace period, where
+                // onIsPlayingChanged(false) is intentionally ignored.
+                PlaybackStateRepository.setIsPlaying(false)
+                stopSeekBarUpdates()
+                unregisterBecomingNoisyReceiver()
+                updateUiAndSystem()
+                syncPlaybackConnect()
+
                 // Source error typically means expired/invalid URL
                 val isSourceError = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
@@ -662,9 +1135,20 @@ class MusicPlaybackService : Service(), PlayerController {
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
 
-                if (isSourceError) {
+                val isDeliveryFormatError =
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED
+
+                if (isDeliveryFormatError) {
+                    if (!retryCurrentAsProgressive()) {
+                        Log.e("PlayerListener", "Progressive fallback already failed. Skipping song.")
+                        playNext()
+                    }
+                } else if (isSourceError) {
                     Log.w("PlayerListener", "\uD83D\uDD04 Source error detected. Attempting to refetch URL and retry...")
-                    retryCurrentSongWithFreshUrl()
+                    retryCurrentPlayback()
                 } else {
                     Log.e("PlayerListener", "Non-recoverable error. Skipping to next song.")
                     playNext()
@@ -672,11 +1156,134 @@ class MusicPlaybackService : Service(), PlayerController {
             }
         }
     }
+
+    /**
+     * Recovers from a rollout mismatch where the URL bytes do not match the
+     * advertised delivery format. One clean fallback is allowed per song visit.
+     */
+    private fun retryCurrentAsProgressive(): Boolean {
+        val currentSong = PlaybackStateRepository.currentSong ?: return false
+        if (progressiveFallbackSongId == currentSong.id) return false
+
+        val player = exoPlayer ?: return false
+        val playerIndex = player.currentMediaItemIndex
+        if (playerIndex !in 0 until player.mediaItemCount) return false
+
+        progressiveFallbackSongId = currentSong.id
+        retryCount = 0
+        val songId = currentSong.id
+        val positionMs = player.currentPosition.coerceAtLeast(0L)
+        val shouldResume = player.playWhenReady
+        val progressiveSong = currentSong.copy(
+            url = null,
+            playbackMimeType = null,
+            playbackExpiresAtUtc = null,
+            playbackDeliveryMode = PlaybackUrlResolver.DELIVERY_MODE_PROGRESSIVE
+        )
+
+        val queue = PlaybackStateRepository.activeQueue
+        val queueIndex = queue?.songs?.indexOfFirst { it.id == songId } ?: -1
+        if (queue != null && queueIndex >= 0) {
+            queue.songs = queue.songs.toMutableList().apply {
+                this[queueIndex] = progressiveSong
+            }
+            PlaybackStateRepository.publishQueue()
+        }
+        PlaybackStateRepository.setCurrentSong(progressiveSong)
+        playbackUrlResolver.invalidate(songId)
+
+        serviceScope.launch {
+            PlaybackCache.removeResource(
+                applicationContext,
+                PlaybackUrlResolver.CACHE_KEY_PREFIX + songId
+            )
+            withContext(Dispatchers.Main) {
+                if (PlaybackStateRepository.currentSong?.id != songId) {
+                    return@withContext
+                }
+                val activePlayer = exoPlayer ?: return@withContext
+                if (activePlayer.currentMediaItemIndex != playerIndex ||
+                    playerIndex !in 0 until activePlayer.mediaItemCount ||
+                    activePlayer.getMediaItemAt(playerIndex).mediaId != songId
+                ) {
+                    return@withContext
+                }
+
+                activePlayer.replaceMediaItem(
+                    playerIndex,
+                    playbackMediaItemFactory.create(progressiveSong)
+                )
+                activePlayer.seekTo(playerIndex, positionMs)
+                activePlayer.prepare()
+                if (shouldResume && requestAudioFocus()) {
+                    registerBecomingNoisyReceiver()
+                    activePlayer.play()
+                }
+                Log.i(
+                    "MusicService",
+                    "Reintentando ${progressiveSong.title} con entrega progresiva limpia"
+                )
+            }
+        }
+        return true
+    }
+
+    private fun handlePlaybackInfoResolved(playbackInfo: SongPlaybackDTO) {
+        serviceScope.launch(Dispatchers.Main) {
+            val queue = PlaybackStateRepository.activeQueue ?: return@launch
+            val index = queue.songs.indexOfFirst { it.id == playbackInfo.id }
+            if (index < 0) return@launch
+
+            val previousSong = queue.songs[index]
+            val enrichedSong = previousSong.withPlaybackInfo(playbackInfo)
+            val updatedSongs = queue.songs.toMutableList().apply {
+                this[index] = enrichedSong
+            }
+            queue.songs = updatedSongs
+
+            if (queue.currentIndex == index) {
+                PlaybackStateRepository.setCurrentSong(enrichedSong)
+                applyLoudnessNormalization(enrichedSong)
+                updateMediaSessionMetadata()
+            }
+        }
+    }
+
+    private fun playbackQoeContext(mediaId: String?): PlaybackQoeContext? {
+        val queue = PlaybackStateRepository.activeQueue ?: return null
+        val song = queue.songs.firstOrNull { it.id == mediaId }
+            ?: PlaybackStateRepository.currentSong?.takeIf { it.id == mediaId }
+            ?: return null
+        val isOffline = queue.sourceType == QueueSource.DOWNLOADED_SONGS ||
+            song.url?.let { url ->
+                !url.startsWith("http://", true) &&
+                    !url.startsWith("https://", true) &&
+                    !url.startsWith("${PlaybackUrlResolver.STABLE_SCHEME}://", true)
+            } == true
+        val deliveryMode = when {
+            isOffline -> "offline"
+            else -> "progressive"
+        }
+        val streamId = song.playbackStreamId
+            ?.takeIf { it.length >= 8 }
+            ?: song.id.takeIf { isOffline && it.length >= 8 }
+            ?: return null
+        return PlaybackQoeContext(
+            streamId = streamId,
+            deliveryMode = deliveryMode
+        )
+    }
+
+
+
     private fun createExoPlayer(): ExoPlayer {
         return ExoPlayer.Builder(this)
+            .setMediaSourceFactory(playbackMediaSourceFactory.create())
             .build().apply {
                 setAudioAttributes(exoAudioAttributes, false)
+                setWakeMode(C.WAKE_MODE_NETWORK)
                 addListener(playerListener)
+                addAnalyticsListener(playbackQoeTracker)
                 val initialMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
                 repeatMode = when (initialMode) {
                     PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
@@ -690,87 +1297,40 @@ class MusicPlaybackService : Service(), PlayerController {
     private var retryCount = 0
     private val MAX_RETRY_COUNT = 2
 
-    private fun retryCurrentSongWithFreshUrl() {
+    private fun retryCurrentPlayback() {
         if (retryCount >= MAX_RETRY_COUNT) {
-            Log.e("MusicService", "Max retries ($MAX_RETRY_COUNT) reached. Skipping to next song.")
             retryCount = 0
             playNext()
             return
         }
+
+        val songId = PlaybackStateRepository.currentSong?.id ?: run {
+            playNext()
+            return
+        }
+        val player = exoPlayer ?: return
+
         retryCount++
-
-        val queue = PlaybackStateRepository.activeQueue ?: run {
-            playNext()
-            return
-        }
-        val index = queue.currentIndex
-        val currentSong = queue.songs.getOrNull(index) ?: run {
-            playNext()
-            return
-        }
-
-        Log.w("MusicService", "\uD83D\uDD04 Retry #$retryCount: Fetching fresh URL for '${currentSong.title}'")
-
-        serviceScope.launch(Dispatchers.IO) {
-            try {
-                val songManager = SongManager(applicationContext)
-                // Invalidate cache so we get a truly fresh presigned URL
-                songManager.invalidateCache(currentSong.id)
-                val fetched = songManager.getSongById(currentSong.id)
-
-                if (fetched != null && !fetched.url.isNullOrEmpty()) {
-                    // Update the song in the queue
-                    val mutableSongs = queue.songs.toMutableList()
-                    mutableSongs[index] = fetched
-                    queue.songs = mutableSongs.toList()
-
-                    withContext(Dispatchers.Main) {
-                        Log.d("MusicService", "\u2705 Got fresh URL for '${fetched.title}'. Replaying.")
-                        PlaybackStateRepository.setCurrentSong(fetched)
-
-                        val player = exoPlayer ?: return@withContext
-                        val uri = Uri.parse(fetched.url)
-                        val mediaItem = MediaItem.Builder()
-                            .setUri(uri)
-                            .setMediaId(fetched.id)
-                            .build()
-
-                        player.setMediaItem(mediaItem)
-                        player.prepare()
-                        if (!requestAudioFocus()) return@withContext
-                        registerBecomingNoisyReceiver()
-                        player.play()
-
-                        retryCount = 0 // Reset on success
-                        startSeekBarUpdates()
-                    }
-                } else {
-                    Log.e("MusicService", "Retry failed: no URL returned. Skipping.")
-                    withContext(Dispatchers.Main) {
-                        retryCount = 0
-                        playNext()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("MusicService", "Retry failed with exception: ${e.message}")
-                withContext(Dispatchers.Main) {
-                    retryCount = 0
-                    playNext()
-                }
-            }
+        playbackUrlResolver.invalidate(songId)
+        Log.w(
+            "MusicService",
+            "Reintentando la fuente actual sin reconstruir la cola (intento $retryCount)"
+        )
+        player.prepare()
+        if (requestAudioFocus()) {
+            registerBecomingNoisyReceiver()
+            player.play()
         }
     }
 
     private fun calculateTriggerPosition(): Long {
         val song = PlaybackStateRepository.currentSong
         if (song == null) {
-            Log.d("TriggerPos", "no currentSong")
             return -1L
         }
 
         val repeatMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
         if (repeatMode == PlaybackStateRepository.REPEAT_MODE_ONE) {
-            Log.d("TriggerPos", "RepeatOne active — no trigger")
             return -1L
         }
 
@@ -779,17 +1339,20 @@ class MusicPlaybackService : Service(), PlayerController {
         val isPlaymixMode = queue?.sourceType == QueueSource.PLAYMIX
 
         if (isAlbumMode && automixEnabled) {
-            Log.d("TriggerPos", "Album+automix — trigger disabled here")
             return -1L
         }
 
-        val currentQueueIndex = queue?.songs?.indexOfFirst { it.id == song.id } ?: -1
+        val queueIndex = queue?.currentIndex ?: -1
+        val currentQueueIndex = if (queue?.songs?.getOrNull(queueIndex)?.id == song.id) {
+            queueIndex
+        } else {
+            queue?.songs?.indexOfFirst { it.id == song.id } ?: -1
+        }
         val nextSong: Song? = when {
             currentQueueIndex >= 0 -> queue?.songs?.getOrNull(currentQueueIndex + 1)
             else -> PlaybackStateRepository.getNextSong(exoPlayer?.currentMediaItemIndex ?: -1)
         }
         if (nextSong == null || nextSong.id == song.id) {
-            Log.d("TriggerPos", "no next song (queueIdx=$currentQueueIndex) — no trigger")
             return -1L
         }
 
@@ -808,10 +1371,8 @@ class MusicPlaybackService : Service(), PlayerController {
                     crossfadeMs == 0L && gapMs > 0 -> exitMs - 300L
                     else -> exitMs // exitPointMs is already set by the editor to be crossfadeMs before the end
                 }
-                Log.d("TriggerPos", "🎹 PlayMix trigger at ${triggerMs}ms (exit=${exitMs}ms, crossfade=${crossfadeMs}ms, gap=${gapMs}ms, mode=$mixMode)")
                 return triggerMs.coerceAtLeast(0L)
             }
-            Log.d("TriggerPos", "PlayMix but no transition configured — no trigger")
             return -1L
         }
 
@@ -823,13 +1384,8 @@ class MusicPlaybackService : Service(), PlayerController {
         val songDurationMs: Long = when {
             (analysis?.durationMs ?: 0) > 0 -> analysis!!.durationMs.toLong()
             exoDurationMs > 0               -> exoDurationMs
-            else -> {
-                Log.d("TriggerPos", "duration unknown (analysis=${analysis?.durationMs}, exo=$exoDurationMs) — waiting")
-                return -1L
-            }
+            else -> return -1L
         }
-
-        Log.d("MusicService", "🔧 calculateTriggerPosition - Modo: $crossfadeMode, songDuration: ${songDurationMs}ms, AlbumMode: $isAlbumMode, hasAnalysis: ${analysis != null}")
 
         if (isAlbumMode) return -1L  // album non-automix: handled elsewhere
 
@@ -837,17 +1393,14 @@ class MusicPlaybackService : Service(), PlayerController {
             // Intelligent mode always picks its own duration, regardless of the slider.
             val cached = predictedIntelligentDuration
             if (cached > 0L) {
-                Log.d("MusicService", "🧠 Duración cacheada: ${cached}ms")
                 cached
             } else if (analysis != null && nextSong.audioAnalysis != null) {
                 // Full analysis available — compute and CACHE the result.
                 val predicted = transitionManager.predictIntelligentMixDuration(song, nextSong)
                 predictedIntelligentDuration = predicted  // cache so next ticks are cheap
-                Log.d("MusicService", "🧠 Duración predicha+cacheada: ${predicted}ms")
                 predicted
             } else {
                 // Fallback when analysis is missing — use a sensible 8-second default.
-                Log.d("MusicService", "🧠 Sin análisis completo — usando 8000ms por defecto")
                 8000L
             }
         } else {
@@ -855,17 +1408,14 @@ class MusicPlaybackService : Service(), PlayerController {
         }
 
         if (actualMixDuration <= 0) {
-            Log.d("MusicService", "❌ Sin duración de mezcla (slider=0) — no trigger")
             return -1L
         }
 
         val triggerPos = songDurationMs - actualMixDuration
         if (triggerPos <= 0) {
-            Log.w("MusicService", "⚠️ Trigger negativo ($triggerPos) — duración aún cargando")
             return -1L
         }
 
-        Log.d("MusicService", "🎯 Trigger calculado: ${triggerPos}ms (dur=${songDurationMs}ms - mix=${actualMixDuration}ms)")
         return triggerPos
     }
 
@@ -900,121 +1450,395 @@ class MusicPlaybackService : Service(), PlayerController {
                 })
         }
     }
-    private fun playSongFromQueue() {
-        val queue = PlaybackStateRepository.activeQueue
-        val index = queue?.currentIndex ?: return
-        val currentSong = queue.songs.getOrNull(index) ?: return
+    private fun playSongFromQueue(playWhenReady: Boolean = true) {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val index = queue.currentIndex
+        val songToPlay = queue.songs.getOrNull(index) ?: return
+        if (exoPlayer == null) return
+        progressiveFallbackSongId = null
+        retryCount = 0
+        val generation = playbackLoadGeneration.incrementAndGet()
 
         serviceScope.launch(Dispatchers.Main) {
-            val songManager = SongManager(applicationContext)
+            playbackQoeTracker.markPlayRequested(queue.sourceType.name, songToPlay.id)
+            PlaybackStateRepository.setCurrentSong(songToPlay)
+            loadArtworkForSong(songToPlay)
+        }
 
-            // 1. Fetch Current + Next concurrently (both with fresh URLs)
-            val deferredCurrent = async(Dispatchers.IO) {
-                try { songManager.getSongById(currentSong.id) } catch (e: Exception) {
-                    Log.e("MusicPlaybackService", "Failed to fetch current song ${currentSong.id}", e)
-                    null
+        serviceScope.launch {
+            val enrichedSongs = playbackQueueEnricher.enrich(
+                songs = queue.songs,
+                currentIndex = index
+            )
+            withContext(Dispatchers.Main) {
+                if (generation != playbackLoadGeneration.get() ||
+                    PlaybackStateRepository.activeQueue !== queue
+                ) {
+                    return@withContext
                 }
-            }
-            val nextSong = queue.songs.getOrNull(index + 1)
-            val deferredNext = if (nextSong != null) async(Dispatchers.IO) {
-                try { songManager.getSongById(nextSong.id) } catch (e: Exception) {
-                    Log.w("MusicPlaybackService", "Failed to prefetch next song ${nextSong.id}", e)
-                    null
-                }
-            } else null
 
-            val fetchedCurrent = deferredCurrent.await()
-            val fetchedNext = deferredNext?.await()
+                queue.songs = enrichedSongs
+                queue.ensureEntryIds()
+                val enrichedCurrentSong = enrichedSongs.getOrNull(index) ?: return@withContext
+                PlaybackStateRepository.setCurrentSong(enrichedCurrentSong)
+                PlaybackStateRepository.publishQueue()
+                val player = exoPlayer ?: return@withContext
+                val mediaItems = enrichedSongs.map(playbackMediaItemFactory::create)
+                if (mediaItems.isEmpty()) return@withContext
 
-            Log.d("MusicPlaybackService", "playSongFromQueue: index=$index, fetchedCurrent=${fetchedCurrent?.id}, urlPresent=${fetchedCurrent?.url != null}")
+                val startPosition = pendingStartPositionMs
+                pendingStartPositionMs = 0L
 
-            // 2. Update Queue in Repository with enriched songs
-            if (fetchedCurrent != null) {
-                val mutableSongs = queue.songs.toMutableList()
-                if (index < mutableSongs.size) {
-                    mutableSongs[index] = fetchedCurrent
-                }
-                if (fetchedNext != null && nextSong != null && (index + 1) < mutableSongs.size) {
-                    mutableSongs[index + 1] = fetchedNext
-                }
-                queue.songs = mutableSongs.toList()
+                player.setMediaItems(mediaItems, index, startPosition)
+                player.prepare()
 
-                PlaybackStateRepository.setCurrentSong(fetchedCurrent)
-                loadArtworkForSong(fetchedCurrent)
-            } else {
-                Log.w("MusicPlaybackService", "Failed to fetch full song data for ${currentSong.id}")
-                PlaybackStateRepository.setCurrentSong(currentSong)
-                loadArtworkForSong(currentSong)
-            }
-
-            val player = exoPlayer ?: run {
-                Log.e("MusicPlaybackService", "ExoPlayer is NULL!")
-                return@launch
-            }
-
-            // 3. CHECK VALIDITY — bail if no URL
-            val songToPlay = fetchedCurrent ?: currentSong
-            if (songToPlay.url.isNullOrEmpty()) {
-                Log.e("MusicPlaybackService", "\u274C La canción '${songToPlay.title}' no tiene URL. Intentando siguiente...")
-                // Don't just stop — skip to next song
-                val nextIdx = index + 1
-                if (nextIdx < queue.songs.size) {
-                    queue.currentIndex = nextIdx
-                    playSongFromQueue()
-                }
-                return@launch
-            }
-
-            // 4. Build media items — ONLY songs that have valid URLs
-            //    This prevents ExoPlayer from trying to load empty URIs
-            val validItems = mutableListOf<Pair<Int, MediaItem>>()
-            var adjustedStartIndex = 0
-
-            queue.songs.forEachIndexed { i, song ->
-                val url = song.url
-                if (!url.isNullOrEmpty()) {
-                    if (i == index) adjustedStartIndex = validItems.size
-                    val uri = if (url.startsWith("http") || url.startsWith("https")) {
-                        Uri.parse(url)
-                    } else {
-                        Uri.fromFile(java.io.File(url))
+                if (playWhenReady) {
+                    if (!requestAudioFocus()) {
+                        return@withContext
                     }
-                    validItems.add(i to MediaItem.Builder().setUri(uri).setMediaId(song.id).build())
+                    registerBecomingNoisyReceiver()
+                    player.play()
                 } else {
-                    Log.v("MusicPlaybackService", "Skipping song ${song.id} (no URL) from ExoPlayer queue")
+                    player.pause()
+                    PlaybackStateRepository.setIsPlaying(false)
                 }
+                applyLoudnessNormalization(enrichedCurrentSong)
+
+                currentSongStartTimeMs = System.currentTimeMillis()
+                PlaybackStateRepository.streamReported = false
+                updatePredictedDurationAsync()
+                prepareNextTransitionPlayer(index)
             }
-
-            if (validItems.isEmpty()) {
-                Log.e("MusicPlaybackService", "No songs with valid URLs in queue!")
-                return@launch
-            }
-
-            val startPos = pendingStartPositionMs
-            pendingStartPositionMs = 0L
-            player.setMediaItems(validItems.map { it.second }, adjustedStartIndex, startPos)
-            player.prepare()
-            if (!requestAudioFocus()) return@launch
-            registerBecomingNoisyReceiver()
-            player.play()
-            applyLoudnessNormalization(songToPlay)
-            Log.d("MusicPlaybackService", "\u25B6\uFE0F Playback started for '${songToPlay.title}' (${validItems.size} valid items in ExoPlayer)")
-
-            currentSongStartTimeMs = System.currentTimeMillis()
-            PlaybackStateRepository.streamReported = false
-
-            updatePredictedDurationAsync()
-
-            // 5. Preload next song via TransitionManager
-            val actualNext = queue.songs.getOrNull(index + 1)
-            transitionManager.preloadNextSong(if (fetchedNext != null) fetchedNext else actualNext)
-
-            notificationManager.startForeground(songToPlay, true, null)
-
-            // 6. Proactively preload the song after next (index+2)
-            preloadNextSongMetadata(index + 2)
         }
     }
+
+    private fun syncPlaybackConnect() {
+        if (
+            !::playbackConnectRepository.isInitialized ||
+            !connectSyncInFlight.compareAndSet(false, true)
+        ) {
+            return
+        }
+        serviceScope.launch {
+            try {
+                // Media3 requires every ExoPlayer access to happen on its application
+                // thread. Capture the local playback snapshot on main, then keep the
+                // Connect request and command acknowledgements on this IO scope.
+                val playbackState = withContext(Dispatchers.Main.immediate) {
+                    buildConnectPlaybackState()
+                }
+                val commands = playbackConnectRepository.heartbeat(
+                    playbackState
+                )
+
+                // NOTE: No auto-pause heuristic here.  Pausing the local player
+                // is handled exclusively by:
+                //   1. The YIELD command from the server (delivered via commands list).
+                //   2. The explicit ACTION_PAUSE sent by PlaybackDevicesBottomSheet
+                //      immediately after a successful transfer.
+                // Previous iterations used a snapshot-based "ownership lost"
+                // heuristic that caused spurious mid-song pauses due to stale or
+                // temporarily inconsistent activeDeviceId values from the backend.
+
+                commands
+                    .sortedBy(PlaybackConnectCommandDTO::sequence)
+                    .forEach { command ->
+                        if (
+                            playbackConnectRepository.wasCommandProcessed(
+                                command.commandId
+                            )
+                        ) {
+                            playbackConnectRepository.acknowledge(
+                                command,
+                                successful = true
+                            )
+                            return@forEach
+                        }
+                        val applied = runCatching {
+                            applyPlaybackConnectCommand(command)
+                        }.getOrElse { error ->
+                            Log.e(
+                                "ResonantConnect",
+                                "No se pudo aplicar ${command.type}",
+                                error
+                            )
+                            false
+                        }
+                        if (applied) {
+                            playbackConnectRepository.markCommandProcessed(
+                                command.commandId
+                            )
+                        }
+                        playbackConnectRepository.acknowledge(
+                            command = command,
+                            successful = applied,
+                            errorCode = if (applied) null else "command_not_applied"
+                        )
+                    }
+            } finally {
+                connectSyncInFlight.set(false)
+            }
+        }
+    }
+
+    private fun buildConnectPlaybackState(): PlaybackConnectStateDTO? {
+        val queue = PlaybackStateRepository.activeQueue ?: return null
+        if (queue.songs.isEmpty()) return null
+        val safeCurrentIndex = queue.currentIndex.coerceIn(queue.songs.indices)
+        val windowStart = if (queue.songs.size <= CONNECT_MAX_QUEUE_ITEMS) {
+            0
+        } else {
+            (safeCurrentIndex - 50).coerceIn(
+                0,
+                queue.songs.size - CONNECT_MAX_QUEUE_ITEMS
+            )
+        }
+        val windowEnd = (
+            windowStart + CONNECT_MAX_QUEUE_ITEMS
+        ).coerceAtMost(queue.songs.size)
+        val queueItems = queue.songs
+            .subList(windowStart, windowEnd)
+            .map { song ->
+                PlaybackConnectQueueItemDTO(
+                    songId = song.id,
+                    title = song.title,
+                    artistName = song.artistName
+                        ?: song.artists.joinToString(", ") { it.name }
+                            .takeIf(String::isNotBlank),
+                    coverUrl = song.coverUrl?.takeIf { url ->
+                        '?' !in url && '#' !in url
+                    },
+                    durationMs = song.audioAnalysis
+                        ?.durationMs
+                        ?.toLong()
+                        ?.takeIf { it > 0L }
+                )
+            }
+        val player = exoPlayer
+        return PlaybackConnectStateDTO(
+            stateRevision = connectStateRevision.incrementAndGet(),
+            queueRevision = PlaybackStateRepository.currentQueueRevision(),
+            queueItems = queueItems,
+            queueTruncated = queue.songs.size > queueItems.size,
+            currentIndex = safeCurrentIndex - windowStart,
+            positionMs = player?.currentPosition?.coerceAtLeast(0L) ?: 0L,
+            durationMs = player
+                ?.duration
+                ?.takeIf { it > 0L && it != C.TIME_UNSET }
+                ?: 0L,
+            isPlaying = PlaybackStateRepository.isPlaying,
+            sourceType = queue.sourceType.name,
+            sourceId = queue.sourceId.takeIf(String::isNotBlank),
+            repeatMode = PlaybackStateRepository.repeatModeLiveData.value
+                ?: PlaybackStateRepository.REPEAT_MODE_OFF,
+            shuffleEnabled =
+                PlaybackStateRepository.isShuffleEnabledLiveData.value == true
+        )
+    }
+
+    private suspend fun applyPlaybackConnectCommand(
+        command: PlaybackConnectCommandDTO
+    ): Boolean {
+        return when (command.type.uppercase()) {
+            "YIELD", "PAUSE" -> {
+                withContext(Dispatchers.Main) { pause() }
+                true
+            }
+            "RESUME" -> {
+                withContext(Dispatchers.Main) { resume() }
+                true
+            }
+            "TRANSFER_IN" -> {
+                val state = command.playback ?: return false
+                val items = state.queueItems.orEmpty()
+                if (items.isEmpty()) return false
+                val songs = items.map { item ->
+                    Song(
+                        id = item.songId,
+                        title = item.title,
+                        coverUrl = item.coverUrl,
+                        artistName = item.artistName
+                    )
+                }
+                val requestedSourceType = runCatching {
+                    QueueSource.valueOf(state.sourceType.uppercase())
+                }.getOrDefault(QueueSource.QUEUE)
+                val sourceType = requestedSourceType
+                    .takeUnless { it == QueueSource.PLAYMIX }
+                    ?: QueueSource.QUEUE
+                withContext(Dispatchers.Main) {
+                    cancelCurrentTransitionAndRestoreEffects()
+                    // Connect took over this device with a new queue — any
+                    // radio station we had running belonged to the previous
+                    // context and must not leak into the new one.
+                    resetRadioSession()
+                    pendingStartPositionMs = state.positionMs.coerceAtLeast(0L)
+                    PlaybackStateRepository.activeQueue = PlaybackQueue(
+                        sourceId = state.sourceId ?: "connect_transfer",
+                        sourceType = sourceType,
+                        songs = songs,
+                        currentIndex = state.currentIndex.coerceIn(songs.indices)
+                    )
+                    PlaybackStateRepository.setRepeatMode(state.repeatMode)
+                    PlaybackStateRepository.setIsShuffleEnabled(
+                        state.shuffleEnabled
+                    )
+                    originalQueueSongs =
+                        if (state.shuffleEnabled) songs.toList() else null
+                    exoPlayer?.repeatMode = when (state.repeatMode) {
+                        PlaybackStateRepository.REPEAT_MODE_ONE ->
+                            Player.REPEAT_MODE_ONE
+                        PlaybackStateRepository.REPEAT_MODE_ALL ->
+                            Player.REPEAT_MODE_ALL
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+                    // Don't call exoPlayer.play() directly here — let
+                    // playSongFromQueue handle the full playback lifecycle
+                    // (audio focus, noisy receiver, state updates) so that
+                    // TRANSFER_IN follows the same code path as local play.
+                    playSongFromQueue(playWhenReady = state.isPlaying)
+                    persistPlaybackState(force = true)
+                }
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun prepareNextTransitionPlayer(currentQueueIndex: Int) {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val nextSong = queue.songs.getOrNull(currentQueueIndex + 1)
+        val needsSecondPlayer = nextSong != null && (
+            queue.sourceType == QueueSource.PLAYMIX ||
+                crossfadeMode == CrossfadeMode.INTELLIGENT_EQ ||
+                (queue.sourceType == QueueSource.ALBUM && automixEnabled) ||
+                crossfadeDurationMs > 0L
+            )
+
+        if (needsSecondPlayer) {
+            transitionManager.preloadNextSong(nextSong)
+        } else {
+            cancelCurrentTransitionAndRestoreEffects()
+        }
+    }
+
+    // ── Resonant Radio (autoplay at end of queue) ──────────────────────────
+
+    /**
+     * Push [songId] into the "recently played" rolling window that we send
+     * to the radio server, so it won't return anything we just heard.
+     */
+    private fun recordRecentSong(songId: String) {
+        if (songId.isBlank()) return
+        // O(n) but n is bounded to RADIO_RECENT_WINDOW_SIZE (~30), fine.
+        radioRecentSongIds.remove(songId)
+        radioRecentSongIds.addLast(songId)
+        while (radioRecentSongIds.size > RADIO_RECENT_WINDOW_SIZE) {
+            radioRecentSongIds.removeFirst()
+        }
+    }
+
+    /**
+     * Prefetch radio tracks when the queue is running out.  Called from
+     * [onMediaItemTransition] as the user advances through songs.
+     *
+     * Skips silently if:
+     *  - autoplay is disabled in settings,
+     *  - the queue is a PlayMix (has its own curated ending semantics),
+     *  - the queue is DOWNLOADED_SONGS (user is in offline mode),
+     *  - we're already fetching,
+     *  - or fewer than [RADIO_PREFETCH_THRESHOLD] songs remain but there's
+     *    still work to do (the check catches the transition into that state).
+     */
+    private fun maybePrefetchRadio() {
+        if (!autoplayRadioEnabled) return
+        if (isSeeking) return
+
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        if (queue.songs.isEmpty()) return
+
+        // Don't hijack playmixes (curated arc) or offline sessions.
+        if (queue.sourceType == QueueSource.PLAYMIX ||
+            queue.sourceType == QueueSource.DOWNLOADED_SONGS
+        ) return
+
+        // Repeat-all naturally cycles forever, no radio needed.
+        if (PlaybackStateRepository.repeatModeLiveData.value ==
+            PlaybackStateRepository.REPEAT_MODE_ALL
+        ) return
+
+        val songsRemainingAfterCurrent =
+            queue.songs.size - 1 - queue.currentIndex
+        if (songsRemainingAfterCurrent > RADIO_PREFETCH_THRESHOLD) return
+
+        if (!radioPrefetchInFlight.compareAndSet(false, true)) return
+
+        val sourceType = queue.sourceType.name
+        val sourceId = queue.sourceId
+        val lastSongId = queue.songs.getOrNull(queue.currentIndex)?.id
+        val recentIds = radioRecentSongIds.toList()
+
+        serviceScope.launch {
+            try {
+                val newSongs = radioRepository.fetchNextBatch(
+                    sourceType = sourceType,
+                    sourceId = sourceId,
+                    lastSongId = lastSongId,
+                    recentSongIds = recentIds
+                )
+                if (newSongs.isEmpty()) return@launch
+
+                withContext(Dispatchers.Main) { appendRadioSongsToQueue(newSongs) }
+            } finally {
+                radioPrefetchInFlight.set(false)
+            }
+        }
+    }
+
+    /**
+     * Appends radio-fetched songs to the active queue in place.  Runs on
+     * main because it mutates the ExoPlayer timeline.  Preserves the
+     * queue's original [QueueSource] — the sourceType stays as e.g. ALBUM
+     * for Connect purposes, and we surface the radio state separately via
+     * [PlaybackStateRepository.radioSessionLiveData].
+     */
+    @androidx.annotation.MainThread
+    private fun appendRadioSongsToQueue(newSongs: List<com.example.resonant.data.models.Song>) {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val existingIds = queue.songs.mapTo(HashSet(queue.songs.size)) { it.id }
+        val toAppend = newSongs.filter { it.id.isNotBlank() && it.id !in existingIds }
+        if (toAppend.isEmpty()) return
+
+        queue.songs = queue.songs + toAppend
+        queue.resetEntriesForSongs()
+        PlaybackStateRepository.publishQueue()
+        PlaybackStateRepository.setRadioSession(radioRepository.currentSession)
+
+        // Push the new items into the ExoPlayer timeline too, otherwise the
+        // native "play next" would still hit end-of-queue.
+        val player = exoPlayer ?: return
+        val newMediaItems = toAppend.map(playbackMediaItemFactory::create)
+        player.addMediaItems(newMediaItems)
+
+        Log.d(
+            "MusicService",
+            "🎧 Resonant Radio: added ${toAppend.size} songs " +
+                "(seed=${radioRepository.currentSession?.seedName})"
+        )
+    }
+
+    /**
+     * Clears the current radio session — call whenever the user starts a
+     * brand-new playback context (tapped a song, playlist, album,
+     * received TRANSFER_IN, etc.) so the next queue-end starts a fresh
+     * station instead of continuing the previous one.
+     */
+    private fun resetRadioSession() {
+        radioRepository.clearSession()
+        radioRecentSongIds.clear()
+        PlaybackStateRepository.setRadioSession(null)
+    }
+
     private fun synchronizeExoPlayerQueue() {
         val queue = PlaybackStateRepository.activeQueue ?: return
         val player = exoPlayer ?: return
@@ -1039,7 +1863,10 @@ class MusicPlaybackService : Service(), PlayerController {
         val newSongs = queue.songs
         
         // Buscar dónde debería estar la canción actual en la NUEVA lista
-        val newIndexTarget = newSongs.indexOfFirst { it.id == currentSongId }
+        val logicalCurrentIndex = queue.currentIndex
+        val newIndexTarget = logicalCurrentIndex.takeIf { index ->
+            index in newSongs.indices && newSongs[index].id == currentSongId
+        } ?: newSongs.indexOfFirst { it.id == currentSongId }
 
         // Si la canción actual ya no está en la lista o algo raro pasa, fallback a recarga total
         if (newIndexTarget == -1) {
@@ -1084,19 +1911,65 @@ class MusicPlaybackService : Service(), PlayerController {
     }
 
     private fun createMediaItem(song: Song): MediaItem {
-        val url = song.url
-        val uri = if (url.isNullOrBlank()) {
-             Uri.EMPTY // Evita crash con File("")
-        } else if (url.startsWith("http") || url.startsWith("https")) {
-            Uri.parse(url)
-        } else {
-            Uri.fromFile(java.io.File(url))
-        }
-        return MediaItem.Builder()
-            .setUri(uri)
-            .setMediaId(song.id)
-            .build()
+        return playbackMediaItemFactory.create(song)
     }
+
+    private fun persistPlaybackState(force: Boolean = false) {
+        if (!::playbackStateStore.isInitialized) return
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val player = exoPlayer
+        val now = System.currentTimeMillis()
+        if (!force && now - lastPlaybackStateSaveAtMs < PLAYBACK_STATE_SAVE_INTERVAL_MS) {
+            return
+        }
+
+        val currentSong = PlaybackStateRepository.currentSong
+        val durationMs = player?.duration
+            ?.takeIf { it > 0L && it != C.TIME_UNSET }
+            ?: currentSong?.audioAnalysis?.durationMs?.toLong()?.takeIf { it > 0L }
+            ?: currentSong?.duration
+                ?.toDoubleOrNull()
+                ?.takeIf { it > 0.0 }
+                ?.times(1_000.0)
+                ?.toLong()
+            ?: 0L
+        playbackStateStore.save(
+            queue = queue,
+            currentSongId = player?.currentMediaItem?.mediaId ?: currentSong?.id,
+            positionMs = player?.currentPosition ?: 0L,
+            durationMs = durationMs,
+            repeatMode = PlaybackStateRepository.repeatModeLiveData.value
+                ?: PlaybackStateRepository.REPEAT_MODE_OFF,
+            shuffleEnabled = PlaybackStateRepository.isShuffleEnabledLiveData.value ?: false,
+            synchronous = force
+        )
+        lastPlaybackStateSaveAtMs = now
+    }
+
+    private fun restorePlaybackState() {
+        val restored = playbackStateStore.restore() ?: return
+        val player = exoPlayer ?: return
+        val queue = restored.queue
+        val currentSong = queue.songs.getOrNull(queue.currentIndex) ?: return
+
+        PlaybackStateRepository.restore(restored)
+        currentSongStartTimeMs = 0L
+        loadArtworkForSong(currentSong)
+
+        player.repeatMode = when (restored.repeatMode) {
+            PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+            PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+            else -> Player.REPEAT_MODE_OFF
+        }
+        player.setMediaItems(
+            queue.songs.map(playbackMediaItemFactory::create),
+            queue.currentIndex,
+            restored.positionMs
+        )
+        applyLoudnessNormalization(currentSong)
+        updateMediaSessionMetadata()
+    }
+
     private fun reportCurrentSongFinished(wasSkipped: Boolean) {
         // Si ya se reportó (ej. en una transición), no hacerlo de nuevo.
         if (PlaybackStateRepository.streamReported) {
@@ -1106,6 +1979,12 @@ class MusicPlaybackService : Service(), PlayerController {
         // 1. Obtenemos los datos de la canción que acaba de sonar
         val songToReport = PlaybackStateRepository.currentSong ?: return
         val startTime = currentSongStartTimeMs
+        if (startTime <= 0L) {
+            // A restored, paused session has metadata and position but has not
+            // accumulated listening time in this process yet.
+            Log.d("StreamAPI", "Sesión restaurada sin tiempo activo; no se reporta stream.")
+            return
+        }
         val playSource = PlaybackStateRepository.activeQueue?.sourceType?.name ?: "UNKNOWN"
 
         // 2. Calculamos la duración
@@ -1163,96 +2042,185 @@ class MusicPlaybackService : Service(), PlayerController {
         }
     }
     private fun updateUiAndSystem() {
-        val isPlaying = PlaybackStateRepository.isPlaying
-        val position = exoPlayer?.currentPosition ?: 0L
+        triggerNotificationUpdate()
 
         // Su única responsabilidad ahora es el estado de reproducción (Play/Pause y posición)
-        mediaSessionManager.updatePlaybackState(position)
 
         // La notificación se actualiza desde updateMediaSessionMetadata,
         // pero podemos dejar una llamada aquí para el estado Play/Pause
-        notificationManager.updateNotification(
-            PlaybackStateRepository.currentSong,
-            isPlaying,
-            PlaybackStateRepository.currentSongBitmapLiveData.value
-        )
 
         Log.d("MusicService", "🔄 Estado de reproducción actualizado")
+    }
+
+    /**
+     * Executes the actual "load queue and start playing" logic factored out of
+     * [ACTION_PLAY] and [ACTION_PLAY_CONNECT_CONFIRMED] so both paths share
+     * identical behaviour.
+     */
+    private fun startLocalPlayback(
+        originalIntent: Intent,
+        song: Song,
+        songList: ArrayList<Song>,
+        index: Int,
+        sourceType: QueueSource,
+        sourceId: String
+    ) {
+        // A brand-new playback context — the previous radio station is
+        // no longer relevant.  Next queue-end will seed a fresh one.
+        resetRadioSession()
+        lastManualChangeTimestamp = System.currentTimeMillis()
+
+        PlaybackStateRepository.activeQueue = PlaybackQueue(
+            songs = songList,
+            currentIndex = index,
+            sourceId = sourceId,
+            sourceType = sourceType
+        )
+
+        if (sourceType == QueueSource.PLAYMIX && sourceId.isNotBlank()) {
+            playmixTransitions = emptyMap()
+            playmixSongIdMap   = emptyMap()
+            serviceScope.launch(Dispatchers.IO) {
+                try {
+                    val detail = PlaymixManager(applicationContext).getPlaymixDetail(sourceId)
+                    val songIdToPlaymixId = detail.songs.associate { it.songId to it.playmixSongId }
+                    val transitionMap = mutableMapOf<String, PlaymixTransitionDTO>()
+                    for (t in detail.transitions) {
+                        val fromSongId = detail.songs.firstOrNull {
+                            it.playmixSongId == t.fromPlaymixSongId
+                        }?.songId
+                        val toSongId   = detail.songs.firstOrNull {
+                            it.playmixSongId == t.toPlaymixSongId
+                        }?.songId
+                        if (fromSongId != null && toSongId != null) {
+                            transitionMap["$fromSongId:$toSongId"] = t
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        playmixSongIdMap   = songIdToPlaymixId
+                        playmixTransitions = transitionMap
+                        Log.d("MusicService", "🔌 PlayMix transitions loaded: ${transitionMap.size}")
+                    }
+                } catch (e: Exception) {
+                    Log.e("MusicService", "Failed to load PlayMix transitions", e)
+                }
+            }
+        } else {
+            playmixTransitions = emptyMap()
+            playmixSongIdMap   = emptyMap()
+        }
+
+        pendingStartPositionMs = originalIntent.getIntExtra(EXTRA_START_POSITION_MS, 0).toLong()
+        playSongFromQueue()
+
+        PlaybackStateRepository.setIsShuffleEnabled(false)
+        originalQueueSongs = null
     }
     private fun handleAction(action: String, intent: Intent) {
         when (action) {
             ACTION_PLAY -> {
                 reportCurrentSongFinished(wasSkipped = true)
 
-                transitionManager.cancelCurrentTransition()
+                cancelCurrentTransitionAndRestoreEffects()
 
-                val song = intent.getParcelableExtra<Song>(EXTRA_CURRENT_SONG)
-                val songList = intent.getParcelableArrayListExtra<Song>(SONG_LIST)
+                val song = intent.getParcelableExtra(EXTRA_CURRENT_SONG, Song::class.java)
+                val songList = intent.getParcelableArrayListExtra(SONG_LIST, Song::class.java)
                 val index = intent.getIntExtra(EXTRA_CURRENT_INDEX, -1)
 
-                val sourceType = intent.getSerializableExtra(EXTRA_QUEUE_SOURCE) as? QueueSource
+                val sourceType = intent.getSerializableExtra(EXTRA_QUEUE_SOURCE, QueueSource::class.java)
                     ?: QueueSource.UNKNOWN
                 val sourceId = intent.getStringExtra(EXTRA_QUEUE_SOURCE_ID) ?: ""
 
                 if (song != null && !songList.isNullOrEmpty() && index != -1) {
-                    PlaybackStateRepository.activeQueue = PlaybackQueue(
-                        songs = songList,
-                        currentIndex = index,
-                        sourceId = sourceId,
-                        sourceType = sourceType
-                    )
 
-                    // Load PlayMix transition data so exits/entries use playlist-defined crossfade
-                    if (sourceType == QueueSource.PLAYMIX && sourceId.isNotBlank()) {
-                        playmixTransitions = emptyMap()
-                        playmixSongIdMap = emptyMap()
-                        serviceScope.launch(Dispatchers.IO) {
-                            try {
-                                val detail = PlaymixManager(applicationContext).getPlaymixDetail(sourceId)
-                                val songIdToPlaymixId = detail.songs.associate { it.songId to it.playmixSongId }
-                                val transitionMap = mutableMapOf<String, PlaymixTransitionDTO>()
-                                for (t in detail.transitions) {
-                                    // Resolve playmixSongId -> songId for both ends
-                                    val fromSongId = detail.songs.firstOrNull { it.playmixSongId == t.fromPlaymixSongId }?.songId
-                                    val toSongId   = detail.songs.firstOrNull { it.playmixSongId == t.toPlaymixSongId   }?.songId
-                                    if (fromSongId != null && toSongId != null) {
-                                        transitionMap["$fromSongId:$toSongId"] = t
-                                    }
-                                }
-                                withContext(Dispatchers.Main) {
-                                    playmixSongIdMap = songIdToPlaymixId
-                                    playmixTransitions = transitionMap
-                                    Log.d("MusicService", "🔌 PlayMix transitions loaded: ${transitionMap.size}")
-                                }
-                            } catch (e: Exception) {
-                                Log.e("MusicService", "Failed to load PlayMix transitions", e)
-                            }
+                    // ── Resonant Connect conflict detection ──────────────────────────
+                    // If another device is currently the active Connect player, don't
+                    // silently steal control.  Instead stash the intent and let the
+                    // Activity show the "Ahora suena en X – ¿Escucharlo aquí?" dialog.
+                    // The user's answer comes back as ACTION_PLAY_CONNECT_CONFIRMED or
+                    // is simply ignored (stash entry expires naturally).
+                    if (::playbackConnectRepository.isInitialized) {
+                        val connectState = playbackConnectRepository.uiState.value
+                        val remoteDevice = connectState.activeDevice
+                        if (connectState.supported &&
+                            remoteDevice != null &&
+                            remoteDevice.deviceId != playbackConnectRepository.localDeviceId
+                        ) {
+                            // Stash this intent under a unique tag.
+                            val tag = UUID.randomUUID().toString()
+                            pendingConnectPlayIntents[tag] = intent
+
+                            // Tell the active device name and current track so the
+                            // dialog can show them.
+                            val remoteTrack = remoteDevice.playback
+                                ?.queueItems
+                                ?.getOrNull(remoteDevice.playback.currentIndex)
+                                ?.title
+
+                            playbackConnectRepository.emitConflict(
+                                ConnectConflictEvent(
+                                    activeDeviceName = remoteDevice.name,
+                                    activeDeviceId   = remoteDevice.deviceId,
+                                    nowPlayingTitle  = remoteTrack,
+                                    pendingActionTag = tag
+                                )
+                            )
+                            // Do NOT start local playback — wait for user confirmation.
+                            return
                         }
-                    } else {
-                        playmixTransitions = emptyMap()
-                        playmixSongIdMap = emptyMap()
                     }
-
-                    pendingStartPositionMs = intent.getIntExtra(EXTRA_START_POSITION_MS, 0).toLong()
-                    playSongFromQueue()
-
-                    // Reset shuffle state on new play
-                    PlaybackStateRepository.setIsShuffleEnabled(false)
-                    originalQueueSongs = null
+                    // ── No conflict: play immediately ────────────────────────────────
+                    startLocalPlayback(intent, song, songList, index, sourceType, sourceId)
                 }
+            }
+
+            ACTION_PLAY_CONNECT_CONFIRMED -> {
+                // The user confirmed "Escuchar aquí" in the conflict dialog.
+                val tag = intent.getStringExtra(EXTRA_CONNECT_PENDING_TAG) ?: return
+                val pending = pendingConnectPlayIntents.remove(tag) ?: return
+
+                val song = pending.getParcelableExtra(EXTRA_CURRENT_SONG, Song::class.java)
+                val songList = pending.getParcelableArrayListExtra(SONG_LIST, Song::class.java)
+                val index = pending.getIntExtra(EXTRA_CURRENT_INDEX, -1)
+                val sourceType = pending.getSerializableExtra(EXTRA_QUEUE_SOURCE, QueueSource::class.java)
+                    ?: QueueSource.UNKNOWN
+                val sourceId = pending.getStringExtra(EXTRA_QUEUE_SOURCE_ID) ?: ""
+
+                if (song == null || songList.isNullOrEmpty() || index == -1) return
+
+                // First claim Connect ownership so the other device gets a YIELD.
+                if (::playbackConnectRepository.isInitialized) {
+                    serviceScope.launch {
+                        val result = playbackConnectRepository.transferTo(
+                            playbackConnectRepository.localDeviceId
+                        )
+                    }
+                }
+                startLocalPlayback(pending, song, songList, index, sourceType, sourceId)
             }
             ACTION_TOGGLE_SHUFFLE -> toggleShuffle()
             ACTION_TOGGLE_REPEAT -> toggleRepeat()
+            ACTION_CONNECT_SYNC -> syncPlaybackConnect()
             ACTION_PAUSE -> pause()
             ACTION_RESUME -> resume()
+            // ACTION_ENSURE_CONNECT: nothing extra needed — the service is already
+            // running and heartbeats have been started in onCreate(). This action
+            // exists purely to keep the service alive via START_STICKY so that the
+            // Connect heartbeat loop continues even when there is no active playback.
             ACTION_NEXT -> playNext()
             ACTION_PREVIOUS -> playPrevious()
             ACTION_SEEK_TO -> seekTo(intent.getIntExtra(EXTRA_SEEK_POSITION, 0).toLong())
             ACTION_UPDATE_QUEUE -> {
-                val songList = intent.getParcelableArrayListExtra<Song>(SONG_LIST) ?: return
+                val songList = intent.getParcelableArrayListExtra(SONG_LIST, Song::class.java) ?: return
                 updateSongs(songList)
             }
-            ACTION_SHUTDOWN -> stop()
+            ACTION_SHUTDOWN -> {
+                clearPlaybackStateOnDestroy = true
+                if (::playbackStateStore.isInitialized) {
+                    playbackStateStore.clear()
+                }
+                stop()
+            }
             ACTION_REQUEST_STATE -> {
                 updateUiAndSystem()
             }
@@ -1296,6 +2264,271 @@ class MusicPlaybackService : Service(), PlayerController {
             }
         }
     }
+
+    private suspend fun handleQueueCommand(
+        action: String,
+        arguments: Bundle
+    ): SessionResult {
+        val expectedRevision = arguments
+            .takeIf { it.containsKey(QueueCommands.ARG_EXPECTED_REVISION) }
+            ?.getLong(QueueCommands.ARG_EXPECTED_REVISION)
+        if (
+            expectedRevision != null &&
+            expectedRevision != PlaybackStateRepository.currentQueueRevision()
+        ) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "La cola cambió; se ha actualizado antes de aplicar la acción"
+            )
+        }
+
+        val resolvedSong = if (
+            action == QueueCommands.PLAY_NEXT ||
+            action == QueueCommands.ADD
+        ) {
+            val songId = arguments.getString(QueueCommands.ARG_SONG_ID)
+                ?.takeIf(String::isNotBlank)
+                ?: return queueCommandResult(
+                    SessionResult.RESULT_ERROR_BAD_VALUE,
+                    "Falta la canción"
+                )
+            val song = SongManager(applicationContext).getSongById(songId)
+                ?: return queueCommandResult(
+                    SessionResult.RESULT_ERROR_BAD_VALUE,
+                    "La canción ya no está disponible"
+                )
+            playbackQueueEnricher.enrich(listOf(song), 0).firstOrNull() ?: song
+        } else {
+            null
+        }
+
+        return withContext(Dispatchers.Main) {
+            when (action) {
+                QueueCommands.PLAY_NEXT -> {
+                    enqueueResolvedSong(resolvedSong!!, playNext = true)
+                    queueCommandResult(SessionResult.RESULT_SUCCESS, "Se reproducirá a continuación")
+                }
+
+                QueueCommands.ADD -> {
+                    enqueueResolvedSong(resolvedSong!!, playNext = false)
+                    queueCommandResult(SessionResult.RESULT_SUCCESS, "Añadida a la cola")
+                }
+
+                QueueCommands.MOVE -> moveUpcomingQueueItem(
+                    arguments.getInt(QueueCommands.ARG_FROM_INDEX, -1),
+                    arguments.getInt(QueueCommands.ARG_TO_INDEX, -1)
+                )
+
+                QueueCommands.REMOVE -> removeUpcomingQueueItem(
+                    arguments.getInt(QueueCommands.ARG_QUEUE_INDEX, -1)
+                )
+
+                QueueCommands.PLAY_INDEX -> playQueueIndex(
+                    arguments.getInt(QueueCommands.ARG_QUEUE_INDEX, -1)
+                )
+
+                QueueCommands.CLEAR_UPCOMING -> clearUpcomingQueue()
+
+                QueueCommands.SHUFFLE_UPCOMING -> shuffleUpcomingQueue()
+                else -> queueCommandResult(
+                    SessionResult.RESULT_ERROR_NOT_SUPPORTED,
+                    "Comando no compatible"
+                )
+            }
+        }
+    }
+
+    private fun enqueueResolvedSong(song: Song, playNext: Boolean) {
+        val existingQueue = PlaybackStateRepository.activeQueue
+        if (existingQueue == null || existingQueue.songs.isEmpty()) {
+            PlaybackStateRepository.activeQueue = PlaybackQueue(
+                sourceId = "manual_queue",
+                sourceType = QueueSource.QUEUE,
+                songs = listOf(song),
+                currentIndex = 0
+            )
+            PlaybackStateRepository.setCurrentSong(song)
+            playSongFromQueue()
+            persistPlaybackState(force = true)
+            return
+        }
+
+        prepareForManualQueueMutation(existingQueue)
+        val songs = existingQueue.songs.toMutableList()
+        val entryIds = existingQueue.entryIds.toMutableList()
+        val insertionIndex = if (playNext) {
+            (existingQueue.currentIndex + 1).coerceAtMost(songs.size)
+        } else {
+            songs.size
+        }
+        songs.add(insertionIndex, song)
+        entryIds.add(insertionIndex, UUID.randomUUID().toString())
+        existingQueue.songs = songs
+        existingQueue.entryIds = entryIds
+        finishQueueMutation(existingQueue)
+    }
+
+    private fun moveUpcomingQueueItem(fromIndex: Int, toIndex: Int): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+            ?: return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "No hay una cola activa"
+            )
+        if (
+            fromIndex !in queue.songs.indices ||
+            toIndex !in queue.songs.indices ||
+            fromIndex <= queue.currentIndex ||
+            toIndex <= queue.currentIndex
+        ) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_BAD_VALUE,
+                "Solo se pueden ordenar las canciones pendientes"
+            )
+        }
+        if (PlaybackStateRepository.isShuffleEnabledLiveData.value == true) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "Desactiva el modo aleatorio para ordenar la cola"
+            )
+        }
+        if (queue.sourceType == QueueSource.PLAYMIX) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "Una PlayMix conserva el orden de sus transiciones"
+            )
+        }
+
+        val songs = queue.songs.toMutableList()
+        val ids = queue.entryIds.toMutableList()
+        val movedSong = songs.removeAt(fromIndex)
+        val movedId = ids.removeAt(fromIndex)
+        songs.add(toIndex, movedSong)
+        ids.add(toIndex, movedId)
+        queue.songs = songs
+        queue.entryIds = ids
+        prepareForManualQueueMutation(queue)
+        finishQueueMutation(queue)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "Cola reordenada")
+    }
+
+    private fun removeUpcomingQueueItem(index: Int): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+            ?: return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "No hay una cola activa"
+            )
+        if (index !in queue.songs.indices || index <= queue.currentIndex) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_BAD_VALUE,
+                "No se puede eliminar la canción actual ni el historial"
+            )
+        }
+        prepareForManualQueueMutation(queue)
+        queue.songs = queue.songs.toMutableList().apply { removeAt(index) }
+        queue.entryIds = queue.entryIds.toMutableList().apply { removeAt(index) }
+        finishQueueMutation(queue)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "Eliminada de la cola")
+    }
+
+    private fun playQueueIndex(index: Int): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+            ?: return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "No hay una cola activa"
+            )
+        if (index !in queue.songs.indices) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_BAD_VALUE,
+                "La canción ya no está en la cola"
+            )
+        }
+        cancelCurrentTransitionAndRestoreEffects()
+        moveToQueueIndex(index)
+        PlaybackStateRepository.publishQueue()
+        persistPlaybackState(force = true)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "Reproduciendo")
+    }
+
+    private fun clearUpcomingQueue(): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+            ?: return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "No hay una cola activa"
+            )
+        if (queue.currentIndex >= queue.songs.lastIndex) {
+            return queueCommandResult(SessionResult.RESULT_SUCCESS, "No había canciones pendientes")
+        }
+        prepareForManualQueueMutation(queue)
+        val keepCount = queue.currentIndex + 1
+        queue.songs = queue.songs.take(keepCount)
+        queue.entryIds = queue.entryIds.take(keepCount)
+        finishQueueMutation(queue)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "Cola pendiente vaciada")
+    }
+
+    private fun shuffleUpcomingQueue(): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+            ?: return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "No hay una cola activa"
+            )
+        if (queue.sourceType == QueueSource.PLAYMIX) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "Una PlayMix conserva el orden de sus transiciones"
+            )
+        }
+        val upcomingStart = queue.currentIndex + 1
+        if (queue.songs.size - upcomingStart < 2) {
+            return queueCommandResult(
+                SessionResult.RESULT_SUCCESS,
+                "No hay suficientes canciones pendientes para mezclar"
+            )
+        }
+
+        prepareForManualQueueMutation(queue)
+        val prefixSongs = queue.songs.take(upcomingStart)
+        val prefixIds = queue.entryIds.take(upcomingStart)
+        val shuffledUpcoming = queue.songs
+            .drop(upcomingStart)
+            .zip(queue.entryIds.drop(upcomingStart))
+            .shuffled()
+        queue.songs = prefixSongs + shuffledUpcoming.map { it.first }
+        queue.entryIds = prefixIds + shuffledUpcoming.map { it.second }
+        finishQueueMutation(queue)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "Próximas canciones mezcladas")
+    }
+
+    private fun prepareForManualQueueMutation(queue: PlaybackQueue) {
+        cancelCurrentTransitionAndRestoreEffects()
+        queue.ensureEntryIds()
+        if (PlaybackStateRepository.isShuffleEnabledLiveData.value == true) {
+            PlaybackStateRepository.setIsShuffleEnabled(false)
+            originalQueueSongs = null
+        }
+        if (queue.sourceType == QueueSource.PLAYMIX) {
+            playmixTransitions = emptyMap()
+            playmixSongIdMap = emptyMap()
+        }
+        queue.sourceType = QueueSource.QUEUE
+        queue.sourceId = "manual_queue"
+    }
+
+    private fun finishQueueMutation(queue: PlaybackQueue) {
+        queue.currentIndex = queue.currentIndex.coerceIn(queue.songs.indices)
+        synchronizeExoPlayerQueue()
+        PlaybackStateRepository.publishQueue()
+        persistPlaybackState(force = true)
+        prepareNextTransitionPlayer(queue.currentIndex)
+    }
+
+    private fun queueCommandResult(code: Int, message: String): SessionResult {
+        return SessionResult(
+            code,
+            Bundle().apply { putString(QueueCommands.RESULT_MESSAGE, message) }
+        )
+    }
+
     private fun observeSettings() {
         serviceScope.launch {
             settingsManager.automixEnabledFlow.collect { isEnabled ->
@@ -1326,6 +2559,80 @@ class MusicPlaybackService : Service(), PlayerController {
                     applyLoudnessNormalization(currentSong)
                 }
             }
+        }
+        serviceScope.launch {
+            settingsManager.equalizerSettingsFlow.collect { equalizerSettings ->
+                withContext(Dispatchers.Main) {
+                    audioEqualizerController.updateSettings(equalizerSettings)
+                    exoPlayer?.let { player ->
+                        if (!transitionManager.isTransitioning) {
+                            audioEqualizerController.bindToSession(player.audioSessionId)
+                        }
+                    }
+                    applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+                }
+            }
+        }
+        serviceScope.launch {
+            settingsManager.streamingQualityFlow.collect { quality ->
+                val changed = streamingQuality != quality
+                streamingQuality = quality
+                withContext(Dispatchers.Main) {
+                    exoPlayer?.let(::applyStreamingQualityToPlayer)
+                }
+                if (changed && ::playbackUrlResolver.isInitialized) {
+                    refreshQueueForStreamingQuality()
+                }
+            }
+        }
+    }
+
+    private fun applyStreamingQualityToPlayer(player: ExoPlayer) {
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setMaxAudioBitrate(streamingQuality.maxStreamingBitrate)
+            .build()
+    }
+
+    private suspend fun refreshQueueForStreamingQuality() {
+        playbackUrlResolver.invalidateAll()
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        val currentIndex = queue.currentIndex
+        val previousCurrent = queue.songs.getOrNull(currentIndex) ?: return
+        val refreshed = playbackQueueEnricher.enrich(queue.songs, currentIndex)
+        val refreshedCurrent = refreshed.getOrNull(currentIndex) ?: return
+
+        withContext(Dispatchers.Main) {
+            val activeQueue = PlaybackStateRepository.activeQueue ?: return@withContext
+            if (
+                activeQueue.sourceId != queue.sourceId ||
+                activeQueue.currentIndex != currentIndex ||
+                activeQueue.songs.getOrNull(currentIndex)?.id != previousCurrent.id
+            ) {
+                return@withContext
+            }
+
+            activeQueue.songs = refreshed
+            PlaybackStateRepository.setCurrentSong(refreshedCurrent)
+            if (refreshedCurrent.url != previousCurrent.url) {
+                val player = exoPlayer
+                val playerIndex = player?.currentMediaItemIndex ?: -1
+                if (player != null &&
+                    playerIndex in 0 until player.mediaItemCount &&
+                    player.currentMediaItem?.mediaId == refreshedCurrent.id
+                ) {
+                    val positionMs = player.currentPosition.coerceAtLeast(0L)
+                    val shouldResume = player.playWhenReady
+                    player.replaceMediaItem(playerIndex, playbackMediaItemFactory.create(refreshedCurrent))
+                    player.seekTo(playerIndex, positionMs)
+                    player.prepare()
+                    if (shouldResume && requestAudioFocus()) {
+                        registerBecomingNoisyReceiver()
+                        player.play()
+                    }
+                }
+            }
+            updateMediaSessionMetadata()
         }
     }
 
@@ -1360,6 +2667,8 @@ class MusicPlaybackService : Service(), PlayerController {
             }
         }
         PlaybackStateRepository.setIsShuffleEnabled(newShuffleState)
+        PlaybackStateRepository.publishQueue(shuffleOverride = newShuffleState)
+        persistPlaybackState(force = true)
     }
 
     private fun toggleRepeat() {
@@ -1391,11 +2700,7 @@ class MusicPlaybackService : Service(), PlayerController {
     }
     private fun updateMediaSessionMetadata() {
         val song = PlaybackStateRepository.currentSong
-        val duration = exoPlayer?.duration ?: 0L
-        val bitmap = PlaybackStateRepository.currentSongBitmapLiveData.value
-
-        mediaSessionManager.updateMetadata(song, bitmap, duration)
-        notificationManager.updateNotification(song, PlaybackStateRepository.isPlaying, bitmap)
+        triggerNotificationUpdate()
         Log.d("MusicService", "🔄 Metadata de MediaSession y Notificación actualizada para ${song?.title}")
     }
     private fun updatePredictedDurationAsync() {
@@ -1452,7 +2757,11 @@ class MusicPlaybackService : Service(), PlayerController {
 
     private fun getEffectivePlaybackVolume(song: Song?): Float {
         val focusMultiplier = if (duckedByAudioFocus) AUDIO_DUCK_VOLUME_MULTIPLIER else 1.0f
-        return (getNormalizedVolume(song) * focusMultiplier).coerceIn(0.0f, 1.0f)
+        return (
+            getNormalizedVolume(song) *
+                focusMultiplier *
+                audioEqualizerController.headroomMultiplier
+            ).coerceIn(0.0f, 1.0f)
     }
 
     /**
@@ -1601,10 +2910,12 @@ class MusicPlaybackService : Service(), PlayerController {
         PlaybackStateRepository.setCurrentSong(nextSong)
         loadArtworkForSong(nextSong)
         PlaybackStateRepository.activeQueue?.currentIndex = nextIndex
+        PlaybackStateRepository.publishQueue()
 
         val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
         PlaybackStateRepository.updatePlaybackPosition(0, newDuration)
 
+        audioEqualizerController.suspendForTransition()
         if (playmixTransition != null) {
             Log.d("MusicService", "🎹 PlayMix — using dedicated engine: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, mixMode=${playmixTransition.mixMode}, curve=${playmixTransition.fadeCurveType}, gap=${playmixTransition.gapMs}ms")
             transitionManager.startPlaymixTransition(
@@ -1641,8 +2952,15 @@ class MusicPlaybackService : Service(), PlayerController {
         // This is safe even when empty-URL songs were filtered out of the transition player's
         // queue, because it ignores position entirely and matches by song ID.
         val completedSongId = newPlayer.currentMediaItem?.mediaId
-        val completedSong = if (!completedSongId.isNullOrEmpty()) {
-            PlaybackStateRepository.activeQueue?.songs?.firstOrNull { it.id == completedSongId }
+        val activeQueue = PlaybackStateRepository.activeQueue
+        val expectedQueueSong = activeQueue?.songs?.getOrNull(activeQueue.currentIndex)
+        val completedSong = if (
+            expectedQueueSong != null &&
+            expectedQueueSong.id == completedSongId
+        ) {
+            expectedQueueSong
+        } else if (!completedSongId.isNullOrEmpty()) {
+            activeQueue?.songs?.firstOrNull { it.id == completedSongId }
         } else {
             // Fallback to index if mediaId is somehow unavailable (e.g. album mode preload)
             val newIndex = newPlayer.currentMediaItemIndex
@@ -1661,6 +2979,18 @@ class MusicPlaybackService : Service(), PlayerController {
         oldPlayer.release()
         this.exoPlayer = newPlayer
         newPlayer.addListener(playerListener)
+        newPlayer.addAnalyticsListener(playbackQoeTracker)
+        applyStreamingQualityToPlayer(newPlayer)
+        audioEqualizerController.resumeAfterTransition(newPlayer.audioSessionId)
+
+        // After a crossfade the new player only holds the transition window, not the full
+        // queue. Sync it immediately so that Media3 / Bluetooth / AVRCP see the complete
+        // queue and don't report "tried to update with no new data".
+        synchronizeExoPlayerQueue()
+        playbackQoeTracker.markPreparedPlayerHandoff(
+            PlaybackStateRepository.activeQueue?.sourceType?.name ?: "unknown",
+            completedSong.id
+        )
 
         currentSongStartTimeMs = System.currentTimeMillis()
         PlaybackStateRepository.streamReported = false
@@ -1668,10 +2998,14 @@ class MusicPlaybackService : Service(), PlayerController {
         Log.d("MusicService", "Reproductor principal actualizado a la nueva instancia.")
 
         // Update the queue's currentIndex to match the completed song
-        val newQueueIndex = PlaybackStateRepository.activeQueue?.songs?.indexOf(completedSong) ?: -1
+        val newQueueIndex = activeQueue?.currentIndex
+            ?.takeIf { activeQueue.songs.getOrNull(it) == completedSong }
+            ?: activeQueue?.songs?.indexOf(completedSong)
+            ?: -1
         if (newQueueIndex >= 0) {
             PlaybackStateRepository.activeQueue?.currentIndex = newQueueIndex
         }
+        PlaybackStateRepository.publishQueue()
 
         PlaybackStateRepository.setCurrentSong(completedSong)
         PlaybackStateRepository.setIsPlaying(newPlayer.isPlaying)
@@ -1679,6 +3013,7 @@ class MusicPlaybackService : Service(), PlayerController {
         loadArtworkForSong(completedSong)
         applyLoudnessNormalization(completedSong)
         updateUiAndSystem()
+        persistPlaybackState(force = true)
 
         if (newPlayer.isPlaying) {
             startSeekBarUpdates()
@@ -1692,6 +3027,7 @@ class MusicPlaybackService : Service(), PlayerController {
 
     private fun handleTransitionFailed(oldPlayer: ExoPlayer) {
         // La transición no se hizo o falló, así que simplemente saltamos.
+        audioEqualizerController.resumeAfterTransition(oldPlayer.audioSessionId)
         oldPlayer.seekToNextMediaItem()
     }
 

@@ -14,7 +14,7 @@ import com.google.android.material.imageview.ShapeableImageView
 class PlaymixListOptionsBottomSheet(
     private val playmix: PlaymixDTO,
     private val onDeleteClick: (PlaymixDTO) -> Unit
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.managers.PlaylistManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 
 class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : ViewModel() {
 
@@ -29,6 +30,25 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
             } catch (e: Exception) {
                 _error.postValue("Error al obtener las playlists: ${e.message}")
                 _playlists.postValue(emptyList())
+            }
+        }
+    }
+
+    fun loadLibraryPlaylists() {
+        viewModelScope.launch {
+            try {
+                val mineDeferred = async { playlistManager.getMyPlaylists() }
+                val savedDeferred = async {
+                    runCatching { playlistManager.getSavedPlaylists() }
+                        .getOrDefault(emptyList())
+                }
+                val mine = mineDeferred.await()
+                val saved = savedDeferred.await()
+                _playlists.value = (mine + saved)
+                    .distinctBy(Playlist::id)
+            } catch (e: Exception) {
+                _error.value = "Error al obtener las playlists: ${e.message}"
+                _playlists.value = emptyList()
             }
         }
     }

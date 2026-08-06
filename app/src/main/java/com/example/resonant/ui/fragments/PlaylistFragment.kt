@@ -17,10 +17,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ItemTouchHelper
 import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.data.models.Playlist
 import com.example.resonant.managers.PlaylistManager
+import com.example.resonant.managers.UserManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SongAdapter
@@ -51,6 +54,12 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private lateinit var recyclerView: RecyclerView
     private lateinit var playlistLoader: LottieAnimationView
     private lateinit var playlistCoverImage: ImageView
+    private lateinit var playlistFavoriteButton: ImageButton
+    private lateinit var reorderControls: View
+    private lateinit var reorderPlaylistButton: TextView
+    private lateinit var savePlaylistOrderButton: TextView
+    private lateinit var cancelPlaylistOrderButton: TextView
+    private lateinit var reorderHint: TextView
 
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
@@ -80,6 +89,15 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         playlistViewModel.screenState.observe(viewLifecycleOwner) { state ->
             updateUI(state)
+        }
+        playlistViewModel.error.observe(viewLifecycleOwner) { message ->
+            if (!message.isNullOrBlank()) {
+                showResonantSnackbar(
+                    message,
+                    R.color.adviseColor,
+                    R.drawable.ic_warning
+                )
+            }
         }
 
         val playlistId = arguments?.getString("playlistId") ?: arguments?.getString("playlist_id")
@@ -121,6 +139,58 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             }
         }
 
+        playlistFavoriteButton.setOnClickListener {
+            playlistViewModel.togglePlaylistSaved(
+                onSuccess = { saved ->
+                    playlistId?.let { changedId ->
+                        findNavController()
+                            .previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("PLAYLIST_UPDATED_ID", changedId)
+                    }
+                    showResonantSnackbar(
+                        if (saved) "Playlist guardada en tu biblioteca"
+                        else "Playlist eliminada de tu biblioteca",
+                        R.color.successColor,
+                        R.drawable.ic_success
+                    )
+                },
+                onError = { message ->
+                    showResonantSnackbar(
+                        message,
+                        R.color.errorColor,
+                        R.drawable.ic_warning
+                    )
+                }
+            )
+        }
+
+        reorderPlaylistButton.setOnClickListener {
+            playlistViewModel.beginReorder()
+        }
+        cancelPlaylistOrderButton.setOnClickListener {
+            playlistViewModel.cancelReorder()
+        }
+        savePlaylistOrderButton.setOnClickListener {
+            playlistViewModel.saveReorderedTracks(
+                onSuccess = {
+                    playlistId?.let(::notifyPlaylistOrderChanged)
+                    showResonantSnackbar(
+                        "Orden de la playlist guardado",
+                        R.color.successColor,
+                        R.drawable.ic_success
+                    )
+                },
+                onError = { message ->
+                    showResonantSnackbar(
+                        message,
+                        R.color.errorColor,
+                        R.drawable.ic_warning
+                    )
+                }
+            )
+        }
+
         setupAdapterClickListeners(playlistId)
     }
 
@@ -129,6 +199,15 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         if (playlist == null || playlist.id.isNullOrEmpty()) {
             Toast.makeText(requireContext(), "Error: No se ha cargado la información.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (isEffectivelyReadOnly(playlist)) {
+            showResonantSnackbar(
+                "Solo el propietario puede modificar esta playlist",
+                R.color.adviseColor,
+                R.drawable.ic_warning
+            )
             return
         }
 
@@ -186,6 +265,12 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         playlistLoader = view.findViewById(R.id.lottieLoader)
         settingsButtonContainer = view.findViewById(R.id.settingsBackground)
         playlistCoverImage = view.findViewById(R.id.playlistCoverImage)
+        playlistFavoriteButton = view.findViewById(R.id.playlistFavoriteButton)
+        reorderControls = view.findViewById(R.id.reorderControls)
+        reorderPlaylistButton = view.findViewById(R.id.reorderPlaylistButton)
+        savePlaylistOrderButton = view.findViewById(R.id.savePlaylistOrderButton)
+        cancelPlaylistOrderButton = view.findViewById(R.id.cancelPlaylistOrderButton)
+        reorderHint = view.findViewById(R.id.reorderHint)
         // New views from redesigned layout
         playlistDescriptionView = view.findViewById(R.id.playlistDescription)
         tvVisibilityBadge = view.findViewById(R.id.tvVisibilityBadge)
@@ -216,6 +301,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         }
 
         state.playlistDetails?.let { details ->
+            val readOnly = isEffectivelyReadOnly(details)
             playlistName.text = details.name
             playlistText.text = details.name
 
@@ -242,7 +328,12 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             // Visibility badge
             val pub = details.isPublic ?: false
             tvVisibilityBadge?.text = if (pub) "Pública" else "Privada"
-            visibilityBadge?.visibility = if (isReadOnly) View.GONE else View.VISIBLE
+            visibilityBadge?.visibility = if (readOnly) View.GONE else View.VISIBLE
+            settingsButtonContainer.visibility = if (readOnly) View.GONE else View.VISIBLE
+            playlistFavoriteButton.setImageResource(
+                if (details.isSaved) R.drawable.ic_favorite
+                else R.drawable.ic_favorite_border
+            )
 
             val imageUrl = details.imageUrl
             if (!imageUrl.isNullOrEmpty()) {
@@ -258,6 +349,17 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         playlistOwner.text = state.ownerName
 
+        val canEditOrder = state.canReorder &&
+            state.playlistDetails?.let(::isEffectivelyReadOnly) != true
+        reorderControls.visibility = if (canEditOrder) View.VISIBLE else View.GONE
+        reorderPlaylistButton.visibility = if (state.reorderMode) View.GONE else View.VISIBLE
+        savePlaylistOrderButton.visibility = if (state.reorderMode) View.VISIBLE else View.GONE
+        cancelPlaylistOrderButton.visibility = if (state.reorderMode) View.VISIBLE else View.GONE
+        reorderHint.visibility = if (state.reorderMode) View.VISIBLE else View.GONE
+        savePlaylistOrderButton.isEnabled = !state.savingOrder
+        savePlaylistOrderButton.alpha = if (state.savingOrder) 0.5f else 1f
+
+        songAdapter.playlistTrackIds = state.tracks.map { it.playlistTrackId }
         songAdapter.submitList(state.songs.toList()) {
             val playingId = songViewModel.currentSongLiveData.value?.id
             songAdapter.setCurrentPlayingSong(playingId)
@@ -277,6 +379,38 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             setHasFixedSize(false)
             itemAnimator?.changeDuration = 120
         }
+        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN,
+            0
+        ) {
+            override fun getMovementFlags(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder
+            ): Int {
+                val enabled = playlistViewModel.screenState.value?.reorderMode == true
+                return if (enabled) {
+                    makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
+                } else {
+                    makeMovementFlags(0, 0)
+                }
+            }
+
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val from = viewHolder.bindingAdapterPosition
+                val to = target.bindingAdapterPosition
+                return playlistViewModel.previewTrackMove(from, to)
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+            override fun isLongPressDragEnabled(): Boolean {
+                return playlistViewModel.screenState.value?.reorderMode == true
+            }
+        }).attachToRecyclerView(recyclerView)
     }
 
     private fun setupViewModels() {
@@ -296,8 +430,11 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     }
 
     private fun setupAdapterClickListeners(playlistId: String?) {
-        songAdapter.onItemClick = { (song, bitmap) ->
-            val currentIndex = songAdapter.currentList.indexOfFirst { it.id == song.id }
+        songAdapter.onItemClickAtPosition = click@ { song, bitmap, position ->
+            if (playlistViewModel.screenState.value?.reorderMode == true) {
+                return@click
+            }
+            val currentIndex = position
             val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
 
@@ -319,7 +456,10 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             favoritesViewModel.toggleFavoriteSong(song)
         }
 
-        songAdapter.onSettingsClick = { song ->
+        songAdapter.onSettingsClick = settings@ { song ->
+            if (playlistViewModel.screenState.value?.reorderMode == true) {
+                return@settings
+            }
             viewLifecycleOwner.lifecycleScope.launch {
                 // Use artists already embedded in the song from the API
                 song.artistName = song.artists.joinToString(", ") { it.name }
@@ -337,7 +477,10 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                         favoritesViewModel.toggleFavoriteSong(toggledSong)
                     },
                     // Null si es de solo lectura: el bottomsheet ocultará la opción eliminar
-                    playlistId = if (isReadOnly) null else playlistId,
+                    playlistId = if (
+                        playlistViewModel.screenState.value?.playlistDetails
+                            ?.let(::isEffectivelyReadOnly) == true
+                    ) null else playlistId,
                     onAddToPlaylistClick = { songToAdd ->
                         val sheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
@@ -405,5 +548,26 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                 bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
             }
         }
+    }
+
+    private fun notifyPlaylistOrderChanged(playlistId: String) {
+        requireContext().startService(
+            Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_PLAYLIST_MODIFIED
+                putExtra(MusicPlaybackService.EXTRA_PLAYLIST_ID, playlistId)
+            }
+        )
+        findNavController().previousBackStackEntry?.savedStateHandle?.set(
+            "PLAYLIST_UPDATED_ID",
+            playlistId
+        )
+    }
+
+    private fun isEffectivelyReadOnly(playlist: Playlist): Boolean {
+        if (isReadOnly || playlist.canEdit == false) return true
+        val currentUserId = UserManager(requireContext()).getUserId()
+        return !currentUserId.isNullOrBlank() &&
+            !playlist.userId.isNullOrBlank() &&
+            currentUserId != playlist.userId
     }
 }

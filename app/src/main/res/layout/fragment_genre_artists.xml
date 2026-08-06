@@ -132,7 +132,7 @@
                         android:layout_height="120dp"
                         android:src="@drawable/ic_user"
                         android:alpha="0.3"
-                        android:tint="@color/white"
+                        app:tint="@color/white"
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"/>

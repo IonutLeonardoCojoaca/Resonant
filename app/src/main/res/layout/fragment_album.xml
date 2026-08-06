@@ -67,7 +67,7 @@
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
-                        app:layout_constraintEnd_toStartOf="@+id/playButton"
+                        app:layout_constraintEnd_toStartOf="@+id/albumDownloadBackground"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toTopOf="parent" />
 
@@ -82,7 +82,7 @@
                         android:maxLines="1"
                         android:ellipsize="end"
                         android:paddingEnd="8dp"
-                        app:layout_constraintEnd_toStartOf="@+id/playButton"
+                        app:layout_constraintEnd_toStartOf="@+id/albumDownloadBackground"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@+id/albumName" />
 
@@ -101,6 +101,43 @@
                         app:layout_constraintEnd_toEndOf="@+id/albumArtistName"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@+id/albumArtistName" />
+
+                    <TextView
+                        android:id="@+id/albumDownloadStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_medium"
+                        android:maxLines="1"
+                        android:textColor="@color/secondaryColorTheme"
+                        android:textSize="11sp"
+                        android:visibility="gone"
+                        app:layout_constraintEnd_toEndOf="@+id/albumMetadataText"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@+id/albumMetadataText"
+                        tools:text="Descargando 45% · 5 de 12" />
+
+                    <FrameLayout
+                        android:id="@+id/albumDownloadBackground"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="8dp"
+                        android:contentDescription="Descargar álbum"
+                        android:foreground="?attr/selectableItemBackgroundBorderless"
+                        app:layout_constraintBottom_toBottomOf="@+id/playButton"
+                        app:layout_constraintEnd_toStartOf="@+id/playButton"
+                        app:layout_constraintTop_toTopOf="@+id/playButton">
+
+                        <ImageView
+                            android:id="@+id/albumDownloadButton"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="Descargar álbum"
+                            android:src="@drawable/ic_download" />
+
+                    </FrameLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/playButton"

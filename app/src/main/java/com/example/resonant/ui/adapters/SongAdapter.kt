@@ -43,7 +43,10 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
     }
 
     override fun getItemId(position: Int): Long {
-        return getItem(position).id.hashCode().toLong()
+        return playlistTrackIds.getOrNull(position)
+            ?.hashCode()
+            ?.toLong()
+            ?: getItem(position).id.hashCode().toLong()
     }
 
     companion object {
@@ -53,6 +56,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
     }
 
     var onItemClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
+    var onItemClickAtPosition: ((Song, Bitmap?, Int) -> Unit)? = null
+    var playlistTrackIds: List<String> = emptyList()
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
     var onSettingsClick: ((Song) -> Unit)? = null
@@ -184,7 +189,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     val song = getItem(position)
-                    onItemClick?.invoke(song to null)
+                    onItemClickAtPosition?.invoke(song, null, position)
+                        ?: onItemClick?.invoke(song to null)
                 }
             }
         }
@@ -294,7 +300,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     val song = getItem(position)
-                    onItemClick?.invoke(song to null)
+                    onItemClickAtPosition?.invoke(song, null, position)
+                        ?: onItemClick?.invoke(song to null)
                 }
             }
         }
@@ -358,7 +365,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
                     val song = getItem(position)
-                    onItemClick?.invoke(song to null)
+                    onItemClickAtPosition?.invoke(song, null, position)
+                        ?: onItemClick?.invoke(song to null)
                 }
             }
         }

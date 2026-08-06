@@ -16,14 +16,18 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.MediaSource
 import com.example.resonant.playback.IntelligentEffectsState
 import com.example.resonant.playback.MixStrategy
+import com.example.resonant.playback.PlaybackUrlResolver
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.data.models.AudioAnalysis
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -35,6 +39,8 @@ import kotlin.math.sqrt
 
 class TransitionManager(
     private val context: Context,
+    private val mediaSourceFactoryProvider: () -> MediaSource.Factory,
+    private val mediaItemFactory: (Song) -> MediaItem,
     private val onTransitionComplete: (newPlayer: ExoPlayer, oldPlayer: ExoPlayer) -> Unit,
     private val onTransitionFailed: (oldPlayer: ExoPlayer) -> Unit,
     private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null
@@ -55,9 +61,12 @@ class TransitionManager(
 
     private fun createTransitionPlayer(): ExoPlayer {
         return ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactoryProvider())
             .build()
             .apply { setAudioAttributes(musicAudioAttributes, false) }
     }
+
+    private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
     var isTransitioning: Boolean = false
@@ -153,7 +162,7 @@ class TransitionManager(
         }
 
         Log.d("TransitionManager", "🔄 Fetching fresh URL for '${nextSong.title}'...")
-        CoroutineScope(Dispatchers.IO).launch {
+        managerScope.launch {
             try {
                 val songManager = SongManager(context)
                 songManager.invalidateCache(nextSong.id)
@@ -332,7 +341,17 @@ class TransitionManager(
     }
 
     fun cancelCurrentTransition() {
-        if (!isTransitioning) return
+        if (!isTransitioning) {
+            try {
+                nextPlayer?.stop()
+                nextPlayer?.release()
+            } catch (error: Exception) {
+                Log.e("TransitionManager", "Error al liberar la precarga", error)
+            } finally {
+                nextPlayer = null
+            }
+            return
+        }
         Log.w("TransitionManager", "🛑 CANCELANDO TRANSICIÓN EN CURSO...")
         isTransitioning = false
         transitionProgress = 0f // 🔥
@@ -381,7 +400,60 @@ class TransitionManager(
 
         try {
             val newPlayer = createTransitionPlayer()
-            val mediaItem = MediaItem.fromUri(nextSong.url ?: "")
+            val mediaItem = mediaItemFactory(nextSong)
+            var progressiveFallbackAttempted = false
+
+            val preloadListener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        newPlayer.removeListener(this)
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    val isRecoverable = error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
+                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                        error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED
+
+                    if (isRecoverable && !progressiveFallbackAttempted) {
+                        progressiveFallbackAttempted = true
+                        Log.w(
+                            "TransitionManager",
+                            "Precarga falló para ${nextSong.title}; reintentando en progressive"
+                        )
+                        newPlayer.replaceMediaItem(
+                            0,
+                            mediaItemFactory(
+                                nextSong.copy(
+                                    url = null,
+                                    playbackMimeType = null,
+                                    playbackExpiresAtUtc = null,
+                                    playbackDeliveryMode = PlaybackUrlResolver.DELIVERY_MODE_PROGRESSIVE
+                                )
+                            )
+                        )
+                        newPlayer.prepare()
+                        return
+                    }
+
+                    Log.w(
+                        "TransitionManager",
+                        "Descartando precarga fallida de ${nextSong.title}: ${error.errorCodeName}"
+                    )
+                    newPlayer.removeListener(this)
+                    newPlayer.release()
+                    if (this@TransitionManager.nextPlayer === newPlayer) {
+                        this@TransitionManager.nextPlayer = null
+                    }
+                }
+            }
+            newPlayer.addListener(preloadListener)
 
             // NO le damos la cola completa, solo la canción que necesita para prepararse.
             newPlayer.setMediaItem(mediaItem)
@@ -406,25 +478,9 @@ class TransitionManager(
      * ExoPlayer index back to the original queue index when needed.
      */
     fun buildValidMediaItems(songs: List<Song>): List<Pair<Int, MediaItem>> {
-        val result = mutableListOf<Pair<Int, MediaItem>>()
-        songs.forEachIndexed { index, song ->
-            val url = song.url
-            if (!url.isNullOrEmpty()) {
-                val uri = if (url.startsWith("http") || url.startsWith("https")) {
-                    android.net.Uri.parse(url)
-                } else {
-                    android.net.Uri.fromFile(java.io.File(url))
-                }
-                val item = MediaItem.Builder()
-                    .setUri(uri)
-                    .setMediaId(song.id)
-                    .build()
-                result.add(index to item)
-            } else {
-                Log.v("TransitionManager", "Skipping song ${song.id} (no URL) from transition queue")
-            }
+        return songs.mapIndexed { index, song ->
+            index to mediaItemFactory(song)
         }
-        return result
     }
 
 
@@ -574,7 +630,7 @@ class TransitionManager(
                         error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
                     if (isSourceError) {
                         Log.w("PlaymixEngine", "⚠️ Source error on newPlayer — retrying with fresh URL")
-                        CoroutineScope(Dispatchers.IO).launch {
+                        managerScope.launch {
                             try {
                                 val songManager = SongManager(context)
                                 songManager.invalidateCache(nextSong.id)
@@ -875,7 +931,7 @@ class TransitionManager(
         nextSongStartPositionMs: Long = 0L
     ) {
         Log.i("Crossfade", "🔄 Iniciando Crossfade Simple. Índice siguiente: $nextSongIndex")
-        val newPlayer = createTransitionPlayer()
+        val newPlayer = this.nextPlayer ?: createTransitionPlayer()
         this.nextPlayer = newPlayer
 
         try {
@@ -928,7 +984,7 @@ class TransitionManager(
                         Log.w("Crossfade", "⚠️ Source error — refreshing URL for ${newSong.title}")
                         newPlayer.release()
                         if (newPlayer === nextPlayer) nextPlayer = null
-                        CoroutineScope(Dispatchers.IO).launch {
+                        managerScope.launch {
                             try {
                                 val songManager = SongManager(context)
                                 songManager.invalidateCache(newSong.id)
@@ -2220,6 +2276,37 @@ class TransitionManager(
         // Reutiliza la misma lógica que el motor de mezcla para ser consistente.
         val strategy = calculateAutomixStrategy(currentSong, nextSong)
         return calculateFullyIntelligentDuration(currentSong, nextSong, strategy)
+    }
+
+    /**
+     * Releases both active transition resources and silent preloads. Unlike
+     * [cancelCurrentTransition], this is safe to call during service teardown.
+     */
+    fun release() {
+        isTransitioning = false
+        transitionProgress = 0f
+        managerScope.cancel()
+
+        runCatching {
+            nextPlayer?.stop()
+            nextPlayer?.release()
+        }.onFailure {
+            Log.w("TransitionManager", "No se pudo liberar el player de transición", it)
+        }
+        nextPlayer = null
+
+        runCatching {
+            oldPlayerEq?.enabled = false
+            oldPlayerEq?.release()
+            newPlayerEq?.enabled = false
+            newPlayerEq?.release()
+        }.onFailure {
+            Log.w("TransitionManager", "No se pudieron liberar los ecualizadores", it)
+        }
+        oldPlayerEq = null
+        newPlayerEq = null
+        currentPlayer = null
+        currentSong = null
     }
 
 }

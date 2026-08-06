@@ -10,7 +10,78 @@
     android:clipToPadding="false"
     android:background="@color/primaryColorTheme">
 
-    <!-- ── WELCOME GRADIENT BACKGROUND (only visible in welcome state) -->
+    <!-- ─────────────────────────────────────────────────────────────────
+         AMBIENT ORBS — subtle atmospheric layer harmonised with the
+         Aria red→purple identity gradient. Kept intentionally soft so
+         the content sits comfortably on top.
+    ────────────────────────────────────────────────────────────────── -->
+    <View
+        android:id="@+id/ariaAmbientOrb1"
+        android:layout_width="260dp"
+        android:layout_height="260dp"
+        android:alpha="0.18"
+        android:background="@drawable/bg_aria_ai_glow"
+        android:layout_marginStart="-40dp"
+        android:layout_marginTop="-40dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:id="@+id/ariaAmbientOrb2"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:alpha="0.16"
+        android:background="@drawable/bg_aria_ai_glow_purple"
+        android:layout_marginTop="80dp"
+        android:layout_marginEnd="-40dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:id="@+id/ariaAmbientOrb3"
+        android:layout_width="280dp"
+        android:layout_height="280dp"
+        android:alpha="0.12"
+        android:background="@drawable/bg_aria_ai_glow"
+        android:layout_marginStart="-80dp"
+        android:layout_marginTop="260dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:id="@+id/ariaAmbientOrb4"
+        android:layout_width="260dp"
+        android:layout_height="260dp"
+        android:alpha="0.14"
+        android:background="@drawable/bg_aria_ai_glow_purple"
+        android:layout_marginBottom="120dp"
+        android:layout_marginEnd="-60dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <View
+        android:id="@+id/ariaAmbientOrb5"
+        android:layout_width="320dp"
+        android:layout_height="320dp"
+        android:alpha="0.10"
+        android:background="@drawable/bg_aria_ai_glow"
+        android:layout_marginBottom="-80dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Optional welcome fade layers (kept for compatibility with animations) -->
+    <View
+        android:id="@+id/ariaGlowTop"
+        android:layout_width="360dp"
+        android:layout_height="360dp"
+        android:background="@drawable/bg_aria_orbital_ring"
+        android:alpha="0.0"
+        android:layout_marginTop="-120dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
+
     <View
         android:id="@+id/ariaWelcomeBg"
         android:layout_width="match_parent"
@@ -18,88 +89,22 @@
         android:background="@drawable/bg_aria_welcome_gradient"
         android:alpha="0.0"/>
 
-    <!-- ── AMBIENT SPECTRUM GLOWS (always visible, slow drift) ────── -->
-    <!-- Orb A — top-left, garnet/red -->
-    <View
-        android:id="@+id/ariaAmbientOrb1"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
-        android:alpha="0.22"
-        android:background="@drawable/bg_aria_ai_glow"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <!-- Orb B — top-right, violet -->
-    <View
-        android:id="@+id/ariaAmbientOrb2"
-        android:layout_width="260dp"
-        android:layout_height="260dp"
-        android:alpha="0.18"
-        android:background="@drawable/bg_aria_ai_glow_purple"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:layout_marginTop="60dp" />
-
-    <!-- Orb C — center-left, red, largest -->
-    <View
-        android:id="@+id/ariaAmbientOrb3"
-        android:layout_width="340dp"
-        android:layout_height="340dp"
-        android:alpha="0.13"
-        android:background="@drawable/bg_aria_ai_glow"
-        android:layout_marginTop="180dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <!-- Orb D — bottom-right, violet -->
-    <View
-        android:id="@+id/ariaAmbientOrb4"
-        android:layout_width="280dp"
-        android:layout_height="280dp"
-        android:alpha="0.19"
-        android:background="@drawable/bg_aria_ai_glow_purple"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        android:layout_marginBottom="80dp" />
-
-    <!-- Orb E — bottom-center, garnet/red, very subtle -->
-    <View
-        android:id="@+id/ariaAmbientOrb5"
-        android:layout_width="360dp"
-        android:layout_height="360dp"
-        android:alpha="0.11"
-        android:background="@drawable/bg_aria_ai_glow"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        android:layout_marginBottom="-60dp" />
-
-    <!-- ── ACCENT GLOW TOP-CENTER (decorative radial) -->
-    <View
-        android:id="@+id/ariaGlowTop"
-        android:layout_width="320dp"
-        android:layout_height="320dp"
-        android:background="@drawable/bg_aria_orbital_ring"
-        android:alpha="0.0"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:layout_marginTop="-80dp"/>
-
-    <!-- ── TOOLBAR ──────────────────────────────────────────────── -->
+    <!-- ─────────────────────────────────────────────────────────────────
+         TOOLBAR
+    ────────────────────────────────────────────────────────────────── -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/superiorToolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="5dp"        android:background="@color/primaryColorTheme"
-        android:elevation="8dp"        app:layout_constraintStart_toStartOf="parent"
+        android:layout_height="60dp"
+        android:paddingHorizontal="16dp"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/userProfile"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:scaleType="centerCrop"
             android:src="@drawable/ic_user"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -110,225 +115,433 @@
             android:id="@+id/textView2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
             android:fontFamily="@font/unageo_bold"
             android:text="Aria"
             android:textColor="@color/white"
             android:textSize="22sp"
+            android:layout_marginStart="14dp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/userProfile"
+            app:layout_constraintStart_toEndOf="@id/userProfile"
             app:layout_constraintTop_toTopOf="parent" />
 
         <ImageButton
             android:id="@+id/ariaOptionsButton"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
-            android:background="@drawable/ic_star_ai"
-            android:padding="6dp"
-            android:alpha="0.75"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_aria_toolbar_options"
+            android:contentDescription="Opciones de Aria"
+            android:padding="9dp"
+            android:src="@drawable/ic_star_ai"
+            app:tint="@color/white"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            android:contentDescription="Opciones de Aria"/>
-
+            app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- ── WELCOME / EMPTY STATE ────────────────────────────────── -->
-
-    <!-- ── CHAT RecyclerView ───────────────────────────────────── -->
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <!-- ─────────────────────────────────────────────────────────────────
+         WELCOME / HOME STATE
+    ────────────────────────────────────────────────────────────────── -->
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/ariaWelcomeContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:clipChildren="false"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:scrollbars="none"
         app:layout_constraintBottom_toTopOf="@id/ariaInputContainer"
         app:layout_constraintTop_toBottomOf="@id/superiorToolbar">
 
-        <!-- Logo centrado en la mitad superior -->
-        <FrameLayout
-            android:id="@+id/ariaCenterGroup"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:clipChildren="false"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_chainStyle="packed"
-            android:layout_marginTop="24dp">
-
-            <View
-                android:id="@+id/ariaGlowPulse1"
-                android:layout_width="160dp"
-                android:layout_height="160dp"
-                android:layout_gravity="center"
-                android:alpha="0.20"
-                android:background="@drawable/bg_aria_ai_glow"/>
-
-            <View
-                android:id="@+id/ariaGlowPulse2"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:layout_gravity="center"
-                android:alpha="0.15"
-                android:background="@drawable/bg_aria_ai_glow"/>
-
-            <ImageView
-                android:id="@+id/ariaWelcomeIcon"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:layout_gravity="center"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_menu_aria_selected"/>
-
-        </FrameLayout>
-
-        <!-- Título -->
-        <TextView
-            android:id="@+id/ariaTitleText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_bold"
-            android:gravity="center"
-            android:text="¿Qué música te apetece escuchar hoy?"
-            android:textColor="@color/white"
-            android:textSize="18sp"
-            android:lineSpacingMultiplier="1.2"
-            android:paddingHorizontal="32dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/ariaCenterGroup"/>
-
-        <!-- Subtítulo -->
-        <TextView
-            android:id="@+id/ariaSubtitleText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_regular"
-            android:gravity="center"
-            android:text="Soy Aria, tu asistente musical de Resonant. Puedo recomendarte música, crear playlists y consultar el catálogo por ti."
-            android:textColor="#80FFFFFF"
-            android:textSize="13sp"
-            android:lineSpacingMultiplier="1.4"
-            android:paddingHorizontal="40dp"
-            android:layout_marginTop="20dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/ariaTitleText"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintVertical_bias="0.0"/>
-
-        <!-- Chips — FlexboxLayout con wrap automático -->
-        <com.google.android.flexbox.FlexboxLayout
-            android:id="@+id/ariaChipsContainer"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:flexWrap="wrap"
-            app:flexDirection="row"
-            app:justifyContent="flex_start"
-            app:alignItems="center"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:layout_marginBottom="16dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent">
+            android:orientation="vertical"
+            android:paddingHorizontal="24dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="24dp"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+
+            <!-- Heading -->
+            <TextView
+                android:id="@+id/ariaTitleText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Crea, explora,\ninspírate"
+                android:textColor="@color/white"
+                android:textSize="32sp"
+                android:lineSpacingMultiplier="1.1" />
 
             <TextView
-                android:id="@+id/ariaChip1"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:background="@drawable/bg_aria_radial_chip"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="@font/unageo_medium"
-                android:foreground="?attr/selectableItemBackground"
-                android:gravity="center"
-                android:maxLines="1"
-                android:paddingHorizontal="18dp"
-                android:text="Mezcla mi lista"
-                android:textColor="#DDFFFFFF"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="8dp"/>
+                android:id="@+id/ariaWelcomeSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="@font/unageo_regular"
+                android:text="Tu asistente musical con IA. Pídeme playlists, recomendaciones o mezclas en lenguaje natural."
+                android:textColor="#99FFFFFF"
+                android:textSize="14sp"
+                android:lineSpacingMultiplier="1.35" />
 
+            <!-- Section label -->
             <TextView
-                android:id="@+id/ariaChip2"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:background="@drawable/bg_aria_radial_chip"
-                android:clickable="true"
-                android:focusable="true"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
                 android:fontFamily="@font/unageo_medium"
-                android:foreground="?attr/selectableItemBackground"
-                android:gravity="center"
-                android:maxLines="1"
-                android:paddingHorizontal="18dp"
-                android:text="Consulta mis estadísticas"
-                android:textColor="#DDFFFFFF"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="8dp"/>
+                android:letterSpacing="0.14"
+                android:text="EMPIEZA POR"
+                android:textAllCaps="true"
+                android:textColor="#66FFFFFF"
+                android:textSize="11sp" />
 
+            <!-- Action grid — 2x2 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="horizontal"
+                android:baselineAligned="false"
+                android:weightSum="2">
+
+                <!-- Card 1: Recomendar -->
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/chip1"
+                    android:layout_width="0dp"
+                    android:layout_height="140dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/bg_aria_action_card"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="16dp">
+
+                    <View
+                        android:id="@+id/card1IconBg"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_aria_card_icon"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:src="@drawable/ic_star_ai"
+                        app:layout_constraintBottom_toBottomOf="@id/card1IconBg"
+                        app:layout_constraintEnd_toEndOf="@id/card1IconBg"
+                        app:layout_constraintStart_toStartOf="@id/card1IconBg"
+                        app:layout_constraintTop_toTopOf="@id/card1IconBg" />
+
+                    <TextView
+                        android:id="@+id/card1Title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Recomendar"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toTopOf="@id/card1Subtitle" />
+
+                    <TextView
+                        android:id="@+id/card1Subtitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Música para ti"
+                        android:textColor="#99FFFFFF"
+                        android:textSize="12sp"
+                        android:layout_marginTop="2dp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                <!-- Card 2: Estadísticas -->
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/chip2"
+                    android:layout_width="0dp"
+                    android:layout_height="140dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_aria_action_card"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="16dp">
+
+                    <View
+                        android:id="@+id/card2IconBg"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_aria_card_icon"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:src="@drawable/ic_trending_up"
+                        app:tint="@color/white"
+                        app:layout_constraintBottom_toBottomOf="@id/card2IconBg"
+                        app:layout_constraintEnd_toEndOf="@id/card2IconBg"
+                        app:layout_constraintStart_toStartOf="@id/card2IconBg"
+                        app:layout_constraintTop_toTopOf="@id/card2IconBg" />
+
+                    <TextView
+                        android:id="@+id/card2Title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Estadísticas"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toTopOf="@id/card2Subtitle" />
+
+                    <TextView
+                        android:id="@+id/card2Subtitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Resumen de escucha"
+                        android:textColor="#99FFFFFF"
+                        android:textSize="12sp"
+                        android:layout_marginTop="2dp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal"
+                android:baselineAligned="false"
+                android:weightSum="2">
+
+                <!-- Card 3: Crear playlist -->
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/chip3"
+                    android:layout_width="0dp"
+                    android:layout_height="140dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/bg_aria_action_card"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="16dp">
+
+                    <View
+                        android:id="@+id/card3IconBg"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_aria_card_icon"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:src="@drawable/ic_playlist_stack"
+                        app:tint="@color/white"
+                        app:layout_constraintBottom_toBottomOf="@id/card3IconBg"
+                        app:layout_constraintEnd_toEndOf="@id/card3IconBg"
+                        app:layout_constraintStart_toStartOf="@id/card3IconBg"
+                        app:layout_constraintTop_toTopOf="@id/card3IconBg" />
+
+                    <TextView
+                        android:id="@+id/card3Title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Crear playlist"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toTopOf="@id/card3Subtitle" />
+
+                    <TextView
+                        android:id="@+id/card3Subtitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Con tu vibe"
+                        android:textColor="#99FFFFFF"
+                        android:textSize="12sp"
+                        android:layout_marginTop="2dp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                <!-- Card 4: Mezclar -->
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/chip4"
+                    android:layout_width="0dp"
+                    android:layout_height="140dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_aria_action_card"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="16dp">
+
+                    <View
+                        android:id="@+id/card4IconBg"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_aria_card_icon"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:src="@drawable/ic_random"
+                        app:tint="@color/white"
+                        app:layout_constraintBottom_toBottomOf="@id/card4IconBg"
+                        app:layout_constraintEnd_toEndOf="@id/card4IconBg"
+                        app:layout_constraintStart_toStartOf="@id/card4IconBg"
+                        app:layout_constraintTop_toTopOf="@id/card4IconBg" />
+
+                    <TextView
+                        android:id="@+id/card4Title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Mezclar"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toTopOf="@id/card4Subtitle" />
+
+                    <TextView
+                        android:id="@+id/card4Subtitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_regular"
+                        android:text="Sesión DJ"
+                        android:textColor="#99FFFFFF"
+                        android:textSize="12sp"
+                        android:layout_marginTop="2dp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent" />
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+            </LinearLayout>
+
+            <!-- Section label: prompt suggestions -->
             <TextView
-                android:id="@+id/ariaChip3"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:background="@drawable/bg_aria_radial_chip"
-                android:clickable="true"
-                android:focusable="true"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
                 android:fontFamily="@font/unageo_medium"
-                android:foreground="?attr/selectableItemBackground"
-                android:gravity="center"
-                android:maxLines="1"
-                android:paddingHorizontal="18dp"
-                android:text="Recomiéndame música nueva"
-                android:textColor="#DDFFFFFF"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="8dp"/>
+                android:letterSpacing="0.14"
+                android:text="PRUEBA A DECIRLE"
+                android:textAllCaps="true"
+                android:textColor="#66FFFFFF"
+                android:textSize="11sp" />
 
-            <TextView
-                android:id="@+id/ariaChip4"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:background="@drawable/bg_aria_radial_chip"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="@font/unageo_medium"
-                android:foreground="?attr/selectableItemBackground"
-                android:gravity="center"
-                android:maxLines="1"
-                android:paddingHorizontal="18dp"
-                android:text="Crea una playlist pop"
-                android:textColor="#DDFFFFFF"
-                android:textSize="12sp"
-                android:layout_marginEnd="8dp"
-                android:layout_marginBottom="8dp"/>
+            <!-- Prompt suggestion chips -->
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginHorizontal="-24dp"
+                android:paddingHorizontal="24dp"
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:scrollbars="none">
 
-        </com.google.android.flexbox.FlexboxLayout>
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
 
-        <!-- IDs fantasma para mantener compatibilidad con el código -->
-        <View android:id="@+id/ariaOrbitalRingOuter" android:layout_width="1dp"
-            android:layout_height="1dp" android:visibility="gone"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
-        <View android:id="@+id/ariaOrbitalRingInner" android:layout_width="1dp"
-            android:layout_height="1dp" android:visibility="gone"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
-        <View android:id="@+id/ariaChip5" android:layout_width="1dp"
-            android:layout_height="1dp" android:visibility="gone"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"/>
+                    <TextView
+                        android:id="@+id/ariaPromptChip1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_aria_prompt_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:text="Ponme algo relajado"
+                        android:textColor="#E5FFFFFF"
+                        android:textSize="13sp" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+                    <TextView
+                        android:id="@+id/ariaPromptChip2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_aria_prompt_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:text="Playlist para correr"
+                        android:textColor="#E5FFFFFF"
+                        android:textSize="13sp" />
 
+                    <TextView
+                        android:id="@+id/ariaPromptChip3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_aria_prompt_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:text="Rock de los 80"
+                        android:textColor="#E5FFFFFF"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:id="@+id/ariaPromptChip4"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_aria_prompt_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="10dp"
+                        android:text="Descubrir artistas nuevos"
+                        android:textColor="#E5FFFFFF"
+                        android:textSize="13sp" />
+
+                </LinearLayout>
+            </HorizontalScrollView>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- ─────────────────────────────────────────────────────────────────
+         CHAT LIST
+    ────────────────────────────────────────────────────────────────── -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/ariaChatRecyclerView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
-        android:paddingTop="56dp"
+        android:paddingTop="16dp"
         android:paddingBottom="8dp"
         android:paddingStart="14dp"
         android:paddingEnd="14dp"
@@ -340,11 +553,10 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- ── CHAT TOP FADE (gradient veil over scrolling messages) ─── -->
     <View
         android:id="@+id/ariaChatTopFade"
         android:layout_width="0dp"
-        android:layout_height="64dp"
+        android:layout_height="48dp"
         android:background="@drawable/bg_aria_chat_top_fade"
         android:elevation="4dp"
         android:visibility="gone"
@@ -352,16 +564,19 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- ── INPUT BAR ───────────────────────────────────────────── -->
+    <!-- ─────────────────────────────────────────────────────────────────
+         INPUT BAR
+    ────────────────────────────────────────────────────────────────── -->
     <LinearLayout
         android:id="@+id/ariaInputContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -370,32 +585,128 @@
             android:id="@+id/ariaInputField"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:minHeight="52dp"
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
             android:background="@drawable/bg_aria_input"
-            android:padding="14dp"
-            android:hint="¿Con qué empezamos?"
-            android:textColorHint="#666666"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:hint="Habla con Aria..."
+            android:textColorHint="#80FFFFFF"
             android:textColor="@color/white"
             android:textSize="15sp"
             android:fontFamily="@font/unageo_regular"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
-            android:minLines="1"/>
+            android:minLines="1"
+            android:importantForAutofill="no"
+            android:autofillHints=""
+            tools:ignore="Autofill,LabelFor" />
+
+        <ImageButton
+            android:id="@+id/ariaMicButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_aria_mic_button"
+            android:src="@drawable/ic_mic"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            app:tint="#D5FFFFFF"
+            android:contentDescription="Entrada de voz" />
 
         <ImageButton
             android:id="@+id/ariaSendButton"
-            android:layout_width="45dp"
-            android:layout_height="45dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
             android:background="@drawable/bg_aria_send_button"
-            android:src="@drawable/ic_arrow_back"
-            android:padding="14dp"
-            android:rotation="180"
+            android:src="@drawable/ic_send"
+            android:padding="12dp"
             android:scaleType="fitCenter"
             app:tint="@color/white"
-            android:contentDescription="Enviar" />
+            android:contentDescription="Enviar mensaje" />
 
     </LinearLayout>
 
+    <!-- ─────────────────────────────────────────────────────────────────
+         VOICE MODE OVERLAY
+    ────────────────────────────────────────────────────────────────── -->
+    <FrameLayout
+        android:id="@+id/ariaVoiceContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_aria_voice_overlay"
+        android:clickable="true"
+        android:focusable="true"
+        android:elevation="20dp"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/ariaVoiceCloseButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_close"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="12dp"
+            app:tint="@color/white"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="32dp"
+            android:layout_marginEnd="16dp"
+            android:contentDescription="Cerrar entrada de voz" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:paddingHorizontal="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:fontFamily="@font/unageo_medium"
+                android:letterSpacing="0.2"
+                android:text="ESCUCHANDO"
+                android:textAllCaps="true"
+                android:textColor="#66FFFFFF"
+                android:textSize="11sp" />
+
+            <com.example.resonant.ui.customviews.VoiceSpectrumSphereView
+                android:id="@+id/ariaSpectrumView"
+                android:layout_width="280dp"
+                android:layout_height="280dp" />
+
+            <TextView
+                android:id="@+id/ariaVoiceText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:gravity="center"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Habla con Aria"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:lineSpacingMultiplier="1.15" />
+
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/ariaVoiceRecordButton"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="56dp"
+            android:background="@drawable/bg_aria_voice_record_button"
+            android:src="@drawable/ic_mic"
+            android:scaleType="centerInside"
+            android:padding="22dp"
+            app:tint="@color/white"
+            android:contentDescription="Detener grabación" />
+
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

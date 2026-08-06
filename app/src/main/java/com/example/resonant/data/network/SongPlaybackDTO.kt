@@ -8,5 +8,12 @@ data class SongPlaybackDTO(
     val musicalKey: String?,
     val introStartMs: Int?,
     val outroStartMs: Int?,
-    val loudness: Double?
+    val loudness: Double?,
+    val expiresAtUtc: String? = null,
+    val streamId: String? = null,
+    val mimeType: String? = null,
+    val contentLength: Long? = null,
+    val supportsRanges: Boolean? = null,
+    val deliveryMode: String? = null,
+    val quality: String? = null
 )

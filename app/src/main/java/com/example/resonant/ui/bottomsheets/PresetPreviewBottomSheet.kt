@@ -12,7 +12,7 @@ import com.example.resonant.data.network.TransitionPresetPreviewDTO
 import com.example.resonant.databinding.BottomSheetPresetPreviewBinding
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-class PresetPreviewBottomSheet : BottomSheetDialogFragment() {
+class PresetPreviewBottomSheet : ResonantBottomSheetDialogFragment() {
 
     private var _binding: BottomSheetPresetPreviewBinding? = null
     private val binding get() = _binding!!

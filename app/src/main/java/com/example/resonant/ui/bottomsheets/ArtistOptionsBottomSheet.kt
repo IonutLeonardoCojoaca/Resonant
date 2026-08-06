@@ -24,7 +24,7 @@ class ArtistOptionsBottomSheet(
     private val artist: Artist,
     private val onGoToArtistClick: ((Artist) -> Unit)? = null,
     private val onViewDetailsClick: ((Artist) -> Unit)? = null // Callback for detailed view
-) : BottomSheetDialogFragment() {
+) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme

@@ -8,8 +8,18 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.resonant.data.local.dao.DownloadedSongDao
 import com.example.resonant.data.local.entities.DownloadedSong
+import com.example.resonant.data.local.entities.DownloadCollection
+import com.example.resonant.data.local.entities.DownloadCollectionSong
 
-@Database(entities = [DownloadedSong::class], version = 3, exportSchema = false)
+@Database(
+    entities = [
+        DownloadedSong::class,
+        DownloadCollection::class,
+        DownloadCollectionSong::class
+    ],
+    version = 4,
+    exportSchema = false
+)
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -61,6 +71,47 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE downloaded_songs " +
+                        "ADD COLUMN isIndividuallySaved INTEGER NOT NULL DEFAULT 1"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS download_collections (
+                        userId TEXT NOT NULL,
+                        collectionType TEXT NOT NULL,
+                        collectionId TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        createdAtEpochMs INTEGER NOT NULL,
+                        PRIMARY KEY(userId, collectionType, collectionId)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS download_collection_songs (
+                        userId TEXT NOT NULL,
+                        collectionType TEXT NOT NULL,
+                        collectionId TEXT NOT NULL,
+                        songId TEXT NOT NULL,
+                        PRIMARY KEY(userId, collectionType, collectionId, songId)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_download_collection_songs_userId_songId " +
+                        "ON download_collection_songs(userId, songId)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "index_download_collection_songs_userId_collectionType_collectionId " +
+                        "ON download_collection_songs(userId, collectionType, collectionId)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -68,7 +119,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "resonant_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

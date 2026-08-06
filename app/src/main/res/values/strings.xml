@@ -9,5 +9,28 @@
     <string name="private_playlist_check_text">Solo tú podrás acceder a tu lista. Nadie más podrá interactuar.</string>
 
     <string name="advise_create_playlist_note">Si creas tu lista privada podrás cambiarla a pública cuando quieras, de la misma manera que la lista pública.</string>
+    <string name="download_notification_channel_name">Descargas de música</string>
+
+    <string name="login_resonant_logo">Resonant</string>
+    <string name="login_atmosphere_badge">UNA EXPERIENCIA RESONANT</string>
+    <string name="login_hero_title">No solo escuches.\nResuena.</string>
+    <string name="login_hero_subtitle">Descubre música, crea mezclas y deja que cada transición cuente una historia.</string>
+    <string name="login_chip_discover">DESCUBRE</string>
+    <string name="login_chip_mix">MEZCLA</string>
+    <string name="login_chip_connect">CONECTA</string>
+    <string name="login_eyebrow">TU SONIDO, SIN INTERRUPCIONES</string>
+    <string name="login_card_title">Entra en tu frecuencia</string>
+    <string name="login_card_body">Sincroniza tu biblioteca, tus favoritos y todo lo que hace tuyo cada momento.</string>
+    <string name="login_google_action">Continuar con Google</string>
+    <string name="login_connecting">Conectando…</string>
+    <string name="login_verifying">Preparando tu experiencia…</string>
+    <string name="login_secure_access">Acceso seguro mediante Google</string>
+    <string name="login_legal">Al continuar, aceptas los términos y la política de privacidad de Resonant.</string>
+    <string name="login_error_credentials">No pudimos abrir el acceso con Google. Inténtalo de nuevo.</string>
+    <string name="login_error_firebase">No pudimos validar tu cuenta. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="login_error_backend">Resonant no está disponible en este momento. Vuelve a intentarlo en unos segundos.</string>
+    <string name="unknown_artist">Artista desconocido</string>
+    <string name="login_error_invalid_credential">La credencial recibida no es compatible. Inténtalo de nuevo.</string>
+    <string name="login_banned">Tu cuenta tiene el acceso restringido.</string>
 
 </resources>

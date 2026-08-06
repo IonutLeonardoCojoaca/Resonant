@@ -1,95 +1,268 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.activities.LoginActivity"
-    android:backgroundTint="@color/black">
+    android:background="@color/login_background"
+    tools:context=".ui.activities.LoginActivity">
 
-    <VideoView
-        android:id="@+id/videoViewBackground1"
+    <com.example.resonant.ui.views.ResonantFlowView
+        android:id="@+id/resonantFlow"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleY="1.1"
-        android:scaleX="1.1"
-        android:background="@drawable/bg_gradient_login"
-        android:backgroundTint="@color/black"/>
+        android:background="@drawable/bg_login_bottom_scrim"
+        android:importantForAccessibility="no" />
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/loginContent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:paddingStart="24dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="22dp">
 
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="75">
+        <TextView
+            android:id="@+id/atmosphereBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_login_badge"
+            android:fontFamily="@font/unageo_semi_bold"
+            android:gravity="center"
+            android:letterSpacing="0.13"
+            android:text="@string/login_atmosphere_badge"
+            android:textColor="@color/login_text_secondary"
+            android:textSize="10sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-            <RelativeLayout
+        <LinearLayout
+            android:id="@+id/loginHero"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toTopOf="@id/loginCard"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/atmosphereBadge"
+            app:layout_constraintVertical_bias="0.42">
+
+            <ImageView
+                android:id="@+id/resonantLogo"
+                android:layout_width="260dp"
+                android:layout_height="46dp"
+                android:contentDescription="@string/login_resonant_logo"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo_resonant_text" />
+
+            <TextView
+                android:id="@+id/loginHeroTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:fontFamily="@font/unageo_extra_bold"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.025"
+                android:lineSpacingExtra="-2dp"
+                android:text="@string/login_hero_title"
+                android:textColor="@color/login_text_primary"
+                android:textSize="38sp" />
+
+            <TextView
+                android:id="@+id/loginHeroSubtitle"
+                android:layout_width="310dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:fontFamily="@font/unageo_regular"
+                android:gravity="center"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/login_hero_subtitle"
+                android:textColor="@color/login_text_secondary"
+                android:textSize="15sp" />
+
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerHorizontal="true"
-                android:layout_centerVertical="true">
-
-                <ImageView
-                    android:id="@+id/resonantLogo"
-                    android:layout_width="250dp"
-                    android:layout_height="50dp"
-                    android:src="@drawable/logo_resonant_text"/>
+                android:layout_marginTop="24dp"
+                android:gravity="center"
+                android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/textResonantLogo"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@id/resonantLogo"
+                    android:background="@drawable/bg_login_chip"
+                    android:fontFamily="@font/unageo_semi_bold"
+                    android:letterSpacing="0.09"
+                    android:text="@string/login_chip_discover"
+                    android:textColor="@color/login_text_secondary"
+                    android:textSize="9sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="8dp"
+                    android:background="@drawable/bg_login_chip"
+                    android:fontFamily="@font/unageo_semi_bold"
+                    android:letterSpacing="0.09"
+                    android:text="@string/login_chip_mix"
+                    android:textColor="@color/login_text_secondary"
+                    android:textSize="9sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_login_chip"
+                    android:fontFamily="@font/unageo_semi_bold"
+                    android:letterSpacing="0.09"
+                    android:text="@string/login_chip_connect"
+                    android:textColor="@color/login_text_secondary"
+                    android:textSize="9sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/loginCard"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@android:color/transparent"
+            app:cardCornerRadius="30dp"
+            app:cardElevation="0dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_login_glass_card"
+                android:orientation="vertical"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:letterSpacing="0.11"
+                    android:text="@string/login_eyebrow"
+                    android:textColor="@color/login_accent"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:text="@string/login_card_title"
+                    android:textColor="@color/login_text_primary"
+                    android:textSize="25sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
                     android:fontFamily="@font/unageo_regular"
-                    android:textColor="@color/primaryColorButton"
-                    android:text="Don't just listen, Resonate."
-                    android:layout_centerHorizontal="true"
-                    android:textSize="16sp"
-                    android:layout_marginTop="5dp"/>
+                    android:lineSpacingExtra="2dp"
+                    android:text="@string/login_card_body"
+                    android:textColor="@color/login_text_secondary"
+                    android:textSize="14sp" />
 
-            </RelativeLayout>
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="58dp"
+                    android:layout_marginTop="22dp">
 
-            <FrameLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentBottom="true"
-                android:layout_centerHorizontal="true">
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/loginButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="@string/login_google_action"
+                        android:fontFamily="@font/unageo_semi_bold"
+                        android:gravity="center"
+                        android:text="@string/login_google_action"
+                        android:textAllCaps="false"
+                        android:textColor="@color/login_google_text"
+                        android:textSize="15sp"
+                        app:backgroundTint="@color/login_google_surface"
+                        app:cornerRadius="18dp"
+                        app:icon="@drawable/ic_google"
+                        app:iconGravity="textStart"
+                        app:iconPadding="12dp"
+                        app:iconSize="20dp"
+                        app:iconTint="@null"
+                        app:rippleColor="#18000000" />
+
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/loginProgress"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:layout_marginEnd="19dp"
+                        android:visibility="gone"
+                        app:indicatorColor="@color/login_accent"
+                        app:indicatorSize="20dp"
+                        app:trackThickness="2dp"
+                        tools:visibility="visible" />
+
+                </FrameLayout>
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:id="@+id/loginStatus"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text=""
-                    android:textColor="#CCCCCC"
+                    android:accessibilityLiveRegion="assertive"
+                    android:layout_marginTop="12dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:gravity="center"
+                    android:lineSpacingExtra="2dp"
+                    android:textColor="@color/login_accent"
                     android:textSize="12sp"
-                    android:fontFamily="@font/unageo_medium"/>
+                    android:visibility="gone"
+                    tools:text="@string/login_error_credentials"
+                    tools:visibility="visible" />
 
-            </FrameLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:gravity="center"
+                    android:text="@string/login_secure_access"
+                    android:textColor="@color/login_text_secondary"
+                    android:textSize="11sp" />
 
-        </RelativeLayout>
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:fontFamily="@font/unageo_regular"
+                    android:gravity="center"
+                    android:lineSpacingExtra="1dp"
+                    android:text="@string/login_legal"
+                    android:textColor="@color/login_text_tertiary"
+                    android:textSize="10sp" />
 
-        <RelativeLayout
-            android:id="@+id/containerButtonsLogIn"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="25"
-            android:padding="10dp">
+            </LinearLayout>
 
-            <Button
-                android:id="@+id/loginButton"
-                android:layout_width="wrap_content"
-                android:layout_height="55dp"
-                android:text="Iniciar sesión con Google"
-                android:layout_centerInParent="true"
-                android:fontFamily="@font/unageo_medium"
-                android:backgroundTint="@color/secondaryColorTheme"
-                android:textColor="@color/primaryColorButton"/>
+        </com.google.android.material.card.MaterialCardView>
 
-        </RelativeLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-    </LinearLayout>
-
-</RelativeLayout>
+</FrameLayout>

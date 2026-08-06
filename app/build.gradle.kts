@@ -12,14 +12,14 @@ plugins {
 
 android {
     namespace = "com.example.resonant"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.resonant"
         minSdk = 33
         targetSdk = 35
-        versionCode = 3
-        versionName = "3.0.0"
+        versionCode = 4
+        versionName = "3.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -34,7 +34,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -64,7 +65,8 @@ dependencies {
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    debugImplementation("androidx.fragment:fragment-testing:1.8.6")
+    debugImplementation("androidx.fragment:fragment-testing-manifest:1.8.9")
+    androidTestImplementation("androidx.fragment:fragment-testing:1.8.9")
 
     implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
     implementation("com.google.firebase:firebase-analytics")
@@ -103,8 +105,6 @@ dependencies {
     implementation ("androidx.navigation:navigation-ui:2.9.0")
     implementation ("com.google.android.material:material:1.13.0")
 
-    implementation (libs.picasso)
-
     implementation ("com.facebook.shimmer:shimmer:0.5.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
@@ -120,9 +120,14 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    implementation("androidx.media3:media3-exoplayer:1.8.0")
-    implementation("androidx.media3:media3-ui:1.8.0")
-    implementation("androidx.media3:media3-session:1.8.0")
+    val media3Version = "1.10.1"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
+    implementation("androidx.media3:media3-ui:$media3Version")
+    implementation("androidx.media3:media3-session:$media3Version")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
+    implementation("androidx.media3:media3-database:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-workmanager:$media3Version")
 
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")

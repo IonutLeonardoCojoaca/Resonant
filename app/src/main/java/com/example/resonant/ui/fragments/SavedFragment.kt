@@ -1,4 +1,4 @@
-package com.example.resonant.ui.fragments
+﻿package com.example.resonant.ui.fragments
 
 import android.content.Intent
 import android.os.Bundle
@@ -177,11 +177,14 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         playlistAdapter = PlaylistAdapter(
             viewType = PlaylistAdapter.VIEW_TYPE_GRID,
             onClick = { playlist ->
-                val bundle = Bundle().apply { putString("playlistId", playlist.id) }
+                val bundle = Bundle().apply {
+                    putString("playlistId", playlist.id)
+                    putBoolean("isReadOnly", !canManagePlaylist(playlist))
+                }
                 findNavController().navigate(R.id.action_savedFragment_to_playlistFragment, bundle)
             },
-            onPlaylistLongClick = { playlist, _ -> showPlaylistOptions(playlist) },
-            onSettingsClick = { playlist -> showPlaylistOptions(playlist) }
+            onPlaylistLongClick = { playlist, _ -> openPlaylistOptionsIfEditable(playlist) },
+            onSettingsClick = { playlist -> openPlaylistOptionsIfEditable(playlist) }
         )
         playlistRecyclerView.adapter = playlistAdapter
         playlistRecyclerView.layoutManager = LinearLayoutManager(context)
@@ -548,7 +551,23 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         }
     }
 
-    private fun showPlaylistOptions(playlist: Playlist) {
+    private fun canManagePlaylist(playlist: Playlist): Boolean {
+        if (playlist.canEdit == true) return true
+        val currentUserId = UserManager(requireContext()).getUserId()
+        return !currentUserId.isNullOrBlank() &&
+            !playlist.userId.isNullOrBlank() &&
+            currentUserId == playlist.userId
+    }
+
+    private fun openPlaylistOptionsIfEditable(playlist: Playlist) {
+        if (!canManagePlaylist(playlist)) {
+            showResonantSnackbar(
+                text = "Puedes guardar esta playlist, pero solo su propietario puede editarla",
+                colorRes = R.color.adviseColor,
+                iconRes = R.drawable.ic_warning
+            )
+            return
+        }
         val bottomSheet = PlaylistOptionsBottomSheet(
             playlist = playlist,
             playlistImageBitmap = null,
@@ -598,7 +617,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     }
 
     private fun forceReloadPlaylists() {
-        playlistsListViewModel.loadMyPlaylists()
+        playlistsListViewModel.loadLibraryPlaylists()
     }
 
     private fun updateEmptyView(playlists: List<Playlist>?) {

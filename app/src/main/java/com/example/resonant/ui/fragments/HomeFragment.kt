@@ -37,7 +37,6 @@ import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.launch
 import com.example.resonant.ui.viewmodels.DownloadViewModel
-import kotlinx.coroutines.delay
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
@@ -146,34 +145,14 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         )
         scrollBehavior?.attachToNestedScrollView(homeScrollView)
 
-        view.post {
-            if (viewLifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
-                loadHomeContent()
-            }
-        }
+        loadHomeContent()
         // view.findViewById<View>(R.id.historyPrincipalContainer)?.visibility = View.GONE // Removed
 
         observeDownloadedSongIds()
     }
 
     private fun loadHomeContent() {
-        homeViewModel.loadHistory()
-        homeViewModel.loadArtists()
-        homeViewModel.loadAlbums()
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            delay(80L)
-            homeViewModel.loadSongs()
-
-            delay(120L)
-            homeViewModel.loadRecentArtists()
-            homeViewModel.loadRecentAlbums()
-
-            delay(120L)
-            homeViewModel.loadTopSongs()
-            homeViewModel.loadTopArtists()
-            homeViewModel.loadTopAlbums()
-        }
+        homeViewModel.loadHome()
     }
 
     private fun observeDownloadedSongIds() {
@@ -206,7 +185,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         tvErrorAlbums = view.findViewById(R.id.tvErrorAlbums)
         recyclerViewArtists = view.findViewById(R.id.listArtistsRecycler)
         recyclerViewHistory = view.findViewById(R.id.listHistoryRecycler)
-        recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
         recyclerViewSongs = view.findViewById(R.id.allSongList)
         historyContainer = view.findViewById(R.id.historyPrincipalContainer)
@@ -300,8 +278,10 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         recyclerViewArtists.adapter = artistAdapter
         recyclerViewArtists.isNestedScrollingEnabled = false
 
-        // Albums
-        recyclerViewAlbums.layoutManager = GridLayoutManager(context, 3)
+        // Albums: three columns make titles unreadable on phone-sized screens.
+        // Keep the grid dense on larger devices, but give cards enough room on mobile.
+        val albumColumnCount = if (resources.configuration.screenWidthDp >= 600) 3 else 2
+        recyclerViewAlbums.layoutManager = GridLayoutManager(context, albumColumnCount)
         albumsAdapter = AlbumAdapter(mutableListOf(), 0)
         albumsAdapter.onAlbumClick = { album ->
             val bundle = Bundle().apply { putString("albumId", album.id) }
@@ -450,8 +430,9 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         }
         recyclerViewTopAlbums.adapter = topAlbumAdapter
         recyclerViewTopAlbums.isNestedScrollingEnabled = false
-        val screenPx = resources.displayMetrics.widthPixels
-        topAlbumAdapter.itemWidthOverride = (screenPx - dpToPx(24)) / 3
+        val horizontalAlbumWidthDp =
+            if (resources.configuration.screenWidthDp >= 600) 180 else 156
+        topAlbumAdapter.itemWidthOverride = dpToPx(horizontalAlbumWidthDp)
 
         // Recently added artists — horizontal
         recyclerViewRecentArtists.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
@@ -477,7 +458,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             val bundle = Bundle().apply { putString("albumId", album.id) }
             findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
         }
-        recentAlbumAdapter.itemWidthOverride = (screenPx - dpToPx(24)) / 3
+        recentAlbumAdapter.itemWidthOverride = dpToPx(horizontalAlbumWidthDp)
         recyclerViewRecentAlbums.adapter = recentAlbumAdapter
         recyclerViewRecentAlbums.isNestedScrollingEnabled = false
 
@@ -554,7 +535,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
         // --- OBSERVAR ARTISTAS ---
         homeViewModel.artists.observe(viewLifecycleOwner) { artists ->
-            artistAdapter.submitArtists(artists)
+            artistAdapter.submitArtists(artists.orEmpty())
             updateSectionState(false, false, recyclerViewArtists, shimmerArtistLayout, layoutErrorArtists)
         }
         homeViewModel.artistsTitle.observe(viewLifecycleOwner) { title ->
@@ -573,7 +554,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
         // --- OBSERVAR ÁLBUMES ---
         homeViewModel.albums.observe(viewLifecycleOwner) { albums ->
-            albumsAdapter.updateList(albums)
+            albumsAdapter.updateList(albums.orEmpty())
             updateSectionState(false, false, recyclerViewAlbums, shimmerAlbumLayout, layoutErrorAlbums)
         }
         homeViewModel.albumsTitle.observe(viewLifecycleOwner) { title ->
