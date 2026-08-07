@@ -44,10 +44,16 @@ class PlaybackLoadErrorPolicy(
     }
 
     companion object {
-        private const val MINIMUM_RETRY_COUNT = 3
-        private const val SIGNATURE_REFRESH_RETRIES = 2
-        private const val BASE_RETRY_DELAY_MS = 500L
+        // More attempts than the Media3 default: audio playback is long-lived,
+        // so a single transient hiccup should not force a track skip.
+        private const val MINIMUM_RETRY_COUNT = 5
+        private const val SIGNATURE_REFRESH_RETRIES = 3
+        private const val BASE_RETRY_DELAY_MS = 300L
         private const val MAX_RETRY_DELAY_MS = 4_000L
-        private val SIGNATURE_REFRESH_HTTP_CODES = setOf(401, 403)
+        // 401/403: MinIO/S3 SigV4 rejects an expired presigned URL.
+        // 400    : MinIO also returns this for "AuthorizationQueryParametersError"
+        //          when the signature is malformed (e.g. clock skew).
+        // 410    : Some CDNs use "Gone" for revoked/expired resources.
+        private val SIGNATURE_REFRESH_HTTP_CODES = setOf(400, 401, 403, 410)
     }
 }

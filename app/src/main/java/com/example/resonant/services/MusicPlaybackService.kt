@@ -1120,20 +1120,16 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     return
                 }
 
-                // Errors can arrive inside the manual-change grace period, where
-                // onIsPlayingChanged(false) is intentionally ignored.
-                PlaybackStateRepository.setIsPlaying(false)
-                stopSeekBarUpdates()
-                unregisterBecomingNoisyReceiver()
-                updateUiAndSystem()
-                syncPlaybackConnect()
-
-                // Source error typically means expired/invalid URL
+                // Source error typically means expired/invalid URL or a lost
+                // connection mid-stream. Both are recoverable: we refetch the
+                // presigned URL and prepare() from the current position.
                 val isSourceError = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE
 
                 val isDeliveryFormatError =
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
@@ -1141,9 +1137,29 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
                     error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED
 
+                val willAttemptRecovery = isDeliveryFormatError ||
+                    (isSourceError && retryCount < MAX_RETRY_COUNT)
+
+                if (!willAttemptRecovery) {
+                    // No recovery left. Fully update UI/session state before
+                    // giving up. We keep isPlaying up while retrying so the
+                    // seek bar and notification don't flash to "paused" on a
+                    // transient error that heals within a few hundred ms.
+                    PlaybackStateRepository.setIsPlaying(false)
+                    stopSeekBarUpdates()
+                    unregisterBecomingNoisyReceiver()
+                    updateUiAndSystem()
+                    syncPlaybackConnect()
+                }
+
                 if (isDeliveryFormatError) {
                     if (!retryCurrentAsProgressive()) {
                         Log.e("PlayerListener", "Progressive fallback already failed. Skipping song.")
+                        PlaybackStateRepository.setIsPlaying(false)
+                        stopSeekBarUpdates()
+                        unregisterBecomingNoisyReceiver()
+                        updateUiAndSystem()
+                        syncPlaybackConnect()
                         playNext()
                     }
                 } else if (isSourceError) {
@@ -1295,11 +1311,20 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     @Volatile
     private var retryCount = 0
-    private val MAX_RETRY_COUNT = 2
+    // Four attempts is enough to survive a signature refresh + a couple of
+    // transient network hiccups without hopping to the next song. The counter
+    // resets whenever a load reaches STATE_READY, so successful retries never
+    // deplete the budget for later ones.
+    private val MAX_RETRY_COUNT = 4
 
     private fun retryCurrentPlayback() {
         if (retryCount >= MAX_RETRY_COUNT) {
             retryCount = 0
+            PlaybackStateRepository.setIsPlaying(false)
+            stopSeekBarUpdates()
+            unregisterBecomingNoisyReceiver()
+            updateUiAndSystem()
+            syncPlaybackConnect()
             playNext()
             return
         }
@@ -1310,14 +1335,24 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
         val player = exoPlayer ?: return
 
+        // Capture position BEFORE invalidating and preparing again: some error
+        // paths reset the timeline as part of prepare(), which would otherwise
+        // silently jump to STATE_ENDED (perceived as "song stopped mid-way").
+        val resumePositionMs = player.currentPosition.coerceAtLeast(0L)
+        val resumeIndex = player.currentMediaItemIndex.takeIf {
+            it in 0 until player.mediaItemCount
+        } ?: 0
+        val shouldResume = player.playWhenReady
+
         retryCount++
         playbackUrlResolver.invalidate(songId)
         Log.w(
             "MusicService",
-            "Reintentando la fuente actual sin reconstruir la cola (intento $retryCount)"
+            "Reintentando la fuente actual sin reconstruir la cola (intento $retryCount, pos=${resumePositionMs}ms)"
         )
         player.prepare()
-        if (requestAudioFocus()) {
+        player.seekTo(resumeIndex, resumePositionMs)
+        if (shouldResume && requestAudioFocus()) {
             registerBecomingNoisyReceiver()
             player.play()
         }
