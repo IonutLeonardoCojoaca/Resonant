@@ -34,7 +34,9 @@ import java.util.Locale
 class AriaChatAdapter(
     private val onFeedback: (messageId: String, rating: Int) -> Unit,
     private val onActionCardClick: (actionPayload: String) -> Unit,
-    private val onSongCardClick: (songId: String) -> Unit = {}
+    private val onSongCardClick: (songId: String) -> Unit = {},
+    private val onArtistCardClick: (artistId: String) -> Unit = {},
+    private val onSuggestedFollowupClick: (prompt: String) -> Unit = {}
 ) : ListAdapter<AriaMessage, RecyclerView.ViewHolder>(AriaDiffCallback()) {
 
     companion object {
@@ -67,7 +69,14 @@ class AriaChatAdapter(
         when (holder) {
             is UserViewHolder -> holder.bind(message)
             is StatusViewHolder -> holder.bind(message)
-            is AriaViewHolder -> holder.bind(message, onFeedback, onActionCardClick, onSongCardClick)
+            is AriaViewHolder -> holder.bind(
+                message,
+                onFeedback,
+                onActionCardClick,
+                onSongCardClick,
+                onArtistCardClick,
+                onSuggestedFollowupClick
+            )
         }
     }
 
@@ -146,12 +155,19 @@ class AriaChatAdapter(
         private val songCardsArtistName: TextView = view.findViewById(R.id.songCardsArtistName)
         private val songCardsCatalogCount: TextView = view.findViewById(R.id.songCardsCatalogCount)
         private val songCardsList: LinearLayout = view.findViewById(R.id.songCardsList)
+        private val relatedArtistsContainer: LinearLayout = view.findViewById(R.id.ariaRelatedArtistsContainer)
+        private val relatedArtistsLabel: TextView = view.findViewById(R.id.relatedArtistsLabel)
+        private val relatedArtistsList: LinearLayout = view.findViewById(R.id.relatedArtistsList)
+        private val followupsContainer: View = view.findViewById(R.id.ariaFollowupsContainer)
+        private val followupsRow: LinearLayout = view.findViewById(R.id.ariaFollowupsRow)
 
         fun bind(
             message: AriaMessage,
             onFeedback: (String, Int) -> Unit,
             onActionCardClick: (String) -> Unit,
-            onSongCardClick: (String) -> Unit
+            onSongCardClick: (String) -> Unit,
+            onArtistCardClick: (String) -> Unit,
+            onSuggestedFollowupClick: (String) -> Unit
         ) {
             ariaMessage.text = message.text
             ariaBubble.background = null
@@ -164,35 +180,50 @@ class AriaChatAdapter(
             val CARD_VISIBLE_TYPES = setOf(
                 "crear_playlist", "recomendacion", "recomendar_cancion",
                 "recomendar_artista", "consulta", "crear_sesion_dj",
-                "añadir_canciones", "usuario", "proactive_recommendation"
+                "añadir_canciones", "descubrir", "usuario", "proactive_recommendation"
             )
 
-            val isConsultaUsuario = message.actionData?.type == "consulta_usuario"
-            val isSongRecs = message.actionData?.type == "recomendar_cancion" &&
-                !message.actionData.songRecommendations.isNullOrEmpty()
-            val shouldShowCard = message.actionData != null &&
+            val action = message.actionData
+            val isConsultaUsuario = action?.type == "consulta_usuario"
+            val isSongRecs = !action?.songRecommendations.isNullOrEmpty() ||
+                !action?.previewSongs.isNullOrEmpty()
+            val hasRelatedArtists = !action?.relatedArtists.isNullOrEmpty()
+            val shouldShowCard = action != null &&
                 message.isComplete &&
-                (message.intentType in CARD_VISIBLE_TYPES || isConsultaUsuario)
+                (message.intentType in CARD_VISIBLE_TYPES || action.type in CARD_VISIBLE_TYPES || isConsultaUsuario)
 
             // Reset all card containers
             ariaPlaylistCard.visibility = View.GONE
             userStatsCard.visibility = View.GONE
             songCardsContainer.visibility = View.GONE
+            relatedArtistsContainer.visibility = View.GONE
+            followupsContainer.visibility = View.GONE
             Glide.with(itemView).clear(ariaCardCover)
 
             if (shouldShowCard && isConsultaUsuario) {
-                bindUserStatsCard(message.actionData!!, itemView.context)
+                bindUserStatsCard(action!!, itemView.context)
                 userStatsCard.visibility = View.VISIBLE
-            } else if (shouldShowCard && isSongRecs) {
-                bindSongRecommendations(message.actionData!!, itemView.context, onSongCardClick)
-                songCardsContainer.visibility = View.VISIBLE
             } else if (shouldShowCard) {
-                val action = message.actionData!!
-                bindRichCard(action, itemView.context)
-                ariaPlaylistCard.visibility = View.VISIBLE
-                ariaPlaylistCard.setOnClickListener {
-                    message.actionPayload?.let { onActionCardClick(it) }
+                if (action?.type != "recomendar_cancion" || !isSongRecs) {
+                    bindRichCard(action!!, itemView.context)
+                    ariaPlaylistCard.visibility = View.VISIBLE
+                    ariaPlaylistCard.setOnClickListener {
+                        message.actionPayload?.let { onActionCardClick(it) }
+                    }
                 }
+                if (isSongRecs) {
+                    bindSongRecommendations(action!!, itemView.context, onSongCardClick)
+                    songCardsContainer.visibility = View.VISIBLE
+                }
+                if (hasRelatedArtists) {
+                    bindRelatedArtists(action!!, itemView.context, onArtistCardClick)
+                    relatedArtistsContainer.visibility = View.VISIBLE
+                }
+            }
+
+            if (message.isComplete && !action?.suggestedFollowups.isNullOrEmpty()) {
+                bindSuggestedFollowups(action!!.suggestedFollowups!!, itemView.context, onSuggestedFollowupClick)
+                followupsContainer.visibility = View.VISIBLE
             }
 
             // Feedback row
@@ -621,6 +652,12 @@ class AriaChatAdapter(
 
         private fun bindSongRecommendations(action: AriaAction, context: Context, onSongCardClick: (String) -> Unit) {
             songCardsList.removeAllViews()
+            songCardsKindLabel.text = when {
+                !action.previewSongs.isNullOrEmpty() && action.type == "crear_playlist" -> "VISTA PREVIA DE LA PLAYLIST"
+                !action.previewSongs.isNullOrEmpty() && action.type == "añadir_canciones" -> "CANCIONES AÑADIDAS"
+                !action.previewSongs.isNullOrEmpty() && action.type == "descubrir" -> "DESCUBRIMIENTOS"
+                else -> "CANCIONES RECOMENDADAS"
+            }
 
             // Header
             if (!action.songRecArtistName.isNullOrBlank()) {
@@ -637,7 +674,7 @@ class AriaChatAdapter(
                 songCardsCatalogCount.visibility = View.GONE
             }
 
-            val songs = action.songRecommendations ?: return
+            val songs = action.songRecommendations ?: action.previewSongs ?: return
             val density = context.resources.displayMetrics.density
 
             songs.forEachIndexed { idx, song ->
@@ -786,6 +823,94 @@ class AriaChatAdapter(
                 card.setOnClickListener { onSongCardClick(song.songId) }
 
                 songCardsList.addView(card)
+            }
+        }
+
+        private fun bindRelatedArtists(
+            action: AriaAction,
+            context: Context,
+            onArtistCardClick: (String) -> Unit
+        ) {
+            relatedArtistsList.removeAllViews()
+            relatedArtistsLabel.text = if (action.seedSource == "perfil") {
+                "BASADO EN LO QUE ESCUCHAS"
+            } else {
+                val reference = action.referenceArtist ?: action.entityName
+                reference?.let { "PARECIDOS A ${it.uppercase()}" } ?: "ARTISTAS RELACIONADOS"
+            }
+
+            val density = context.resources.displayMetrics.density
+            action.relatedArtists.orEmpty().forEachIndexed { index, artist ->
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = context.getDrawable(R.drawable.bg_aria_action_card)
+                    setPadding(
+                        (density * 12).toInt(),
+                        (density * 10).toInt(),
+                        (density * 12).toInt(),
+                        (density * 10).toInt()
+                    )
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also {
+                        if (index > 0) it.topMargin = (density * 5).toInt()
+                    }
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { onArtistCardClick(artist.id) }
+                }
+                row.addView(TextView(context).apply {
+                    text = artist.name
+                    setTextColor(Color.WHITE)
+                    textSize = 13f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                })
+                artist.reason?.takeIf { it.isNotBlank() }?.let { reason ->
+                    row.addView(TextView(context).apply {
+                        text = reason
+                        setTextColor(Color.parseColor("#99FFFFFF"))
+                        textSize = 11f
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).also { it.topMargin = (density * 2).toInt() }
+                    })
+                }
+                relatedArtistsList.addView(row)
+            }
+        }
+
+        private fun bindSuggestedFollowups(
+            followups: List<String>,
+            context: Context,
+            onSuggestedFollowupClick: (String) -> Unit
+        ) {
+            followupsRow.removeAllViews()
+            val density = context.resources.displayMetrics.density
+            followups.take(3).forEach { prompt ->
+                followupsRow.addView(TextView(context).apply {
+                    text = prompt
+                    setTextColor(Color.WHITE)
+                    textSize = 12f
+                    gravity = android.view.Gravity.CENTER
+                    background = context.getDrawable(R.drawable.bg_aria_prompt_chip)
+                    setPadding(
+                        (density * 14).toInt(),
+                        (density * 9).toInt(),
+                        (density * 14).toInt(),
+                        (density * 9).toInt()
+                    )
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.marginEnd = (density * 8).toInt() }
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { onSuggestedFollowupClick(prompt) }
+                })
             }
         }
 

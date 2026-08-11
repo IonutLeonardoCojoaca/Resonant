@@ -24,6 +24,7 @@
             android:scaleY="0.8"
             android:background="@color/transparent"
             android:src="@drawable/ic_arrow_back"
+            app:tint="@color/white"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
@@ -80,7 +81,7 @@
             android:layout_height="64dp"
             android:src="@drawable/ic_playmix"
             android:alpha="0.3"
-            app:tint="#66FFFFFF" />
+            app:tint="@color/textTheme" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -89,7 +90,7 @@
             android:fontFamily="@font/unageo_regular"
             android:gravity="center"
             android:text="No tienes PlayMixes aún.\nCrea uno con el botón +"
-            android:textColor="#66FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="14sp" />
 
     </LinearLayout>
@@ -105,7 +106,7 @@
         android:layout_marginBottom="100dp"
         android:src="@drawable/ic_add"
         app:backgroundTint="#E21616"
-        app:tint="@color/white" />
+        app:tint="@android:color/white" />
 
     <!-- Loader -->
     <com.airbnb.lottie.LottieAnimationView

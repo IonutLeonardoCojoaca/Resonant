@@ -50,6 +50,7 @@ class CollabSearchFragment : Fragment() {
         requireActivity().window.statusBarColor = Color.BLACK
         requireActivity().window.navigationBarColor = Color.BLACK
         setupListeners()
+        setupSuggestionChips()
         setupObservers()
         setupResponsiveOrbit()
         showIntroState()
@@ -105,6 +106,30 @@ class CollabSearchFragment : Fragment() {
                     collaboratorImageUrl = collaborator.imageUrl
                 )
                 findNavController().navigate(action)
+            }
+        }
+    }
+
+    /** Pre-fills the search field and triggers a search when an artist chip is tapped. */
+    private fun setupSuggestionChips() {
+        val chips = listOf(
+            binding.chipArtist1 to "The Weeknd",
+            binding.chipArtist2 to "Bad Bunny",
+            binding.chipArtist3 to "Drake",
+            binding.chipArtist4 to "Taylor Swift",
+            binding.chipArtist5 to "J Balvin",
+            binding.chipArtist6 to "Rosalía",
+            binding.chipArtist7 to "Travis Scott",
+            binding.chipArtist8 to "Dua Lipa",
+            binding.chipArtist9 to "Billie Eilish",
+            binding.chipArtist10 to "Quevedo"
+        )
+        chips.forEach { (chip, artistName) ->
+            chip.setOnClickListener {
+                binding.etSearch.setText(artistName)
+                binding.etSearch.setSelection(artistName.length)
+                hideKeyboard()
+                viewModel.forceSearch(artistName)
             }
         }
     }
@@ -193,14 +218,18 @@ class CollabSearchFragment : Fragment() {
     ) {
         hasResult = false
         binding.progressBar.visibility = View.GONE
+        // Show intro container with search field and suggestion chips
+        binding.introContainer.visibility = View.VISIBLE
+        binding.tvIntroTitle.text = title
+        binding.tvIntroSubtitle.text = subtitle
+        // Hide orbit area
+        binding.orbitFrame.visibility = View.GONE
         binding.bubbleOrbitView.visibility = View.GONE
         binding.bubbleOrbitView.setLoading(false)
-        binding.collabEmptyState.visibility = View.VISIBLE
-        binding.tvOrbitStateTitle.text = title
-        binding.tvOrbitStateSubtitle.text = subtitle
+        binding.collabEmptyState.visibility = View.GONE
         binding.collabLoader.cancelAnimation()
         binding.collabLoader.visibility = View.GONE
-        binding.searchFieldCard.visibility = View.VISIBLE
+        // Hide result content
         binding.cardSuggestions.visibility = View.GONE
         binding.tvArtistName.visibility = View.GONE
         binding.tvCollabSubtext.visibility = View.GONE
@@ -211,6 +240,10 @@ class CollabSearchFragment : Fragment() {
 
     private fun showLoadingState(title: String, subtitle: String) {
         binding.progressBar.visibility = View.GONE
+        // Hide intro container
+        binding.introContainer.visibility = View.GONE
+        // Show orbit frame with loading indicator
+        binding.orbitFrame.visibility = View.VISIBLE
         binding.bubbleOrbitView.visibility = View.GONE
         binding.bubbleOrbitView.setLoading(false)
         binding.collabEmptyState.visibility = View.VISIBLE
@@ -218,6 +251,7 @@ class CollabSearchFragment : Fragment() {
         binding.tvOrbitStateSubtitle.text = subtitle
         binding.collabLoader.visibility = View.VISIBLE
         binding.collabLoader.playAnimation()
+        // Hide result content
         binding.cardSuggestions.visibility = View.GONE
         binding.tvArtistName.visibility = View.GONE
         binding.tvCollabSubtext.visibility = View.GONE
@@ -229,9 +263,13 @@ class CollabSearchFragment : Fragment() {
         hasResult = true
         binding.progressBar.visibility = View.GONE
         binding.collabLoader.cancelAnimation()
+        // Hide intro container
+        binding.introContainer.visibility = View.GONE
+        // Show orbit with results
+        binding.orbitFrame.visibility = View.VISIBLE
         binding.collabEmptyState.visibility = View.GONE
         binding.bubbleOrbitView.visibility = View.VISIBLE
-        binding.searchFieldCard.visibility = View.GONE
+        // Show result actions
         binding.cardSuggestions.visibility = View.GONE
         binding.tvArtistName.visibility = View.VISIBLE
         binding.tvCollabSubtext.visibility = View.VISIBLE

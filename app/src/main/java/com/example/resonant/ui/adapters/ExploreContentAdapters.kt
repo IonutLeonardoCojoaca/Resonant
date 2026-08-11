@@ -51,12 +51,12 @@ class ExplorePlaylistAdapter(
         val image: ImageView = itemView.findViewById(R.id.playlistImage)
         private val title: TextView = itemView.findViewById(R.id.playlistTitle)
         private val subtitle: TextView = itemView.findViewById(R.id.playlistSubtitle)
-        private val tracks: TextView = itemView.findViewById(R.id.playlistTracks)
+        private val tracks: TextView? = itemView.findViewById(R.id.playlistTracks)
 
         fun bind(playlist: Playlist) {
             title.text = playlist.name
-            subtitle.text = "Por ${playlist.displayOwner()}"
-            tracks.text = playlist.trackCountLabel()
+            subtitle.text = "Playlist · ${playlist.displayOwner()}"
+            tracks?.text = playlist.trackCountLabel()
             image.loadExploreImage(playlist.imageUrl, R.drawable.ic_playlist_stack)
             itemView.setOnClickListener { onClick(playlist) }
         }

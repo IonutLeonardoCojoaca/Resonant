@@ -68,17 +68,17 @@
 
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
+                android:layout_height="44dp"
                 android:background="@drawable/bg_search_bar"
                 app:boxBackgroundMode="none"
                 app:endIconMode="clear_text"
-                app:endIconTint="@color/white"
+                app:endIconTint="@color/textTheme"
                 app:hintEnabled="false"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:startIconTint="#666666">
+                app:startIconTint="@color/textTheme">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/editTextQuery"
@@ -86,7 +86,7 @@
                     android:layout_height="match_parent"
                     android:fontFamily="@font/unageo_regular"
                     android:drawableStart="@drawable/ic_search_small"
-                    android:drawableTint="#666666"
+                    android:drawableTint="@color/textTheme"
                     android:drawablePadding="10dp"
                     android:hint="¿Qué te apetece escuchar hoy?"
                     android:imeOptions="actionSearch"
@@ -97,8 +97,8 @@
                     android:paddingEnd="8dp"
                     android:paddingBottom="0dp"
                     android:textColor="@color/white"
-                    android:textColorHint="#666666"
-                    android:textSize="14dp" />
+                    android:textColorHint="@color/textTheme"
+                    android:textSize="14sp" />
 
             </com.google.android.material.textfield.TextInputLayout>
 

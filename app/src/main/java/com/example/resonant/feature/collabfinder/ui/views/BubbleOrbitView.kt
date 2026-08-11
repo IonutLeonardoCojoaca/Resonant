@@ -52,7 +52,7 @@ class BubbleOrbitView @JvmOverloads constructor(
         isDither = true
     }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+        color = ContextCompat.getColor(context, R.color.white)
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
     }
@@ -61,12 +61,12 @@ class BubbleOrbitView @JvmOverloads constructor(
     private var loadingAnimator: ValueAnimator? = null
     private var loadingRadius = 0f
 
-    private val accentRed = Color.parseColor("#F51B1F")
-    private val dotColor = Color.parseColor("#353535")
-    private val emptyBubbleColor = Color.parseColor("#303030")
+    private val accentRed by lazy { ContextCompat.getColor(context, R.color.secondaryColorTheme) }
+    private val dotColor by lazy { ContextCompat.getColor(context, R.color.discTheme) }
+    private val emptyBubbleColor by lazy { ContextCompat.getColor(context, R.color.cardsTheme) }
     private val artistPlaceholder: Drawable? by lazy {
         ContextCompat.getDrawable(context, R.drawable.ic_user)?.mutate()?.apply {
-            setTint(Color.parseColor("#6B6B6B"))
+            setTint(ContextCompat.getColor(context, R.color.textTheme))
         }
     }
 

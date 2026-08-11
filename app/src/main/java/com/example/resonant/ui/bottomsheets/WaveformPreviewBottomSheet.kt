@@ -181,7 +181,23 @@ class WaveformPreviewBottomSheet(
             if (!response.isSuccessful) return emptyList()
             val body = response.body?.string() ?: return emptyList()
             val arr = JSONArray(body)
-            (0 until arr.length()).map { arr.getDouble(it).toFloat() }
+            val raw = (0 until arr.length()).map { i ->
+                val elem = arr.get(i)
+                if (elem is org.json.JSONObject) {
+                    elem.optDouble("loudness", -60.0).toFloat()
+                } else {
+                    arr.getDouble(i).toFloat()
+                }
+            }
+            // Normalize dB loudness values (all negative) to [0..1] amplitude range
+            if (raw.isNotEmpty() && raw.all { it <= 0f }) {
+                val minDb = raw.min()
+                val maxDb = raw.max()
+                val range = (maxDb - minDb).coerceAtLeast(0.001f)
+                raw.map { ((it - minDb) / range).coerceIn(0f, 1f) }
+            } else {
+                raw
+            }
         } catch (e: Exception) {
             emptyList()
         }

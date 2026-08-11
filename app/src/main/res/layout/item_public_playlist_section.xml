@@ -121,11 +121,11 @@
                     android:id="@+id/tvSectionSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:fontFamily="@font/unageo_medium"
-                android:text="1 playlist publica"
-                android:textColor="#9EFFFFFF"
-                android:textSize="11sp" />
+                    android:layout_marginTop="3dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="1 playlist publica"
+                    android:textColor="@color/textTheme"
+                    android:textSize="11sp" />
 
             </LinearLayout>
 

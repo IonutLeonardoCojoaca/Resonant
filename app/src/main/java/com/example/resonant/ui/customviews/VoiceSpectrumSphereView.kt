@@ -2,6 +2,7 @@ package com.example.resonant.ui.customviews
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -13,7 +14,7 @@ import kotlin.math.sin
 
 /**
  * VoiceSpectrumSphereView
- * A custom view that draws a 3D wireframe sphere.
+ * A custom view that draws an interactive 3D wireframe sphere.
  * The sphere rotates continuously, and its points react to the amplitude
  * of the user's voice, creating a dynamic, music-like spectrum effect.
  */
@@ -23,16 +24,16 @@ class VoiceSpectrumSphereView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
+    private val isNightMode: Boolean
+        get() = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 2f
-        color = Color.parseColor("#B82276")
+        strokeWidth = 2.2f
     }
     
     private val pointPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = Color.parseColor("#C585FF")
-        setShadowLayer(10f, 0f, 0f, Color.parseColor("#7E37C9"))
     }
 
     private var rotationAngleY = 0f
@@ -73,7 +74,6 @@ class VoiceSpectrumSphereView @JvmOverloads constructor(
      * @param rmsdB value usually ranges from -2f to 10f.
      */
     fun updateAmplitude(rmsdB: Float) {
-        // Normalize rmsdB (approximate typical ranges)
         val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
         targetAmplitude = normalized
     }
@@ -84,6 +84,15 @@ class VoiceSpectrumSphereView @JvmOverloads constructor(
         val cx = width / 2f
         val cy = height / 2f
         
+        val night = isNightMode
+        val baseLineColor = if (night) Color.parseColor("#D946EF") else Color.parseColor("#B81473")
+        val pointColor = if (night) Color.parseColor("#E879F9") else Color.parseColor("#8B5CF6")
+        val shadowColor = if (night) Color.parseColor("#7E37C9") else Color.parseColor("#338B5CF6")
+
+        paint.color = baseLineColor
+        pointPaint.color = pointColor
+        pointPaint.setShadowLayer(if (night) 12f else 6f, 0f, 0f, shadowColor)
+
         // Base radius, slightly pulses with amplitude
         val baseRadius = (width.coerceAtMost(height) / 2f) * 0.6f
         val radius = baseRadius + (baseRadius * 0.4f * currentAmplitude)
@@ -109,7 +118,6 @@ class VoiceSpectrumSphereView @JvmOverloads constructor(
                 var z = rCosLat * sin(lon).toFloat()
                 
                 // Add noise/spikes based on amplitude
-                // Use sine waves based on coordinates to make it look organic
                 if (currentAmplitude > 0.05f) {
                     val noise = (sin(x * 0.05f + rotationAngleY * 5f) * cos(y * 0.05f) * currentAmplitude * baseRadius * 0.3f)
                     val dirLen = kotlin.math.sqrt(x*x + y*y + z*z)
@@ -161,7 +169,7 @@ class VoiceSpectrumSphereView @JvmOverloads constructor(
                     val py = cy + p1[1] * scale
                     
                     // Dynamic dot size based on amplitude and z-depth
-                    val dotBaseSize = 4f + (currentAmplitude * 8f)
+                    val dotBaseSize = 4.2f + (currentAmplitude * 8f)
                     canvas.drawCircle(px, py, dotBaseSize * scale, pointPaint)
                 }
             }
@@ -169,13 +177,15 @@ class VoiceSpectrumSphereView @JvmOverloads constructor(
     }
     
     private fun drawLine3D(canvas: Canvas, p1: FloatArray, p2: FloatArray, cx: Float, cy: Float, fov: Float) {
-        // Simple backface culling/fading
+        val night = isNightMode
+        val minAlpha = if (night) 20 else 45
+        val maxAlpha = if (night) 130 else 210
+
         if (p1[2] < -100f && p2[2] < -100f) {
-            paint.alpha = 10
+            paint.alpha = (minAlpha * 0.5f).toInt()
         } else {
-            // Dynamic alpha based on Z depth
             val zAvg = (p1[2] + p2[2]) / 2f
-            val alpha = (40 + (zAvg / 200f) * 60).toInt().coerceIn(10, 80)
+            val alpha = (minAlpha + ((zAvg + 200f) / 400f) * (maxAlpha - minAlpha)).toInt().coerceIn(minAlpha, maxAlpha)
             paint.alpha = alpha
         }
         

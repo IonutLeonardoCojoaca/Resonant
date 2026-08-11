@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fondo plano (sin stroke) para el selector inline de calidad de audio. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/discTheme" />
+    <corners android:radius="10dp" />
+</shape>

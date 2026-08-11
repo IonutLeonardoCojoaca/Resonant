@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlin.math.max
 
@@ -14,15 +17,30 @@ enum class CrossfadeMode {
     INTELLIGENT_EQ
 }
 
+enum class ThemeMode {
+    DARK,
+    LIGHT;
+
+    companion object {
+        fun fromStored(value: String?): ThemeMode =
+            entries.firstOrNull { it.name == value } ?: DARK
+    }
+}
+
+/** Maps [ThemeMode] to the AppCompatDelegate night-mode constant that applies it. */
+fun ThemeMode.toNightMode(): Int = when (this) {
+    ThemeMode.DARK -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+    ThemeMode.LIGHT -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+}
+
 enum class AudioQuality(
     val apiValue: String,
     val displayName: String,
     val maxStreamingBitrate: Int
 ) {
-    AUTO("auto", "Automática", Int.MAX_VALUE),
-    DATA_SAVER("data-saver", "Ahorro de datos · 96 kbps", 96_000),
-    NORMAL("normal", "Normal · 160 kbps", 160_000),
-    HIGH("high", "Alta · hasta 320 kbps", 320_000);
+    // Resonant ya no expone selector de calidad al usuario: streaming y
+    // descargas usan siempre el modo automático, con un tope de 320 kbps.
+    AUTO("auto", "Automática · hasta 320 kbps", 320_000);
 
     companion object {
         fun fromStored(value: String?, fallback: AudioQuality): AudioQuality {
@@ -60,8 +78,8 @@ class SettingsManager(private val context: Context) {
         val AUTOMIX_ENABLED_KEY = booleanPreferencesKey("automix_enabled")
         val LOUDNESS_NORMALIZATION_KEY = booleanPreferencesKey("loudness_normalization_enabled")
         val AUTOPLAY_RADIO_ENABLED_KEY = booleanPreferencesKey("autoplay_radio_enabled")
-        val STREAMING_QUALITY_KEY = stringPreferencesKey("streaming_audio_quality")
-        val DOWNLOAD_QUALITY_KEY = stringPreferencesKey("download_audio_quality")
+        val ARIA_FLOATING_ASSISTANT_ENABLED_KEY = booleanPreferencesKey("aria_floating_assistant_enabled")
+        val ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY = booleanPreferencesKey("aria_foreground_wake_word_enabled")
         val EQUALIZER_ENABLED_KEY = booleanPreferencesKey("equalizer_enabled")
         val EQUALIZER_PRESET_KEY = stringPreferencesKey("equalizer_preset")
         private val EQUALIZER_BAND_KEYS = listOf(
@@ -71,23 +89,15 @@ class SettingsManager(private val context: Context) {
             floatPreferencesKey("equalizer_3600_hz_db"),
             floatPreferencesKey("equalizer_14000_hz_db")
         )
+        private const val THEME_PREFS_NAME = "theme_prefs"
+        private const val THEME_MODE_PREF_KEY = "theme_mode"
     }
 
-    val streamingQualityFlow: Flow<AudioQuality> = context.dataStore.data.map { preferences ->
-        AudioQuality.fromStored(preferences[STREAMING_QUALITY_KEY], AudioQuality.AUTO)
-    }
+    // Calidad fija: ya no hay selector de usuario, streaming y descargas
+    // siempre solicitan AudioQuality.AUTO (automático, hasta 320 kbps).
+    val streamingQualityFlow: Flow<AudioQuality> = flowOf(AudioQuality.AUTO)
 
-    val downloadQualityFlow: Flow<AudioQuality> = context.dataStore.data.map { preferences ->
-        AudioQuality.fromStored(preferences[DOWNLOAD_QUALITY_KEY], AudioQuality.HIGH)
-    }
-
-    suspend fun setStreamingQuality(quality: AudioQuality) {
-        context.dataStore.edit { it[STREAMING_QUALITY_KEY] = quality.name }
-    }
-
-    suspend fun setDownloadQuality(quality: AudioQuality) {
-        context.dataStore.edit { it[DOWNLOAD_QUALITY_KEY] = quality.name }
-    }
+    val downloadQualityFlow: Flow<AudioQuality> = flowOf(AudioQuality.AUTO)
 
     val equalizerSettingsFlow: Flow<UserEqualizerSettings> =
         context.dataStore.data.map { preferences ->
@@ -164,6 +174,22 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[AUTOPLAY_RADIO_ENABLED_KEY] = isEnabled }
     }
 
+    val ariaFloatingAssistantEnabledFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[ARIA_FLOATING_ASSISTANT_ENABLED_KEY] ?: true
+    }
+
+    suspend fun setAriaFloatingAssistantEnabled(isEnabled: Boolean) {
+        context.dataStore.edit { it[ARIA_FLOATING_ASSISTANT_ENABLED_KEY] = isEnabled }
+    }
+
+    val ariaForegroundWakeWordEnabledFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY] ?: false
+    }
+
+    suspend fun setAriaForegroundWakeWordEnabled(isEnabled: Boolean) {
+        context.dataStore.edit { it[ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY] = isEnabled }
+    }
+
 
     // Flujo combinado que considera el modo inteligente
     val crossfadeDurationFlow: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -201,5 +227,29 @@ class SettingsManager(private val context: Context) {
             }
         }
     }
-}
 
+    // --- TEMA CLARO/OSCURO ---
+    // Se guarda en SharedPreferences (no en DataStore) porque debe leerse de
+    // forma síncrona en Application.onCreate(), antes de que se cree
+    // cualquier Activity, para aplicar AppCompatDelegate sin parpadeos.
+    private val themePrefs = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
+
+    fun getThemeModeSync(): ThemeMode = ThemeMode.fromStored(themePrefs.getString(THEME_MODE_PREF_KEY, null))
+
+    fun setThemeMode(mode: ThemeMode) {
+        themePrefs.edit().putString(THEME_MODE_PREF_KEY, mode.name).apply()
+    }
+
+    val themeModeFlow: Flow<ThemeMode> = callbackFlow {
+        trySend(getThemeModeSync())
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == THEME_MODE_PREF_KEY) {
+                trySend(ThemeMode.fromStored(prefs.getString(key, null)))
+            }
+        }
+        themePrefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose {
+            themePrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+}

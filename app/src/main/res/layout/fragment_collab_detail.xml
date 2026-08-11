@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@color/primaryColorTheme">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:paddingHorizontal="14dp"
-        android:paddingVertical="5dp">
+        android:paddingVertical="8dp">
 
         <ImageButton
             android:id="@+id/btnBack"
@@ -24,7 +24,7 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:tint="#FFFFFF" />
+            app:tint="@color/white" />
 
         <TextView
             android:id="@+id/tvToolbarTitle"
@@ -35,7 +35,7 @@
             android:gravity="center"
             android:maxLines="1"
             android:text="Colaboración"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="16sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -61,11 +61,11 @@
                 android:id="@+id/tvCollabEyebrow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="6dp"
                 android:fontFamily="@font/unageo_extra_bold"
-                android:letterSpacing="0.12"
+                android:letterSpacing="0.14"
                 android:text="COLLAB FINDER"
-                android:textColor="#F51B1F"
+                android:textColor="@color/secondaryColorTheme"
                 android:textSize="12sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -76,99 +76,42 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="24dp"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="6dp"
                 android:ellipsize="end"
                 android:fontFamily="@font/unageo_bold"
                 android:gravity="center"
                 android:maxLines="2"
-                android:textColor="#FFFFFF"
-                android:textSize="27sp"
+                android:textColor="@color/white"
+                android:textSize="26sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/tvCollabEyebrow"
-                tools:text="The Weeknd x Ariana Grande" />
+                tools:text="Future x Lil Uzi Vert" />
 
-            <androidx.constraintlayout.widget.ConstraintLayout
-                android:id="@+id/artistPairFrame"
+            <!-- Banner conjunto Pro con corte diagonal y degradado -->
+            <com.example.resonant.feature.collabfinder.ui.views.CollabDuoBannerView
+                android:id="@+id/duoBanner"
                 android:layout_width="0dp"
-                android:layout_height="166dp"
+                android:layout_height="210dp"
                 android:layout_marginHorizontal="18dp"
                 android:layout_marginTop="16dp"
-                android:background="@drawable/bg_collab_pair_panel"
-                android:clipToPadding="false"
-                android:paddingHorizontal="20dp"
+                android:elevation="4dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvCollabTitle">
+                app:layout_constraintTop_toBottomOf="@id/tvCollabTitle" />
 
-                <View
-                    android:id="@+id/pairConnector"
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:background="#2AFFFFFF"
-                    app:layout_constraintBottom_toBottomOf="@id/tvPlus"
-                    app:layout_constraintEnd_toStartOf="@id/ivArtistB"
-                    app:layout_constraintStart_toEndOf="@id/ivArtistA"
-                    app:layout_constraintTop_toTopOf="@id/tvPlus" />
-
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/ivArtistA"
-                    android:layout_width="122dp"
-                    android:layout_height="122dp"
-                    android:background="#242424"
-                    android:scaleType="centerCrop"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toStartOf="@id/tvPlus"
-                    app:layout_constraintHorizontal_bias="0.42"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:shapeAppearanceOverlay="@style/CircularUserImage"
-                    app:strokeColor="#30FFFFFF"
-                    app:strokeWidth="1dp" />
-
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/ivArtistB"
-                    android:layout_width="122dp"
-                    android:layout_height="122dp"
-                    android:background="#242424"
-                    android:scaleType="centerCrop"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0.58"
-                    app:layout_constraintStart_toEndOf="@id/tvPlus"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:shapeAppearanceOverlay="@style/CircularUserImage"
-                    app:strokeColor="#30FFFFFF"
-                    app:strokeWidth="1dp" />
-
-                <TextView
-                    android:id="@+id/tvPlus"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:background="@drawable/bg_collab_cross_badge"
-                    android:fontFamily="@font/unageo_extra_bold"
-                    android:gravity="center"
-                    android:text="x"
-                    android:textColor="#FFFFFF"
-                    android:textSize="25sp"
-                    android:elevation="6dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
-            </androidx.constraintlayout.widget.ConstraintLayout>
-
+            <!-- Nombres de los dos artistas de forma balanceada -->
             <LinearLayout
                 android:id="@+id/artistNamesRow"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="24dp"
-                android:layout_marginTop="10dp"
-                android:gravity="center"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/artistPairFrame">
+                app:layout_constraintTop_toBottomOf="@id/duoBanner">
 
                 <TextView
                     android:id="@+id/tvArtistAName"
@@ -179,9 +122,16 @@
                     android:fontFamily="@font/unageo_bold"
                     android:gravity="center"
                     android:maxLines="1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    tools:text="The Weeknd" />
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
+                    tools:text="Future" />
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="4dp"
+                    android:background="@drawable/background_circle_transparent"
+                    android:backgroundTint="@color/secondaryColorTheme"
+                    android:layout_marginHorizontal="8dp" />
 
                 <TextView
                     android:id="@+id/tvArtistBName"
@@ -192,11 +142,12 @@
                     android:fontFamily="@font/unageo_bold"
                     android:gravity="center"
                     android:maxLines="1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    tools:text="Ariana Grande" />
+                    android:textColor="@color/white"
+                    android:textSize="15sp"
+                    tools:text="Lil Uzi Vert" />
             </LinearLayout>
 
+            <!-- Panel de Estadísticas y afinidad -->
             <LinearLayout
                 android:id="@+id/statsStrip"
                 android:layout_width="0dp"
@@ -206,7 +157,7 @@
                 android:background="@drawable/bg_collab_stats_panel"
                 android:gravity="center"
                 android:orientation="horizontal"
-                android:paddingHorizontal="12dp"
+                android:paddingHorizontal="14dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/artistNamesRow">
@@ -220,9 +171,9 @@
                     android:gravity="center"
                     android:includeFontPadding="false"
                     android:lineSpacingExtra="3dp"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
-                    tools:text="12&#10;canciones" />
+                    tools:text="23\ncanciones" />
 
                 <TextView
                     android:id="@+id/tvYearsDetail"
@@ -233,9 +184,9 @@
                     android:gravity="center"
                     android:includeFontPadding="false"
                     android:lineSpacingExtra="3dp"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
-                    tools:text="2018-2026&#10;periodo" />
+                    tools:text="2020\nperiodo" />
 
                 <FrameLayout
                     android:layout_width="0dp"
@@ -250,35 +201,37 @@
                 </FrameLayout>
             </LinearLayout>
 
+            <!-- Botón Reproducir todo -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnPlayAll"
                 android:layout_width="0dp"
-                android:layout_height="50dp"
+                android:layout_height="52dp"
                 android:layout_marginHorizontal="18dp"
                 android:layout_marginTop="18dp"
                 android:fontFamily="@font/unageo_bold"
                 android:text="Reproducir todo"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                app:backgroundTint="#F51B1F"
-                app:cornerRadius="23dp"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                app:backgroundTint="@color/secondaryColorTheme"
+                app:cornerRadius="26dp"
                 app:icon="@drawable/ic_play"
                 app:iconGravity="textStart"
                 app:iconPadding="8dp"
-                app:iconTint="#FFFFFF"
+                app:iconTint="@android:color/white"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/statsStrip" />
 
+            <!-- Sección de Canciones compartidas -->
             <TextView
                 android:id="@+id/tvSongsHeader"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="18dp"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="24dp"
                 android:fontFamily="@font/unageo_bold"
                 android:text="Canciones compartidas"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="18sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
@@ -291,12 +244,12 @@
                 android:layout_marginHorizontal="18dp"
                 android:layout_marginTop="4dp"
                 android:fontFamily="@font/unageo_regular"
-                android:textColor="#8F8F8F"
+                android:textColor="@color/textTheme"
                 android:textSize="12sp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/tvSongsHeader"
-                tools:text="Toca una canción para reproducirla o abre sus opciones." />
+                tools:text="23 canciones encontradas en esta colaboración" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvSharedSongs"
@@ -322,7 +275,7 @@
                 android:fontFamily="@font/unageo_regular"
                 android:gravity="center"
                 android:text="No hay canciones compartidas disponibles."
-                android:textColor="#8F8F8F"
+                android:textColor="@color/textTheme"
                 android:textSize="14sp"
                 android:visibility="gone"
                 app:layout_constraintEnd_toEndOf="parent"

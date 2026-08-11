@@ -94,7 +94,7 @@
                     android:fontFamily="@font/unageo_regular"
                     android:lineSpacingExtra="2dp"
                     android:text="Atajos, artistas, albumes y generos para abrir rapido."
-                    android:textColor="#A7A7A7"
+                    android:textColor="@color/textTheme"
                     android:textSize="14sp" />
 
             </LinearLayout>
@@ -125,7 +125,7 @@
                         android:layout_height="48dp"
                         android:checkable="true"
                         android:text="Artistas"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/chip_text_color_selector"
                         android:textSize="14sp"
                         app:checkedIconVisible="false"
                         app:chipBackgroundColor="@color/chip_background_selector"
@@ -141,7 +141,7 @@
                         android:layout_height="48dp"
                         android:checkable="true"
                         android:text="Albumes"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/chip_text_color_selector"
                         android:textSize="14sp"
                         app:checkedIconVisible="false"
                         app:chipBackgroundColor="@color/chip_background_selector"
@@ -157,7 +157,7 @@
                         android:layout_height="48dp"
                         android:checkable="true"
                         android:text="Top diario"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/chip_text_color_selector"
                         android:textSize="14sp"
                         app:checkedIconVisible="false"
                         app:chipBackgroundColor="@color/chip_background_selector"
@@ -173,7 +173,7 @@
                         android:layout_height="48dp"
                         android:checkable="true"
                         android:text="Tendencias"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/chip_text_color_selector"
                         android:textSize="14sp"
                         app:checkedIconVisible="false"
                         app:chipBackgroundColor="@color/chip_background_selector"
@@ -216,7 +216,7 @@
                         android:letterSpacing="0.06"
                         android:paddingHorizontal="9dp"
                         android:text="COLLAB FINDER"
-                        android:textColor="#D8D8D8"
+                        android:textColor="@color/secondaryColorTheme"
                         android:textSize="9sp"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toTopOf="parent" />
@@ -243,7 +243,7 @@
                                 android:layout_width="70dp"
                                 android:layout_height="70dp"
                                 android:layout_gravity="center"
-                                android:background="#242424"
+                                android:background="@color/discTheme"
                                 android:scaleType="centerCrop"
                                 android:src="@drawable/ic_user"
                                 app:shapeAppearanceOverlay="@style/CircularUserImage"
@@ -267,7 +267,7 @@
                                 android:layout_width="66dp"
                                 android:layout_height="66dp"
                                 android:layout_gravity="center"
-                                android:background="#242424"
+                                android:background="@color/discTheme"
                                 android:scaleType="centerCrop"
                                 android:src="@drawable/ic_user"
                                 app:shapeAppearanceOverlay="@style/CircularUserImage"
@@ -284,7 +284,7 @@
                             android:fontFamily="@font/unageo_bold"
                             android:gravity="center"
                             android:text="+"
-                            android:textColor="@color/white"
+                            android:textColor="@android:color/white"
                             android:textSize="17sp"
                             app:layout_constraintBottom_toBottomOf="@id/collabPrimaryArtistFrame"
                             app:layout_constraintEnd_toEndOf="@id/collabPrimaryArtistFrame"
@@ -317,7 +317,7 @@
                             android:gravity="center"
                             android:maxLines="1"
                             android:text="Segundo artista"
-                            android:textColor="#B8B8B8"
+                            android:textColor="@color/textTheme"
                             android:textSize="11sp"
                             app:layout_constraintEnd_toEndOf="parent"
                             app:layout_constraintStart_toStartOf="parent"
@@ -352,7 +352,7 @@
                         android:lineSpacingExtra="2dp"
                         android:maxLines="2"
                         android:text="Cruza tus artistas top y descubre colaboraciones que ya existen."
-                        android:textColor="#B8B8B8"
+                        android:textColor="@color/textTheme"
                         android:textSize="13sp"
                         app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
                         app:layout_constraintStart_toStartOf="parent"
@@ -371,7 +371,7 @@
                         android:maxLines="1"
                         android:paddingHorizontal="10dp"
                         android:text="Basado en tus escuchas"
-                        android:textColor="#D6D6D6"
+                        android:textColor="@color/textTheme"
                         android:textSize="11sp"
                         app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
                         app:layout_constraintStart_toStartOf="parent"
@@ -390,7 +390,7 @@
                         android:minWidth="164dp"
                         android:paddingHorizontal="16dp"
                         android:text="Abrir buscador"
-                        android:textColor="@color/white"
+                        android:textColor="@android:color/white"
                         android:textSize="13sp"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@id/collabPairMeta" />
@@ -419,14 +419,13 @@
                     android:fontFamily="@font/unageo_regular"
                     android:paddingHorizontal="18dp"
                     android:text="Seleccionadas para descubrir musica nueva sin salir de Explorar."
-                    android:textColor="#8E8E8E"
+                    android:textColor="@color/textTheme"
                     android:textSize="13sp" />
 
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:minHeight="372dp">
+                    android:layout_marginTop="10dp">
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/recyclerViewPlaylists"
@@ -435,7 +434,7 @@
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
                         android:overScrollMode="never"
-                        android:paddingHorizontal="13dp"
+                        android:paddingHorizontal="8dp"
                         android:scrollbars="none"
                         tools:itemCount="7"
                         tools:listitem="@layout/item_explore_playlist" />
@@ -448,7 +447,7 @@
                         android:gravity="center_vertical"
                         android:paddingHorizontal="18dp"
                         android:text="Cargando playlists..."
-                        android:textColor="#707070"
+                        android:textColor="@color/textTheme"
                         android:textSize="14sp" />
 
                 </FrameLayout>
@@ -458,7 +457,7 @@
                 android:id="@+id/artistsSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="16dp"
                 android:orientation="vertical">
 
                 <include
@@ -470,18 +469,17 @@
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:minHeight="194dp">
+                    android:layout_marginTop="6dp">
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/recyclerViewArtists"
                         android:layout_width="match_parent"
-                        android:layout_height="194dp"
+                        android:layout_height="wrap_content"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
                         android:overScrollMode="never"
-                        android:paddingStart="13dp"
-                        android:paddingEnd="18dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="16dp"
                         android:scrollbars="none"
                         tools:itemCount="6"
                         tools:listitem="@layout/item_explore_artist" />
@@ -489,12 +487,12 @@
                     <TextView
                         android:id="@+id/artistsPlaceholder"
                         android:layout_width="match_parent"
-                        android:layout_height="184dp"
+                        android:layout_height="180dp"
                         android:fontFamily="@font/unageo_regular"
                         android:gravity="center_vertical"
                         android:paddingHorizontal="18dp"
                         android:text="Cargando artistas..."
-                        android:textColor="#707070"
+                        android:textColor="@color/textTheme"
                         android:textSize="14sp" />
 
                 </FrameLayout>
@@ -504,7 +502,7 @@
                 android:id="@+id/albumsSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="16dp"
                 android:orientation="vertical">
 
                 <include
@@ -539,7 +537,7 @@
                         android:gravity="center_vertical"
                         android:paddingHorizontal="18dp"
                         android:text="Cargando albumes..."
-                        android:textColor="#707070"
+                        android:textColor="@color/textTheme"
                         android:textSize="14sp" />
 
                 </FrameLayout>
@@ -584,7 +582,7 @@
                         android:gravity="center_vertical"
                         android:paddingHorizontal="18dp"
                         android:text="Cargando generos..."
-                        android:textColor="#707070"
+                        android:textColor="@color/textTheme"
                         android:textSize="14sp" />
 
                 </FrameLayout>

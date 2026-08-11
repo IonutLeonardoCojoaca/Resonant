@@ -2,6 +2,7 @@ package com.example.resonant.ui.fragments
 
 import android.animation.ObjectAnimator
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -209,6 +210,13 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             onSongCardClick = { songId ->
                 val bundle = Bundle().apply { putString("songId", songId) }
                 findNavController().navigate(R.id.action_ariaFragment_to_detailedSongFragment, bundle)
+            },
+            onArtistCardClick = { artistId ->
+                val bundle = Bundle().apply { putString("artistId", artistId) }
+                findNavController().navigate(R.id.artistFragment, bundle)
+            },
+            onSuggestedFollowupClick = { prompt ->
+                submitSuggestedFollowup(prompt)
             }
         )
         val layoutManager = LinearLayoutManager(requireContext())
@@ -219,30 +227,17 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     }
 
     private fun setupOrbitalChips() {
-        val chip1 = view?.findViewById<View>(R.id.chip1)
-        val chip2 = view?.findViewById<View>(R.id.chip2)
-        val chip3 = view?.findViewById<View>(R.id.chip3)
-        val chip4 = view?.findViewById<View>(R.id.chip4)
-        listOf(
-            chip1 to "Recomiéndame música",
-            chip2 to "Enséñame un resumen de mis estadísticas",
-            chip3 to "Créame una playlist",
-            chip4 to "Prepara una sesión DJ para mí"
-        ).forEach { (chip, prompt) ->
-            chip?.setOnClickListener {
-                inputField.setText(prompt)
-                sendMessage()
-            }
-        }
+        // Orbital chips were unified into the centered quick suggestions
     }
 
     private fun setupPromptChips() {
         val v = view ?: return
         listOf(
-            R.id.ariaPromptChip1 to "Ponme algo relajado",
-            R.id.ariaPromptChip2 to "Créame una playlist para correr",
-            R.id.ariaPromptChip3 to "Recomiéndame rock de los 80",
-            R.id.ariaPromptChip4 to "Descúbreme artistas nuevos que me puedan gustar"
+            R.id.ariaPromptChip1 to "Recomiéndame música relajante para desconectar",
+            R.id.ariaPromptChip2 to "Crea una playlist energética para entrenar",
+            R.id.ariaPromptChip3 to "¿Cuáles son mis canciones y artistas más escuchados?",
+            R.id.ariaPromptChip4 to "Descubre artistas emergentes basados en mi gusto",
+            R.id.ariaPromptChip5 to "Prepara una sesión DJ continua con mis favoritos"
         ).forEach { (id, prompt) ->
             v.findViewById<View>(id)?.setOnClickListener {
                 inputField.setText(prompt)
@@ -324,6 +319,13 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
         if (isFirstMessage) transitionToChatState()
 
+        ariaViewModel.addUserMessage(prompt)
+        startAriaStreaming(prompt)
+    }
+
+    private fun submitSuggestedFollowup(prompt: String) {
+        if (prompt.isBlank() || isStreaming) return
+        if (isFirstMessage) transitionToChatState()
         ariaViewModel.addUserMessage(prompt)
         startAriaStreaming(prompt)
     }
@@ -426,7 +428,9 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
-            ariaViewModel.actionStream.collect { _ ->
+            ariaViewModel.actionStream.collect {
+                // Client-side effects are executed once at MainActivity level so
+                // playback and favorites also work from the global Aria surface.
                 scrollToBottom()
             }
         }
@@ -550,7 +554,11 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             val contentId = content?.optString("id")?.takeIf { it.isNotBlank() }
             val entityKind = content?.optString("kind")?.takeIf { it.isNotBlank() }
                 ?: json.optString("kind")?.takeIf { it.isNotBlank() }
-            val playlistId = json.optString("playlist_id").takeIf { it.isNotBlank() }
+            val navigateToPlaylistId = extractPlaylistIdFromNavigateTo(
+                json.optString("navigate_to").takeIf { it.isNotBlank() }
+            )
+            val playlistId = navigateToPlaylistId
+                ?: json.optString("playlist_id").takeIf { it.isNotBlank() }
                 ?: json.optString("id").takeIf { it.isNotBlank() }
                 ?: extractRouteId(route, "/playlist/")
             val artistId = content?.optString("artist_id")?.takeIf { it.isNotBlank() }
@@ -584,6 +592,15 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private fun extractRouteId(route: String?, prefix: String): String? {
         if (route.isNullOrBlank() || !route.startsWith(prefix)) return null
         return route.removePrefix(prefix).substringBefore('/').takeIf { it.isNotBlank() }
+    }
+
+    private fun extractPlaylistIdFromNavigateTo(navigateTo: String?): String? {
+        if (navigateTo.isNullOrBlank()) return null
+        return runCatching {
+            val uri = Uri.parse(navigateTo)
+            if (uri.scheme != "resonant" || uri.host != "playlist") return@runCatching null
+            uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 
     private fun extractIdFromPrefixedValue(value: String?, prefix: String): String? {
@@ -720,6 +737,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(requireContext())
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
 

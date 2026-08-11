@@ -23,6 +23,7 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.AlbumService
@@ -90,6 +91,27 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
         return view
     }
 
+    override fun onResume() {
+        super.onResume()
+        reportVisibleAlbum()
+    }
+
+    override fun onPause() {
+        AriaScreenContextHolder.clearEntity()
+        super.onPause()
+    }
+
+    private fun reportVisibleAlbum() {
+        val id = arguments?.getString("albumId") ?: album?.id
+        val name = album?.title
+        if (!id.isNullOrBlank() || !name.isNullOrBlank()) {
+            AriaScreenContextHolder.update(
+                screen = "album_detail",
+                entity = AriaScreenContextHolder.VisibleEntity("album", id, name)
+            )
+        }
+    }
+
     private fun navigateToArtist(artist: com.example.resonant.data.models.Artist) {
         try {
             val bundle = Bundle().apply {
@@ -113,6 +135,7 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
     }
 
     private fun setupAlbumUI(album: Album) {
+        reportVisibleAlbum()
         albumTitle.text = album.title
         albumTracks.text = "Canciones: ${album.numberOfTracks ?: 0}"
         albumYear.text = "Año: ${album.releaseYear ?: "Desconocido"}"

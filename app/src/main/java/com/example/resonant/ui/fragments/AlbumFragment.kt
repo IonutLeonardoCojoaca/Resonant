@@ -27,6 +27,7 @@ import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -149,6 +150,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
     override fun onResume() {
         super.onResume()
+        reportVisibleAlbum()
         val albumId = arguments?.getString("albumId")
         if (!albumId.isNullOrBlank()) {
              loadAlbumDetails(albumId)
@@ -476,6 +478,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 albumMetadataText.visibility = View.VISIBLE
 
                 loadedAlbum = album
+                reportVisibleAlbum()
 
                 songAdapter.submitList(songs) {
                     songAdapter.notifyDataSetChanged()
@@ -552,6 +555,22 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 albumDownloadBackground.contentDescription =
                     "Continuar descarga del álbum"
             }
+        }
+    }
+
+    override fun onPause() {
+        AriaScreenContextHolder.clearEntity()
+        super.onPause()
+    }
+
+    private fun reportVisibleAlbum() {
+        val id = arguments?.getString("albumId") ?: loadedAlbum?.id
+        val name = loadedAlbum?.title
+        if (!id.isNullOrBlank() || !name.isNullOrBlank()) {
+            AriaScreenContextHolder.update(
+                screen = "album_detail",
+                entity = AriaScreenContextHolder.VisibleEntity("album", id, name)
+            )
         }
     }
 

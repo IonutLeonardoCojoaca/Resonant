@@ -98,7 +98,7 @@
                         app:iconGravity="textStart"
                         app:iconPadding="0dp"
                         app:iconSize="36dp"
-                        app:iconTint="@color/white" />
+                        app:iconTint="@android:color/white" />
 
                 </LinearLayout>
 
@@ -110,7 +110,7 @@
                     android:ellipsize="end"
                     android:fontFamily="@font/unageo_regular"
                     android:maxLines="1"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="@color/textTheme"
                     android:textSize="13sp"
                     android:visibility="gone" />
 
@@ -126,14 +126,14 @@
                         android:layout_height="13dp"
                         android:layout_marginEnd="5dp"
                         android:src="@drawable/ic_sound"
-                        app:tint="#77FFFFFF" />
+                        app:tint="@color/textTheme" />
 
                     <TextView
                         android:id="@+id/playmixNumberOfTracks"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_regular"
-                        android:textColor="#88FFFFFF"
+                        android:textColor="@color/textTheme"
                         android:textSize="12sp" />
 
                     <TextView
@@ -141,7 +141,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginHorizontal="6dp"
                         android:text="·"
-                        android:textColor="#44FFFFFF"
+                        android:textColor="@color/dividerOverlay"
                         android:textSize="14sp" />
 
                     <TextView
@@ -149,7 +149,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_regular"
-                        android:textColor="#88FFFFFF"
+                        android:textColor="@color/textTheme"
                         android:textSize="12sp" />
 
                 </LinearLayout>
@@ -171,6 +171,7 @@
                     android:layout_height="40dp"
                     android:background="@null"
                     android:src="@drawable/ic_arrow_back"
+                    app:tint="@color/white"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
@@ -204,7 +205,8 @@
                         android:layout_width="30dp"
                         android:layout_height="30dp"
                         android:layout_gravity="center"
-                        android:background="@drawable/ic_item_settings_vertical"
+                        android:src="@drawable/ic_item_settings_vertical"
+                        app:tint="@color/white"
                         android:clickable="false"
                         android:focusable="false" />
 
@@ -252,7 +254,7 @@
                 android:fontFamily="@font/unageo_regular"
                 android:gravity="center"
                 android:text="Este PlayMix está vacío.\nAñade canciones para empezar a mezclar."
-                android:textColor="#55FFFFFF"
+                android:textColor="@color/textTheme"
                 android:textSize="14sp"
                 android:visibility="gone" />
 

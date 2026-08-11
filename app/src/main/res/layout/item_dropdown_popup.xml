@@ -14,8 +14,8 @@
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:fontFamily="@font/unageo_medium"
-        android:textColor="#DDFFFFFF"
-        android:textSize="13sp" />
+        android:textColor="@color/white"
+        android:textSize="13.5sp" />
 
     <TextView
         android:id="@+id/popupItemCheck"
@@ -23,8 +23,8 @@
         android:layout_height="wrap_content"
         android:fontFamily="@font/unageo_bold"
         android:text="✓"
-        android:textColor="#BB86FC"
-        android:textSize="13sp"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="14sp"
         android:visibility="gone" />
 
 </LinearLayout>

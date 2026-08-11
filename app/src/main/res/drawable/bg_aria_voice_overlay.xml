@@ -3,10 +3,10 @@
     android:shape="rectangle">
     <gradient
         android:type="radial"
-        android:gradientRadius="700"
+        android:gradientRadius="700dp"
         android:centerX="0.5"
         android:centerY="0.45"
-        android:startColor="#F02A1224"
-        android:centerColor="#F5000000"
-        android:endColor="#FF000000" />
+        android:startColor="@color/aria_voice_overlay_bg_start"
+        android:centerColor="@color/aria_voice_overlay_bg_center"
+        android:endColor="@color/aria_voice_overlay_bg_end" />
 </shape>

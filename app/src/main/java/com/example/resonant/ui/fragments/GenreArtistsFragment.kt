@@ -59,7 +59,7 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
         genreGradientColors = arguments?.getString("genreGradientColors")
 
         initViews(view)
-        applyGradientBackgroundOptimized() // Aplicar gradiente inmediatamente
+        applyGradientBackgroundOptimized(view) // Aplicar gradiente inmediatamente
         setupRecyclerView()
         setupScrollListener()
         setupViewModel()
@@ -92,12 +92,16 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
         artistsCountTextView.text = ""
     }
 
-    private fun applyGradientBackgroundOptimized() {
+    private val isNightMode: Boolean
+        get() = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+    private var genreTopColor: Int = Color.BLACK
+
+    private fun applyGradientBackgroundOptimized(rootView: View) {
         try {
             val colorList = mutableListOf<Int>()
             
             if (!genreGradientColors.isNullOrEmpty()) {
-                // Soportar tanto ; como , como separadores
                 val separator = if (genreGradientColors!!.contains(";")) ";" else ","
                 val parts = genreGradientColors!!.split(separator)
                 
@@ -114,7 +118,6 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
                 }
             }
             
-            // Crear gradiente optimizado
             val finalColors = when {
                 colorList.size >= 2 -> colorList.toIntArray()
                 colorList.size == 1 -> intArrayOf(colorList[0], colorList[0])
@@ -124,16 +127,36 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
                 )
             }
             
+            genreTopColor = finalColors[0]
+            
             val gradient = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 finalColors
             )
             gradient.cornerRadius = 0f
             
-            genreImage.background = gradient
+            if (!isNightMode) {
+                // Modo claro: Todo el fondo es del color del degradado del género
+                rootView.background = gradient
+                genreImage.visibility = View.GONE
+                val gradientOverlay = rootView.findViewById<View>(R.id.gradientOverlay)
+                gradientOverlay?.visibility = View.GONE
+                val artistsDataContainer = rootView.findViewById<View>(R.id.artistsDataContainer)
+                artistsDataContainer?.setBackgroundColor(Color.TRANSPARENT)
+                nestedScroll.setBackgroundColor(Color.TRANSPARENT)
+            } else {
+                // Modo oscuro: Se mantiene exactamente como está
+                genreImage.visibility = View.VISIBLE
+                genreImage.background = gradient
+                val gradientOverlay = rootView.findViewById<View>(R.id.gradientOverlay)
+                gradientOverlay?.visibility = View.VISIBLE
+                val artistsDataContainer = rootView.findViewById<View>(R.id.artistsDataContainer)
+                artistsDataContainer?.setBackgroundColor(
+                    ContextCompat.getColor(requireContext(), R.color.primaryColorTheme)
+                )
+            }
             
         } catch (e: Exception) {
-            // Fallback silencioso
             genreImage.setBackgroundColor(
                 ContextCompat.getColor(requireContext(), R.color.primaryColorTheme)
             )
@@ -141,7 +164,7 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
     }
 
     private fun setupRecyclerView() {
-        artistsAdapter = ArtistAdapter(emptyList(), ArtistAdapter.VIEW_TYPE_GRID)
+        artistsAdapter = ArtistAdapter(emptyList(), ArtistAdapter.VIEW_TYPE_GRID, forceWhiteText = true)
         
         recyclerViewArtists.apply {
             layoutManager = GridLayoutManager(requireContext(), 3)
@@ -177,7 +200,7 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
         val startFade = 200
         val endFade = 500
 
-        val themeColor = ContextCompat.getColor(requireContext(), R.color.primaryColorTheme)
+        val themeColor = if (!isNightMode) genreTopColor else ContextCompat.getColor(requireContext(), R.color.primaryColorTheme)
         val red = Color.red(themeColor)
         val green = Color.green(themeColor)
         val blue = Color.blue(themeColor)
@@ -186,9 +209,11 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
         genreNameTopBar.alpha = 0f
 
         nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-            val parallaxFactor = 0.3f
-            val offset = -scrollY * parallaxFactor
-            genreImage.translationY = offset
+            if (isNightMode) {
+                val parallaxFactor = 0.3f
+                val offset = -scrollY * parallaxFactor
+                genreImage.translationY = offset
+            }
 
             val progress = ((scrollY - startFade).toFloat() / (endFade - startFade).toFloat()).coerceIn(0f, 1f)
             val alpha = (progress * 255).toInt()

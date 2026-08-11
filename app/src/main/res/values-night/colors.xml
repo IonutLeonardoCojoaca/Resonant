@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Paleta OSCURA (comportamiento actual de la app, sin cambios).
+    Se activa cuando ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES.
+    Ver también values/colors.xml para la paleta CLARA equivalente.
+-->
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="switch_thumb_on">#E21616</color>
+    <color name="switch_track_on">#4DE21616</color>
+
+    <color name="switch_thumb_off">#BDBDBD</color>
+    <color name="switch_track_off">#424242</color>
+
+    <color name="transparent">#00000000</color>
+
+    <!-- SNACKBAR COLORS -->
+    <color name="successColor">#1CC145</color>
+    <color name="errorColor">#E21616</color>
+    <color name="adviseColor">#D5A91B</color>
+
+    <color name="primaryColorButton">#D1D1D1</color>
+    <color name="selectedSongColorWhilePlaying">#2C2C2C</color>
+    <color name="titleSongColorWhilePlaying">#E21616</color>
+
+    <color name="sideBar">#0D0D0D</color>
+
+    <color name="primaryColorTheme">#000000</color>
+    <color name="cardsTheme">#171717</color>
+    <color name="secondaryColorTheme">#E21616</color>
+    <color name="textTheme">#A8A8A8</color>
+    <color name="pointersTheme">#0D0D0D</color>
+    <color name="discTheme">#2B2B2B</color>
+
+    <color name="subtitleBottomSheet">#AAFFFFFF</color>
+    <color name="textBottomSheet">#66FFFFFF</color>
+    <color name="textEmphasisHigh">#D9FFFFFF</color>
+    <color name="dividerOnSurface">#1AFFFFFF</color>
+
+    <color name="numberTime">#9E9E9E</color>
+
+    <!-- Overlay text colors (dark mode: white with alpha) -->
+    <color name="textSecondaryAlpha">#99FFFFFF</color>
+    <color name="textTertiaryAlpha">#66FFFFFF</color>
+    <color name="surfaceCardOverlay">#26FFFFFF</color>
+    <color name="dividerOverlay">#18FFFFFF</color>
+
+    <!-- Player / lyrics card colors -->
+    <color name="playerCardBackground">#1A1A1A</color>
+    <color name="playerCardHeader">#FF1A1A1A</color>
+
+    <!-- Aria voice overlay colors (Dark mode) -->
+    <color name="aria_voice_overlay_bg_start">#2E1224</color>
+    <color name="aria_voice_overlay_bg_center">#140A1A</color>
+    <color name="aria_voice_overlay_bg_end">#050508</color>
+
+    <color name="nav_text_icon_color">#7A7A7E</color>
+    <color name="nav_text_icon_color_selected">#E9E9E9</color>
+
+    <color name="no_selected_color_icon">#7A7A7E</color>
+    <color name="nav_aria_star_unselected">#505050</color>
+
+    <color name="chip_selected_background">#E21616</color>
+    <color name="chip_unselected_background">#1F1F1F</color>
+
+    <!-- Login experience: pantalla de marca fija, no cambia con el tema. -->
+    <color name="login_background">#050506</color>
+    <color name="login_accent">#E21616</color>
+    <color name="login_text_primary">#FFF8F8</color>
+    <color name="login_text_secondary">#B8FFFFFF</color>
+    <color name="login_text_tertiary">#7AFFFFFF</color>
+    <color name="login_google_surface">#FFF8F8</color>
+    <color name="login_google_text">#161416</color>
+
+    <!-- Artist banner gradient overlay -->
+    <color name="artist_gradient_start">#FF000000</color>
+    <color name="artist_gradient_center">#80000000</color>
+    <color name="artist_gradient_end">#00000000</color>
+
+    <!-- Playmix header scrim colors (Dark mode) -->
+    <color name="playmix_scrim_start">#00000000</color>
+    <color name="playmix_scrim_center">#99000000</color>
+    <color name="playmix_scrim_end">#FF000000</color>
+
+    <!-- Search floating header background -->
+    <color name="search_header_background">#F0000000</color>
+
+    <!-- Explore playlist tile scrim (dark fade in dark mode) -->
+    <color name="explore_playlist_scrim_start">#33000000</color>
+    <color name="explore_playlist_scrim_center">#88000000</color>
+    <color name="explore_playlist_scrim_end">#DD000000</color>
+
+</resources>

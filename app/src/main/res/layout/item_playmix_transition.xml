@@ -11,7 +11,7 @@
         android:layout_width="2dp"
         android:layout_height="10dp"
         android:layout_gravity="center_horizontal"
-        android:background="#22FFFFFF" />
+        android:background="@color/dividerOverlay" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -58,7 +58,7 @@
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
             android:text="Crossfade"
-            android:textColor="#D9FFFFFF"
+            android:textColor="@color/white"
             android:textSize="10sp"
             app:layout_constraintBaseline_toBaselineOf="@id/transitionVerdict"
             app:layout_constraintStart_toEndOf="@id/transitionVerdict" />
@@ -98,7 +98,7 @@
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="4dp"
                 android:text="Relative minor"
-                android:textColor="#D9FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -112,7 +112,7 @@
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="4dp"
                 android:text="Preset"
-                android:textColor="#D9FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="10sp"
                 android:visibility="gone" />
 
@@ -145,7 +145,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="8dp"
                 android:src="@drawable/ic_playmix"
-                app:tint="#CCFFFFFF" />
+                app:tint="@color/white" />
 
             <ImageView
                 android:id="@+id/editTransitionButton"
@@ -155,7 +155,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="8dp"
                 android:src="@drawable/ic_edit"
-                app:tint="#CCFFFFFF" />
+                app:tint="@color/white" />
 
         </LinearLayout>
 
@@ -165,6 +165,6 @@
         android:layout_width="2dp"
         android:layout_height="10dp"
         android:layout_gravity="center_horizontal"
-        android:background="#22FFFFFF" />
+        android:background="@color/dividerOverlay" />
 
 </LinearLayout>

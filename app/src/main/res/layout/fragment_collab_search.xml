@@ -4,53 +4,50 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@color/primaryColorTheme">
 
-    <ImageView
-        android:id="@+id/btnBack"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true"
-        android:padding="8dp"
-        android:src="@drawable/ic_arrow_back"
+    <!-- ═══════════════════════════════════════════════════════
+         TOOLBAR  (same structural pattern as Explore / Home)
+    ══════════════════════════════════════════════════════════ -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/superiorToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:paddingHorizontal="14dp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="#FFFFFF" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <TextView
-        android:id="@+id/tvLogo"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
-        android:fontFamily="@font/unageo_extra_bold"
-        android:letterSpacing="0.14"
-        android:text="COLLAB FINDER"
-        android:textColor="#F51B1F"
-        android:textSize="22sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="8dp"
+            android:src="@drawable/ic_arrow_back"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@color/white" />
 
-    <TextView
-        android:id="@+id/tvSubtitle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="54dp"
-        android:layout_marginTop="12dp"
-        android:fontFamily="@font/unageo_regular"
-        android:gravity="center"
-        android:lineSpacingExtra="1dp"
-        android:text="Con esta funci&#243;n podr&#225;s buscar las colaboraciones de tus artistas favoritos con otros artistas y descubrir nuevas canciones"
-        android:textColor="#D8D8D8"
-        android:textSize="12sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvLogo" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:fontFamily="@font/unageo_bold"
+            android:text="Collab Finder"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@id/btnBack"
+            app:layout_constraintTop_toTopOf="parent" />
 
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- ═══════════════════════════════════════════════════════
+         MAIN SCROLLABLE CONTENT
+    ══════════════════════════════════════════════════════════ -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/contentScroll"
         android:layout_width="0dp"
@@ -59,23 +56,293 @@
         android:fillViewport="true"
         android:overScrollMode="never"
         android:scrollbars="none"
-        app:layout_constraintBottom_toTopOf="@id/bottomActionsTopBarrier"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvSubtitle">
+        app:layout_constraintTop_toBottomOf="@id/superiorToolbar">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:paddingBottom="18dp">
+            android:paddingBottom="100dp">
 
+            <!-- ─────────────────────────────────────────────────────
+                 INTRO STATE: visible on entry, hidden after search
+            ──────────────────────────────────────────────────────── -->
+            <LinearLayout
+                android:id="@+id/introContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingHorizontal="24dp"
+                android:paddingTop="32dp"
+                android:paddingBottom="8dp">
+
+                <!-- Status title (also reused for error messages) -->
+                <TextView
+                    android:id="@+id/tvIntroTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:gravity="center"
+                    android:text="Busca un artista"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
+
+                <!-- Status subtitle -->
+                <TextView
+                    android:id="@+id/tvIntroSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:fontFamily="@font/unageo_regular"
+                    android:gravity="center"
+                    android:lineSpacingExtra="2dp"
+                    android:text="Las colaboraciones aparecerán cuando encontremos conexiones."
+                    android:textColor="@color/textTheme"
+                    android:textSize="13sp" />
+
+                <!-- "ARTISTAS POPULARES" section label -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:letterSpacing="0.12"
+                    android:text="ARTISTAS POPULARES"
+                    android:textAllCaps="true"
+                    android:textColor="@color/textTheme"
+                    android:textSize="11sp" />
+
+                <!-- Artist suggestion chips in horizontal brick wrap flow -->
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipGroupArtists"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:chipSpacingHorizontal="7dp"
+                    app:chipSpacingVertical="8dp"
+                    app:singleLine="false">
+
+                    <TextView
+                        android:id="@+id/chipArtist1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="The Weeknd"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Bad Bunny"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Drake"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist4"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Taylor Swift"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist5"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="J Balvin"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist6"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Rosalía"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist7"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Travis Scott"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist8"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Dua Lipa"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist9"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Billie Eilish"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/chipArtist10"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_artist_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_medium"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:paddingHorizontal="13dp"
+                        android:paddingVertical="7dp"
+                        android:text="Quevedo"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+
+                </com.google.android.material.chip.ChipGroup>
+
+                <!-- Search field (centered inside the intro content area) -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/searchFieldCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    app:cardBackgroundColor="@color/cardsTheme"
+                    app:cardCornerRadius="26dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="16dp">
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@android:drawable/ic_menu_search"
+                            app:tint="@color/textTheme" />
+
+                        <EditText
+                            android:id="@+id/etSearch"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:background="@null"
+                            android:fontFamily="@font/unageo_regular"
+                            android:hint="Ej: Shakira, Eminem..."
+                            android:imeOptions="actionSearch"
+                            android:inputType="text"
+                            android:maxLines="1"
+                            android:singleLine="true"
+                            android:textColor="@color/white"
+                            android:textColorHint="@color/textTheme"
+                            android:textSize="16sp" />
+
+                        <ImageView
+                            android:id="@+id/btnClearSearch"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:src="@android:drawable/ic_menu_close_clear_cancel"
+                            android:visibility="gone"
+                            app:tint="@color/textTheme" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+            </LinearLayout>
+
+            <!-- ─────────────────────────────────────────────────────
+                 ORBIT FRAME: hidden on entry, shown after search
+            ──────────────────────────────────────────────────────── -->
             <FrameLayout
                 android:id="@+id/orbitFrame"
                 android:layout_width="match_parent"
                 android:layout_height="360dp"
-                android:layout_marginTop="22dp">
+                android:layout_marginTop="22dp"
+                android:visibility="gone">
 
                 <com.example.resonant.feature.collabfinder.ui.views.BubbleOrbitView
                     android:id="@+id/bubbleOrbitView"
@@ -83,6 +350,7 @@
                     android:layout_height="match_parent"
                     android:visibility="gone" />
 
+                <!-- Loading / error state inside orbit frame -->
                 <LinearLayout
                     android:id="@+id/collabEmptyState"
                     android:layout_width="match_parent"
@@ -108,8 +376,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_bold"
                         android:gravity="center"
-                        android:text="Busca un artista"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/white"
                         android:textSize="17sp" />
 
                     <TextView
@@ -120,12 +387,13 @@
                         android:fontFamily="@font/unageo_regular"
                         android:gravity="center"
                         android:lineSpacingExtra="2dp"
-                        android:text="Las colaboraciones aparecer&#225;n cuando encontremos conexiones."
-                        android:textColor="#8F8F8F"
+                        android:textColor="@color/textTheme"
                         android:textSize="12sp" />
+
                 </LinearLayout>
             </FrameLayout>
 
+            <!-- Result state: artist name -->
             <TextView
                 android:id="@+id/tvArtistName"
                 android:layout_width="match_parent"
@@ -136,12 +404,13 @@
                 android:fontFamily="@font/unageo_bold"
                 android:gravity="center"
                 android:maxLines="1"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="21sp"
                 android:visibility="gone"
                 tools:text="The Weeknd"
                 tools:visibility="visible" />
 
+            <!-- Result state: collaborations count -->
             <TextView
                 android:id="@+id/tvCollabSubtext"
                 android:layout_width="match_parent"
@@ -152,137 +421,58 @@
                 android:gravity="center"
                 android:lineSpacingExtra="2dp"
                 android:maxLines="2"
-                android:textColor="#BCBCBC"
+                android:textColor="@color/textTheme"
                 android:textSize="12sp"
                 android:visibility="gone"
                 tools:text="Se han encontrado 24 colaboraciones con artistas"
                 tools:visibility="visible" />
 
+            <!-- Result state: search another button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSearchAnother"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginTop="14dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Buscar otro"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:visibility="gone"
+                app:backgroundTint="@color/cardsTheme"
+                app:cornerRadius="22dp" />
+
+            <!-- Primary action button (always visible — text/action changes per state) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnBuscar"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginHorizontal="88dp"
+                android:layout_marginTop="14dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Buscar"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                app:backgroundTint="@color/secondaryColorTheme"
+                app:cornerRadius="22dp" />
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/bottomActionsTopBarrier"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:barrierAllowsGoneWidgets="false"
-        app:barrierDirection="top"
-        app:constraint_referenced_ids="searchFieldCard,btnSearchAnother" />
-
-    <androidx.cardview.widget.CardView
-        android:id="@+id/searchFieldCard"
-        android:layout_width="0dp"
-        android:layout_height="52dp"
-        android:layout_marginHorizontal="24dp"
-        android:layout_marginBottom="18dp"
-        app:cardBackgroundColor="#1E1E1E"
-        app:cardCornerRadius="26dp"
-        app:cardElevation="0dp"
-        app:layout_constraintBottom_toTopOf="@id/btnBuscar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@android:drawable/ic_menu_search"
-                app:tint="#808080" />
-
-            <EditText
-                android:id="@+id/etSearch"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:background="@null"
-                android:fontFamily="@font/unageo_regular"
-                android:hint="The Weeknd"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:maxLines="1"
-                android:singleLine="true"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#555555"
-                android:textSize="16sp" />
-
-            <ImageView
-                android:id="@+id/btnClearSearch"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:src="@android:drawable/ic_menu_close_clear_cancel"
-                android:visibility="gone"
-                app:tint="#808080" />
-        </LinearLayout>
-    </androidx.cardview.widget.CardView>
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSearchAnother"
-        android:layout_width="0dp"
-        android:layout_height="52dp"
-        android:layout_marginHorizontal="88dp"
-        android:layout_marginBottom="12dp"
-        android:fontFamily="@font/unageo_bold"
-        android:text="Buscar otro"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
-        android:visibility="gone"
-        app:backgroundTint="#2A2A2A"
-        app:cornerRadius="22dp"
-        app:layout_constraintBottom_toTopOf="@id/btnBuscar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnBuscar"
-        android:layout_width="0dp"
-        android:layout_height="52dp"
-        android:layout_marginHorizontal="88dp"
-        android:layout_marginBottom="82dp"
-        android:fontFamily="@font/unageo_bold"
-        android:text="Buscar"
-        android:textColor="#FFFFFF"
-        android:textSize="12sp"
-        app:backgroundTint="#F01A1D"
-        app:cornerRadius="22dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:indeterminateTint="#FF0000"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@id/contentScroll"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/contentScroll" />
-
+    <!-- Autocomplete dropdown (positioned over the scroll area) -->
     <androidx.cardview.widget.CardView
         android:id="@+id/cardSuggestions"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="24dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp"
         android:elevation="16dp"
         android:visibility="gone"
-        app:cardBackgroundColor="#1E1E1E"
+        app:cardBackgroundColor="@color/cardsTheme"
         app:cardCornerRadius="16dp"
         app:cardElevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/searchFieldCard">
+        app:layout_constraintStart_toStartOf="parent">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvSuggestions"
@@ -290,5 +480,16 @@
             android:layout_height="wrap_content"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
     </androidx.cardview.widget.CardView>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:indeterminateTint="@color/secondaryColorTheme"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/superiorToolbar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

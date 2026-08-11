@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.ApiClient
@@ -143,11 +144,28 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
     override fun onResume() {
         super.onResume()
+        reportVisibleArtist()
         arguments?.getString("artistId")?.let { artistId ->
             // [CAMBIO] Cargar datos en onResume asegura que si vuelves a la app tras horas, se verifique la caducidad
             if (::artistViewModel.isInitialized) {
                 artistViewModel.loadData(artistId)
             }
+        }
+    }
+
+    override fun onPause() {
+        AriaScreenContextHolder.clearEntity()
+        super.onPause()
+    }
+
+    private fun reportVisibleArtist() {
+        val id = arguments?.getString("artistId") ?: currentArtist?.id
+        val name = currentArtist?.name ?: arguments?.getString("artistName")
+        if (!id.isNullOrBlank() || !name.isNullOrBlank()) {
+            AriaScreenContextHolder.update(
+                screen = "artist_detail",
+                entity = AriaScreenContextHolder.VisibleEntity("artist", id, name)
+            )
         }
     }
 
@@ -418,6 +436,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         artistViewModel.artist.observe(viewLifecycleOwner) { artist ->
             if (artist != null) {
                 currentArtist = artist
+                reportVisibleArtist()
                 artistNameTextView.text = artist.name
                 artistNameTopBar.text = artist.name
                 if (!artist.url.isNullOrEmpty()) {

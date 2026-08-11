@@ -64,7 +64,7 @@
             android:ellipsize="end"
             android:fontFamily="@font/unageo_regular"
             android:maxLines="1"
-            android:textColor="#A6FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="12sp" />
 
         <LinearLayout
@@ -82,7 +82,7 @@
                 android:fontFamily="@font/unageo_medium"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:textColor="#D9FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="10sp" />
 
             <TextView
@@ -111,6 +111,6 @@
         app:layout_constraintBottom_toBottomOf="@id/songCover"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="@id/songCover"
-        app:tint="#CCFFFFFF" />
+        app:tint="@color/textTheme" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

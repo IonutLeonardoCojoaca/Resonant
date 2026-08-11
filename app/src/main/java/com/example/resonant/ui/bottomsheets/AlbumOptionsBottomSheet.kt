@@ -17,7 +17,6 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Album
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
 
 class AlbumOptionsBottomSheet(
@@ -116,7 +115,7 @@ class AlbumOptionsBottomSheet(
             favoritesViewModel.addFavoriteAlbum(album)
         } else {
             showResonantSnackbar(text = "Álbum eliminado de favoritos", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-             favoritesViewModel.deleteFavoriteAlbum(album.id)
+            favoritesViewModel.deleteFavoriteAlbum(album.id)
         }
     }
 
@@ -128,7 +127,7 @@ class AlbumOptionsBottomSheet(
         } else {
             button.text = "Añadir a favoritos"
             button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
-            button.setTextColor(Color.parseColor("#FFFFFF"))
+            button.setTextColor(requireContext().getColor(R.color.white))
         }
     }
 

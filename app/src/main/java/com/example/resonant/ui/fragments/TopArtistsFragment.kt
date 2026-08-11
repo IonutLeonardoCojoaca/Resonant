@@ -125,9 +125,9 @@ class TopArtistsFragment : Fragment() {
                 button.setTextColor(Color.WHITE)
             } else {
                 button.backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
-                button.strokeColor = ColorStateList.valueOf(Color.parseColor("#80FFFFFF"))
+                button.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.discTheme))
                 button.strokeWidth = dpToPx(1)
-                button.setTextColor(Color.parseColor("#CCFFFFFF"))
+                button.setTextColor(ContextCompat.getColor(requireContext(), R.color.textTheme))
             }
         }
     }

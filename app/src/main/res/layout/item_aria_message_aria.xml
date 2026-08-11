@@ -38,7 +38,7 @@
                 android:id="@+id/ariaIntentText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#60FFFFFF"
+                android:textColor="@color/textTheme"
                 android:textSize="10sp"
                 android:textStyle="bold"
                 android:fontFamily="@font/unageo_regular_italic"
@@ -52,7 +52,7 @@
                 android:id="@+id/ariaMessage"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#E8E8E8"
+                android:textColor="@color/white"
                 android:textSize="14sp"
                 android:fontFamily="@font/unageo_regular"
                 android:lineSpacingMultiplier="1.5"/>
@@ -245,6 +245,25 @@
 
             <!-- ── Song recommendation cards (recomendar_cancion) ── -->
             <include layout="@layout/include_aria_song_cards"/>
+
+            <include layout="@layout/include_aria_related_artists"/>
+
+            <HorizontalScrollView
+                android:id="@+id/ariaFollowupsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/ariaFollowupsRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+
+            </HorizontalScrollView>
 
         </LinearLayout>
     </LinearLayout>

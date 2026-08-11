@@ -68,8 +68,8 @@ class SongOptionsBottomSheet(
         val seeSongButton: TextView = view.findViewById(R.id.seeSongButton)
         val playNextButton: TextView = view.findViewById(R.id.playNextButton)
         val addToQueueButton: TextView = view.findViewById(R.id.addToQueueButton)
-        val goToAlbumButton: TextView = view.findViewById(R.id.goToAlbumButton) // NEW
-        val goToArtistButton: TextView = view.findViewById(R.id.goToArtistButton) // NEW
+        val goToAlbumButton: TextView = view.findViewById(R.id.goToAlbumButton)
+        val goToArtistButton: TextView = view.findViewById(R.id.goToArtistButton)
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
         val addToPlaylistButton: TextView = view.findViewById(R.id.addToPlaylistButton)
         val addToPlaymixButton: TextView = view.findViewById(R.id.addToPlaymixButton)
@@ -115,7 +115,6 @@ class SongOptionsBottomSheet(
         // ============================
 
         // Ir al Álbum
-        // Ir al Álbum
         val albumId = song.album?.id
         if (!albumId.isNullOrBlank()) {
             goToAlbumButton.visibility = View.VISIBLE
@@ -142,16 +141,9 @@ class SongOptionsBottomSheet(
                    onGoToArtistClick?.invoke(artists[0])
                }
            } else {
-               // Fallback if no artist objects but we have specific instructions to treat single artist scenario
-               // For now, simple dismiss if no data
                dismiss()
            }
         }
-        
-        if (song.artists.isEmpty()) {
-             // Optional: hide logic 
-        }
-
 
         // -----------------------------------------------------------------------
         // 1. LÓGICA DE DESCARGA / ELIMINAR (Híbrida)
@@ -164,7 +156,6 @@ class SongOptionsBottomSheet(
         if (localFile.exists()) {
             // --- MODO ELIMINAR ---
             downloadSongButton.text = "Eliminar descarga"
-            // Icono de papelera (asegúrate de tener ic_delete o ic_cancel)
             downloadSongButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_download_delete, 0, 0, 0)
 
             // Color ROJO para indicar acción destructiva
@@ -179,12 +170,12 @@ class SongOptionsBottomSheet(
         } else {
             // --- MODO DESCARGAR ---
             downloadSongButton.text = "Descargar"
-            // Icono de descarga
             downloadSongButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_download_done, 0, 0, 0)
 
-            // Color BLANCO estándar
-            downloadSongButton.setTextColor(Color.WHITE)
-            downloadSongButton.compoundDrawableTintList = ColorStateList.valueOf(Color.WHITE)
+            // Color adaptable al tema
+            val themeWhite = requireContext().getColor(R.color.white)
+            downloadSongButton.setTextColor(themeWhite)
+            downloadSongButton.compoundDrawableTintList = ColorStateList.valueOf(themeWhite)
 
             if (isNetworkAvailable) {
                 downloadSongButton.setOnClickListener {
@@ -210,10 +201,11 @@ class SongOptionsBottomSheet(
                     dismiss()
                 }
             } else {
+                val themeWhite = requireContext().getColor(R.color.white)
                 addToPlaylistButton.text = "Añadir a lista"
                 addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_menu_add_selected, 0, 0, 0)
-                addToPlaylistButton.setTextColor(Color.WHITE)
-                addToPlaylistButton.compoundDrawableTintList = ColorStateList.valueOf(Color.WHITE)
+                addToPlaylistButton.setTextColor(themeWhite)
+                addToPlaylistButton.compoundDrawableTintList = ColorStateList.valueOf(themeWhite)
                 addToPlaylistButton.setOnClickListener {
                     onAddToPlaylistClick?.invoke(song)
                     dismiss()
@@ -280,7 +272,6 @@ class SongOptionsBottomSheet(
         return view
     }
 
-    // ... (El resto de métodos disableButton, updateFavoriteButtonUI, etc., siguen igual)
     private fun disableButton(button: TextView, alpha: Float, color: Int) {
         button.isEnabled = false
         button.alpha = alpha
@@ -300,7 +291,7 @@ class SongOptionsBottomSheet(
         } else {
             button.text = "Añadir a favoritos"
             button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
-            button.setTextColor(Color.parseColor("#FFFFFF"))
+            button.setTextColor(requireContext().getColor(R.color.white))
         }
     }
 

@@ -60,7 +60,7 @@
             android:layout_height="18dp"
             android:text="Álbum"
             android:textSize="12sp"
-            android:textColor="#BDBDBD"
+            android:textColor="@color/textTheme"
             android:fontFamily="@font/unageo_medium"
             android:layout_alignParentBottom="true"/>
 
@@ -71,7 +71,7 @@
             android:layout_marginHorizontal="3dp"
             android:text="●"
             android:layout_alignParentBottom="true"
-            android:textColor="#BDBDBD"
+            android:textColor="@color/textTertiaryAlpha"
             android:layout_toRightOf="@id/dataType"/>
 
         <TextView
@@ -80,7 +80,7 @@
             android:layout_height="18dp"
             android:text=""
             android:fontFamily="@font/unageo_medium"
-            android:textColor="#BDBDBD"
+            android:textColor="@color/textTheme"
             android:textSize="12sp"
             android:layout_alignParentBottom="true"
             android:layout_toRightOf="@id/separator"
@@ -98,7 +98,7 @@
         android:layout_marginEnd="4dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@drawable/ic_item_settings"
-        app:tint="#BDBDBD"
+        app:tint="@color/textTheme"
         android:contentDescription="Opciones" />
 
 </RelativeLayout>

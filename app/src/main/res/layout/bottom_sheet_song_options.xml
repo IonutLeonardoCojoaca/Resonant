@@ -22,9 +22,7 @@
             android:layout_centerVertical="true"
             android:layout_alignParentStart="true"
             app:shapeAppearanceOverlay="@style/RoundedCornersImage"
-            android:scaleType="fitCenter">
-
-        </com.google.android.material.imageview.ShapeableImageView>
+            android:scaleType="fitCenter" />
 
         <LinearLayout
             android:id="@+id/songData"
@@ -75,7 +73,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="@color/no_selected_color_icon"
+        android:background="@color/dividerOverlay"
         app:layout_constraintBottom_toBottomOf="@+id/relativeLayout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -96,6 +94,7 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_song"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
             android:gravity="start|center_vertical"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
@@ -137,6 +136,7 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_album"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
             android:gravity="start|center_vertical"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
@@ -151,6 +151,7 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_artist_person"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
             android:gravity="start|center_vertical"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
@@ -164,6 +165,7 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_share"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
             android:gravity="start|center_vertical"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
@@ -191,6 +193,7 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_favorite"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/secondaryColorTheme"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
             android:gravity="start|center_vertical"
@@ -204,6 +207,7 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_menu_add_selected"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/white"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
             android:gravity="start|center_vertical"
@@ -231,15 +235,14 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_cancel"
             android:drawablePadding="10dp"
+            android:drawableTint="@color/errorColor"
             android:fontFamily="@font/unageo_regular"
             android:padding="16dp"
             android:gravity="start|center_vertical"
             android:text="Cancelar"
-            android:textColor="@android:color/holo_red_light"
+            android:textColor="@color/errorColor"
             android:textSize="15sp" />
 
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-
-

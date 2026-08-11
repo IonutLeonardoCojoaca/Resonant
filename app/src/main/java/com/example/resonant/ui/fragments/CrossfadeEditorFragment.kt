@@ -847,7 +847,24 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
 
             val body = response.body?.string() ?: return emptyList()
             val jsonArray = JSONArray(body)
-            (0 until jsonArray.length()).map { jsonArray.getDouble(it).toFloat() }
+            val raw = (0 until jsonArray.length()).map { i ->
+                val elem = jsonArray.get(i)
+                if (elem is org.json.JSONObject) {
+                    // Segments format: extract loudness field and convert to positive amplitude
+                    elem.optDouble("loudness", -60.0).toFloat()
+                } else {
+                    jsonArray.getDouble(i).toFloat()
+                }
+            }
+            // If values look like dB loudness (negative, < 0), normalize to [0..1]
+            if (raw.isNotEmpty() && raw.all { it <= 0f }) {
+                val minDb = raw.min()
+                val maxDb = raw.max()
+                val range = (maxDb - minDb).coerceAtLeast(0.001f)
+                raw.map { ((it - minDb) / range).coerceIn(0f, 1f) }
+            } else {
+                raw
+            }
         } catch (e: Exception) {
             Log.e("CrossfadeEditor", "downloadAmplitudes error: ${e.message}", e)
             emptyList()
@@ -976,6 +993,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         val popup = android.widget.ListPopupWindow(ctx)
         popup.anchorView = anchor
         popup.width = anchor.width.coerceAtLeast(400)
+        popup.verticalOffset = (6 * ctx.resources.displayMetrics.density).toInt()
         popup.isModal = true
         popup.setBackgroundDrawable(
             androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_dropdown_popup)

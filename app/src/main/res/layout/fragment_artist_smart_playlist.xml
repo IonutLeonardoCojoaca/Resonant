@@ -79,7 +79,7 @@
                     android:text="RESONANT"
                     android:textSize="11sp"
                     android:fontFamily="@font/unageo_bold"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="#CCFFFFFF"
                     android:letterSpacing="0.2"
                     android:layout_marginBottom="6dp" />
 
@@ -91,7 +91,7 @@
                     android:text="Imprescindibles"
                     android:textSize="34sp"
                     android:fontFamily="@font/unageo_extra_bold"
-                    android:textColor="@color/white"
+                    android:textColor="@android:color/white"
                     android:lineSpacingMultiplier="0.9"
                     android:layout_marginBottom="4dp" />
 
@@ -103,7 +103,7 @@
                     android:text="Artist Name"
                     android:textSize="17sp"
                     android:fontFamily="@font/unageo_light"
-                    android:textColor="#B3FFFFFF"
+                    android:textColor="#DDFFFFFF"
                     android:layout_marginBottom="10dp" />
 
                 <!-- Song count pill badge -->
@@ -114,7 +114,7 @@
                     android:text="25 canciones"
                     android:textSize="12sp"
                     android:fontFamily="@font/unageo_medium"
-                    android:textColor="#CCFFFFFF"
+                    android:textColor="@android:color/white"
                     android:background="@drawable/bg_accent_pill"
                     android:paddingHorizontal="14dp"
                     android:paddingVertical="8dp" />
@@ -157,7 +157,7 @@
                             android:layout_height="22dp"
                             android:layout_gravity="center"
                             android:src="@drawable/ic_arrow_back"
-                            app:tint="@color/white" />
+                            app:tint="@android:color/white" />
 
                     </FrameLayout>
 
@@ -216,9 +216,9 @@
                     android:textAllCaps="false"
                     android:textSize="15sp"
                     android:fontFamily="@font/unageo_bold"
-                    android:textColor="@color/white"
+                    android:textColor="@android:color/white"
                     app:icon="@drawable/ic_play"
-                    app:iconTint="@color/white"
+                    app:iconTint="@android:color/white"
                     app:iconGravity="textStart"
                     app:iconSize="20dp"
                     app:backgroundTint="@color/secondaryColorTheme"

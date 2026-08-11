@@ -23,7 +23,7 @@ class CollabScoreGaugeView @JvmOverloads constructor(
     }
     
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+        color = androidx.core.content.ContextCompat.getColor(context, com.example.resonant.R.color.white)
         textAlign = Paint.Align.CENTER
         textSize = 64f
     }
@@ -60,7 +60,7 @@ class CollabScoreGaugeView @JvmOverloads constructor(
         val cy = height / 2f
 
         // Background arc
-        paint.color = Color.parseColor("#333333")
+        paint.color = androidx.core.content.ContextCompat.getColor(context, com.example.resonant.R.color.discTheme)
         canvas.drawArc(rectF, 135f, 270f, false, paint)
 
         // Score arc

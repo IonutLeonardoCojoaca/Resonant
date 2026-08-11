@@ -108,17 +108,7 @@ class CollabDetailFragment : Fragment() {
         binding.tvArtistBName.text = args.collaboratorName
         binding.tvSongsSubtitle.text = "Toca una canción para reproducirla o abre sus opciones."
 
-        if (!centralArtist?.imageUrl.isNullOrEmpty()) {
-            Glide.with(this).load(centralArtist?.imageUrl).circleCrop().into(binding.ivArtistA)
-        } else {
-            binding.ivArtistA.setImageResource(R.drawable.ic_user)
-        }
-
-        if (!args.collaboratorImageUrl.isNullOrEmpty()) {
-            Glide.with(this).load(args.collaboratorImageUrl).circleCrop().into(binding.ivArtistB)
-        } else {
-            binding.ivArtistB.setImageResource(R.drawable.ic_user)
-        }
+        binding.duoBanner.loadArtists(centralArtist?.imageUrl, args.collaboratorImageUrl)
     }
 
     private fun setupListeners() {
@@ -200,8 +190,7 @@ class CollabDetailFragment : Fragment() {
         binding.tvArtistAName.text = detail.artistA.name
         binding.tvArtistBName.text = detail.artistB.name
 
-        Glide.with(this).load(detail.artistA.imageUrl).placeholder(R.drawable.ic_user).circleCrop().into(binding.ivArtistA)
-        Glide.with(this).load(detail.artistB.imageUrl).placeholder(R.drawable.ic_user).circleCrop().into(binding.ivArtistB)
+        binding.duoBanner.loadArtists(detail.artistA.imageUrl, detail.artistB.imageUrl)
 
         binding.tvCollabCountDetail.text = "${detail.collaborationCount}\ncanciones"
         binding.tvYearsDetail.text = "${detail.yearsSpan}\nperiodo"

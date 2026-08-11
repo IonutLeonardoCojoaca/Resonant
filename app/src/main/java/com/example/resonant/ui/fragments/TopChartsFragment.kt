@@ -179,15 +179,15 @@ class TopChartsFragment : Fragment() {
                     button.strokeWidth = 0
                     button.setTextColor(Color.WHITE)
                 } else {
-                    // Botón no seleccionado
+                    // Botón no seleccionado: fondo translúcido y texto blanco nítido sobre el degradado
                     button.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                        Color.TRANSPARENT
+                        Color.parseColor("#33FFFFFF")
                     )
                     button.strokeColor = android.content.res.ColorStateList.valueOf(
-                        Color.parseColor("#80FFFFFF") // Más visible
+                        Color.parseColor("#66FFFFFF")
                     )
-                    button.strokeWidth = dpToPx(1) // Usamos DP para consistencia
-                    button.setTextColor(Color.parseColor("#CCFFFFFF"))
+                    button.strokeWidth = dpToPx(1)
+                    button.setTextColor(Color.parseColor("#F0FFFFFF"))
                 }
             }
         }

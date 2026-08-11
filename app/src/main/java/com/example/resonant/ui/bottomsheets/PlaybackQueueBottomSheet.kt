@@ -41,7 +41,7 @@ class PlaybackQueueBottomSheet : ResonantBottomSheetDialogFragment() {
     private var dragToQueueIndex: Int? = null
     private val swipeBackground = ColorDrawable(Color.parseColor("#B3261E"))
     private val swipeDeleteIcon by lazy {
-        ContextCompat.getDrawable(requireContext(), R.drawable.ic_delete)
+        ContextCompat.getDrawable(requireContext(), R.drawable.ic_cancel)
     }
 
     override fun onCreateView(

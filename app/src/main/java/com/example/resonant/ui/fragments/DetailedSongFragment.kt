@@ -30,6 +30,7 @@ import com.bumptech.glide.request.target.Target
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.utils.Utils
@@ -220,6 +221,27 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         return view
     }
 
+    override fun onResume() {
+        super.onResume()
+        reportVisibleSong()
+    }
+
+    override fun onPause() {
+        AriaScreenContextHolder.clearEntity()
+        super.onPause()
+    }
+
+    private fun reportVisibleSong() {
+        val id = arguments?.getString("songId") ?: song?.id
+        val name = song?.title
+        if (!id.isNullOrBlank() || !name.isNullOrBlank()) {
+            AriaScreenContextHolder.update(
+                screen = "song_detail",
+                entity = AriaScreenContextHolder.VisibleEntity("song", id, name)
+            )
+        }
+    }
+
     private fun setupViewModelObservers() {
         fun updateButtonState() {
             val isCurrentlyPlaying = songViewModel.isPlayingLiveData.value ?: false
@@ -316,6 +338,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             songImage.setImageResource(placeholderRes)
         }
 
+        reportVisibleSong()
         songTitle.text = song.title
         songDuration.text = "Duración: ${Utils.formatSecondsToMinSec(song.duration.toString().toInt())}"
         songStreams.text = "Reproducciones: ${song.streams}"

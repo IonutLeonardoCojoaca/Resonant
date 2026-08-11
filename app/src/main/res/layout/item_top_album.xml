@@ -94,7 +94,7 @@
             android:layout_height="wrap_content"
             android:text="Nombre del Artista"
             android:textSize="12sp"
-            android:textColor="#AAFFFFFF"
+            android:textColor="@color/textSecondaryAlpha"
             android:fontFamily="@font/unageo_medium"
             android:layout_marginTop="2dp" />
 
@@ -104,7 +104,7 @@
             android:layout_height="wrap_content"
             android:text="Año: 2024"
             android:textSize="11sp"
-            android:textColor="#66FFFFFF"
+            android:textColor="@color/textTertiaryAlpha"
             android:fontFamily="@font/unageo_regular"
             android:layout_marginTop="1dp" />
 

@@ -64,7 +64,7 @@
                         android:hyphenationFrequency="normalFast"
                         android:maxLines="1"
                         android:text=""
-                        android:textColor="@android:color/white"
+                        android:textColor="@color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
                         app:layout_constraintEnd_toStartOf="@+id/albumDownloadBackground"

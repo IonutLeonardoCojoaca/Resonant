@@ -83,14 +83,8 @@ class GenreAdapter(
                 intArrayOf(Color.parseColor("#555555"), Color.parseColor("#333333"))
             }
 
-            // Aplicamos el color al borde de la tarjeta (si existe en este ViewType)
-            if (cardContainer != null) {
-                if (colorList.isNotEmpty()) {
-                    cardContainer.strokeColor = colorList[0] // Usa el primer color para el borde
-                } else {
-                    cardContainer.strokeColor = Color.WHITE // Color por defecto si falla
-                }
-            }
+            // Eliminar stroke para mantener la tarjeta limpia y sin bordes
+            cardContainer?.strokeWidth = 0
 
             val gradient = GradientDrawable(GradientDrawable.Orientation.BL_TR, finalColors)
             gradient.cornerRadius = 0f

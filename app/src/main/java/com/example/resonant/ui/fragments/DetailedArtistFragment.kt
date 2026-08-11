@@ -21,6 +21,7 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import android.widget.LinearLayout
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.adapters.AlbumAdapter
 import com.example.resonant.ui.adapters.ArtistAdapter
@@ -77,6 +78,27 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
         initViews(view)
         setupAdapters()
         return view
+    }
+
+    override fun onResume() {
+        super.onResume()
+        reportVisibleArtist()
+    }
+
+    override fun onPause() {
+        AriaScreenContextHolder.clearEntity()
+        super.onPause()
+    }
+
+    private fun reportVisibleArtist() {
+        val id = arguments?.getString("artistId") ?: artist?.id
+        val name = artist?.name ?: arguments?.getString("artistName")
+        if (!id.isNullOrBlank() || !name.isNullOrBlank()) {
+            AriaScreenContextHolder.update(
+                screen = "artist_detail",
+                entity = AriaScreenContextHolder.VisibleEntity("artist", id, name)
+            )
+        }
     }
 
     private fun initViews(view: View) {
@@ -215,6 +237,7 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
 
     private fun setupArtistUI(artist: Artist) {
         this.artist = artist
+        reportVisibleArtist()
         artistName.text = artist.name
         
         if (!artist.description.isNullOrEmpty()) {

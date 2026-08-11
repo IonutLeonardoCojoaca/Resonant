@@ -63,7 +63,7 @@
                 android:id="@+id/songArtist"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#BDBDBD"
+                android:textColor="@color/textTheme"
                 android:text="Artist"
                 android:textSize="12sp"
                 android:maxLines="1"
@@ -95,7 +95,7 @@
         android:focusable="true"
         android:focusableInTouchMode="false"
         android:src="@drawable/ic_item_settings"
-        app:tint="#BDBDBD"
+        app:tint="@color/textTheme"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>

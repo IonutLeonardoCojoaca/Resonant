@@ -79,7 +79,7 @@
         android:id="@+id/separator"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#1AFFFFFF"
+        android:background="@color/dividerOverlay"
         app:layout_constraintTop_toBottomOf="@+id/relativeLayout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -135,13 +135,13 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_delete"
             android:drawablePadding="14dp"
-            android:drawableTint="#EF5350"
+            android:drawableTint="@color/errorColor"
             android:fontFamily="@font/unageo_medium"
             android:paddingHorizontal="20dp"
             android:paddingVertical="14dp"
             android:gravity="center_vertical"
             android:text="Eliminar lista"
-            android:textColor="#EF5350"
+            android:textColor="@color/errorColor"
             android:textSize="15sp" />
 
         <!-- Cancel -->
@@ -151,13 +151,13 @@
             android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_cancel"
             android:drawablePadding="14dp"
-            android:drawableTint="#88FFFFFF"
+            android:drawableTint="@color/textTheme"
             android:fontFamily="@font/unageo_medium"
             android:paddingHorizontal="20dp"
             android:paddingVertical="14dp"
             android:gravity="center_vertical"
             android:text="Cancelar"
-            android:textColor="#88FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="15sp" />
 
     </LinearLayout>

@@ -99,7 +99,7 @@
                     android:fontFamily="@font/unageo_medium"
                     app:cornerRadius="20dp"
                     app:backgroundTint="@android:color/transparent"
-                    app:strokeColor="#40FFFFFF"
+                    app:strokeColor="@color/discTheme"
                     app:strokeWidth="1dp" />
 
                 <com.google.android.material.button.MaterialButton
@@ -116,7 +116,7 @@
                     android:fontFamily="@font/unageo_medium"
                     app:cornerRadius="20dp"
                     app:backgroundTint="@android:color/transparent"
-                    app:strokeColor="#40FFFFFF"
+                    app:strokeColor="@color/discTheme"
                     app:strokeWidth="1dp" />
 
                 <com.google.android.material.button.MaterialButton
@@ -132,7 +132,7 @@
                     android:fontFamily="@font/unageo_medium"
                     app:cornerRadius="20dp"
                     app:backgroundTint="@android:color/transparent"
-                    app:strokeColor="#40FFFFFF"
+                    app:strokeColor="@color/discTheme"
                     app:strokeWidth="1dp" />
 
             </LinearLayout>
@@ -146,7 +146,7 @@
                 android:layout_marginBottom="28dp"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="#0D0D0D">
+                app:cardBackgroundColor="@color/cardsTheme">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -207,7 +207,7 @@
                         android:layout_height="wrap_content"
                         android:text="Artista más escuchado del periodo"
                         android:textSize="13sp"
-                        android:textColor="#AAFFFFFF"
+                        android:textColor="@color/textSecondaryAlpha"
                         android:fontFamily="@font/unageo_medium"
                         android:layout_marginBottom="20dp"
                         android:layout_marginHorizontal="16dp"

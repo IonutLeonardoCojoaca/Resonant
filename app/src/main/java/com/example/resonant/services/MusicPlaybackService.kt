@@ -1182,7 +1182,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         )
 
         val queue = PlaybackStateRepository.activeQueue
-        val queueIndex = queue?.songs?.indexOfFirst { it.id == songId } ?: -1
+        val queueIndex = queue?.indexOfSongId(songId) ?: -1
         if (queue != null && queueIndex >= 0) {
             queue.songs = queue.songs.toMutableList().apply {
                 this[queueIndex] = progressiveSong
@@ -1809,8 +1809,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val toAppend = newSongs.filter { it.id.isNotBlank() && it.id !in existingIds }
         if (toAppend.isEmpty()) return
 
-        queue.songs = queue.songs + toAppend
-        queue.resetEntriesForSongs()
+        queue.appendSongs(toAppend)
         PlaybackStateRepository.publishQueue()
         PlaybackStateRepository.setRadioSession(radioRepository.currentSession)
 

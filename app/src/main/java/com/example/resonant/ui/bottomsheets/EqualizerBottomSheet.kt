@@ -35,6 +35,7 @@ class EqualizerBottomSheet : ResonantBottomSheetDialogFragment() {
 
         val enabledSwitch = view.findViewById<SwitchMaterial>(R.id.equalizer_enabled)
         val presets       = view.findViewById<ChipGroup>(R.id.equalizer_presets)
+        val bandsCard      = view.findViewById<View>(R.id.eq_bands_card)
 
         sliders = listOf(
             view.findViewById(R.id.eq_band_60),
@@ -99,6 +100,13 @@ class EqualizerBottomSheet : ResonantBottomSheetDialogFragment() {
                     if (slider.value != gain) slider.value = gain
                     bandLabels[index].text = formatDb(gain)
                     applySliderEnabled(slider, state.enabled)
+                }
+
+                bandsCard.alpha = if (state.enabled) 1f else 0.5f
+                presets.alpha = if (state.enabled) 1f else 0.5f
+                presets.isEnabled = state.enabled
+                for (i in 0 until presets.childCount) {
+                    presets.getChildAt(i).isEnabled = state.enabled
                 }
 
                 presets.check(presetId(state.preset))

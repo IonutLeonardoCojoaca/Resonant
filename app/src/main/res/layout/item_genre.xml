@@ -10,10 +10,10 @@
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
     app:cardBackgroundColor="@color/transparent"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="10dp"
     app:cardElevation="0dp"
-    app:strokeColor="#242424"
-    app:strokeWidth="1dp">
+    app:strokeColor="@android:color/transparent"
+    app:strokeWidth="0dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -23,16 +23,6 @@
             android:id="@+id/viewGradientBackground"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:background="#2C2C2C"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:background="@drawable/bg_explore_tile_scrim"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -49,10 +39,10 @@
             android:maxLines="2"
             android:textColor="@android:color/white"
             android:textSize="18sp"
-            android:shadowColor="#99000000"
+            android:shadowColor="#59000000"
             android:shadowDx="0"
             android:shadowDy="1"
-            android:shadowRadius="4"
+            android:shadowRadius="3"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"

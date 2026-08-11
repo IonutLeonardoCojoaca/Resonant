@@ -3,6 +3,8 @@ package com.example.resonant.ui.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.resonant.aria.AriaScreenContextHolder
+import com.example.resonant.playback.PlaybackStateRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,6 +19,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -48,6 +51,13 @@ data class AriaSongCard(
     val releaseYear: Int = 0,
     val streams: Int = 0,
     val genres: List<String> = emptyList()
+)
+
+data class AriaRelatedArtist(
+    val id: String,
+    val name: String,
+    val score: Double? = null,
+    val reason: String? = null
 )
 
 data class AriaAction(
@@ -90,7 +100,20 @@ data class AriaAction(
     val songRecommendations: List<AriaSongCard>? = null,
     val songRecArtistId: String? = null,
     val songRecArtistName: String? = null,
-    val songRecTotalInCatalog: Int? = null
+    val songRecTotalInCatalog: Int? = null,
+    // Enriched action fields
+    val previewSongs: List<AriaSongCard>? = null,
+    val navigateTo: String? = null,
+    val suggestedFollowups: List<String>? = null,
+    val relatedArtists: List<AriaRelatedArtist>? = null,
+    val seedSource: String? = null,
+    val referenceArtist: String? = null,
+    // Effects executed by the Android client
+    val clientSide: Boolean = false,
+    val playbackCommand: String? = null,
+    val clientSongId: String? = null,
+    val clientSongTitle: String? = null,
+    val clientSongArtist: String? = null
 )
 
 data class AriaMessage(
@@ -107,6 +130,20 @@ data class AriaMessage(
 )
 
 class AriaViewModel : ViewModel() {
+    private companion object {
+        const val CLIENT_STRING_MAX_LENGTH = 120
+        const val CLIENT_ID_MAX_LENGTH = 40
+        const val CLIENT_QUEUE_MAX_SIZE = 20
+        const val CLIENT_PREVIEW_MAX_SIZE = 5
+        const val CLIENT_FOLLOWUP_MAX_SIZE = 3
+
+        val CLIENT_SCREEN_VALUES = setOf(
+            "home", "search", "library", "player", "stats", "playlist_detail",
+            "artist_detail", "album_detail", "song_detail", "aria_chat", "settings"
+        )
+        val CLIENT_ENTITY_TYPES = setOf("playlist", "artist", "album", "song", "genre")
+    }
+
     private val tag = "AriaViewModel"
 
     private val _messages = MutableStateFlow<List<AriaMessage>>(emptyList())
@@ -239,6 +276,7 @@ class AriaViewModel : ViewModel() {
                 val payload = JSONObject().apply {
                     put("prompt", prompt)
                     put("session_id", sessionId)
+                    buildClientContext()?.let { put("client_context", it) }
                 }.toString()
 
                 val requestBody = payload.toRequestBody("application/json".toMediaType())
@@ -367,6 +405,65 @@ class AriaViewModel : ViewModel() {
         }
     }
 
+    private fun buildClientContext(): JSONObject? = runCatching {
+        val context = JSONObject()
+        val screenContext = AriaScreenContextHolder.snapshot()
+
+        screenContext.screen
+            ?.takeIf { it in CLIENT_SCREEN_VALUES }
+            ?.let { context.put("screen", it.take(CLIENT_ID_MAX_LENGTH)) }
+
+        PlaybackStateRepository.currentSong?.let { song ->
+            val nowPlaying = JSONObject()
+            song.id.cleanClientString(CLIENT_ID_MAX_LENGTH)
+                ?.let { nowPlaying.put("song_id", it) }
+            song.title.cleanClientString()
+                ?.let { nowPlaying.put("title", it) }
+            (song.artistName?.takeIf { it.isNotBlank() }
+                ?: song.artists.joinToString(", ") { it.name })
+                .cleanClientString()
+                ?.let { nowPlaying.put("artist", it) }
+            song.album?.title.cleanClientString()
+                ?.let { nowPlaying.put("album", it) }
+            nowPlaying.put("is_playing", PlaybackStateRepository.isPlaying)
+            if (nowPlaying.has("song_id") || nowPlaying.has("title")) {
+                context.put("now_playing", nowPlaying)
+            }
+        }
+
+        screenContext.entity
+            ?.takeIf { it.type in CLIENT_ENTITY_TYPES }
+            ?.let { entity ->
+                val visibleEntity = JSONObject().apply {
+                    put("type", entity.type)
+                    entity.id.cleanClientString(CLIENT_ID_MAX_LENGTH)?.let { put("id", it) }
+                    entity.name.cleanClientString()?.let { put("name", it) }
+                }
+                if (visibleEntity.has("id") || visibleEntity.has("name")) {
+                    context.put("visible_entity", visibleEntity)
+                }
+            }
+
+        PlaybackStateRepository.activeQueue?.let { queue ->
+            val nextIds = queue.songs.toList()
+                .drop((queue.currentIndex + 1).coerceAtLeast(0))
+                .asSequence()
+                .mapNotNull { it.id.cleanClientString(CLIENT_ID_MAX_LENGTH) }
+                .take(CLIENT_QUEUE_MAX_SIZE)
+                .toList()
+            if (nextIds.isNotEmpty()) {
+                context.put("queue_ids", JSONArray(nextIds))
+            }
+        }
+
+        context.takeIf { it.length() > 0 }
+    }.onFailure {
+        Log.w(tag, "Could not build Aria client context", it)
+    }.getOrNull()
+
+    private fun String?.cleanClientString(maxLength: Int = CLIENT_STRING_MAX_LENGTH): String? =
+        this?.trim()?.takeIf { it.isNotEmpty() }?.take(maxLength)
+
     private suspend fun handleStructuredPayloadIfPresent(
         payload: String,
         accumulatedText: StringBuilder,
@@ -455,6 +552,8 @@ class AriaViewModel : ViewModel() {
                 }
         } catch (e: Exception) { null }
     }
+
+    fun parseActionPayload(payload: String): AriaAction? = parseAriaAction(payload)
 
     private fun parseAriaAction(payload: String): AriaAction? {
         return try {
@@ -596,38 +695,50 @@ class AriaViewModel : ViewModel() {
                 songRecArtistName = content.optString("artist_name").takeIf { it.isNotBlank() }
                 songRecTotalInCatalog = content.optInt("total_in_catalog", 0).takeIf { it > 0 }
 
-                val songsArr = content.optJSONArray("songs")
-                if (songsArr != null) {
-                    songRecommendations = (0 until songsArr.length()).mapNotNull { i ->
-                        val s = songsArr.optJSONObject(i) ?: return@mapNotNull null
-                        val sid = s.optString("song_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                        val sTitle = s.optString("title").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                        val sArtists = s.optString("artist_names").takeIf { it.isNotBlank() } ?: ""
-                        val sAlbumId = s.optString("album_id").takeIf { it.isNotBlank() }
-                        val sAlbumTitle = s.optString("album_title").takeIf { it.isNotBlank() }
-                        val sDuration = s.optInt("duration_seconds", 0)
-                        val sYear = s.optInt("release_year", 0)
-                        val sStreams = s.optInt("streams", 0)
-                        val sGenresArr = s.optJSONArray("genres")
-                        val sGenres = if (sGenresArr != null) {
-                            (0 until sGenresArr.length()).mapNotNull { j ->
-                                sGenresArr.optString(j).takeIf { it.isNotBlank() }
-                            }
-                        } else emptyList()
-                        AriaSongCard(
-                            songId = sid,
-                            title = sTitle,
-                            artistNames = sArtists,
-                            albumId = sAlbumId,
-                            albumTitle = sAlbumTitle,
-                            durationSeconds = sDuration,
-                            releaseYear = sYear,
-                            streams = sStreams,
-                            genres = sGenres
-                        )
-                    }
-                }
+                songRecommendations = parseSongCards(content.optJSONArray("songs"))
+                    .takeIf { it.isNotEmpty() }
             }
+
+            val previewSongs = parseSongCards(json.optJSONArray("preview_songs"))
+                .take(CLIENT_PREVIEW_MAX_SIZE)
+                .takeIf { it.isNotEmpty() }
+            val navigateTo = json.optString("navigate_to").takeIf { it.isNotBlank() }
+            val suggestedFollowups = json.optJSONArray("suggested_followups")
+                ?.let { followups ->
+                    (0 until followups.length()).mapNotNull { index ->
+                        followups.optString(index).trim().takeIf { it.isNotEmpty() }
+                    }.take(CLIENT_FOLLOWUP_MAX_SIZE)
+                }
+                ?.takeIf { it.isNotEmpty() }
+
+            val relatedArtists = content?.optJSONArray("related_artists")?.let { related ->
+                (0 until related.length()).mapNotNull { index ->
+                    val item = related.optJSONObject(index) ?: return@mapNotNull null
+                    val id = item.optString("id").takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    val name = item.optString("name").takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    AriaRelatedArtist(
+                        id = id,
+                        name = name,
+                        score = item.optDouble("score", Double.NaN)
+                            .takeUnless { it.isNaN() },
+                        reason = item.optString("reason").takeIf { it.isNotBlank() }
+                    )
+                }
+            }?.takeIf { it.isNotEmpty() }
+
+            val seedSource = json.optString("seed_source").takeIf { it.isNotBlank() }
+            val referenceArtist = json.optString("referencia").takeIf { it.isNotBlank() }
+            val clientSide = json.optBoolean("client_side", false)
+            val playbackCommand = json.optString("comando").takeIf { it.isNotBlank() }
+            val clientSongId = json.optString("song_id").takeIf { it.isNotBlank() }
+                ?: json.optString("now_playing_song_id").takeIf { it.isNotBlank() }
+            val clientSongTitle = json.optString("nombre_cancion").takeIf { it.isNotBlank() }
+                ?: json.optString("title").takeIf { it.isNotBlank() }
+                ?: json.optString("now_playing_title").takeIf { it.isNotBlank() }
+            val clientSongArtist = json.optString("nombre_artista").takeIf { it.isNotBlank() }
+                ?: json.optString("artist").takeIf { it.isNotBlank() }
 
             AriaAction(
                 type = type,
@@ -666,9 +777,50 @@ class AriaViewModel : ViewModel() {
                 songRecommendations = songRecommendations,
                 songRecArtistId = songRecArtistId,
                 songRecArtistName = songRecArtistName,
-                songRecTotalInCatalog = songRecTotalInCatalog
+                songRecTotalInCatalog = songRecTotalInCatalog,
+                previewSongs = previewSongs,
+                navigateTo = navigateTo,
+                suggestedFollowups = suggestedFollowups,
+                relatedArtists = relatedArtists,
+                seedSource = seedSource,
+                referenceArtist = referenceArtist,
+                clientSide = clientSide,
+                playbackCommand = playbackCommand,
+                clientSongId = clientSongId,
+                clientSongTitle = clientSongTitle,
+                clientSongArtist = clientSongArtist
             )
         } catch (e: Exception) { null }
+    }
+
+    private fun parseSongCards(arr: JSONArray?): List<AriaSongCard> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { index ->
+            val song = arr.optJSONObject(index) ?: return@mapNotNull null
+            val songId = song.optString("song_id").takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val title = song.optString("title").takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val genresArray = song.optJSONArray("genres")
+            val genres = if (genresArray == null) {
+                emptyList()
+            } else {
+                (0 until genresArray.length()).mapNotNull { genreIndex ->
+                    genresArray.optString(genreIndex).takeIf { it.isNotBlank() }
+                }
+            }
+            AriaSongCard(
+                songId = songId,
+                title = title,
+                artistNames = song.optString("artist_names").takeIf { it.isNotBlank() }.orEmpty(),
+                albumId = song.optString("album_id").takeIf { it.isNotBlank() },
+                albumTitle = song.optString("album_title").takeIf { it.isNotBlank() },
+                durationSeconds = song.optInt("duration_seconds", 0),
+                releaseYear = song.optInt("release_year", 0),
+                streams = song.optInt("streams", 0),
+                genres = genres
+            )
+        }
     }
 
     private fun addInterChunkSpaceIfNeeded(accumulatedText: StringBuilder, chunk: String): String {

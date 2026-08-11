@@ -140,12 +140,9 @@ class CollabBubbleFragment : Fragment() {
                             collaboratorAdapter.submitList(state.result.collaborators)
 
                             val summary = state.result.summary
-                            binding.tvCollabSummary.text =
-                                "${state.result.totalCollaborators}\ncolaboradores"
-                            binding.tvSharedSongsSummary.text =
-                                "${summary.totalSharedSongs}\ncanciones"
-                            binding.tvYearsSummary.text =
-                                if (summary.yearsSpan.isBlank()) "-\nperiodo" else "${summary.yearsSpan}\nperiodo"
+                            binding.tvCollabValue.text = "${state.result.totalCollaborators}"
+                            binding.tvSongsValue.text = "${summary.totalSharedSongs}"
+                            binding.tvYearsValue.text = if (summary.yearsSpan.isBlank()) "-" else summary.yearsSpan
                         }
                         is CollabBubbleUiState.Error -> {
                             showContentState()

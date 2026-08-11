@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Insignia circular sutil (rojo de marca a baja opacidad) para resaltar
+     iconos de cabecera, p.ej. en el bottom sheet del ecualizador. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#1FE21616" />
+</shape>

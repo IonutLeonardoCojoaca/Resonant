@@ -50,7 +50,7 @@
         android:fontFamily="@font/unageo_medium"
         android:includeFontPadding="false"
         android:maxLines="1"
-        android:textColor="#E6FFFFFF"
+        android:textColor="@color/textTheme"
         android:textSize="15sp"
         tools:text="Dua Lipa"
         app:layout_constraintBottom_toTopOf="@+id/metaDataContainer"
@@ -75,7 +75,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_medium"
-            android:textColor="#99FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="12sp"
             android:includeFontPadding="false"
             tools:text="Álbum" />
@@ -85,7 +85,7 @@
             android:layout_height="wrap_content"
             android:paddingHorizontal="4dp"
             android:text="●"
-            android:textColor="#66FFFFFF"
+            android:textColor="@color/textTertiaryAlpha"
             android:textSize="10sp" />
 
         <TextView
@@ -93,7 +93,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_medium"
-            android:textColor="#99FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="12sp"
             android:includeFontPadding="false"
             tools:text="2024" />
@@ -104,7 +104,7 @@
             android:layout_height="wrap_content"
             android:paddingHorizontal="4dp"
             android:text="●"
-            android:textColor="#66FFFFFF"
+            android:textColor="@color/textTertiaryAlpha"
             android:textSize="10sp" />
 
         <TextView
@@ -112,7 +112,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_medium"
-            android:textColor="#99FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="12sp"
             android:includeFontPadding="false"
             tools:text="12 canciones" />
@@ -126,7 +126,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@drawable/ic_item_settings"
         android:padding="8dp"
-        app:tint="#B3FFFFFF"
+        app:tint="@color/textTheme"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>

@@ -103,7 +103,7 @@
             android:ellipsize="end"
             android:fontFamily="@font/unageo_medium"
             android:maxLines="1"
-            android:textColor="#94FFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="11sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"

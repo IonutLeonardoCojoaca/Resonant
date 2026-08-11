@@ -97,7 +97,7 @@ class PlaybackQueueAdapter(
         private val artist: TextView = itemView.findViewById(R.id.queue_song_artist)
         private val remove: ImageButton = itemView.findViewById(R.id.queue_remove)
         private val drag: ImageView = itemView.findViewById(R.id.queue_drag_handle)
-        private val nowPlaying: TextView = itemView.findViewById(R.id.queue_now_playing)
+        private val nowPlaying: ImageView = itemView.findViewById(R.id.queue_now_playing)
 
         fun bind(item: QueueItemSnapshot) {
             title.text = item.song.title
@@ -137,7 +137,24 @@ class PlaybackQueueAdapter(
 
         fun bindControls(item: QueueItemSnapshot) {
             val showActions = !item.isCurrent
-            nowPlaying.visibility = if (item.isCurrent) View.VISIBLE else View.GONE
+            if (item.isCurrent) {
+                nowPlaying.visibility = View.VISIBLE
+                if (nowPlaying.animation == null) {
+                    val rotateAnim = android.view.animation.RotateAnimation(
+                        0f, 360f,
+                        android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
+                        android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
+                    ).apply {
+                        duration = 4000L
+                        repeatCount = android.view.animation.Animation.INFINITE
+                        interpolator = android.view.animation.LinearInterpolator()
+                    }
+                    nowPlaying.startAnimation(rotateAnim)
+                }
+            } else {
+                nowPlaying.clearAnimation()
+                nowPlaying.visibility = View.GONE
+            }
             remove.visibility = if (showActions) View.VISIBLE else View.GONE
             drag.visibility = if (showActions && canReorderUpcoming) View.VISIBLE else View.INVISIBLE
         }

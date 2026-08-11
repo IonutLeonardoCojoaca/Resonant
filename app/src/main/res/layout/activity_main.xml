@@ -63,14 +63,13 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="0dp"
                 android:minHeight="64dp"
-                app:cardBackgroundColor="#1E1E1E"
+                app:cardBackgroundColor="@color/pointersTheme"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="8dp"
                 app:strokeWidth="0dp"
                 app:strokeColor="@color/transparent"
                 android:clickable="true"
-                android:focusable="true"
-                app:rippleColor="#33FFFFFF">
+                android:focusable="true">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -103,10 +102,10 @@
 
                         <ImageView
                             android:id="@+id/swipeHintLeft"
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
                             android:src="@drawable/ic_chevron_left_mini"
-                            android:alpha="0.35"
+                            android:alpha="1"
                             android:contentDescription="@null"
                             app:tint="@color/secondaryColorTheme" />
 
@@ -150,10 +149,10 @@
 
                         <ImageView
                             android:id="@+id/swipeHintRight"
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
                             android:src="@drawable/ic_chevron_right_mini"
-                            android:alpha="0.35"
+                            android:alpha="1"
                             android:contentDescription="@null"
                             app:tint="@color/secondaryColorTheme" />
 
@@ -231,7 +230,7 @@
                         android:paddingEnd="0dp"
                         android:thumb="@color/transparent"
                         android:progressTint="@color/secondaryColorTheme"
-                        android:progressBackgroundTint="#33FFFFFF"
+                        android:progressBackgroundTint="@color/discTheme"
                         android:splitTrack="false"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
@@ -259,15 +258,14 @@
                 android:textColor="@color/white"
                 android:textSize="11sp"
                 android:visibility="gone"
-                app:backgroundTint="#26262B"
+                app:backgroundTint="@color/cardsTheme"
                 app:cornerRadius="14dp"
                 app:icon="@drawable/ic_queue_list"
                 app:iconGravity="textStart"
                 app:iconPadding="5dp"
                 app:iconSize="15dp"
                 app:iconTint="@color/white"
-                app:rippleColor="#33FFFFFF"
-                app:strokeColor="#66E21616"
+                app:strokeColor="@color/discTheme"
                 app:strokeWidth="1dp" />
         </FrameLayout>
 
@@ -276,13 +274,12 @@
             android:layout_width="0dp"
             android:layout_height="38dp"
             android:layout_marginHorizontal="12dp"
-            android:layout_marginBottom="1dp"
-            app:layout_goneMarginBottom="8dp"
+            android:layout_marginBottom="4dp"
             android:visibility="gone"
-            app:cardBackgroundColor="#241010"
+            app:cardBackgroundColor="@color/pointersTheme"
             app:cardCornerRadius="10dp"
             app:cardElevation="4dp"
-            app:layout_constraintBottom_toTopOf="@+id/mini_player"
+            app:layout_constraintBottom_toTopOf="@id/ariaFloatingLauncher"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:strokeColor="@android:color/transparent"
@@ -320,7 +317,7 @@
                     android:contentDescription="@null"
                     android:rotation="180"
                     android:src="@drawable/ic_arrow_back"
-                    app:tint="#A8A8A8" />
+                    app:tint="@color/textTheme" />
 
             </LinearLayout>
 
@@ -344,19 +341,81 @@
             app:menu="@menu/bottom_navigation_menu" />
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/ariaFloatingLauncher"
+            android:layout_width="wrap_content"
+            android:layout_height="42dp"
+            android:layout_marginBottom="4dp"
+            android:clickable="true"
+            android:contentDescription="Abrir el asistente rápido de Aria"
+            android:focusable="true"
+            android:translationZ="28dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/pointersTheme"
+            app:cardCornerRadius="21dp"
+            app:cardElevation="8dp"
+            app:layout_constraintBottom_toTopOf="@id/mini_player"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:strokeColor="@color/dividerOverlay"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="6dp"
+                android:paddingEnd="4dp">
+
+                <ImageView
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:background="@drawable/bg_circle_aria_gradient"
+                    android:contentDescription="@null"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_menu_aria_selected" />
+
+                <TextView
+                    android:id="@+id/ariaFloatingLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="7dp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:maxWidth="120dp"
+                    android:singleLine="true"
+                    android:text="Estoy aquí"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+                <ImageButton
+                    android:id="@+id/ariaFloatingMicButton"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/bg_aria_mic_button"
+                    android:contentDescription="Hablar con Aria"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_mic"
+                    app:tint="@color/secondaryColorTheme" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/downloadProgressCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="15dp"
             android:layout_marginBottom="5dp"
-            app:cardBackgroundColor="#171717"
+            app:cardBackgroundColor="@color/cardsTheme"
             app:cardCornerRadius="10dp"
             app:cardElevation="5dp"
             android:translationZ="20dp"
             android:visibility="gone"
             app:strokeWidth="0dp"
             app:strokeColor="@android:color/transparent"
-            app:layout_constraintBottom_toTopOf="@+id/mini_player"
+            app:layout_constraintBottom_toTopOf="@id/playbackDeviceBar"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -383,7 +442,7 @@
                     android:layout_marginStart="8dp"
                     android:layout_marginEnd="8dp"
                     android:text="Iniciando descarga..."
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
                     android:fontFamily="@font/unageo_medium"
                     android:singleLine="true"
@@ -397,7 +456,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0%"
-                    android:textColor="#AAAAAA"
+                    android:textColor="@color/textTheme"
                     android:textSize="12sp"
                     android:fontFamily="@font/unageo_bold"
                     app:layout_constraintEnd_toEndOf="parent"
@@ -409,7 +468,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    app:trackColor="#404040"
+                    app:trackColor="@color/discTheme"
                     app:indicatorColor="@color/secondaryColorTheme"
                     app:trackCornerRadius="4dp"
                     app:trackThickness="4dp"
@@ -420,6 +479,17 @@
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Stable zero-height anchor above the complete bottom overlay stack.
+             Snackbars attach here so they automatically follow whichever
+             optional cards are currently visible. -->
+        <View
+            android:id="@+id/bottomOverlaySnackbarAnchor"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:layout_constraintBottom_toTopOf="@id/downloadProgressCard"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <LinearLayout
@@ -428,7 +498,7 @@
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:orientation="vertical"
-        android:background="#111"
+        android:background="@color/sideBar"
         android:fitsSystemWindows="true">
         <include layout="@layout/drawer_index"/>
     </LinearLayout>

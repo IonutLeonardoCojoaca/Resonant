@@ -43,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/unageo_bold"
                 android:text="Usuario"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="20sp"
                 android:maxLines="1"
                 android:ellipsize="end" />
@@ -187,14 +187,14 @@
             android:id="@+id/imageView"
             android:layout_width="120dp"
             android:layout_height="40dp"
-            android:src="@drawable/logo_resonant_text" />
+            android:src="@drawable/logo_resonant_text_adaptive" />
 
         <TextView
             android:id="@+id/versionText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Resonant 2.2.0"
-            android:textColor="#4DFFFFFF"
+            android:textColor="@color/textTheme"
             android:textSize="11sp"
             android:fontFamily="@font/unageo_medium"
             android:layout_marginTop="2dp"/>

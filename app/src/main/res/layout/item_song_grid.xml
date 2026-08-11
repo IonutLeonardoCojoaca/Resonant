@@ -18,7 +18,7 @@
         android:id="@+id/itemContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#2A2A2A">
+        android:background="@color/cardsTheme">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/songImage"
@@ -34,7 +34,7 @@
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:src="@drawable/ic_play"
-            app:tint="@color/white"
+            app:tint="@android:color/white"
             android:background="@drawable/bg_play_background"
             android:backgroundTint="#80000000"
             android:padding="8dp"
@@ -74,7 +74,7 @@
                 android:layout_marginTop="2dp"
                 android:text="Artist"
                 android:textAlignment="viewStart"
-                android:textColor="#B0B0B0"
+                android:textColor="@color/textTheme"
                 android:fontFamily="@font/unageo_medium"
                 android:textSize="11sp"
                 android:maxLines="1"

@@ -111,7 +111,7 @@ class AlbumAdapter(
             val displayedArtistName = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown"
             artistName.text = displayedArtistName
 
-            loadAlbumCover(album.url, albumImage, container, albumName, artistName)
+            loadAlbumCover(album.url, albumImage, null, null, null)
 
             btnSettings?.visibility = View.VISIBLE
             btnSettings?.setOnClickListener {

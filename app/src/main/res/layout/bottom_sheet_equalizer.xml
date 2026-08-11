@@ -23,17 +23,31 @@
             android:layout_marginBottom="20dp"
             android:background="@drawable/bg_bottom_sheet_handle" />
 
-        <!-- Header row: title + enable switch -->
+        <!-- Header row: badge icon + title + enable switch -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_icon_badge_accent">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_equalizer_badge"
+                    app:tint="@color/secondaryColorTheme" />
+            </FrameLayout>
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginStart="12dp"
                 android:orientation="vertical">
 
                 <TextView
@@ -175,9 +189,7 @@
             android:layout_height="wrap_content"
             app:cardBackgroundColor="@color/cardsTheme"
             app:cardCornerRadius="14dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/discTheme"
-            app:strokeWidth="1dp">
+            app:cardElevation="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -201,7 +213,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_medium"
                         android:text="60 Hz"
-                        android:textColor="@color/white"
+                        android:textColor="@color/secondaryColorTheme"
                         android:textSize="13sp" />
 
                     <com.google.android.material.slider.Slider
@@ -237,7 +249,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_medium"
                         android:text="230 Hz"
-                        android:textColor="@color/white"
+                        android:textColor="@color/secondaryColorTheme"
                         android:textSize="13sp" />
 
                     <com.google.android.material.slider.Slider
@@ -273,7 +285,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_medium"
                         android:text="910 Hz"
-                        android:textColor="@color/white"
+                        android:textColor="@color/secondaryColorTheme"
                         android:textSize="13sp" />
 
                     <com.google.android.material.slider.Slider
@@ -309,7 +321,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_medium"
                         android:text="3.6 kHz"
-                        android:textColor="@color/white"
+                        android:textColor="@color/secondaryColorTheme"
                         android:textSize="13sp" />
 
                     <com.google.android.material.slider.Slider
@@ -344,7 +356,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_medium"
                         android:text="14 kHz"
-                        android:textColor="@color/white"
+                        android:textColor="@color/secondaryColorTheme"
                         android:textSize="13sp" />
 
                     <com.google.android.material.slider.Slider

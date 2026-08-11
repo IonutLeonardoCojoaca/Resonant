@@ -115,7 +115,7 @@
                     android:layout_below="@id/songTitle"
                     android:layout_toEndOf="@id/downloadedIcon"
                     android:layout_toLeftOf="@id/likeButton"
-                    android:textColor="#AAFFFFFF"
+                    android:textColor="@color/textTheme"
                     android:text="0 reproducciones"
                     android:textSize="12sp"
                     android:fontFamily="@font/unageo_medium" />
@@ -144,7 +144,7 @@
                     android:focusable="true"
                     android:focusableInTouchMode="false"
                     android:src="@drawable/ic_item_settings"
-                    app:tint="#BDBDBD"/>
+                    app:tint="@color/textTheme"/>
 
             </RelativeLayout>
 

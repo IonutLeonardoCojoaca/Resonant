@@ -3,17 +3,17 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212">
+    android:background="@color/primaryColorTheme">
 
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
+        android:fontFamily="@font/unageo_extra_bold"
         android:text="COLLAB PATH"
-        android:textColor="#FF0000"
+        android:textColor="@color/secondaryColorTheme"
         android:textSize="24sp"
-        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -26,15 +26,16 @@
         android:layout_marginHorizontal="24dp"
         android:layout_marginTop="32dp"
         android:hint="Artista Origen"
-        app:boxStrokeColor="#FF0000"
-        app:hintTextColor="#B3B3B3"
+        app:boxStrokeColor="@color/secondaryColorTheme"
+        app:hintTextColor="@color/textTheme"
         app:layout_constraintTop_toBottomOf="@id/tvTitle">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etFromArtist"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF" />
+            android:fontFamily="@font/unageo_regular"
+            android:textColor="@color/white" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
@@ -45,15 +46,16 @@
         android:layout_marginHorizontal="24dp"
         android:layout_marginTop="16dp"
         android:hint="Artista Destino"
-        app:boxStrokeColor="#FF0000"
-        app:hintTextColor="#B3B3B3"
+        app:boxStrokeColor="@color/secondaryColorTheme"
+        app:hintTextColor="@color/textTheme"
         app:layout_constraintTop_toBottomOf="@id/tilFromArtist">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etToArtist"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF" />
+            android:fontFamily="@font/unageo_regular"
+            android:textColor="@color/white" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <Button
@@ -62,9 +64,10 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="24dp"
         android:layout_marginTop="24dp"
-        android:backgroundTint="#FF0000"
+        android:backgroundTint="@color/secondaryColorTheme"
+        android:fontFamily="@font/unageo_bold"
         android:text="ENCONTRAR PUENTE"
-        android:textColor="#FFFFFF"
+        android:textColor="@android:color/white"
         app:layout_constraintTop_toBottomOf="@id/tilToArtist" />
 
     <ProgressBar
@@ -72,6 +75,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
+        android:indeterminateTint="@color/secondaryColorTheme"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -82,7 +86,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:textColor="#B3B3B3"
+        android:fontFamily="@font/unageo_regular"
+        android:textColor="@color/textTheme"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

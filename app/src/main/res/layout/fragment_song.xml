@@ -79,7 +79,7 @@
                 android:letterSpacing="0.05"
                 android:text="Álbum"
                 android:textAllCaps="true"
-                android:textColor="#99FFFFFF"
+                android:textColor="@color/textSecondaryAlpha"
                 android:textSize="12sp" />
 
             <TextView
@@ -282,10 +282,10 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="30dp"
                 android:layout_marginBottom="10dp"
-                app:cardBackgroundColor="#26FFFFFF"
+                app:cardBackgroundColor="@color/surfaceCardOverlay"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#1AFFFFFF"
+                app:strokeColor="@color/dividerOverlay"
                 app:strokeWidth="0dp"
                 android:layout_marginTop="10dp">
 
@@ -301,7 +301,7 @@
                         android:layout_width="20dp"
                         android:layout_height="20dp"
                         android:src="@drawable/ic_skip_next"
-                        app:tint="#CCFFFFFF"
+                        app:tint="@color/textSecondaryAlpha"
                         android:layout_marginEnd="12dp"/>
 
                     <LinearLayout
@@ -314,7 +314,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="SIGUIENTE"
-                            android:textColor="#99FFFFFF"
+                            android:textColor="@color/textSecondaryAlpha"
                             android:textSize="9sp"
                             android:fontFamily="@font/unageo_medium"
                             android:letterSpacing="0.1"/>
@@ -459,7 +459,7 @@
                 android:focusable="true"
                 app:cardCornerRadius="18dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="#1A1A1A">
+                app:cardBackgroundColor="@color/playerCardBackground">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
@@ -519,7 +519,7 @@
                         android:gravity="center"
                         android:paddingHorizontal="24dp"
                         android:text="No hay letra disponible"
-                        android:textColor="#66FFFFFF"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="13sp"
                         android:visibility="visible"
                         app:layout_constraintBottom_toBottomOf="parent"
@@ -530,7 +530,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_gravity="top"
-                        android:background="#FF1A1A1A"
+                        android:background="@color/playerCardHeader"
                         android:gravity="center_vertical"
                         android:orientation="horizontal"
                         android:paddingHorizontal="16dp"
@@ -547,14 +547,14 @@
                             android:letterSpacing="0.1"
                             android:text="LETRA"
                             android:textAllCaps="true"
-                            android:textColor="#99FFFFFF"
+                            android:textColor="@color/textSecondaryAlpha"
                             android:textSize="12sp" />
 
                         <ImageView
                             android:layout_width="18dp"
                             android:layout_height="18dp"
                             android:src="@drawable/ic_keyboard_arrow_up"
-                            app:tint="#66FFFFFF" />
+                            app:tint="@color/textTertiaryAlpha" />
 
                     </LinearLayout>
 

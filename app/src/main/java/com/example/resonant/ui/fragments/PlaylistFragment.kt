@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.UserManager
@@ -74,10 +75,38 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private var visibilityBadge: View? = null
 
     private lateinit var downloadViewModel: DownloadViewModel
+    private val ariaContextSource = Any()
 
     private val playlistViewModel: PlaylistDetailViewModel by viewModels {
         val playlistManager = PlaylistManager(requireContext())
         PlaylistDetailViewModelFactory(playlistManager)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        reportVisiblePlaylist()
+    }
+
+    override fun onPause() {
+        AriaScreenContextHolder.clearEntity(ariaContextSource)
+        super.onPause()
+    }
+
+    private fun reportVisiblePlaylist() {
+        if (!isResumed) return
+        val playlist = playlistViewModel.screenState.value?.playlistDetails ?: return
+        if (!isOwnedByCurrentUser(playlist)) {
+            AriaScreenContextHolder.clearEntity(ariaContextSource)
+            return
+        }
+        val id = arguments?.getString("playlistId") ?: arguments?.getString("playlist_id")
+        if (!id.isNullOrBlank() || playlist.name.isNotBlank()) {
+            AriaScreenContextHolder.update(
+                screen = "playlist_detail",
+                entity = AriaScreenContextHolder.VisibleEntity("playlist", id, playlist.name),
+                source = ariaContextSource
+            )
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -301,6 +330,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         }
 
         state.playlistDetails?.let { details ->
+            reportVisiblePlaylist()
             val readOnly = isEffectivelyReadOnly(details)
             playlistName.text = details.name
             playlistText.text = details.name
@@ -569,5 +599,14 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         return !currentUserId.isNullOrBlank() &&
             !playlist.userId.isNullOrBlank() &&
             currentUserId != playlist.userId
+    }
+
+    private fun isOwnedByCurrentUser(playlist: Playlist): Boolean {
+        if (isReadOnly || playlist.canEdit == false) return false
+        val currentUserId = UserManager(requireContext()).getUserId()
+        if (!currentUserId.isNullOrBlank() && !playlist.userId.isNullOrBlank()) {
+            return currentUserId == playlist.userId
+        }
+        return playlist.canEdit == true
     }
 }

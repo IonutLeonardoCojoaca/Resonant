@@ -10,7 +10,9 @@ import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.example.resonant.services.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -23,6 +25,18 @@ object PlaybackControllerConnection {
 
     @Volatile
     private var controllerFuture: ListenableFuture<MediaController>? = null
+
+    suspend fun <T> withController(
+        context: Context,
+        block: (MediaController) -> T
+    ): T = withContext(Dispatchers.Main.immediate) {
+        val appContext = context.applicationContext
+        val controller = getOrCreate(appContext).await(
+            context = appContext,
+            cancelFutureWithCaller = false
+        )
+        block(controller)
+    }
 
     suspend fun sendQueueCommand(
         context: Context,

@@ -59,6 +59,7 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.data.models.User
 import com.example.resonant.ui.fragments.HomeFragment
 import com.example.resonant.managers.AppUpdateManager
+import com.example.resonant.managers.SettingsManager
 import com.example.resonant.ui.fragments.CreationMenuDialog
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.imageview.ShapeableImageView
@@ -82,6 +83,12 @@ import com.example.resonant.ui.bottomsheets.PlaybackDevicesBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaybackQueueBottomSheet
 import com.example.resonant.ui.views.MiniPlayerSwipeHandler
 import com.example.resonant.ui.viewmodels.DownloadViewModel
+import com.example.resonant.ui.viewmodels.AriaViewModel
+import com.example.resonant.aria.AriaClientActionExecutor
+import com.example.resonant.aria.AriaScreenContextHolder
+import com.example.resonant.aria.AriaScreenMapper
+import com.example.resonant.aria.ForegroundAriaWakeWordController
+import com.example.resonant.ui.bottomsheets.AriaQuickSheet
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -99,6 +106,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private var playmixRingAnimator: ObjectAnimator? = null
     private lateinit var miniPlayerLikeButton: ImageButton
     private lateinit var miniPlayerQueueButton: ImageButton
+    private lateinit var swipeHintLeft: ImageView
+    private lateinit var swipeHintRight: ImageView
     private lateinit var songImage: ImageView
     private lateinit var songName: TextView
     private lateinit var songArtist: TextView
@@ -133,8 +142,31 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var navController: NavController
+    private lateinit var ariaViewModel: AriaViewModel
+    private lateinit var ariaFloatingLauncher: View
+    private lateinit var ariaFloatingLabel: TextView
+    private var ariaFloatingAssistantEnabled = true
+    private var ariaForegroundWakeWordEnabled = false
+    private var ariaQuickSheetVisible = false
+    private var activityIsForeground = false
+    private var currentDestinationId: Int? = null
     private val playbackConnectRepository by lazy {
         PlaybackConnectRepository.get(applicationContext)
+    }
+
+    private val ariaClientActionExecutor by lazy {
+        AriaClientActionExecutor(this, lifecycleScope) { message, success ->
+            showResonantSnackbar(
+                text = message,
+                colorRes = if (success) R.color.successColor else R.color.secondaryColorTheme,
+                iconRes = if (success) R.drawable.ic_success else R.drawable.ic_warning
+            )
+        }
+    }
+    private val ariaWakeWordController by lazy {
+        ForegroundAriaWakeWordController(applicationContext) {
+            showAriaQuickSheet(startVoice = true)
+        }
     }
 
     private var activeCreationDialog: CreationMenuDialog? = null
@@ -201,6 +233,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         playPauseButton = miniPlayer.findViewById(R.id.playPauseButton)
         miniPlayerLikeButton = miniPlayer.findViewById(R.id.miniPlayerLikeButton)
         miniPlayerQueueButton = miniPlayer.findViewById(R.id.miniPlayerQueueButton)
+        swipeHintLeft = miniPlayer.findViewById(R.id.swipeHintLeft)
+        swipeHintRight = miniPlayer.findViewById(R.id.swipeHintRight)
         songImage = miniPlayer.findViewById(R.id.songImage)
         songName = miniPlayer.findViewById(R.id.songTitle)
         songArtist = miniPlayer.findViewById(R.id.songArtist)
@@ -210,6 +244,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         drawerLayout = findViewById(R.id.drawerLayout)
         seekBar = miniPlayer.findViewById(R.id.seekbarPlayer)
         seekBar.max = 100
+
+        ariaViewModel = ViewModelProvider(this)[AriaViewModel::class.java]
+        ariaFloatingLauncher = findViewById(R.id.ariaFloatingLauncher)
+        ariaFloatingLabel = findViewById(R.id.ariaFloatingLabel)
+        setupGlobalAria()
 
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
         drawerLayout.setScrimColor(Color.TRANSPARENT)
@@ -250,7 +289,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 playbackConnectRepository.uiState.collect { state ->
                     latestConnectState = state
-                    renderPlaybackDeviceState(state)
 
                     val active = state.activeDevice
                     val remoteIsActive = active != null &&
@@ -266,6 +304,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         // confirmed local play) → restore mini-player.
                         playbackTransferredAway = false
                     }
+                    renderPlaybackDeviceState(state)
                 }
             }
         }
@@ -455,6 +494,16 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
+            currentDestinationId = destination.id
+            if (AriaScreenMapper.isAriaDestination(destination.id)) {
+                AriaScreenContextHolder.enterAriaDestination()
+            } else {
+                AriaScreenContextHolder.updateDestination(
+                    AriaScreenMapper.fromDestinationId(destination.id)
+                )
+            }
+            updateAriaFloatingLauncher(destination.id)
+            updateAriaWakeWordListening()
 
             // 1. LÓGICA DE SELECCIÓN DE TABS NORMALES
             // Esto asegura que si navegas, el tab se actualice solo.
@@ -545,7 +594,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             } else {
                 AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this@MainActivity)
             }
-            latestConnectState?.let(::renderPlaybackDeviceState)
+            latestConnectState?.let { state ->
+                renderPlaybackDeviceState(state, destination.id)
+            }
         }
 
         bottomNavigationView.setOnItemSelectedListener { item ->
@@ -817,7 +868,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     if (currentSong != null && shouldShowMiniPlayer) {
                         updateDataPlayer(currentSong)
                         AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this)
-                        anchorDeviceBarToMiniPlayer()
                     }
                 }
             }
@@ -860,7 +910,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         container = findViewById<View>(R.id.miniPlayerContainer),
                         title = songName,
                         subtitle = songArtist,
-                        iconButtons = listOf(miniPlayerLikeButton, playPauseButton, miniPlayerQueueButton),
+                        iconButtons = listOf(
+                            miniPlayerLikeButton,
+                            playPauseButton,
+                            miniPlayerQueueButton,
+                            swipeHintLeft,
+                            swipeHintRight
+                        ),
                         seekBar = seekBar,
                     ),
                     fallbackColor = getColor(R.color.secondaryColorTheme)
@@ -952,26 +1008,59 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     companion object {
         private const val QUEUE_SHEET_TAG = "PlaybackQueueBottomSheet"
+
+        private val CONNECT_EXCLUDED_FRAGMENTS = setOf(
+            R.id.settingsFragment,
+            R.id.createPlaylistFragment,
+            R.id.editPlaylistFragment,
+            R.id.createPlaymixFragment,
+            R.id.playmixListFragment,
+            R.id.playmixDetailFragment,
+            R.id.crossfadeEditorFragment,
+            R.id.collabSearchFragment,
+            R.id.collabBubbleFragment,
+            R.id.collabDetailFragment,
+            R.id.collabPathFragment,
+            R.id.songFragment
+        )
+
+        private val FRAGMENTS_NO_TOOLBAR_NO_BOTTOM_NAV = setOf(
+            R.id.songFragment,
+            R.id.collabSearchFragment
+        )
     }
 
-    private fun renderPlaybackDeviceState(state: PlaybackConnectUiState) {
+    private fun isConnectAllowedForCurrentDestination(destinationId: Int? = null): Boolean {
+        if (!::navController.isInitialized) return true
+        val destId = destinationId ?: navController.currentDestination?.id ?: return true
+        if (destId in CONNECT_EXCLUDED_FRAGMENTS) return false
+        if (destId in FRAGMENTS_NO_TOOLBAR_NO_BOTTOM_NAV) return false
+        if (!shouldShowMiniPlayer) return false
+        return true
+    }
+
+    private fun renderPlaybackDeviceState(state: PlaybackConnectUiState, destinationId: Int? = null) {
         if (!::playbackDeviceBar.isInitialized) return
+
+        val isAllowed = isConnectAllowedForCurrentDestination(destinationId)
+        if (!isAllowed) {
+            playbackDeviceBar.visibility = View.GONE
+            return
+        }
 
         val active = state.activeDevice
         val remoteIsActive = active != null && active.deviceId != state.localDeviceId
 
         // Show the bar if:
-        // 1. A remote device is currently playing (always show — the user needs
-        //    this to see where playback went and to get it back).
+        // 1. A remote device is currently playing (the user needs this to see where playback went and to get it back).
         // 2. OR Connect is confirmed supported, there are alternative devices,
-        //    and the mini-player is visible (so there's something to transfer).
+        //    playback is not transferred away, and the mini-player is visible.
         val shouldShow = remoteIsActive ||
             (shouldShowMiniPlayer && !playbackTransferredAway &&
                 state.supported && state.hasAlternativeDevice)
 
         if (!shouldShow) {
             playbackDeviceBar.visibility = View.GONE
-            anchorDeviceBarToMiniPlayer()
             return
         }
         playbackDeviceText.text = when {
@@ -980,14 +1069,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             else -> "Este dispositivo"
         }
         playbackDeviceBar.visibility = View.VISIBLE
-
-        // When mini-player is hidden (transferred away), anchor the bar
-        // directly to bottom_navigation so it doesn't float.
-        if (playbackTransferredAway || miniPlayer.visibility == View.GONE) {
-            anchorDeviceBarToBottomNav()
-        } else {
-            anchorDeviceBarToMiniPlayer()
-        }
     }
 
     /**
@@ -996,21 +1077,126 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
      */
     private fun hideMiniPlayerForTransfer() {
         AnimationsUtils.setMiniPlayerVisibility(false, miniPlayer, this)
-        anchorDeviceBarToBottomNav()
     }
 
-    private fun anchorDeviceBarToBottomNav() {
-        val lp = playbackDeviceBar.layoutParams as? ConstraintLayout.LayoutParams ?: return
-        lp.bottomToTop = R.id.bottom_navigation
-        lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-        playbackDeviceBar.layoutParams = lp
+    private fun setupGlobalAria() {
+        val ariaSettings = SettingsManager(applicationContext)
+        ariaFloatingLauncher.setOnClickListener {
+            showAriaQuickSheet(startVoice = false)
+        }
+        findViewById<View>(R.id.ariaFloatingMicButton).setOnClickListener {
+            showAriaQuickSheet(startVoice = true)
+        }
+        supportFragmentManager.setFragmentResultListener(
+            AriaQuickSheet.RESULT_DISMISSED,
+            this
+        ) { _, _ ->
+            ariaQuickSheetVisible = false
+            updateAriaWakeWordListening()
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    ariaSettings.ariaFloatingAssistantEnabledFlow
+                        .collect { enabled ->
+                            ariaFloatingAssistantEnabled = enabled
+                            updateAriaFloatingLauncher(currentDestinationId)
+                        }
+                }
+                launch {
+                    ariaSettings.ariaForegroundWakeWordEnabledFlow.collect { enabled ->
+                        ariaForegroundWakeWordEnabled = enabled
+                        updateAriaWakeWordListening()
+                    }
+                }
+                launch {
+                    ariaViewModel.actionStream.collect { payload ->
+                        ariaViewModel.parseActionPayload(payload)
+                            ?.takeIf { it.clientSide }
+                            ?.let(ariaClientActionExecutor::execute)
+                    }
+                }
+                launch {
+                    ariaViewModel.isStreaming.collect { streaming ->
+                        ariaFloatingLauncher.isActivated = streaming
+                        if (streaming) {
+                            ariaFloatingLabel.text = "Pensando…"
+                        } else {
+                            updateAriaFloatingLabel(currentDestinationId)
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private fun anchorDeviceBarToMiniPlayer() {
-        val lp = playbackDeviceBar.layoutParams as? ConstraintLayout.LayoutParams ?: return
-        lp.bottomToTop = R.id.mini_player
-        lp.bottomMargin = (1 * resources.displayMetrics.density).toInt()
-        playbackDeviceBar.layoutParams = lp
+    private fun showAriaQuickSheet(startVoice: Boolean) {
+        val existing = supportFragmentManager.findFragmentByTag(AriaQuickSheet.TAG)
+        if (existing != null) return
+        ariaQuickSheetVisible = true
+        ariaWakeWordController.stop()
+        AriaQuickSheet.newInstance(startVoice).show(supportFragmentManager, AriaQuickSheet.TAG)
+    }
+
+    private fun updateAriaWakeWordListening() {
+        val destinationAllowsWakeWord = currentDestinationId != R.id.ariaFragment &&
+            currentDestinationId != R.id.ariaInfoFragment &&
+            currentDestinationId != R.id.settingsFragment
+        val hasMicrophonePermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        val shouldListen = activityIsForeground &&
+            ariaForegroundWakeWordEnabled &&
+            !ariaQuickSheetVisible &&
+            destinationAllowsWakeWord &&
+            hasMicrophonePermission
+
+        if (shouldListen) ariaWakeWordController.start() else ariaWakeWordController.stop()
+    }
+
+    private fun updateAriaFloatingLauncher(destinationId: Int?) {
+        updateAriaFloatingLabel(destinationId)
+        val shouldShow = ariaFloatingAssistantEnabled &&
+            destinationId != R.id.ariaFragment &&
+            destinationId != R.id.ariaInfoFragment &&
+            destinationId != R.id.settingsFragment
+        if (shouldShow && ariaFloatingLauncher.visibility != View.VISIBLE) {
+            ariaFloatingLauncher.alpha = 0f
+            ariaFloatingLauncher.translationY = 16f * resources.displayMetrics.density
+            ariaFloatingLauncher.visibility = View.VISIBLE
+            ariaFloatingLauncher.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(220L)
+                .start()
+        } else if (!shouldShow && ariaFloatingLauncher.visibility == View.VISIBLE) {
+            ariaFloatingLauncher.animate()
+                .alpha(0f)
+                .translationY(12f * resources.displayMetrics.density)
+                .setDuration(160L)
+                .withEndAction {
+                    ariaFloatingLauncher.visibility = View.GONE
+                    ariaFloatingLauncher.translationY = 0f
+                }
+                .start()
+        }
+    }
+
+    private fun updateAriaFloatingLabel(destinationId: Int?) {
+        if (::ariaViewModel.isInitialized && ariaViewModel.isStreaming.value) return
+        ariaFloatingLabel.text = when (destinationId) {
+            R.id.songFragment -> "¿Qué quieres hacer?"
+            R.id.playlistFragment,
+            R.id.artistFragment,
+            R.id.detailedArtistFragment,
+            R.id.albumFragment,
+            R.id.detailedAlbumFragment,
+            R.id.detailedSongFragment -> "Pregunta por esto"
+            R.id.settingsFragment -> "Estoy aquí"
+            else -> "¿Alguna pregunta?"
+        }
     }
 
     fun openDrawer() {
@@ -1029,18 +1215,24 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     override fun onStop() {
+        ariaWakeWordController.stop()
         super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
+        activityIsForeground = true
+        updateAriaWakeWordListening()
     }
 
     override fun onPause() {
+        activityIsForeground = false
+        ariaWakeWordController.stop()
         super.onPause()
     }
 
     override fun onDestroy() {
+        ariaWakeWordController.release()
         super.onDestroy()
     }
 

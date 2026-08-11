@@ -18,17 +18,26 @@ object SnackbarUtils {
         iconRes: Int
     ) {
         val miniPlayerView = findViewById<View>(R.id.mini_player)
-        val anchorId = if (miniPlayerView?.visibility == View.VISIBLE) R.id.mini_player else R.id.bottom_navigation
+        val anchor = findViewById<View>(R.id.bottomOverlaySnackbarAnchor)
+            ?: miniPlayerView?.takeIf { it.visibility == View.VISIBLE }
+            ?: findViewById(R.id.bottom_navigation)
         val snackbar = Snackbar
             .make(findViewById(R.id.main), text, Snackbar.LENGTH_LONG)
-            .setAnchorView(anchorId)
+        anchor?.let { snackbar.setAnchorView(it) }
 
         val snackbarView = snackbar.view
 
         // Márgenes horizontales personalizados
         val params = snackbarView.layoutParams
         if (params is ViewGroup.MarginLayoutParams) {
-            params.setMargins(40, params.topMargin, 40, (params.bottomMargin - 35))
+            val horizontalMargin = (16 * resources.displayMetrics.density).toInt()
+            val bottomMargin = (4 * resources.displayMetrics.density).toInt()
+            params.setMargins(
+                horizontalMargin,
+                params.topMargin,
+                horizontalMargin,
+                bottomMargin
+            )
             snackbarView.layoutParams = params
         }
 
@@ -56,17 +65,26 @@ object SnackbarUtils {
     ) {
         val activity = requireActivity()
         val miniPlayerView = activity.findViewById<View>(R.id.mini_player)
-        val anchorId = if (miniPlayerView?.visibility == View.VISIBLE) R.id.mini_player else R.id.bottom_navigation
+        val anchor = activity.findViewById<View>(R.id.bottomOverlaySnackbarAnchor)
+            ?: miniPlayerView?.takeIf { it.visibility == View.VISIBLE }
+            ?: activity.findViewById(R.id.bottom_navigation)
         val snackbar = Snackbar
             .make(activity.findViewById(R.id.main), text, Snackbar.LENGTH_LONG)
-            .setAnchorView(anchorId)
+        anchor?.let { snackbar.setAnchorView(it) }
 
         val snackbarView = snackbar.view
 
         // Márgenes horizontales personalizados
         val params = snackbarView.layoutParams
         if (params is ViewGroup.MarginLayoutParams) {
-            params.setMargins(40, params.topMargin, 40, (params.bottomMargin - 35))
+            val horizontalMargin = (16 * resources.displayMetrics.density).toInt()
+            val bottomMargin = (4 * resources.displayMetrics.density).toInt()
+            params.setMargins(
+                horizontalMargin,
+                params.topMargin,
+                horizontalMargin,
+                bottomMargin
+            )
             snackbarView.layoutParams = params
         }
 

@@ -2,8 +2,8 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <gradient
         android:angle="270"
-        android:startColor="#00000000"
-        android:centerColor="#99000000"
-        android:endColor="#FF000000"
+        android:startColor="@color/playmix_scrim_start"
+        android:centerColor="@color/playmix_scrim_center"
+        android:endColor="@color/playmix_scrim_end"
         android:type="linear" />
 </shape>

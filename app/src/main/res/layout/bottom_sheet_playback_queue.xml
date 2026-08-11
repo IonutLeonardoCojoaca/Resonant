@@ -60,7 +60,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/shuffle_upcoming"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_marginEnd="6dp"
@@ -72,20 +72,19 @@
             android:textAllCaps="false"
             android:textColor="@color/white"
             android:textSize="13sp"
-            app:backgroundTint="#17171A"
-            app:cornerRadius="15dp"
+            app:backgroundTint="@color/cardsTheme"
+            app:cornerRadius="14dp"
             app:icon="@drawable/ic_random"
             app:iconGravity="textStart"
             app:iconPadding="7dp"
             app:iconSize="19dp"
             app:iconTint="@color/white"
-            app:rippleColor="#33FFFFFF"
-            app:strokeColor="#33FFFFFF"
-            app:strokeWidth="1dp" />
+            app:rippleColor="@color/dividerOverlay"
+            app:strokeWidth="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/clear_upcoming"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_marginStart="6dp"
@@ -97,16 +96,10 @@
             android:textAllCaps="false"
             android:textColor="@color/secondaryColorTheme"
             android:textSize="13sp"
-            app:backgroundTint="#17171A"
-            app:cornerRadius="15dp"
-            app:icon="@drawable/ic_delete"
-            app:iconGravity="textStart"
-            app:iconPadding="7dp"
-            app:iconSize="19dp"
-            app:iconTint="@color/secondaryColorTheme"
-            app:rippleColor="#33FFFFFF"
-            app:strokeColor="#55E21616"
-            app:strokeWidth="1dp" />
+            app:backgroundTint="@color/cardsTheme"
+            app:cornerRadius="14dp"
+            app:rippleColor="@color/dividerOverlay"
+            app:strokeWidth="0dp" />
     </LinearLayout>
 
     <TextView

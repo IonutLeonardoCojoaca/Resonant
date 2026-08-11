@@ -17,13 +17,12 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
 
 class ArtistOptionsBottomSheet(
     private val artist: Artist,
     private val onGoToArtistClick: ((Artist) -> Unit)? = null,
-    private val onViewDetailsClick: ((Artist) -> Unit)? = null // Callback for detailed view
+    private val onViewDetailsClick: ((Artist) -> Unit)? = null
 ) : ResonantBottomSheetDialogFragment() {
 
     override fun getTheme(): Int {
@@ -41,7 +40,7 @@ class ArtistOptionsBottomSheet(
 
         val goToArtistButton: TextView = view.findViewById(R.id.goToArtistButton)
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
-        val viewDetailsButton: TextView = view.findViewById(R.id.viewDetailsButton) // New button
+        val viewDetailsButton: TextView = view.findViewById(R.id.viewDetailsButton)
         val shareArtistButton: TextView = view.findViewById(R.id.shareArtistButton)
 
         artistName.text = artist.name
@@ -72,20 +71,6 @@ class ArtistOptionsBottomSheet(
                 updateFavoriteButtonUI(addToFavoriteButton, isFavorite)
             }
             addToFavoriteButton.setOnClickListener {
-                // Toggle favorite logic should be handled by caller or ViewModel, 
-                // but usually we trigger a callback or call ViewModel directly.
-                // Here we assume caller might handle it or we call ViewModel?
-                // SongOptions calls a callback. Let's look at SongOptionsBottomSheet again.
-                // It calls `onFavoriteToggled`.
-                // For simplicity, let's call the ViewModel directly here or add a callback.
-                // SongOptionsBottomSheet accepts onFavoriteToggled. I'll add that to constructor to be consistent,
-                // but simpler to just call VM here if possible. 
-                // But SongOptionsBottomSheet uses callback. Let's refrain from direct VM calls if we want to be pure.
-                // However, SongOptionsBottomSheet gets VM inside to OBSERVE but callback to TOGGLE.
-                // I'll add onFavoriteToggled to constructor.
-                
-                // Wait, I didn't add it to constructor signature above. I'll fix it now.
-                // For now, let's just use the callback approach which I will add.
                 onFavoriteToggled(artist)
                 dismiss()
             }
@@ -111,36 +96,16 @@ class ArtistOptionsBottomSheet(
 
         return view
     }
-    
-    // Helper to request toggle via ViewModel or Callback. 
-    // Since I can't change the constructor signature easily without rewriting the whole file in the tool call,
-    // I will assume the caller passes a lambda or I Use Local ViewModel.
-    // The previous file content for SongOptions shows: `private val onFavoriteToggled: ((Song) -> Unit)? = null`
-    // I should add that to my class property.
-    
-    // Correcting the class header in my mind (and in the file writing):
-    /*
-    class ArtistOptionsBottomSheet(
-        private val artist: Artist,
-        private val onGoToArtistClick: ((Artist) -> Unit)? = null,
-        private val onFavoriteToggled: ((Artist) -> Unit)? = null, // Added
-        private val onViewDetailsClick: ((Artist) -> Unit)? = null 
-    )
-    */
 
     private fun onFavoriteToggled(artist: Artist) {
-        // This method will rely on the callback passed in constructor.
-        // I need to make sure I add it to the constructor when writing the file.
-        // Also show Snackbar.
-        // Copy logic from SongOptions.
-        val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java] // Need current value
+        val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         val isCurrentlyFavorite = favoritesViewModel.favoriteArtistIds.value?.contains(artist.id) ?: false
         if (!isCurrentlyFavorite) {
             showResonantSnackbar(text = "¡Artista añadido a favoritos!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
             favoritesViewModel.addFavoriteArtist(artist)
         } else {
             showResonantSnackbar(text = "Artista eliminado de favoritos", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-             favoritesViewModel.deleteFavoriteArtist(artist.id)
+            favoritesViewModel.deleteFavoriteArtist(artist.id)
         }
     }
 
@@ -152,7 +117,7 @@ class ArtistOptionsBottomSheet(
         } else {
             button.text = "Añadir a favoritos"
             button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
-            button.setTextColor(Color.parseColor("#FFFFFF"))
+            button.setTextColor(requireContext().getColor(R.color.white))
         }
     }
 

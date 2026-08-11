@@ -3,8 +3,8 @@
     android:shape="rectangle">
     <gradient
         android:angle="270"
-        android:startColor="#33000000"
-        android:centerColor="#88000000"
-        android:endColor="#DD000000" />
+        android:startColor="@color/explore_playlist_scrim_start"
+        android:centerColor="@color/explore_playlist_scrim_center"
+        android:endColor="@color/explore_playlist_scrim_end" />
     <corners android:radius="8dp" />
 </shape>

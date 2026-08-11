@@ -9,7 +9,8 @@
     <item
         android:id="@+id/exploreFragment"
         android:icon="@drawable/selector_menu_explore"
-        android:title="Explorar"/>
+        android:title="Explorar"
+        android:iconTint="@null"/>
 
     <item
         android:id="@+id/ariaFragment"
@@ -20,11 +21,13 @@
     <item
         android:id="@+id/savedFragment"
         android:icon="@drawable/selector_menu_saved"
-        android:title="Biblioteca"/>
+        android:title="Biblioteca"
+        android:iconTint="@null"/>
 
     <item
         android:id="@+id/createPlaylistFragment"
         android:icon="@drawable/ic_menu_add"
-        android:title="Crear" />
+        android:title="Crear"
+        android:iconTint="@null"/>
 
 </menu>

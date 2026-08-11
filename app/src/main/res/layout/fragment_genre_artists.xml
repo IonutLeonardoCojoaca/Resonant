@@ -71,7 +71,7 @@
                     android:layout_marginBottom="20dp"
                     android:fontFamily="@font/unageo_medium"
                     android:text="0 artistas"
-                    android:textColor="#CCFFFFFF"
+                    android:textColor="@color/textSecondaryAlpha"
                     android:textSize="15sp"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent" />

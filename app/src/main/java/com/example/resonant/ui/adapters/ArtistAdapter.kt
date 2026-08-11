@@ -24,7 +24,8 @@ import com.example.resonant.data.models.Artist
 
 class ArtistAdapter(
     private var artists: List<Artist>,
-    private var currentViewType: Int = VIEW_TYPE_GRID
+    private var currentViewType: Int = VIEW_TYPE_GRID,
+    private val forceWhiteText: Boolean = false
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     var onArtistClick: ((artist: Artist, sharedImage: ImageView) -> Unit)? = null
@@ -101,6 +102,9 @@ class ArtistAdapter(
 
         fun bind(artist: Artist) {
             artistName.text = artist.name
+            if (forceWhiteText) {
+                artistName.setTextColor(android.graphics.Color.WHITE)
+            }
             artistImage.transitionName = "artistImage_${artist.id}"
 
             artistImage.visibility = View.INVISIBLE
