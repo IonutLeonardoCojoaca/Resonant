@@ -2326,12 +2326,31 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     SessionResult.RESULT_ERROR_BAD_VALUE,
                     "Falta la canción"
                 )
-            val song = SongManager(applicationContext).getSongById(songId)
+            arguments.classLoader = Song::class.java.classLoader
+            val suppliedResolvedSong = arguments
+                .getParcelable(QueueCommands.ARG_RESOLVED_SONG, Song::class.java)
+            if (
+                suppliedResolvedSong != null &&
+                !suppliedResolvedSong.id.equals(songId, ignoreCase = true)
+            ) {
+                return queueCommandResult(
+                    SessionResult.RESULT_ERROR_BAD_VALUE,
+                    "La canción resuelta no coincide con la solicitada"
+                )
+            }
+            val song = suppliedResolvedSong
+                ?: SongManager(applicationContext).getSongById(songId)
                 ?: return queueCommandResult(
                     SessionResult.RESULT_ERROR_BAD_VALUE,
                     "La canción ya no está disponible"
                 )
-            playbackQueueEnricher.enrich(listOf(song), 0).firstOrNull() ?: song
+            if (suppliedResolvedSong != null) {
+                song
+            } else {
+                // ID-only requests (including Aria) resolve inside the service before mutating
+                // the queue, keeping the current playback untouched if resolution fails.
+                playbackQueueEnricher.enrich(listOf(song), 0).firstOrNull() ?: song
+            }
         } else {
             null
         }

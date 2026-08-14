@@ -386,7 +386,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:fontFamily="@font/unageo_medium"
-        android:text="Escucha solo mientras Resonant está visible. La primera activación puede descargar el modelo de voz local."
+        android:text="Escucha solo mientras Resonant está visible."
         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
         android:textColor="@color/white"
         app:layout_constraintEnd_toStartOf="@+id/aria_wake_word_switch"

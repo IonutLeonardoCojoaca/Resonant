@@ -145,6 +145,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var ariaViewModel: AriaViewModel
     private lateinit var ariaFloatingLauncher: View
     private lateinit var ariaFloatingLabel: TextView
+    private lateinit var ariaFloatingScrim: View
+    private lateinit var ariaFloatingOverlay: android.widget.FrameLayout
     private var ariaFloatingAssistantEnabled = true
     private var ariaForegroundWakeWordEnabled = false
     private var ariaQuickSheetVisible = false
@@ -156,6 +158,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private val ariaClientActionExecutor by lazy {
         AriaClientActionExecutor(this, lifecycleScope) { message, success ->
+            ariaViewModel.updateLastAriaMessage(message, isComplete = true)
             showResonantSnackbar(
                 text = message,
                 colorRes = if (success) R.color.successColor else R.color.secondaryColorTheme,
@@ -165,7 +168,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
     private val ariaWakeWordController by lazy {
         ForegroundAriaWakeWordController(applicationContext) {
-            showAriaQuickSheet(startVoice = true)
+            if (
+                activityIsForeground &&
+                !isFinishing &&
+                !isDestroyed &&
+                lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            ) {
+                showAriaQuickSheet(startVoice = true)
+            }
         }
     }
 
@@ -248,6 +258,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         ariaViewModel = ViewModelProvider(this)[AriaViewModel::class.java]
         ariaFloatingLauncher = findViewById(R.id.ariaFloatingLauncher)
         ariaFloatingLabel = findViewById(R.id.ariaFloatingLabel)
+        ariaFloatingScrim = findViewById(R.id.ariaFloatingScrim)
+        ariaFloatingOverlay = findViewById(R.id.ariaFloatingOverlay)
         setupGlobalAria()
 
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
@@ -1008,6 +1020,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     companion object {
         private const val QUEUE_SHEET_TAG = "PlaybackQueueBottomSheet"
+        private const val ARIA_SCRIM_COLLAPSED_ALPHA = 0x52
+        private const val ARIA_SCRIM_EXPANDED_ALPHA = 0xA0
 
         private val CONNECT_EXCLUDED_FRAGMENTS = setOf(
             R.id.settingsFragment,
@@ -1087,12 +1101,16 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         findViewById<View>(R.id.ariaFloatingMicButton).setOnClickListener {
             showAriaQuickSheet(startVoice = true)
         }
+        ariaFloatingScrim.setOnClickListener {
+            (supportFragmentManager.findFragmentByTag(AriaQuickSheet.TAG) as? AriaQuickSheet)
+                ?.dismiss()
+                ?: completeAriaQuickSheetDismissal()
+        }
         supportFragmentManager.setFragmentResultListener(
             AriaQuickSheet.RESULT_DISMISSED,
             this
         ) { _, _ ->
-            ariaQuickSheetVisible = false
-            updateAriaWakeWordListening()
+            completeAriaQuickSheetDismissal()
         }
 
         lifecycleScope.launch {
@@ -1113,7 +1131,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 launch {
                     ariaViewModel.actionStream.collect { payload ->
                         ariaViewModel.parseActionPayload(payload)
-                            ?.takeIf { it.clientSide }
+                            ?.takeIf(ariaViewModel::shouldExecuteClientAction)
                             ?.let(ariaClientActionExecutor::execute)
                     }
                 }
@@ -1132,11 +1150,86 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     private fun showAriaQuickSheet(startVoice: Boolean) {
-        val existing = supportFragmentManager.findFragmentByTag(AriaQuickSheet.TAG)
-        if (existing != null) return
+        if (
+            ariaQuickSheetVisible ||
+            isFinishing ||
+            isDestroyed ||
+            !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        ) return
         ariaQuickSheetVisible = true
         ariaWakeWordController.stop()
-        AriaQuickSheet.newInstance(startVoice).show(supportFragmentManager, AriaQuickSheet.TAG)
+
+        val fragment = AriaQuickSheet.newInstance(startVoice)
+        fragment.onDismissRequest = dismissRequest@{
+            if (isFinishing || isDestroyed) return@dismissRequest
+            completeAriaQuickSheetDismissal()
+        }
+        fragment.onExpansionProgressChanged = ::renderAriaQuickSheetExpansion
+
+        ariaFloatingScrim.animate().cancel()
+        renderAriaQuickSheetExpansion(0f)
+        ariaFloatingScrim.alpha = 0f
+        ariaFloatingScrim.visibility = View.VISIBLE
+        ariaFloatingScrim.animate()
+            .alpha(1f)
+            .setDuration(220L)
+            .start()
+
+        // Show the overlay container before adding the fragment so it is measured
+        ariaFloatingOverlay.visibility = android.view.View.VISIBLE
+        ariaFloatingOverlay.alpha = 0f
+        ariaFloatingOverlay.translationY = ariaFloatingOverlay.height.toFloat().coerceAtLeast(200f)
+
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.ariaFloatingOverlay, fragment, AriaQuickSheet.TAG)
+            .commitAllowingStateLoss()
+
+        // Animate slide-up + fade-in after layout
+        ariaFloatingOverlay.post {
+            ariaFloatingOverlay.translationY = ariaFloatingOverlay.height.toFloat().coerceAtLeast(200f)
+            ariaFloatingOverlay.animate()
+                .translationY(0f)
+                .alpha(1f)
+                .setDuration(300)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun completeAriaQuickSheetDismissal() {
+        ariaFloatingOverlay.animate().cancel()
+        ariaFloatingOverlay.visibility = View.GONE
+        ariaFloatingOverlay.alpha = 1f
+        ariaFloatingOverlay.translationY = 0f
+
+        ariaFloatingScrim.animate().cancel()
+        ariaFloatingScrim.animate()
+            .alpha(0f)
+            .setDuration(160L)
+            .withEndAction {
+                ariaFloatingScrim.visibility = View.GONE
+                ariaFloatingScrim.alpha = 1f
+                renderAriaQuickSheetExpansion(0f)
+            }
+            .start()
+
+        (supportFragmentManager.findFragmentByTag(AriaQuickSheet.TAG) as? AriaQuickSheet)
+            ?.let { fragment ->
+                supportFragmentManager.beginTransaction()
+                    .remove(fragment)
+                    .commitAllowingStateLoss()
+            }
+        ariaQuickSheetVisible = false
+        updateAriaWakeWordListening()
+    }
+
+    private fun renderAriaQuickSheetExpansion(progress: Float) {
+        val clampedProgress = progress.coerceIn(0f, 1f)
+        val alpha = (
+            ARIA_SCRIM_COLLAPSED_ALPHA +
+                ((ARIA_SCRIM_EXPANDED_ALPHA - ARIA_SCRIM_COLLAPSED_ALPHA) * clampedProgress)
+            ).toInt()
+        ariaFloatingScrim.setBackgroundColor(Color.argb(alpha, 0, 0, 0))
     }
 
     private fun updateAriaWakeWordListening() {

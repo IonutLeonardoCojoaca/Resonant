@@ -22,6 +22,7 @@ import com.example.resonant.ui.viewmodels.AriaAction
 import com.example.resonant.ui.viewmodels.AriaMessage
 import com.example.resonant.ui.viewmodels.AriaMessageRole
 import com.example.resonant.ui.viewmodels.AriaNamePlays
+import com.example.resonant.ui.viewmodels.AriaSongDisambiguationChoice
 import com.example.resonant.ui.viewmodels.AriaSongCard
 import com.example.resonant.utils.ImageRequestHelper
 import com.google.android.material.imageview.ShapeableImageView
@@ -31,10 +32,30 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+internal object AriaSongDisambiguationUi {
+    const val CARD_TITLE = "ELIGE UNA VERSIÓN"
+
+    fun sortedChoices(action: AriaAction): List<AriaSongDisambiguationChoice> =
+        action.songDisambiguation.orEmpty().sortedBy { it.choiceNumber }
+
+    fun selectionPrompt(choiceNumber: Int): String = "Elijo la opción $choiceNumber"
+
+    fun subtitle(choice: AriaSongDisambiguationChoice): String =
+        listOfNotNull(
+            choice.artistNames?.takeIf { it.isNotBlank() },
+            choice.albumTitle?.takeIf { it.isNotBlank() }
+        ).joinToString(" · ")
+
+    fun duration(durationSeconds: Int?): String? = durationSeconds
+        ?.takeIf { it > 0 }
+        ?.let { String.format(Locale.ROOT, "%d:%02d", it / 60, it % 60) }
+}
+
 class AriaChatAdapter(
     private val onFeedback: (messageId: String, rating: Int) -> Unit,
     private val onActionCardClick: (actionPayload: String) -> Unit,
     private val onSongCardClick: (songId: String) -> Unit = {},
+    private val onSongDisambiguationChoiceClick: (prompt: String) -> Unit = {},
     private val onArtistCardClick: (artistId: String) -> Unit = {},
     private val onSuggestedFollowupClick: (prompt: String) -> Unit = {}
 ) : ListAdapter<AriaMessage, RecyclerView.ViewHolder>(AriaDiffCallback()) {
@@ -74,6 +95,7 @@ class AriaChatAdapter(
                 onFeedback,
                 onActionCardClick,
                 onSongCardClick,
+                onSongDisambiguationChoiceClick,
                 onArtistCardClick,
                 onSuggestedFollowupClick
             )
@@ -166,6 +188,7 @@ class AriaChatAdapter(
             onFeedback: (String, Int) -> Unit,
             onActionCardClick: (String) -> Unit,
             onSongCardClick: (String) -> Unit,
+            onSongDisambiguationChoiceClick: (String) -> Unit,
             onArtistCardClick: (String) -> Unit,
             onSuggestedFollowupClick: (String) -> Unit
         ) {
@@ -187,10 +210,13 @@ class AriaChatAdapter(
             val isConsultaUsuario = action?.type == "consulta_usuario"
             val isSongRecs = !action?.songRecommendations.isNullOrEmpty() ||
                 !action?.previewSongs.isNullOrEmpty()
+            val isSongDisambiguation = action?.entityKind == "song_disambiguation" &&
+                !action.songDisambiguation.isNullOrEmpty()
             val hasRelatedArtists = !action?.relatedArtists.isNullOrEmpty()
             val shouldShowCard = action != null &&
                 message.isComplete &&
-                (message.intentType in CARD_VISIBLE_TYPES || action.type in CARD_VISIBLE_TYPES || isConsultaUsuario)
+                (message.intentType in CARD_VISIBLE_TYPES || action.type in CARD_VISIBLE_TYPES ||
+                    isConsultaUsuario || isSongDisambiguation)
 
             // Reset all card containers
             ariaPlaylistCard.visibility = View.GONE
@@ -200,7 +226,14 @@ class AriaChatAdapter(
             followupsContainer.visibility = View.GONE
             Glide.with(itemView).clear(ariaCardCover)
 
-            if (shouldShowCard && isConsultaUsuario) {
+            if (shouldShowCard && isSongDisambiguation) {
+                bindSongDisambiguation(
+                    action = action!!,
+                    context = itemView.context,
+                    onChoiceClick = onSongDisambiguationChoiceClick
+                )
+                songCardsContainer.visibility = View.VISIBLE
+            } else if (shouldShowCard && isConsultaUsuario) {
                 bindUserStatsCard(action!!, itemView.context)
                 userStatsCard.visibility = View.VISIBLE
             } else if (shouldShowCard) {
@@ -648,6 +681,113 @@ class AriaChatAdapter(
 
         private fun formatHours(h: Double): String {
             return if (h >= 1.0) String.format("%.0f", h) else String.format("%.1f", h)
+        }
+
+        private fun bindSongDisambiguation(
+            action: AriaAction,
+            context: Context,
+            onChoiceClick: (String) -> Unit
+        ) {
+            songCardsList.removeAllViews()
+            songCardsKindLabel.text = AriaSongDisambiguationUi.CARD_TITLE
+            songCardsArtistName.visibility = View.GONE
+            songCardsCatalogCount.visibility = View.GONE
+
+            val density = context.resources.displayMetrics.density
+            AriaSongDisambiguationUi.sortedChoices(action).forEachIndexed { index, choice ->
+                val card = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    background = context.getDrawable(R.drawable.bg_aria_action_card)
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also {
+                        if (index > 0) it.topMargin = (density * 4).toInt()
+                    }
+                    setPadding(
+                        (density * 10).toInt(),
+                        (density * 10).toInt(),
+                        (density * 10).toInt(),
+                        (density * 10).toInt()
+                    )
+                    tag = "aria_disambiguation_choice_${choice.choiceNumber}"
+                    contentDescription = "Opción ${choice.choiceNumber}: ${choice.title}"
+                    isClickable = true
+                    isFocusable = true
+                }
+
+                val choiceNumber = TextView(context).apply {
+                    text = choice.choiceNumber.toString()
+                    setTextColor(Color.parseColor("#88FFFFFF"))
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    layoutParams = LinearLayout.LayoutParams(
+                        (density * 24).toInt(),
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+
+                val infoColumn = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f
+                    )
+                }
+                infoColumn.addView(TextView(context).apply {
+                    text = choice.title
+                    setTextColor(Color.WHITE)
+                    textSize = 13f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+                val subtitle = AriaSongDisambiguationUi.subtitle(choice)
+                if (subtitle.isNotEmpty()) {
+                    infoColumn.addView(TextView(context).apply {
+                        text = subtitle
+                        setTextColor(Color.parseColor("#88FFFFFF"))
+                        textSize = 11f
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                }
+
+                val metadataColumn = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = android.view.Gravity.END
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).also { it.marginStart = (density * 8).toInt() }
+                }
+                AriaSongDisambiguationUi.duration(choice.durationSeconds)?.let { duration ->
+                    metadataColumn.addView(TextView(context).apply {
+                        text = duration
+                        setTextColor(Color.parseColor("#88FFFFFF"))
+                        textSize = 11f
+                    })
+                }
+                choice.releaseYear?.let { year ->
+                    metadataColumn.addView(TextView(context).apply {
+                        text = year.toString()
+                        setTextColor(Color.parseColor("#66FFFFFF"))
+                        textSize = 10f
+                    })
+                }
+
+                card.addView(choiceNumber)
+                card.addView(infoColumn)
+                card.addView(metadataColumn)
+                card.setOnClickListener {
+                    onChoiceClick(
+                        AriaSongDisambiguationUi.selectionPrompt(choice.choiceNumber)
+                    )
+                }
+                songCardsList.addView(card)
+            }
         }
 
         private fun bindSongRecommendations(action: AriaAction, context: Context, onSongCardClick: (String) -> Unit) {

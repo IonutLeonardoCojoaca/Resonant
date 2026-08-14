@@ -7,25 +7,24 @@ class AudioSettingsModelTest {
     @Test
     fun `quality parses stored enum and api values`() {
         assertEquals(
-            AudioQuality.HIGH,
-            AudioQuality.fromStored("HIGH", AudioQuality.AUTO)
+            AudioQuality.AUTO,
+            AudioQuality.fromStored("AUTO", AudioQuality.AUTO)
         )
         assertEquals(
-            AudioQuality.DATA_SAVER,
-            AudioQuality.fromStored("data-saver", AudioQuality.AUTO)
-        )
-        assertEquals(
-            AudioQuality.NORMAL,
-            AudioQuality.fromStored("normal", AudioQuality.AUTO)
+            AudioQuality.AUTO,
+            AudioQuality.fromStored("auto", AudioQuality.AUTO)
         )
     }
 
     @Test
-    fun `unknown quality uses explicit fallback`() {
-        assertEquals(
-            AudioQuality.HIGH,
-            AudioQuality.fromStored("lossless-not-supported", AudioQuality.HIGH)
-        )
+    fun `legacy and unknown qualities use automatic fallback`() {
+        listOf("HIGH", "data-saver", "normal", "lossless-not-supported").forEach { stored ->
+            assertEquals(
+                stored,
+                AudioQuality.AUTO,
+                AudioQuality.fromStored(stored, AudioQuality.AUTO)
+            )
+        }
     }
 
     @Test
@@ -46,4 +45,3 @@ class AudioSettingsModelTest {
         )
     }
 }
-

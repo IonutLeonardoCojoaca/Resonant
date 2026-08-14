@@ -4,7 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.aria.AriaScreenContextHolder
+import com.example.resonant.data.network.AriaClientActionDTO
 import com.example.resonant.playback.PlaybackStateRepository
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -53,6 +55,19 @@ data class AriaSongCard(
     val genres: List<String> = emptyList()
 )
 
+data class AriaSongDisambiguationChoice(
+    val choiceNumber: Int,
+    val songId: String,
+    val title: String,
+    val artistNames: String? = null,
+    val albumId: String? = null,
+    val albumTitle: String? = null,
+    val releaseYear: Int? = null,
+    val durationSeconds: Int? = null,
+    val genres: List<String> = emptyList(),
+    val matchKind: String? = null
+)
+
 data class AriaRelatedArtist(
     val id: String,
     val name: String,
@@ -60,8 +75,26 @@ data class AriaRelatedArtist(
     val reason: String? = null
 )
 
+data class AriaActionSong(
+    val songId: String? = null,
+    val title: String? = null,
+    val artistNames: String? = null,
+    val albumId: String? = null,
+    val albumTitle: String? = null,
+    val durationSeconds: Int? = null,
+    val releaseYear: Int? = null,
+    val streams: Int? = null,
+    /** Open server-provided value; intentionally not modelled as an enum. */
+    val selectionMode: String? = null
+)
+
 data class AriaAction(
     val type: String,
+    val actionId: String? = null,
+    val executionStatus: String? = null,
+    val verified: Boolean? = null,
+    val success: Boolean? = null,
+    val question: String? = null,
     val playlistId: String? = null,
     val nCanciones: Int? = null,
     val artistas: List<String>? = null,
@@ -101,6 +134,8 @@ data class AriaAction(
     val songRecArtistId: String? = null,
     val songRecArtistName: String? = null,
     val songRecTotalInCatalog: Int? = null,
+    // Song choices that require another normal conversational turn.
+    val songDisambiguation: List<AriaSongDisambiguationChoice>? = null,
     // Enriched action fields
     val previewSongs: List<AriaSongCard>? = null,
     val navigateTo: String? = null,
@@ -111,6 +146,10 @@ data class AriaAction(
     // Effects executed by the Android client
     val clientSide: Boolean = false,
     val playbackCommand: String? = null,
+    val songId: String? = null,
+    val song: AriaActionSong? = null,
+    val selectionMode: String? = null,
+    // Legacy aliases retained for older action producers and existing UI code.
     val clientSongId: String? = null,
     val clientSongTitle: String? = null,
     val clientSongArtist: String? = null
@@ -161,6 +200,9 @@ class AriaViewModel : ViewModel() {
     private val _actionStream = MutableSharedFlow<String>()
     val actionStream: SharedFlow<String> = _actionStream.asSharedFlow()
 
+    private val _isAwaitingSongChoice = MutableStateFlow(false)
+    val isAwaitingSongChoice: StateFlow<Boolean> = _isAwaitingSongChoice.asStateFlow()
+
     private val _statusStream = MutableStateFlow<String?>(null)
     val statusStream: StateFlow<String?> = _statusStream.asStateFlow()
 
@@ -175,6 +217,9 @@ class AriaViewModel : ViewModel() {
     var streamingJob: Job? = null
 
     fun addUserMessage(text: String) {
+        // Any typed, spoken or numbered reply is a normal next turn. The backend will decide
+        // whether it resolves the pending choice or asks another clarification.
+        _isAwaitingSongChoice.value = false
         val currentList = _messages.value.toMutableList()
         currentList.add(AriaMessage(role = AriaMessageRole.USER, text = text))
         _messages.value = currentList
@@ -246,6 +291,7 @@ class AriaViewModel : ViewModel() {
     fun clearMessages() {
         _messages.value = emptyList()
         _statusStream.value = null
+        _isAwaitingSongChoice.value = false
     }
 
     fun updatePlaylistCoverUrl(messageId: String, imageUrl: String) {
@@ -475,7 +521,10 @@ class AriaViewModel : ViewModel() {
             return false
         }
 
-        val responseText = (json.opt("respuesta") as? String)?.trim().orEmpty()
+        val responseText = (
+            (json.opt("respuesta") as? String)
+                ?: (json.opt("pregunta") as? String)
+            )?.trim().orEmpty()
         val intent = parseIntentType(payload)
         val hasRichContent = json.has("playlist_id") ||
             json.has("content") ||
@@ -527,6 +576,21 @@ class AriaViewModel : ViewModel() {
         val extractedLogId = extractLogId(actionPayload)
         Log.d("AriaSSE", "ACTION extracted logId: '$extractedLogId'")
         val extractedAction = parseAriaAction(actionPayload)
+        extractedAction?.let(::registerPendingSongChoice)
+
+        val isPrematurePlayback = extractedAction?.let { action ->
+            _isAwaitingSongChoice.value &&
+                action.type == "controlar_reproduccion" &&
+                action.clientSide &&
+                action.executionStatus == "pending_client"
+        } == true
+        if (isPrematurePlayback) {
+            Log.w(
+                "AriaSSE",
+                "Ignoring playback action ${extractedAction?.actionId} while song choice is pending"
+            )
+            return
+        }
 
         if (!intent.isNullOrEmpty() && intent != "error" && intent != "charla") {
             updateLastAriaMessage(accumulatedText.toString(), false, intent, actionPayload, logId = extractedLogId, actionData = extractedAction)
@@ -555,8 +619,43 @@ class AriaViewModel : ViewModel() {
 
     fun parseActionPayload(payload: String): AriaAction? = parseAriaAction(payload)
 
+    /**
+     * Applies the conversational execution gate used by MainActivity. A playback event emitted
+     * while Aria is still waiting for a song choice is ignored instead of guessing a version.
+     */
+    fun shouldExecuteClientAction(action: AriaAction): Boolean {
+        registerPendingSongChoice(action)
+        return action.type == "controlar_reproduccion" &&
+            action.clientSide &&
+            action.executionStatus == "pending_client" &&
+            !_isAwaitingSongChoice.value
+    }
+
+    private fun registerPendingSongChoice(action: AriaAction) {
+        if (
+            action.type == "seleccionar_cancion" &&
+            action.executionStatus == "needs_input" &&
+            action.entityKind == "song_disambiguation" &&
+            !action.songDisambiguation.isNullOrEmpty()
+        ) {
+            _isAwaitingSongChoice.value = true
+        }
+    }
+
     private fun parseAriaAction(payload: String): AriaAction? {
         return try {
+            val clientActionDto = runCatching {
+                Gson().fromJson(payload, AriaClientActionDTO::class.java)
+            }.getOrNull()
+            if (clientActionDto?.type == "controlar_reproduccion") {
+                return clientActionDto.toPlaybackAction()
+            }
+            if (
+                clientActionDto?.type == "seleccionar_cancion" &&
+                clientActionDto.content?.kind == "song_disambiguation"
+            ) {
+                return clientActionDto.toSongDisambiguationAction()
+            }
             val json = JSONObject(payload)
             val type = json.optString("type").takeIf { it.isNotBlank() } ?: return null
             val content = json.optJSONObject("content")
@@ -574,7 +673,8 @@ class AriaViewModel : ViewModel() {
                 (0 until artistasArr.length()).mapNotNull { artistasArr.optString(it).takeIf { s -> s.isNotBlank() } }
             } else null
 
-            val logId = extractLogId(payload)
+            val logId = clientActionDto?.logId?.takeIf { it.isNotBlank() }
+                ?: extractLogId(payload)
 
             // Rich content fields
             val entityKind = content?.optString("kind")?.takeIf { it.isNotBlank() }
@@ -699,6 +799,13 @@ class AriaViewModel : ViewModel() {
                     .takeIf { it.isNotEmpty() }
             }
 
+            val songDisambiguation = if (entityKind == "song_disambiguation") {
+                parseSongDisambiguation(content?.optJSONArray("songs"))
+                    .takeIf { it.isNotEmpty() }
+            } else {
+                null
+            }
+
             val previewSongs = parseSongCards(json.optJSONArray("preview_songs"))
                 .take(CLIENT_PREVIEW_MAX_SIZE)
                 .takeIf { it.isNotEmpty() }
@@ -730,18 +837,52 @@ class AriaViewModel : ViewModel() {
 
             val seedSource = json.optString("seed_source").takeIf { it.isNotBlank() }
             val referenceArtist = json.optString("referencia").takeIf { it.isNotBlank() }
-            val clientSide = json.optBoolean("client_side", false)
-            val playbackCommand = json.optString("comando").takeIf { it.isNotBlank() }
-            val clientSongId = json.optString("song_id").takeIf { it.isNotBlank() }
+            val clientSide = clientActionDto?.clientSide
+                ?: json.optBoolean("client_side", false)
+            val playbackCommand = clientActionDto?.command?.takeIf { it.isNotBlank() }
+                ?: json.optString("comando").takeIf { it.isNotBlank() }
+            val actionSong = clientActionDto?.song?.let { dto ->
+                AriaActionSong(
+                    songId = dto.songId?.takeIf { it.isNotBlank() },
+                    title = dto.title?.takeIf { it.isNotBlank() },
+                    artistNames = dto.artistNames?.takeIf { it.isNotBlank() },
+                    albumId = dto.albumId?.takeIf { it.isNotBlank() },
+                    albumTitle = dto.albumTitle?.takeIf { it.isNotBlank() },
+                    durationSeconds = dto.durationSeconds,
+                    releaseYear = dto.releaseYear,
+                    streams = dto.streams,
+                    selectionMode = dto.selectionMode?.takeIf { it.isNotBlank() }
+                )
+            }
+            val songId = clientActionDto?.songId?.takeIf { it.isNotBlank() }
+                ?: actionSong?.songId
+                ?: json.optString("song_id").takeIf { it.isNotBlank() }
                 ?: json.optString("now_playing_song_id").takeIf { it.isNotBlank() }
             val clientSongTitle = json.optString("nombre_cancion").takeIf { it.isNotBlank() }
+                ?: actionSong?.title
                 ?: json.optString("title").takeIf { it.isNotBlank() }
                 ?: json.optString("now_playing_title").takeIf { it.isNotBlank() }
             val clientSongArtist = json.optString("nombre_artista").takeIf { it.isNotBlank() }
+                ?: actionSong?.artistNames
                 ?: json.optString("artist").takeIf { it.isNotBlank() }
+            val selectionMode = clientActionDto?.selectionMode?.takeIf { it.isNotBlank() }
+                ?: actionSong?.selectionMode
+            val actionId = clientActionDto?.actionId?.takeIf { it.isNotBlank() }
+                ?: json.optString("action_id").takeIf { it.isNotBlank() }
+                ?: json.optString("actionId").takeIf { it.isNotBlank() }
+            val executionStatus = clientActionDto?.executionStatus?.takeIf { it.isNotBlank() }
+                ?: json.optString("execution_status").takeIf { it.isNotBlank() }
+                ?: json.optString("executionStatus").takeIf { it.isNotBlank() }
 
             AriaAction(
                 type = type,
+                actionId = actionId,
+                executionStatus = executionStatus,
+                verified = clientActionDto?.verified
+                    ?: json.opt("verified")?.takeIf { it is Boolean } as? Boolean,
+                success = clientActionDto?.success
+                    ?: json.opt("success")?.takeIf { it is Boolean } as? Boolean,
+                question = json.optString("pregunta").takeIf { it.isNotBlank() },
                 playlistId = playlistId,
                 nCanciones = nCanciones,
                 artistas = artistas,
@@ -778,6 +919,7 @@ class AriaViewModel : ViewModel() {
                 songRecArtistId = songRecArtistId,
                 songRecArtistName = songRecArtistName,
                 songRecTotalInCatalog = songRecTotalInCatalog,
+                songDisambiguation = songDisambiguation,
                 previewSongs = previewSongs,
                 navigateTo = navigateTo,
                 suggestedFollowups = suggestedFollowups,
@@ -786,11 +928,90 @@ class AriaViewModel : ViewModel() {
                 referenceArtist = referenceArtist,
                 clientSide = clientSide,
                 playbackCommand = playbackCommand,
-                clientSongId = clientSongId,
+                songId = songId,
+                song = actionSong,
+                selectionMode = selectionMode,
+                clientSongId = songId,
                 clientSongTitle = clientSongTitle,
                 clientSongArtist = clientSongArtist
             )
         } catch (e: Exception) { null }
+    }
+
+    private fun AriaClientActionDTO.toPlaybackAction(): AriaAction {
+        val actionSong = song?.let { dto ->
+            AriaActionSong(
+                songId = dto.songId?.takeIf { it.isNotBlank() },
+                title = dto.title?.takeIf { it.isNotBlank() },
+                artistNames = dto.artistNames?.takeIf { it.isNotBlank() },
+                albumId = dto.albumId?.takeIf { it.isNotBlank() },
+                albumTitle = dto.albumTitle?.takeIf { it.isNotBlank() },
+                durationSeconds = dto.durationSeconds,
+                releaseYear = dto.releaseYear,
+                streams = dto.streams,
+                selectionMode = dto.selectionMode?.takeIf { it.isNotBlank() }
+            )
+        }
+        val authoritativeSongId = songId?.takeIf { it.isNotBlank() }
+            ?: actionSong?.songId
+        val title = songTitle?.takeIf { it.isNotBlank() } ?: actionSong?.title
+        val artist = songArtist?.takeIf { it.isNotBlank() } ?: actionSong?.artistNames
+
+        return AriaAction(
+            type = requireNotNull(type),
+            actionId = actionId?.takeIf { it.isNotBlank() },
+            executionStatus = executionStatus?.takeIf { it.isNotBlank() },
+            verified = verified,
+            success = success,
+            logId = logId?.takeIf { it.isNotBlank() },
+            clientSide = clientSide,
+            playbackCommand = command?.takeIf { it.isNotBlank() },
+            songId = authoritativeSongId,
+            song = actionSong,
+            selectionMode = selectionMode?.takeIf { it.isNotBlank() }
+                ?: actionSong?.selectionMode,
+            clientSongId = authoritativeSongId,
+            clientSongTitle = title,
+            clientSongArtist = artist
+        )
+    }
+
+    private fun AriaClientActionDTO.toSongDisambiguationAction(): AriaAction {
+        val choices = content?.songs.orEmpty().mapNotNull { song ->
+            val choiceNumber = song.choiceNumber?.takeIf { it > 0 }
+                ?: return@mapNotNull null
+            val authoritativeSongId = song.songId?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+            val title = song.title?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+            AriaSongDisambiguationChoice(
+                choiceNumber = choiceNumber,
+                songId = authoritativeSongId,
+                title = title,
+                artistNames = song.artistNames?.trim()?.takeIf { it.isNotEmpty() },
+                albumId = song.albumId?.trim()?.takeIf { it.isNotEmpty() },
+                albumTitle = song.albumTitle?.trim()?.takeIf { it.isNotEmpty() },
+                releaseYear = song.releaseYear?.takeIf { it > 0 },
+                durationSeconds = song.durationSeconds?.takeIf { it > 0 },
+                genres = song.genres.orEmpty().mapNotNull { genre ->
+                    genre.trim().takeIf { it.isNotEmpty() }
+                },
+                matchKind = song.matchKind?.trim()?.takeIf { it.isNotEmpty() }
+            )
+        }.takeIf { it.isNotEmpty() }
+
+        return AriaAction(
+            type = requireNotNull(type),
+            actionId = actionId?.takeIf { it.isNotBlank() },
+            executionStatus = executionStatus?.takeIf { it.isNotBlank() },
+            verified = verified,
+            success = success,
+            question = question?.takeIf { it.isNotBlank() },
+            logId = logId?.takeIf { it.isNotBlank() },
+            entityKind = content?.kind,
+            songDisambiguation = choices,
+            clientSide = clientSide
+        )
     }
 
     private fun parseSongCards(arr: JSONArray?): List<AriaSongCard> {
@@ -819,6 +1040,41 @@ class AriaViewModel : ViewModel() {
                 releaseYear = song.optInt("release_year", 0),
                 streams = song.optInt("streams", 0),
                 genres = genres
+            )
+        }
+    }
+
+    private fun parseSongDisambiguation(
+        arr: JSONArray?
+    ): List<AriaSongDisambiguationChoice> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { index ->
+            val song = arr.optJSONObject(index) ?: return@mapNotNull null
+            val choiceNumber = song.optInt("choice_number", 0).takeIf { it > 0 }
+                ?: return@mapNotNull null
+            val songId = song.optString("song_id").takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val title = song.optString("title").takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val genresArray = song.optJSONArray("genres")
+            val genres = if (genresArray == null) {
+                emptyList()
+            } else {
+                (0 until genresArray.length()).mapNotNull { genreIndex ->
+                    genresArray.optString(genreIndex).takeIf { it.isNotBlank() }
+                }
+            }
+            AriaSongDisambiguationChoice(
+                choiceNumber = choiceNumber,
+                songId = songId,
+                title = title,
+                artistNames = song.optString("artist_names").takeIf { it.isNotBlank() },
+                albumId = song.optString("album_id").takeIf { it.isNotBlank() },
+                albumTitle = song.optString("album_title").takeIf { it.isNotBlank() },
+                releaseYear = song.optInt("release_year", 0).takeIf { it > 0 },
+                durationSeconds = song.optInt("duration_seconds", 0).takeIf { it > 0 },
+                genres = genres,
+                matchKind = song.optString("match_kind").takeIf { it.isNotBlank() }
             )
         }
     }

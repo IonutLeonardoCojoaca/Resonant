@@ -211,6 +211,9 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
                 val bundle = Bundle().apply { putString("songId", songId) }
                 findNavController().navigate(R.id.action_ariaFragment_to_detailedSongFragment, bundle)
             },
+            onSongDisambiguationChoiceClick = { prompt ->
+                submitSuggestedFollowup(prompt)
+            },
             onArtistCardClick = { artistId ->
                 val bundle = Bundle().apply { putString("artistId", artistId) }
                 findNavController().navigate(R.id.artistFragment, bundle)

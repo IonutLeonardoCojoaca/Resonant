@@ -13,6 +13,7 @@ object QueueCommands {
     const val SHUFFLE_UPCOMING = "com.resonant.queue.SHUFFLE_UPCOMING"
 
     const val ARG_SONG_ID = "song_id"
+    const val ARG_RESOLVED_SONG = "resolved_song"
     const val ARG_FROM_INDEX = "from_index"
     const val ARG_TO_INDEX = "to_index"
     const val ARG_QUEUE_INDEX = "queue_index"

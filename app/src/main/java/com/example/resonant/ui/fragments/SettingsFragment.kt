@@ -53,6 +53,7 @@ class SettingsFragment : Fragment() {
     ) { granted ->
         val currentBinding = _binding ?: return@registerForActivityResult
         if (granted && pendingWakeWordEnable) {
+            ForegroundAriaWakeWordController.allowModelDownloadRequest(requireContext())
             viewLifecycleOwner.lifecycleScope.launch {
                 settingsManager.setAriaForegroundWakeWordEnabled(true)
             }
@@ -300,11 +301,13 @@ class SettingsFragment : Fragment() {
                 return@setOnCheckedChangeListener
             }
 
-            if (ContextCompat.checkSelfPermission(
+            if (
+                ContextCompat.checkSelfPermission(
                     requireContext(),
                     Manifest.permission.RECORD_AUDIO
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
+                ForegroundAriaWakeWordController.allowModelDownloadRequest(requireContext())
                 viewLifecycleOwner.lifecycleScope.launch {
                     settingsManager.setAriaForegroundWakeWordEnabled(true)
                 }
