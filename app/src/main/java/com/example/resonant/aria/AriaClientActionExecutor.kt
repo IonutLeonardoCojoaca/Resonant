@@ -59,30 +59,19 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
     }
 
     override suspend fun playSong(songId: String, title: String?, artist: String?) {
-        PlaybackControllerConnection.withController(appContext) { controller ->
-            check(controller.isCommandAvailable(Player.COMMAND_SET_MEDIA_ITEM)) {
-                "MediaSession no permite cambiar la canción"
-            }
-            check(controller.isCommandAvailable(Player.COMMAND_PREPARE)) {
-                "MediaSession no permite preparar la canción"
-            }
-            check(controller.isCommandAvailable(Player.COMMAND_PLAY_PAUSE)) {
-                "MediaSession no permite iniciar la reproducción"
-            }
-            val mediaItem = MediaItem.Builder()
-                .setMediaId(songId)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(title)
-                        .setArtist(artist)
-                        .setIsPlayable(true)
-                        .build()
-                )
-                .build()
-            controller.setMediaItem(mediaItem)
-            controller.prepare()
-            controller.play()
+        val songManager = com.example.resonant.managers.SongManager(appContext)
+        val song = songManager.getSongById(songId)
+            ?: error("Canción no encontrada por el backend")
+            
+        val playIntent = android.content.Intent(appContext, com.example.resonant.services.MusicPlaybackService::class.java).apply {
+            action = com.example.resonant.services.MusicPlaybackService.ACTION_PLAY
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_INDEX, 0)
+            putParcelableArrayListExtra(com.example.resonant.services.MusicPlaybackService.SONG_LIST, arrayListOf(song))
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE, com.example.resonant.playback.QueueSource.SEARCH)
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "aria")
         }
+        appContext.startService(playIntent)
     }
 
     override suspend fun queueSong(songId: String) {
