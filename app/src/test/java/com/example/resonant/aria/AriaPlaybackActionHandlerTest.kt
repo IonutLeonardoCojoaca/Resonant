@@ -187,9 +187,12 @@ class AriaPlaybackActionHandlerTest {
         val feedback = mutableListOf<Pair<String, Boolean>>()
         val requestedIds = mutableListOf<String>()
         val handler = AriaFavoriteActionHandler(
-            favoriteGateway = AriaFavoriteGateway { id ->
-                requestedIds += id
-                true
+            favoriteGateway = object : AriaFavoriteGateway {
+                override suspend fun addFavoriteSong(songId: String): Boolean {
+                    requestedIds += songId
+                    return true
+                }
+                override suspend fun removeFavoriteSong(songId: String): Boolean = true
             },
             idempotency = idempotency,
             onFeedback = { message, success -> feedback += message to success }
@@ -206,9 +209,12 @@ class AriaPlaybackActionHandlerTest {
         val feedback = mutableListOf<Pair<String, Boolean>>()
         val requestedIds = mutableListOf<String>()
         val handler = AriaFavoriteActionHandler(
-            favoriteGateway = AriaFavoriteGateway { id ->
-                requestedIds += id
-                false
+            favoriteGateway = object : AriaFavoriteGateway {
+                override suspend fun addFavoriteSong(songId: String): Boolean {
+                    requestedIds += songId
+                    return false
+                }
+                override suspend fun removeFavoriteSong(songId: String): Boolean = false
             },
             idempotency = FakeIdempotency(),
             onFeedback = { message, success -> feedback += message to success }
@@ -226,9 +232,12 @@ class AriaPlaybackActionHandlerTest {
         val requestedIds = mutableListOf<String>()
         val feedback = mutableListOf<Pair<String, Boolean>>()
         val handler = AriaFavoriteActionHandler(
-            favoriteGateway = AriaFavoriteGateway { id ->
-                requestedIds += id
-                true
+            favoriteGateway = object : AriaFavoriteGateway {
+                override suspend fun addFavoriteSong(songId: String): Boolean {
+                    requestedIds += songId
+                    return true
+                }
+                override suspend fun removeFavoriteSong(songId: String): Boolean = true
             },
             idempotency = FakeIdempotency(),
             onFeedback = { message, success -> feedback += message to success }
@@ -308,6 +317,12 @@ class AriaPlaybackActionHandlerTest {
 
         override suspend fun queueSong(songId: String) {
             queuedSongIds += songId
+        }
+
+        override suspend fun playArtistEssentials(artistId: String, artistName: String?) {
+        }
+
+        override suspend fun playArtistRadio(artistId: String, artistName: String?) {
         }
     }
 

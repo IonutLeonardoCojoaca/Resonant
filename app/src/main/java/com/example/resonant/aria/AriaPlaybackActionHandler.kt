@@ -283,7 +283,7 @@ class AriaFavoriteActionHandler(
         if (action.type != FAVORITE_ACTION_TYPE && action.type != REMOVE_FAVORITE_ACTION_TYPE) return
         if (!idempotency.tryClaim(action.actionId)) return
 
-        val parsedId = (action.songId ?: action.clientSongId)?.trim()?.takeIf { it.isNotEmpty() }
+        val parsedId = (action.clientSongId ?: action.songId)?.trim()?.takeIf { it.isNotEmpty() }
         val songId = parsedId ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.id
         
         if (songId == null) {
