@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 class AriaClientActionExecutor(
     context: Context,
     private val scope: CoroutineScope,
+    private val onFavoriteStateChanged: () -> Unit = {},
     private val onFeedback: (message: String, success: Boolean) -> Unit
 ) {
     private val appContext = context.applicationContext
@@ -29,7 +30,7 @@ class AriaClientActionExecutor(
         onFeedback = onFeedback
     )
     private val favoriteHandler = AriaFavoriteActionHandler(
-        favoriteGateway = AndroidAriaFavoriteGateway(appContext),
+        favoriteGateway = AndroidAriaFavoriteGateway(appContext, onFavoriteStateChanged),
         idempotency = idempotency,
         onFeedback = onFeedback
     )
@@ -41,8 +42,8 @@ class AriaClientActionExecutor(
                     scope.launch { playbackHandler.execute(action) }
                 }
             }
-            "guardar_actual" -> {
-                // Ejecutamos siempre que nos llegue guardar_actual, 
+            "guardar_actual", "quitar_actual" -> {
+                // Ejecutamos siempre que nos llegue guardar_actual o quitar_actual, 
                 // ya que puede que el backend no envíe correctamente los flags de pending_client
                 scope.launch { favoriteHandler.execute(action) }
             }
@@ -60,6 +61,8 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
             AriaTransportControl.PAUSE -> com.example.resonant.services.MusicPlaybackService.ACTION_PAUSE
             AriaTransportControl.NEXT -> com.example.resonant.services.MusicPlaybackService.ACTION_NEXT
             AriaTransportControl.PREVIOUS -> com.example.resonant.services.MusicPlaybackService.ACTION_PREVIOUS
+            AriaTransportControl.SHUFFLE -> com.example.resonant.services.MusicPlaybackService.ACTION_TOGGLE_SHUFFLE
+            AriaTransportControl.REPEAT -> com.example.resonant.services.MusicPlaybackService.ACTION_TOGGLE_REPEAT
         }
         val intent = android.content.Intent(appContext, com.example.resonant.services.MusicPlaybackService::class.java).apply {
             this.action = action
@@ -96,13 +99,52 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
                 ?: "No se pudo añadir a la cola"
         }
     }
+
+    override suspend fun playArtistEssentials(artistId: String, artistName: String?) {
+        val songs = com.example.resonant.managers.ArtistManager.getEssentials(appContext, artistId)
+        if (songs.isEmpty()) error("No se encontraron canciones imprescindibles")
+        playSongList(songs, "aria_essentials")
+    }
+
+    override suspend fun playArtistRadio(artistId: String, artistName: String?) {
+        val songs = com.example.resonant.managers.ArtistManager.getRadios(appContext, artistId)
+        if (songs.isEmpty()) error("No se encontró la radio del artista")
+        playSongList(songs, "aria_radio")
+    }
+
+    private fun playSongList(songs: List<com.example.resonant.data.models.Song>, queueSourceId: String) {
+        val playIntent = android.content.Intent(appContext, com.example.resonant.services.MusicPlaybackService::class.java).apply {
+            action = com.example.resonant.services.MusicPlaybackService.ACTION_PLAY
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_SONG, songs.first())
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_INDEX, 0)
+            putParcelableArrayListExtra(com.example.resonant.services.MusicPlaybackService.SONG_LIST, ArrayList(songs))
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE, com.example.resonant.playback.QueueSource.SEARCH)
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, queueSourceId)
+        }
+        appContext.startService(playIntent)
+    }
 }
 
-private class AndroidAriaFavoriteGateway(context: Context) : AriaFavoriteGateway {
+private class AndroidAriaFavoriteGateway(
+    context: Context,
+    private val onFavoriteStateChanged: () -> Unit
+) : AriaFavoriteGateway {
     private val favoriteManager = com.example.resonant.managers.FavoriteManager(context.applicationContext)
 
     override suspend fun addFavoriteSong(songId: String): Boolean {
-        return favoriteManager.addFavoriteSong(songId)
+        val result = favoriteManager.addFavoriteSong(songId)
+        if (result) {
+            onFavoriteStateChanged()
+        }
+        return result
+    }
+
+    override suspend fun removeFavoriteSong(songId: String): Boolean {
+        val result = favoriteManager.deleteFavoriteSong(songId)
+        if (result) {
+            onFavoriteStateChanged()
+        }
+        return result
     }
 }
 

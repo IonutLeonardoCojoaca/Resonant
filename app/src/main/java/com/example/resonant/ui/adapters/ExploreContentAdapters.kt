@@ -135,9 +135,13 @@ class ExploreAlbumAdapter(
     ) : RecyclerView.ViewHolder(itemView) {
         val image: ImageView = itemView.findViewById(R.id.albumImage)
         private val title: TextView = itemView.findViewById(R.id.albumTitle)
+        private val artist: TextView = itemView.findViewById(R.id.albumArtist)
 
         fun bind(album: Album) {
             title.text = album.title?.takeIf { it.isNotBlank() } ?: "Album"
+            val displayArtist = album.artistName?.takeIf { it.isNotBlank() } ?: album.artists.firstOrNull()?.name ?: ""
+            artist.text = displayArtist
+            artist.visibility = if (displayArtist.isNotBlank()) View.VISIBLE else View.GONE
             image.loadExploreImage(album.url, R.drawable.ic_album)
             itemView.setOnClickListener { onClick(album) }
         }

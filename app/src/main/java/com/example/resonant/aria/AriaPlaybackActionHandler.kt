@@ -14,17 +14,22 @@ enum class AriaTransportControl {
     PLAY,
     PAUSE,
     NEXT,
-    PREVIOUS
+    PREVIOUS,
+    SHUFFLE,
+    REPEAT
 }
 
 interface AriaPlaybackGateway {
     suspend fun control(command: AriaTransportControl)
     suspend fun playSong(songId: String, title: String?, artist: String?)
     suspend fun queueSong(songId: String)
+    suspend fun playArtistEssentials(artistId: String, artistName: String?)
+    suspend fun playArtistRadio(artistId: String, artistName: String?)
 }
 
-fun interface AriaFavoriteGateway {
+interface AriaFavoriteGateway {
     suspend fun addFavoriteSong(songId: String): Boolean
+    suspend fun removeFavoriteSong(songId: String): Boolean
 }
 
 fun interface AriaActionIdempotency {
@@ -75,7 +80,10 @@ class AriaPlaybackActionHandler(
             "pause" -> executeControl(action, command, AriaTransportControl.PAUSE)
             "next" -> executeControl(action, command, AriaTransportControl.NEXT)
             "previous" -> executeControl(action, command, AriaTransportControl.PREVIOUS)
+            "shuffle", "aleatorio" -> executeControl(action, command, AriaTransportControl.SHUFFLE)
+            "repeat", "loop", "bucle" -> executeControl(action, command, AriaTransportControl.REPEAT)
             "play_song", "queue_song" -> executeSongAction(action, command)
+            "play_artist_essentials", "play_artist_radio" -> executeArtistAction(action, command)
             else -> record(action, command, OUTCOME_IGNORED, REASON_UNSUPPORTED_COMMAND)
         }
     }
@@ -149,6 +157,42 @@ class AriaPlaybackActionHandler(
         }
     }
 
+    private suspend fun executeArtistAction(action: AriaAction, command: String) {
+        val artistId = action.clientArtistId?.trim()?.takeIf { it.isNotEmpty() }
+        if (artistId == null) {
+            fail(action, command, REASON_MISSING_SONG_ID, "No pude identificar al artista")
+            return
+        }
+        if (!isValidUuid(artistId)) {
+            fail(action, command, REASON_INVALID_SONG_ID, "ID de artista inválido", artistId)
+            return
+        }
+
+        val artistName = action.clientArtistName?.trim()?.takeIf { it.isNotEmpty() }
+        val displayArtist = artistName ?: "el artista"
+
+        try {
+            if (command == "play_artist_essentials") {
+                playbackGateway.playArtistEssentials(artistId, artistName)
+                onFeedback("Reproduciendo imprescindibles de $displayArtist", true)
+            } else {
+                playbackGateway.playArtistRadio(artistId, artistName)
+                onFeedback("Reproduciendo la radio de $displayArtist", true)
+            }
+            record(action, command, OUTCOME_SUCCESS, songId = artistId)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            fail(
+                action = action,
+                command = command,
+                reason = REASON_PLAYBACK_START_FAILED,
+                message = "No pude reproducir la música de $displayArtist",
+                songId = artistId
+            )
+        }
+    }
+
     private fun fail(
         action: AriaAction,
         command: String,
@@ -188,6 +232,8 @@ class AriaPlaybackActionHandler(
         AriaTransportControl.PAUSE -> "Pausa aplicada"
         AriaTransportControl.NEXT -> "Reproduciendo la siguiente canción"
         AriaTransportControl.PREVIOUS -> "Reproduciendo la canción anterior"
+        AriaTransportControl.SHUFFLE -> "Orden aleatorio alternado"
+        AriaTransportControl.REPEAT -> "Repetición alternada"
     }
 
     private fun controlFailureMessage(command: AriaTransportControl): String = when (command) {
@@ -195,6 +241,8 @@ class AriaPlaybackActionHandler(
         AriaTransportControl.PAUSE -> "No pude aplicar la pausa"
         AriaTransportControl.NEXT -> "No pude pasar a la siguiente canción"
         AriaTransportControl.PREVIOUS -> "No pude volver a la canción anterior"
+        AriaTransportControl.SHUFFLE -> "No pude cambiar el orden aleatorio"
+        AriaTransportControl.REPEAT -> "No pude cambiar la repetición"
     }
 
     private fun missingSongMessage(command: String): String =
@@ -232,39 +280,58 @@ class AriaFavoriteActionHandler(
     private val onFeedback: (message: String, success: Boolean) -> Unit
 ) {
     suspend fun execute(action: AriaAction) {
-        if (action.type != FAVORITE_ACTION_TYPE) return
+        if (action.type != FAVORITE_ACTION_TYPE && action.type != REMOVE_FAVORITE_ACTION_TYPE) return
         if (!idempotency.tryClaim(action.actionId)) return
 
         val parsedId = (action.songId ?: action.clientSongId)?.trim()?.takeIf { it.isNotEmpty() }
         val songId = parsedId ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.id
         
         if (songId == null) {
-            onFeedback("No pude guardar la canción (no hay canción sonando)", false)
+            val actionName = if (action.type == FAVORITE_ACTION_TYPE) "guardar" else "quitar"
+            onFeedback("No pude $actionName la canción (no hay canción sonando)", false)
             return
         }
 
-        val saved = try {
-            favoriteGateway.addFavoriteSong(songId)
+        val success = try {
+            if (action.type == FAVORITE_ACTION_TYPE) {
+                favoriteGateway.addFavoriteSong(songId)
+            } else {
+                favoriteGateway.removeFavoriteSong(songId)
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
             false
         }
 
-        if (saved) {
-            val parsedTitle = (action.song?.title ?: action.clientSongTitle)?.trim()?.takeIf { it.isNotEmpty() }
-            val title = parsedTitle ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.title
-            onFeedback(
-                title?.let { "$it añadida a favoritos" }
-                    ?: "Canción añadida a favoritos",
-                true
-            )
+        val parsedTitle = (action.song?.title ?: action.clientSongTitle)?.trim()?.takeIf { it.isNotEmpty() }
+        val title = parsedTitle ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.title
+
+        if (success) {
+            if (action.type == FAVORITE_ACTION_TYPE) {
+                onFeedback(
+                    title?.let { "$it añadida a favoritos" }
+                        ?: "Canción añadida a favoritos",
+                    true
+                )
+            } else {
+                onFeedback(
+                    title?.let { "$it quitada de favoritos" }
+                        ?: "Canción quitada de favoritos",
+                    true
+                )
+            }
         } else {
-            onFeedback("No pude añadir la canción a favoritos", false)
+            if (action.type == FAVORITE_ACTION_TYPE) {
+                onFeedback("No pude añadir la canción a favoritos", false)
+            } else {
+                onFeedback("No pude quitar la canción de favoritos", false)
+            }
         }
     }
 
     private companion object {
         const val FAVORITE_ACTION_TYPE = "guardar_actual"
+        const val REMOVE_FAVORITE_ACTION_TYPE = "quitar_actual"
     }
 }

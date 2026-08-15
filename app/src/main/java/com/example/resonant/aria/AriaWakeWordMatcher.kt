@@ -5,8 +5,8 @@ import java.util.Locale
 
 internal object AriaWakeWordMatcher {
     private val patterns = listOf(
-        Regex("\\b(?:hola|ola|oye|hello)\\s+(?:aria|area|haria)\\b"),
-        Regex("\\bhey\\s+(?:aria|area)\\b")
+        Regex("\\b(?:hola|ola|oye|hello|hey)\\s+(?:aria|area|haria)\\b"),
+        Regex("\\b(?:aria|area|haria)\\b")
     )
 
     fun matchesAny(transcripts: List<String>): Boolean = transcripts.any(::matches)

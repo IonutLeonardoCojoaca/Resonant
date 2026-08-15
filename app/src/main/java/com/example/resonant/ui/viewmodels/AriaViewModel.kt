@@ -152,7 +152,11 @@ data class AriaAction(
     // Legacy aliases retained for older action producers and existing UI code.
     val clientSongId: String? = null,
     val clientSongTitle: String? = null,
-    val clientSongArtist: String? = null
+    val clientSongArtist: String? = null,
+    
+    // New fields for artist playback actions
+    val clientArtistId: String? = null,
+    val clientArtistName: String? = null
 )
 
 data class AriaMessage(
@@ -629,7 +633,7 @@ class AriaViewModel : ViewModel() {
         
         return when (action.type) {
             "controlar_reproduccion" -> action.clientSide && action.executionStatus == "pending_client"
-            "guardar_actual" -> true
+            "guardar_actual", "quitar_actual" -> true
             else -> false
         }
     }
@@ -975,7 +979,9 @@ class AriaViewModel : ViewModel() {
                 ?: actionSong?.selectionMode,
             clientSongId = authoritativeSongId,
             clientSongTitle = title,
-            clientSongArtist = artist
+            clientSongArtist = artist,
+            clientArtistId = clientArtistId?.takeIf { it.isNotBlank() },
+            clientArtistName = clientArtistName?.takeIf { it.isNotBlank() }
         )
     }
 

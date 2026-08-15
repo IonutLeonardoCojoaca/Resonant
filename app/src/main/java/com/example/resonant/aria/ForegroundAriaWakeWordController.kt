@@ -22,7 +22,7 @@ import java.util.Locale
 import kotlin.math.max
 
 /**
- * Foreground-only, on-device detector for "Hola Aria".
+ * Foreground-only, on-device detector for "Hola Aria", "Oye Aria" or "Aria".
  *
  * The Spanish model is checked before listening. A missing model may be requested once per app
  * installation, but a pending or previously requested download is never requested repeatedly.

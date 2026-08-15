@@ -63,7 +63,7 @@ class SettingsFragment : Fragment() {
             syncingWakeWordSwitch = false
             Toast.makeText(
                 requireContext(),
-                "El micrófono es necesario para detectar «Hola Aria»",
+                "El micrófono es necesario para detectar «Aria» o «Oye Aria»",
                 Toast.LENGTH_LONG
             ).show()
         }

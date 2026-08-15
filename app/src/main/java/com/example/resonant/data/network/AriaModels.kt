@@ -71,7 +71,11 @@ data class AriaClientActionDTO(
     @SerializedName("song") val song: AriaActionSongDTO? = null,
     @SerializedName("selection_mode") val selectionMode: String? = null,
     @SerializedName(value = "log_id", alternate = ["logId"])
-    val logId: String? = null
+    val logId: String? = null,
+    @SerializedName(value = "client_artist_id")
+    val clientArtistId: String? = null,
+    @SerializedName(value = "client_artist_name")
+    val clientArtistName: String? = null
 )
 
 data class AriaFeedbackStats(

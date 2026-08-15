@@ -157,14 +157,21 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     private val ariaClientActionExecutor by lazy {
-        AriaClientActionExecutor(this, lifecycleScope) { message, success ->
-            ariaViewModel.updateLastAriaMessage(message, isComplete = true)
-            showResonantSnackbar(
-                text = message,
-                colorRes = if (success) R.color.successColor else R.color.secondaryColorTheme,
-                iconRes = if (success) R.drawable.ic_success else R.drawable.ic_warning
-            )
-        }
+        AriaClientActionExecutor(
+            context = this,
+            scope = lifecycleScope,
+            onFavoriteStateChanged = {
+                favoritesViewModel.loadFavoriteSongs(forceRefresh = true)
+            },
+            onFeedback = { message, success ->
+                ariaViewModel.updateLastAriaMessage(message, isComplete = true)
+                showResonantSnackbar(
+                    text = message,
+                    colorRes = if (success) R.color.successColor else R.color.secondaryColorTheme,
+                    iconRes = if (success) R.drawable.ic_success else R.drawable.ic_warning
+                )
+            }
+        )
     }
     private val ariaWakeWordController by lazy {
         ForegroundAriaWakeWordController(applicationContext) {
