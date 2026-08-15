@@ -35,9 +35,10 @@ object AriaCapabilities {
             title = "Control de Reproducción \uD83C\uDFB5",
             iconRes = R.drawable.ic_play,
             intents = listOf(
-                AriaIntent("Control por voz", "Control total sin tocar la pantalla: pausa, reanuda, o pasa a la siguiente."),
+                AriaIntent("Control por voz", "Control total sin tocar la pantalla: pausa, reanuda, pasa a la siguiente, activa el modo aleatorio o pon la música en bucle."),
                 AriaIntent("Peticiones directas", "Pídele que suene exactamente esa canción o artista que tienes en la cabeza."),
-                AriaIntent("Interacción Inteligente", "Aria sabe qué hay en tu pantalla. Si ves varias opciones, dile 'pon la primera' o 'guarda esta en favoritos'.")
+                AriaIntent("Radios e Imprescindibles", "Pide 'pon la radio de X' o 'reproduce los imprescindibles de X' para escuchar horas de música de tu artista favorito."),
+                AriaIntent("Interacción Inteligente", "Aria sabe qué hay en tu pantalla. Dile 'pon la primera', 'guarda esta en favoritos' o 'quítala de mis favoritos'.")
             )
         ),
         AriaIntentCategory(
@@ -72,6 +73,7 @@ object AriaCapabilities {
             iconRes = R.drawable.ic_mic,
             intents = listOf(
                 AriaIntent("Charla casual", "Aria es simpática y responde a tus saludos o preguntas sobre sus propias capacidades."),
+                AriaIntent("Palabra de activación", "Actívala sin tocar la pantalla diciendo simplemente 'Aria', 'Oye Aria', 'Hey Aria' o 'Hola Aria'."),
                 AriaIntent("Resolución de ambigüedad", "Si pides algo y falta información (ej. tienes 5 playlists que se llaman igual), Aria no se lo inventa: te preguntará para aclarar.")
             )
         )
