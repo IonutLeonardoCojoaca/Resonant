@@ -262,7 +262,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="@font/unageo_medium"
-                        android:text="Recomiéndame música relajante para desconectar"
+                        android:text="Música relajante para desconectar"
                         android:textColor="@color/white"
                         android:textSize="13sp" />
 
@@ -295,7 +295,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="@font/unageo_medium"
-                        android:text="Crea una playlist energética para entrenar"
+                        android:text="Playlist para entrenar"
                         android:textColor="@color/white"
                         android:textSize="13sp" />
 
@@ -328,7 +328,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="@font/unageo_medium"
-                        android:text="¿Cuáles son mis canciones y artistas más escuchados?"
+                        android:text="Mis canciones más escuchadas"
                         android:textColor="@color/white"
                         android:textSize="13sp" />
 
@@ -339,7 +339,6 @@
                     android:id="@+id/ariaPromptChip4"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="9dp"
                     android:background="@drawable/bg_aria_prompt_chip"
                     android:clickable="true"
                     android:focusable="true"
@@ -361,39 +360,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:fontFamily="@font/unageo_medium"
-                        android:text="Descubre artistas emergentes basados en mi gusto"
-                        android:textColor="@color/white"
-                        android:textSize="13sp" />
-
-                </LinearLayout>
-
-                <!-- Chip 5: DJ mix session -->
-                <LinearLayout
-                    android:id="@+id/ariaPromptChip5"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_aria_prompt_chip"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="12dp">
-
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="12dp"
-                        android:src="@drawable/ic_random"
-                        app:tint="@color/white"
-                        android:scaleType="fitCenter" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Prepara una sesión DJ continua con mis favoritos"
+                        android:text="Descubre artistas nuevos"
                         android:textColor="@color/white"
                         android:textSize="13sp" />
 

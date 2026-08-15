@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prominent circular play/pause button. Solid neutral white so it stays
+     legible against the per-song dynamic background (which can be any
+     extracted color), matching the high-contrast center button pattern used
+     by Spotify/Apple Music/YT Music's now-playing screens. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#FFFFFFFF" />
+</shape>

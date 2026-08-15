@@ -3,6 +3,11 @@ package com.example.resonant.playback
 import android.content.Context
 import com.example.resonant.data.models.Song
 import com.google.gson.Gson
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 data class RestoredPlaybackState(
     val queue: PlaybackQueue,
@@ -31,7 +36,16 @@ internal class PlaybackStateCodec(
     private val nowEpochMs: () -> Long,
     private val maxStateAgeMs: Long
 ) {
-    fun encode(
+    /**
+     * Builds the immutable snapshot synchronously. Must be called from the
+     * thread that owns [queue] (Main, in MusicPlaybackService) — everything
+     * mutable it touches (queue.songs, each Song's `var` fields) is read
+     * here and only here. [Song.withoutExpiringPlaybackUrl] already returns
+     * a `copy()`, so the resulting [PersistedPlaybackState] shares no
+     * mutable state with the live queue and is safe to hand to another
+     * thread for the expensive JSON encoding.
+     */
+    fun buildSnapshot(
         ownerUserId: String,
         queue: PlaybackQueue,
         currentSongId: String?,
@@ -39,7 +53,7 @@ internal class PlaybackStateCodec(
         durationMs: Long,
         repeatMode: Int,
         shuffleEnabled: Boolean
-    ): String {
+    ): PersistedPlaybackState {
         val songs = queue.songs.map { it.withoutExpiringPlaybackUrl() }
         val synchronizedIndex = currentSongId
             ?.let { id -> songs.indexOfFirst { it.id == id } }
@@ -52,22 +66,34 @@ internal class PlaybackStateCodec(
                 if (safeDurationMs > 0L) position.coerceAtMost(safeDurationMs) else position
             }
 
-        return gson.toJson(
-            PersistedPlaybackState(
-                schemaVersion = CURRENT_SCHEMA_VERSION,
-                ownerUserId = ownerUserId,
-                sourceId = queue.sourceId,
-                sourceType = queue.sourceType.name,
-                songs = songs,
-                currentIndex = synchronizedIndex,
-                positionMs = safePositionMs,
-                durationMs = safeDurationMs,
-                repeatMode = repeatMode,
-                shuffleEnabled = shuffleEnabled,
-                savedAtEpochMs = nowEpochMs()
-            )
+        return PersistedPlaybackState(
+            schemaVersion = CURRENT_SCHEMA_VERSION,
+            ownerUserId = ownerUserId,
+            sourceId = queue.sourceId,
+            sourceType = queue.sourceType.name,
+            songs = songs,
+            currentIndex = synchronizedIndex,
+            positionMs = safePositionMs,
+            durationMs = safeDurationMs,
+            repeatMode = repeatMode,
+            shuffleEnabled = shuffleEnabled,
+            savedAtEpochMs = nowEpochMs()
         )
     }
+
+    fun encode(
+        ownerUserId: String,
+        queue: PlaybackQueue,
+        currentSongId: String?,
+        positionMs: Long,
+        durationMs: Long,
+        repeatMode: Int,
+        shuffleEnabled: Boolean
+    ): String = gson.toJson(
+        buildSnapshot(
+            ownerUserId, queue, currentSongId, positionMs, durationMs, repeatMode, shuffleEnabled
+        )
+    )
 
     fun decode(json: String, currentUserId: String): RestoredPlaybackState? {
         val persisted = runCatching {
@@ -145,13 +171,26 @@ class PlaybackStateStore(
         context.applicationContext
             .getSharedPreferences(USER_PREFERENCES_NAME, Context.MODE_PRIVATE)
             .getString(KEY_USER_ID, null)
-    }
+    },
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val preferences = context.applicationContext.getSharedPreferences(
         PREFERENCES_NAME,
         Context.MODE_PRIVATE
     )
     private val codec = PlaybackStateCodec(gson, nowEpochMs, MAX_STATE_AGE_MS)
+
+    // Guarantee writes apply in the order their snapshots were captured,
+    // even though save()/saveAsync()/clear() can now race each other across
+    // threads (Main for the synchronous onDestroy path, an IO-dispatched
+    // coroutine for everything else). Each write is stamped with a
+    // monotonically increasing sequence number at snapshot time (always on
+    // Main, since every persistPlaybackState call site is Main-thread); the
+    // actual disk write only applies if no higher-numbered write has landed
+    // first, so a slow, stale write can never clobber a newer one.
+    private val writeLock = Any()
+    private val writeSequence = AtomicLong(0L)
+    private var lastWrittenSequence = 0L
 
     fun save(
         queue: PlaybackQueue,
@@ -177,8 +216,59 @@ class PlaybackStateStore(
             repeatMode = repeatMode,
             shuffleEnabled = shuffleEnabled
         )
-        val editor = preferences.edit().putString(KEY_STATE, json)
-        if (synchronous) editor.commit() else editor.apply()
+        val sequence = writeSequence.incrementAndGet()
+        synchronized(writeLock) {
+            if (sequence < lastWrittenSequence) return
+            val editor = preferences.edit().putString(KEY_STATE, json)
+            if (synchronous) editor.commit() else editor.apply()
+            lastWrittenSequence = sequence
+        }
+    }
+
+    /**
+     * Same contract as [save], but the expensive part — Gson-encoding the
+     * snapshot and writing it to disk — runs on [scope] off the caller's
+     * thread. The snapshot itself is still built synchronously, on the
+     * caller's thread, before anything is dispatched: that's what makes it
+     * safe to serialize later without racing a concurrent queue mutation.
+     *
+     * Always asynchronous ([apply], never [commit]) — callers that need a
+     * durability guarantee before returning (onDestroy) must use [save]
+     * with `synchronous = true` instead.
+     */
+    fun saveAsync(
+        scope: CoroutineScope,
+        queue: PlaybackQueue,
+        currentSongId: String?,
+        positionMs: Long,
+        durationMs: Long,
+        repeatMode: Int,
+        shuffleEnabled: Boolean
+    ) {
+        if (queue.songs.isEmpty()) {
+            clear()
+            return
+        }
+        val ownerUserId = currentUserId()?.takeIf { it.isNotBlank() } ?: return
+
+        val snapshot = codec.buildSnapshot(
+            ownerUserId = ownerUserId,
+            queue = queue,
+            currentSongId = currentSongId,
+            positionMs = positionMs,
+            durationMs = durationMs,
+            repeatMode = repeatMode,
+            shuffleEnabled = shuffleEnabled
+        )
+        val sequence = writeSequence.incrementAndGet()
+        scope.launch(ioDispatcher) {
+            val json = gson.toJson(snapshot)
+            synchronized(writeLock) {
+                if (sequence < lastWrittenSequence) return@launch
+                preferences.edit().putString(KEY_STATE, json).apply()
+                lastWrittenSequence = sequence
+            }
+        }
     }
 
     fun restore(): RestoredPlaybackState? {
@@ -192,7 +282,12 @@ class PlaybackStateStore(
     }
 
     fun clear() {
-        preferences.edit().remove(KEY_STATE).commit()
+        val sequence = writeSequence.incrementAndGet()
+        synchronized(writeLock) {
+            if (sequence < lastWrittenSequence) return
+            preferences.edit().remove(KEY_STATE).commit()
+            lastWrittenSequence = sequence
+        }
     }
 
     companion object {

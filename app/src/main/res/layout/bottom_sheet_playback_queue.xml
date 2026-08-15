@@ -129,4 +129,34 @@
         android:text="Todavía no hay una cola activa"
         android:textColor="@color/textTheme"
         android:visibility="gone" />
+
+    <!-- "Relacionadas" con la canción que suena ahora — PlaybackQueueController
+         la carga y la muestra/oculta según haya resultados. -->
+    <LinearLayout
+        android:id="@+id/queueRelatedSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:fontFamily="@font/unageo_bold"
+            android:text="Relacionadas"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/queueRelatedList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none" />
+
+    </LinearLayout>
 </LinearLayout>

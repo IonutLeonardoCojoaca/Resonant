@@ -151,8 +151,8 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:overScrollMode="never"
-            android:paddingHorizontal="12dp"
-            android:paddingTop="10dp"
+            android:paddingHorizontal="5dp"
+            android:paddingTop="6dp"
             android:paddingBottom="112dp" />
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

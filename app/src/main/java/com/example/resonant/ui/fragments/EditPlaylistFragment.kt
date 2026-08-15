@@ -70,7 +70,7 @@ class EditPlaylistFragment : BaseFragment(R.layout.fragment_edit_playlist) {
         userProfile = view.findViewById(R.id.userProfile)
 
         // Cargar foto de perfil del usuario (arriba a la derecha)
-        Utils.loadUserProfile(requireContext(), userProfile)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfile) }
     }
 
     private fun setupListeners() {

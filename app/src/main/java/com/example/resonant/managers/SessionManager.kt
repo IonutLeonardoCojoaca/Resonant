@@ -3,6 +3,7 @@ package com.example.resonant.managers
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RefreshTokenDTO
 import com.example.resonant.data.network.services.AuthService
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,20 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class SessionManager(private val context: Context, private val baseUrl: String) {
+
+    companion object {
+        @Volatile
+        private var instance: SessionManager? = null
+
+        // Compartida por toda la app: evita reconstruir el OkHttpClient/Retrofit
+        // interno de authService en cada llamada (AriaFragment, waveforms, etc.)
+        fun getInstance(context: Context): SessionManager {
+            return instance ?: synchronized(this) {
+                instance ?: SessionManager(context.applicationContext, ApiClient.baseUrl())
+                    .also { instance = it }
+            }
+        }
+    }
 
     private val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
 

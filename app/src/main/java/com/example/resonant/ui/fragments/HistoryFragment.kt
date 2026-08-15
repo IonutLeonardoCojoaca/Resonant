@@ -9,8 +9,10 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -68,8 +70,9 @@ class HistoryFragment : Fragment() {
         setupScrollBehavior()
         setupObservers()
 
-        // Carga inicial: 50 canciones (chip por defecto)
-        viewModel.loadHistory(50)
+        // La carga inicial la dispara onResume() (siempre se llama justo después
+        // de onViewCreated), respetando el caché de HistoryViewModel para evitar
+        // una doble petición de red.
     }
 
     private fun setupViewModels() {
@@ -103,19 +106,22 @@ class HistoryFragment : Fragment() {
         // Reproducción al tocar canción
         songAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = songAdapter.currentList.indexOfFirst { it.id == song.id }
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
 
-            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.ACTION_PLAY
-                putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
-                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "HISTORY")
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_PLAY
+                    putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
+                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "HISTORY")
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         // Favorito
@@ -243,10 +249,11 @@ class HistoryFragment : Fragment() {
             if (songAdapter.currentList.isNotEmpty()) songAdapter.notifyDataSetChanged()
         }
 
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                songAdapter.downloadedSongIds = downloadedIds
-                if (songAdapter.currentList.isNotEmpty()) songAdapter.notifyDataSetChanged()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    songAdapter.downloadedSongIds = downloadedIds
+                }
             }
         }
     }

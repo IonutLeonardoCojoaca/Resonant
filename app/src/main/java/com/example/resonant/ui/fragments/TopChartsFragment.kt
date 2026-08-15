@@ -13,8 +13,10 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -379,22 +381,25 @@ class TopChartsFragment : Fragment() {
         // A. CLICK EN LA CANCIÓN (REPRODUCIR)
         adapter.onItemClick = { (song, bitmap) ->
             val currentIndex = adapter.currentList.indexOfFirst { it.id == song.id }
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(adapter.currentList)
 
-            val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
 
-                // NOTA: Puedes crear un QueueSource.CHART si quieres diferenciarlo,
-                // o usar uno genérico y diferenciar por queueId.
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.HOME) // O QueueSource.PLAYLIST
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+                val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+
+                    // NOTA: Puedes crear un QueueSource.CHART si quieres diferenciarlo,
+                    // o usar uno genérico y diferenciar por queueId.
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.HOME) // O QueueSource.PLAYLIST
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         // B. FAVORITO (CORAZÓN)
@@ -495,11 +500,10 @@ class TopChartsFragment : Fragment() {
         }
 
         // 5. Estado de Descargas
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                songAdapter.downloadedSongIds = downloadedIds
-                if (songAdapter.currentList.isNotEmpty()) {
-                    songAdapter.notifyDataSetChanged() // Refrescar iconos de descarga
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    songAdapter.downloadedSongIds = downloadedIds
                 }
             }
         }

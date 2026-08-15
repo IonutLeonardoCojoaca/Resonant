@@ -18,8 +18,10 @@ import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -839,26 +841,28 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         val currentHomeQueueId = System.currentTimeMillis().toString() // Nota: Quizás quieras usar el ID del artista aquí, pero dejé tu lógica original.
         topSongsAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = topSongsAdapter.currentList.indexOfFirst { it.id == song.id }
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(topSongsAdapter.currentList)
 
-            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                topSongsAdapter.downloadedSongIds = downloadedIds
-                if (topSongsAdapter.currentList.isNotEmpty()) {
-                    topSongsAdapter.notifyDataSetChanged()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    topSongsAdapter.downloadedSongIds = downloadedIds
                 }
             }
         }
@@ -921,20 +925,23 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         // Singles click listeners
         singlesAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = singlesAdapter.currentList.indexOfFirst { it.id == song.id }
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(singlesAdapter.currentList)
             val queueId = currentArtist?.id ?: "ARTIST_SINGLES_UNKNOWN"
 
-            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         singlesAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
@@ -991,11 +998,10 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             }
         }
 
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                singlesAdapter.downloadedSongIds = downloadedIds
-                if (singlesAdapter.currentList.isNotEmpty()) {
-                    singlesAdapter.notifyDataSetChanged()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    singlesAdapter.downloadedSongIds = downloadedIds
                 }
             }
         }

@@ -14,14 +14,14 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.AppBarLayout
 import com.example.resonant.R
-import com.example.resonant.ui.adapters.PublicPlaylistSectionAdapter
+import com.example.resonant.ui.adapters.PublicPlaylistAdapter
 import com.example.resonant.ui.viewmodels.PublicPlaylistsViewModel
 import kotlin.math.abs
 
 class PublicPlaylistsFragment : Fragment() {
 
     private lateinit var viewModel: PublicPlaylistsViewModel
-    private lateinit var sectionAdapter: PublicPlaylistSectionAdapter
+    private lateinit var playlistAdapter: PublicPlaylistAdapter
 
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var rvPlaylists: RecyclerView
@@ -95,7 +95,7 @@ class PublicPlaylistsFragment : Fragment() {
         rvPlaylists.layoutManager = LinearLayoutManager(context)
         rvPlaylists.overScrollMode = View.OVER_SCROLL_NEVER
 
-        sectionAdapter = PublicPlaylistSectionAdapter { selectedPlaylist ->
+        playlistAdapter = PublicPlaylistAdapter { selectedPlaylist ->
             val bundle = Bundle().apply {
                 putParcelable("playlist", selectedPlaylist)
                 putString("playlistId", selectedPlaylist.id)
@@ -106,13 +106,13 @@ class PublicPlaylistsFragment : Fragment() {
                 bundle
             )
         }
-        rvPlaylists.adapter = sectionAdapter
+        rvPlaylists.adapter = playlistAdapter
     }
 
     private fun setupObservers() {
-        viewModel.sections.observe(viewLifecycleOwner) { sections ->
-            sectionAdapter.submitSections(sections)
-            tvError.visibility = if (sections.isEmpty() && viewModel.isLoading.value == false) {
+        viewModel.publicPlaylists.observe(viewLifecycleOwner) { playlists ->
+            playlistAdapter.submitList(playlists)
+            tvError.visibility = if (playlists.isEmpty() && viewModel.isLoading.value == false) {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -121,7 +121,7 @@ class PublicPlaylistsFragment : Fragment() {
 
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             swipeRefreshLayout.isRefreshing = isLoading
-            progressBar.visibility = if (isLoading && sectionAdapter.itemCount == 0) View.VISIBLE else View.GONE
+            progressBar.visibility = if (isLoading && playlistAdapter.itemCount == 0) View.VISIBLE else View.GONE
         }
 
         viewModel.error.observe(viewLifecycleOwner) { errorMsg ->

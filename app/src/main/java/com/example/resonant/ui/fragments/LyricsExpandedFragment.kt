@@ -49,6 +49,7 @@ class LyricsExpandedFragment : DialogFragment() {
     private lateinit var songArtistView: TextView
     private lateinit var closeButton: FrameLayout
     private lateinit var blurBackground: ImageView
+    private lateinit var noLyricsText: TextView
 
     private lateinit var lyricsAdapter: LyricsAdapter
     private val lyricsHandler = Handler(Looper.getMainLooper())
@@ -121,6 +122,7 @@ class LyricsExpandedFragment : DialogFragment() {
         songArtistView = view.findViewById(R.id.expandedSongArtist)
         closeButton = view.findViewById(R.id.expandedCloseButton)
         blurBackground = view.findViewById(R.id.expandedBlurBackground)
+        noLyricsText = view.findViewById(R.id.expandedNoLyricsText)
 
         val dominantColor = arguments?.getInt(ARG_DOMINANT_COLOR, Color.BLACK) ?: Color.BLACK
         val songId = arguments?.getString(ARG_SONG_ID) ?: return
@@ -153,11 +155,20 @@ class LyricsExpandedFragment : DialogFragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             lyricLines = LyricsManager.getLyrics(requireContext(), songId)
+
+            if (lyricLines.isEmpty()) {
+                lyricsRecyclerView.visibility = View.GONE
+                noLyricsText.visibility = View.VISIBLE
+                return@launch
+            }
+            lyricsRecyclerView.visibility = View.VISIBLE
+            noLyricsText.visibility = View.GONE
+
             hasTimedLyrics = lyricLines.any { it.timeMs >= 0 }
             lastActiveLine = -1
             lyricsAdapter.submitLines(lyricLines)
             lyricsRecyclerView.scrollToPosition(0)
-            if (!hasTimedLyrics && lyricLines.isNotEmpty()) {
+            if (!hasTimedLyrics) {
                 lyricsAdapter.clearActiveLine()
                 val position = PlaybackStateRepository.playbackPositionLiveData.value
                 updateLinearLyricsProgress(
@@ -165,9 +176,7 @@ class LyricsExpandedFragment : DialogFragment() {
                     position?.duration?.toLong() ?: 0L
                 )
             }
-            if (lyricLines.isNotEmpty()) {
-                startLyricsSync()
-            }
+            startLyricsSync()
         }
     }
 

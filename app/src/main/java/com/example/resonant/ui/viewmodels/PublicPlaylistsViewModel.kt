@@ -7,7 +7,6 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.managers.PlaylistManager
-import com.example.resonant.ui.adapters.PlaylistSection
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
@@ -16,11 +15,10 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
 
     private val playlistManager = PlaylistManager(application)
 
+    // Único listado plano, ya entremezclado (oficiales de Resonant + de
+    // usuarios) — ya no se agrupa por dueño en secciones separadas.
     private val _publicPlaylists = MutableLiveData<List<Playlist>>()
     val publicPlaylists: LiveData<List<Playlist>> = _publicPlaylists
-
-    private val _sections = MutableLiveData<List<PlaylistSection>>()
-    val sections: LiveData<List<PlaylistSection>> = _sections
 
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
@@ -33,7 +31,6 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
     fun loadPublicPlaylists(forceRefresh: Boolean = false) {
         if (!forceRefresh && cachedPlaylists != null) {
             _publicPlaylists.value = cachedPlaylists!!
-            _sections.value = buildSections(cachedPlaylists!!)
             return
         }
 
@@ -63,9 +60,9 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
                     }
                 }.awaitAll()
 
-                cachedPlaylists = enriched
-                _publicPlaylists.value = enriched
-                _sections.value = buildSections(enriched)
+                val interleaved = interleaveByOwnerType(enriched)
+                cachedPlaylists = interleaved
+                _publicPlaylists.value = interleaved
             } catch (e: Exception) {
                 _error.value = "Error al cargar playlists públicas: ${e.message}"
             } finally {
@@ -74,19 +71,27 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    private fun buildSections(playlists: List<Playlist>): List<PlaylistSection> {
-        return playlists
-            .groupBy { it.ownerName ?: "Usuario" }
-            .map { (owner, list) ->
-                PlaylistSection(
-                    ownerName = owner,
-                    playlists = list,
-                    isSystem = list.any { it.isSystemPlaylist }
-                )
+    /**
+     * Mismo patrón round-robin que SearchFragment.intercalateAndSortResults():
+     * en vez de agrupar en secciones por dueño, se reparten en dos listas
+     * (oficiales de Resonant / del resto de usuarios) y se van tomando
+     * alternadamente para que el listado final salga entremezclado en vez
+     * de "todo Resonant primero, luego todo lo demás".
+     */
+    private fun interleaveByOwnerType(playlists: List<Playlist>): List<Playlist> {
+        val official = playlists.filter { it.isSystemPlaylist }
+        val others = playlists.filterNot { it.isSystemPlaylist }
+
+        val lists = mutableListOf(official, others)
+        val combined = mutableListOf<Playlist>()
+        while (lists.any { it.isNotEmpty() }) {
+            lists.forEachIndexed { index, list ->
+                if (list.isNotEmpty()) {
+                    combined.add(list.first())
+                    lists[index] = list.drop(1)
+                }
             }
-            .sortedWith(
-                compareByDescending<PlaylistSection> { it.isSystem }
-                    .thenByDescending { it.playlists.size }
-            )
+        }
+        return combined
     }
 }

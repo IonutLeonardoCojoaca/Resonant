@@ -92,4 +92,19 @@
     <color name="explore_playlist_scrim_center">#88000000</color>
     <color name="explore_playlist_scrim_end">#DD000000</color>
 
+    <!-- Now-playing (SongFragment) dynamic background: brand-fixed, same in both
+         themes (the screen's own background is recolored per-song by MiniPlayerColorizer;
+         this is only the pre-Palette fallback, matching secondaryColorTheme blended ~80% toward black). -->
+    <color name="songBackgroundFallback">#2D0404</color>
+
+    <!-- Playback device card: literal values already in use today (unchanged look in dark mode). -->
+    <color name="playbackDeviceCardBackground">#241010</color>
+    <color name="playbackDeviceCardStroke">#55E21616</color>
+
+    <!-- Explore: tokenizes hex that used to be hardcoded in drawables/layouts. -->
+    <color name="exploreSectionActionText">@color/textTheme</color>
+    <color name="collabPlusBackground">#101010</color>
+    <color name="collabButtonAccent">#B81414</color>
+    <color name="genreMiniOverlay">#2C2C2C</color>
+
 </resources>

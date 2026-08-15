@@ -1,115 +1,137 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Fila horizontal al estilo de item_result_album.xml (SearchResultAdapter):
+     portada con efecto de tarjeta apilada + título + línea de metadatos
+     (nº de canciones · avatar de dueño + nombre). Sustituye a la tarjeta de
+     grid 206dp que tenía antes esta pantalla — ahora las playlists oficiales
+     de Resonant y las de otros usuarios se listan entremezcladas en un único
+     listado plano, no agrupadas en secciones por dueño. -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/cardPlaylist"
     android:layout_width="match_parent"
-    android:layout_height="206dp"
-    android:layout_margin="5dp"
+    android:layout_height="70dp"
+    android:layout_marginVertical="2dp"
+    android:paddingHorizontal="8dp"
+    android:background="?attr/selectableItemBackground"
     android:clickable="true"
-    android:focusable="true"
-    android:foreground="?attr/selectableItemBackground"
-    app:cardBackgroundColor="@color/transparent"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="0dp"
-    app:strokeColor="#1EFFFFFF"
-    app:strokeWidth="1dp">
+    android:focusable="true">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <View
+        android:id="@+id/playlistImageBackdrop"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:background="@drawable/bg_album_item"
+        android:translationX="7dp"
+        android:translationY="-3dp" />
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/ivPlaylistCover"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:translationY="2dp"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"
+        tools:src="@drawable/ic_playlist_stack" />
+
+    <RelativeLayout
+        android:id="@+id/playlistDataContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/bg_public_playlist_card">
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/ivPlaylistCover"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:background="#242424"
-            android:scaleType="centerCrop"
-            app:layout_constraintDimensionRatio="1:1"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:shapeAppearanceOverlay="@style/RoundedCornersImage"
-            tools:src="@drawable/ic_playlist_stack" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="76dp"
-            android:background="@drawable/bg_public_playlist_cover_scrim"
-            app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintEnd_toEndOf="@id/ivPlaylistCover"
-            app:layout_constraintStart_toStartOf="@id/ivPlaylistCover" />
-
-        <TextView
-            android:id="@+id/tvTracksCount"
-            android:layout_width="0dp"
-            android:layout_height="24dp"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="10dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_black"
-            android:gravity="center_vertical"
-            android:letterSpacing="0.04"
-            android:maxLines="1"
-            android:shadowColor="#99000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="3"
-            android:text="30 canciones"
-            android:textAllCaps="true"
-            android:textColor="@color/white"
-            android:textSize="9sp"
-            app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintEnd_toStartOf="@+id/ivPublicBadge"
-            app:layout_constraintStart_toStartOf="@id/ivPlaylistCover" />
-
-        <ImageView
-            android:id="@+id/ivPublicBadge"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_marginEnd="10dp"
-            android:layout_marginBottom="12dp"
-            android:alpha="0.9"
-            android:src="@drawable/ic_sound"
-            app:layout_constraintBottom_toBottomOf="@id/ivPlaylistCover"
-            app:layout_constraintEnd_toEndOf="@id/ivPlaylistCover"
-            app:tint="#D6FFFFFF" />
+        android:layout_height="40dp"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="18dp"
+        android:layout_toEndOf="@id/playlistImageBackdrop">
 
         <TextView
             android:id="@+id/tvPlaylistName"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="10dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_bold"
-            android:lineSpacingExtra="1dp"
-            android:maxLines="2"
-            android:textColor="@color/white"
-            android:textSize="13sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/ivPlaylistCover"
-            tools:text="2000s Gold" />
-
-        <TextView
-            android:id="@+id/tvOwnerName"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="3dp"
+            android:layout_alignParentTop="true"
             android:ellipsize="end"
             android:fontFamily="@font/unageo_medium"
             android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            tools:text="2000s Gold" />
+
+        <TextView
+            android:id="@+id/tvTracksCount"
+            android:layout_width="wrap_content"
+            android:layout_height="18dp"
+            android:layout_alignParentBottom="true"
+            android:fontFamily="@font/unageo_medium"
+            android:gravity="center_vertical"
             android:textColor="@color/textTheme"
-            android:textSize="11sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvPlaylistName"
-            tools:text="Por Resonant" />
+            android:textSize="12sp"
+            tools:text="24 canciones" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        <TextView
+            android:id="@+id/separator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_marginHorizontal="4dp"
+            android:layout_toEndOf="@id/tvTracksCount"
+            android:text="●"
+            android:textColor="@color/textTertiaryAlpha"
+            android:textSize="8sp" />
 
-</com.google.android.material.card.MaterialCardView>
+        <FrameLayout
+            android:id="@+id/ownerAvatarFrame"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="1dp"
+            android:layout_toEndOf="@id/separator">
+
+            <FrameLayout
+                android:id="@+id/ownerInitialsContainer"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:background="@drawable/bg_public_playlists_avatar">
+
+                <TextView
+                    android:id="@+id/tvOwnerInitial"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="U"
+                    android:textColor="@color/white"
+                    android:textSize="8sp" />
+
+            </FrameLayout>
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/ivOwnerResonantAvatar"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/image_resonant_logo_v2"
+                android:visibility="gone"
+                app:shapeAppearanceOverlay="@style/CircularUserImage" />
+
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tvOwnerName"
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:layout_alignParentBottom="true"
+            android:layout_marginStart="4dp"
+            android:layout_toEndOf="@id/ownerAvatarFrame"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
+            tools:text="Resonant" />
+
+    </RelativeLayout>
+
+</RelativeLayout>

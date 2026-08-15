@@ -34,7 +34,7 @@
         android:minWidth="64dp"
         android:paddingHorizontal="8dp"
         android:text="Ver todo"
-        android:textColor="#AFAFAF"
+        android:textColor="@color/exploreSectionActionText"
         android:textSize="13sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

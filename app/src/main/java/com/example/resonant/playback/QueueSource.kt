@@ -11,4 +11,5 @@ enum class QueueSource {
     PLAYMIX,
     DOWNLOADED_SONGS,
     QUEUE,
+    RELATED_SONGS,
     UNKNOWN }

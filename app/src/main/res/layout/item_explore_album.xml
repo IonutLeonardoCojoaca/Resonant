@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed-width horizontal-carousel item (Explore's album rows are all
+     horizontal now — recommended + new releases). Title only, no artist/year
+     subtitle: less text, more emphasis on the artwork itself. -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
+    android:layout_width="158dp"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="5dp"
     android:layout_marginVertical="5dp"
@@ -21,16 +24,15 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintDimensionRatio="1:1"
-        app:shapeAppearanceOverlay="@style/RoundedCornersAlbumSubtle"
+        app:shapeAppearanceOverlay="@style/RoundedCornersExploreGrid"
         tools:src="@drawable/ic_album" />
 
     <TextView
         android:id="@+id/albumTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="2dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="2dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="4dp"
         android:ellipsize="end"
         android:fontFamily="@font/unageo_bold"
         android:includeFontPadding="false"
@@ -40,26 +42,7 @@
         app:layout_constraintTop_toBottomOf="@id/albumImage"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        tools:text="After Hours" />
-
-    <TextView
-        android:id="@+id/albumSubtitle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="2dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="2dp"
-        android:layout_marginBottom="6dp"
-        android:ellipsize="end"
-        android:fontFamily="@font/unageo_medium"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:textColor="@color/textTheme"
-        android:textSize="12sp"
-        app:layout_constraintTop_toBottomOf="@id/albumTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        tools:text="The Weeknd" />
+        tools:text="After Hours" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

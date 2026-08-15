@@ -17,6 +17,10 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     private val dataExpirationTime = 5 * 60 * 1000L
     private var lastFavoriteSongsFetchTime = 0L
     private var favoriteSongsLoading = false
+    private var lastFavoriteArtistsFetchTime = 0L
+    private var favoriteArtistsLoading = false
+    private var lastFavoriteAlbumsFetchTime = 0L
+    private var favoriteAlbumsLoading = false
 
     // --- LiveData ---
     private val _favoriteSongs = MutableLiveData<List<Song>>(emptyList())
@@ -72,19 +76,43 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun loadFavoriteArtists() {
+    fun loadFavoriteArtists(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastFavoriteArtistsFetchTime) > dataExpirationTime
+
+        if (favoriteArtistsLoading) return
+        if (!forceRefresh && lastFavoriteArtistsFetchTime > 0L && !isExpired) return
+
+        favoriteArtistsLoading = true
         viewModelScope.launch {
-            val favArtists = repo.getFavoriteArtists()
-            _favoriteArtists.value = favArtists
-            _favoriteArtistIds.value = favArtists.map { it.id }.toSet()
+            try {
+                val favArtists = repo.getFavoriteArtists()
+                _favoriteArtists.value = favArtists
+                _favoriteArtistIds.value = favArtists.map { it.id }.toSet()
+                lastFavoriteArtistsFetchTime = System.currentTimeMillis()
+            } finally {
+                favoriteArtistsLoading = false
+            }
         }
     }
 
-    fun loadFavoriteAlbums() {
+    fun loadFavoriteAlbums(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastFavoriteAlbumsFetchTime) > dataExpirationTime
+
+        if (favoriteAlbumsLoading) return
+        if (!forceRefresh && lastFavoriteAlbumsFetchTime > 0L && !isExpired) return
+
+        favoriteAlbumsLoading = true
         viewModelScope.launch {
-            val favAlbums = repo.getFavoriteAlbums()
-            _favoriteAlbums.value = favAlbums
-            _favoriteAlbumIds.value = favAlbums.map { it.id }.toSet()
+            try {
+                val favAlbums = repo.getFavoriteAlbums()
+                _favoriteAlbums.value = favAlbums
+                _favoriteAlbumIds.value = favAlbums.map { it.id }.toSet()
+                lastFavoriteAlbumsFetchTime = System.currentTimeMillis()
+            } finally {
+                favoriteAlbumsLoading = false
+            }
         }
     }
 
@@ -125,7 +153,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     fun addFavoriteArtist(artist: Artist, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             val result = repo.addFavoriteArtist(artist.id)
-            if (result) loadFavoriteArtists()
+            if (result) loadFavoriteArtists(forceRefresh = true)
             onResult(result)
         }
     }
@@ -145,7 +173,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
 
             // 3. FALLBACK (Si falla, recargamos la lista real)
             if (!result) {
-                loadFavoriteArtists()
+                loadFavoriteArtists(forceRefresh = true)
             }
             onResult(result)
         }
@@ -159,7 +187,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     fun addFavoriteAlbum(album: Album, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             val result = repo.addFavoriteAlbum(album.id)
-            if (result) loadFavoriteAlbums()
+            if (result) loadFavoriteAlbums(forceRefresh = true)
             onResult(result)
         }
     }
@@ -179,7 +207,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
 
             // 3. FALLBACK
             if (!result) {
-                loadFavoriteAlbums()
+                loadFavoriteAlbums(forceRefresh = true)
             }
             onResult(result)
         }

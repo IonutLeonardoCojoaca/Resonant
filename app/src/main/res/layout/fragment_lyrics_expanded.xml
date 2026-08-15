@@ -77,6 +77,21 @@
         android:paddingBottom="24dp"
         android:clipToPadding="false" />
 
+    <TextView
+        android:id="@+id/expandedNoLyricsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/expandedTopBar"
+        android:layout_above="@id/expandedCloseButton"
+        android:layout_centerHorizontal="true"
+        android:gravity="center"
+        android:paddingHorizontal="32dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="No hay letra disponible para esta canción"
+        android:textColor="#80FFFFFF"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
     <View
         android:id="@+id/expandedTopFade"
         android:layout_width="match_parent"

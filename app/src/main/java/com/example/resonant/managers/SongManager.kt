@@ -222,10 +222,10 @@ class SongManager(private val context: Context) {
         }
     }
 
-    suspend fun getFavoriteSongs(): List<Song> {
+    suspend fun getFavoriteSongs(sort: String? = null, limit: Int? = null): List<Song> {
         return try {
             // Nuevo endpoint: api/songs/favorites (sin userId, extraído del JWT)
-            val songs = songService.getFavoriteSongs()
+            val songs = songService.getFavoriteSongs(sort, limit)
             formatSongMetadata(songs)
         } catch (e: Exception) {
             Log.e("SongManager", "Error fetching favorite songs", e)

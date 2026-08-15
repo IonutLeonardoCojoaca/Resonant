@@ -29,6 +29,7 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.playback.QueueSource
 import com.example.resonant.R
 import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -64,6 +65,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
     private var relatedJob: Job? = null
 
     private lateinit var relatedSongsHeader: android.widget.TextView
+    private lateinit var relatedSongsHeaderRow: View
+    private lateinit var btnPlayRelated: android.widget.ImageButton
     private lateinit var relatedSongsList: RecyclerView
     private lateinit var shimmerRelatedSongs: com.facebook.shimmer.ShimmerFrameLayout
     private lateinit var relatedAdapter: SongAdapter
@@ -145,12 +148,15 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         songAlbum = view.findViewById(R.id.songAlbum)
         playButton = view.findViewById(R.id.playButton)
         relatedSongsHeader = view.findViewById(R.id.relatedSongsHeader)
+        relatedSongsHeaderRow = view.findViewById(R.id.relatedSongsHeaderRow)
+        btnPlayRelated = view.findViewById(R.id.btnPlayRelated)
         relatedSongsList = view.findViewById(R.id.relatedSongsList)
         shimmerRelatedSongs = view.findViewById(R.id.shimmerRelatedSongs)
         relatedAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         relatedSongsList.layoutManager = LinearLayoutManager(requireContext())
         relatedSongsList.adapter = relatedAdapter
         relatedSongsList.isNestedScrollingEnabled = false
+        btnPlayRelated.setOnClickListener { playOrPauseRelatedSongs() }
         relatedAdapter.onItemClick = { (relatedSong, bitmap) ->
             val bundle = Bundle().apply { putParcelable("song", relatedSong) }
             findNavController().navigate(R.id.action_global_to_detailedSongFragment, bundle)
@@ -192,17 +198,19 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             } else {
                 song?.let { currentSong ->
                     val songList = arrayListOf(currentSong)
-                    val bitmapPath = bitmapCache[currentSong.id]?.let {
-                        Utils.saveBitmapToCache(requireContext(), it, currentSong.id)
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val bitmapPath = bitmapCache[currentSong.id]?.let {
+                            Utils.saveBitmapToCache(requireContext(), it, currentSong.id)
+                        }
+                        val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                            action = MusicPlaybackService.Companion.ACTION_PLAY
+                            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, currentSong)
+                            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
+                            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                            putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                        }
+                        requireContext().startService(playIntent)
                     }
-                    val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                        action = MusicPlaybackService.Companion.ACTION_PLAY
-                        putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, currentSong)
-                        putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
-                        putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                        putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                    }
-                    requireContext().startService(playIntent)
                 }
             }
         }
@@ -249,6 +257,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
             val isThisSongPlaying = isCurrentlyPlaying && (currentlyPlayingId == song?.id)
             this.isPlaying = isThisSongPlaying
             updatePlayPauseButton(isThisSongPlaying)
+            updateRelatedPlayButtonIcon()
         }
 
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { _ ->
@@ -393,6 +402,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         shimmerRelatedSongs.visibility = View.VISIBLE
         shimmerRelatedSongs.startShimmer()
         relatedSongsHeader.visibility = View.GONE
+        relatedSongsHeaderRow.visibility = View.GONE
         relatedSongsList.visibility = View.GONE
         relatedJob = lifecycleScope.launch {
             try {
@@ -401,14 +411,51 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
                 shimmerRelatedSongs.visibility = View.GONE
                 if (related.isNotEmpty()) {
                     relatedSongsHeader.visibility = View.VISIBLE
+                    relatedSongsHeaderRow.visibility = View.VISIBLE
                     relatedSongsList.visibility = View.VISIBLE
                     relatedAdapter.submitList(related)
+                    updateRelatedPlayButtonIcon()
                 }
             } catch (e: Exception) {
                 shimmerRelatedSongs.stopShimmer()
                 shimmerRelatedSongs.visibility = View.GONE
             }
         }
+    }
+
+    /** Reproduce la lista de "Canciones relacionadas" desde el principio, o pausa si ya es esa la lista sonando — mismo patrón que AlbumFragment/ArtistFragment.playButton. */
+    private fun playOrPauseRelatedSongs() {
+        val relatedList = ArrayList(relatedAdapter.currentList)
+        if (relatedList.isEmpty()) return
+
+        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
+            relatedList.any { it.id == songViewModel.currentSongLiveData.value?.id }
+
+        if (isRelatedListPlaying) {
+            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PAUSE
+            }
+            requireContext().startService(intent)
+        } else {
+            val firstSong = relatedList[0]
+            val seedSongId = song?.id ?: "RELATED_UNKNOWN"
+            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PLAY
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, firstSong)
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
+                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+            }
+            requireContext().startService(playIntent)
+        }
+    }
+
+    private fun updateRelatedPlayButtonIcon() {
+        if (!::btnPlayRelated.isInitialized) return
+        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
+            relatedAdapter.currentList.any { it.id == songViewModel.currentSongLiveData.value?.id }
+        btnPlayRelated.setImageResource(if (isRelatedListPlaying) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     fun updatePlayPauseButton(isPlaying: Boolean) {

@@ -37,10 +37,11 @@ import com.example.resonant.utils.ImageRequestHelper
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.util.Log
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import com.example.resonant.data.network.ApiClient
@@ -767,15 +768,16 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         val ctx = requireContext()
 
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val ampA = loadSongAmplitudes(songA, songManager, ctx)
-            val ampB = loadSongAmplitudes(songB, songManager, ctx)
+            val ampA = async { loadSongAmplitudes(songA, songManager, ctx) }
+            val ampB = async { loadSongAmplitudes(songB, songManager, ctx) }
+            val (ampAResult, ampBResult) = awaitAll(ampA, ampB)
 
-            Log.d("CrossfadeEditor", "ampA size=${ampA.size}, ampB size=${ampB.size}")
+            Log.d("CrossfadeEditor", "ampA size=${ampAResult.size}, ampB size=${ampBResult.size}")
 
             withContext(Dispatchers.Main) {
                 val b = _binding ?: return@withContext
                 b.waveformView.setWaveformData(
-                    ampA, ampB,
+                    ampAResult, ampBResult,
                     songA.durationMs, songB.durationMs,
                     songA.beatGrid, songB.beatGrid
                 )
@@ -823,19 +825,23 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             }
             Log.d("CrossfadeEditor", "Downloading amplitudes from: $resolvedUrl")
 
-            val sessionManager = com.example.resonant.managers.SessionManager(ctx, ApiClient.baseUrl())
-            val clientBuilder = OkHttpClient.Builder()
+            val sessionManager = com.example.resonant.managers.SessionManager.getInstance(ctx)
             val isPresigned = resolvedUrl.contains("X-Amz-Signature", ignoreCase = true)
             val token = sessionManager.getAccessToken()
-            if (!token.isNullOrBlank() && !isPresigned) {
-                clientBuilder.addInterceptor { chain ->
-                    val req = chain.request().newBuilder()
-                        .header("Authorization", "Bearer $token")
-                        .build()
-                    chain.proceed(req)
-                }
+            // Derivado del cliente HTTP compartido (dispatcher/connection pool comunes)
+            // en vez de un OkHttpClient nuevo por descarga.
+            val client = if (!token.isNullOrBlank() && !isPresigned) {
+                ApiClient.getMediaHttpClient().newBuilder()
+                    .addInterceptor { chain ->
+                        val req = chain.request().newBuilder()
+                            .header("Authorization", "Bearer $token")
+                            .build()
+                        chain.proceed(req)
+                    }
+                    .build()
+            } else {
+                ApiClient.getMediaHttpClient()
             }
-            val client = clientBuilder.build()
 
             val request = Request.Builder().url(resolvedUrl).build()
             val response = client.newCall(request).execute()

@@ -1,9 +1,14 @@
 package com.example.resonant.data.local.entities
 
 import androidx.room.Entity
+import androidx.room.Index
 import com.example.resonant.data.models.AlbumSimpleDTO
 
-@Entity(tableName = "downloaded_songs", primaryKeys = ["userId", "songId"])
+@Entity(
+    tableName = "downloaded_songs",
+    primaryKeys = ["userId", "songId"],
+    indices = [Index(value = ["songId"])]
+)
 data class DownloadedSong(
     val userId: String,
     val songId: String,

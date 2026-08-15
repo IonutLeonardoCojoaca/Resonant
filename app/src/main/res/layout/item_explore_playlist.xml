@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed-width horizontal-carousel item (Explore's playlist row is
+     horizontal now, dropped the old 2-col grid + full-width featured card).
+     Owner/creator differentiation lives on the dedicated community-playlists
+     screen (PublicPlaylistsFragment) — this compact preview keeps only the
+     track-count badge + title, no owner line, matching "menos texto". -->
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
+    android:layout_width="136dp"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="5dp"
+    android:layout_marginHorizontal="6dp"
     android:layout_marginVertical="5dp"
     android:clickable="true"
     android:focusable="true"
@@ -21,7 +26,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintDimensionRatio="1:1"
-        app:shapeAppearanceOverlay="@style/RoundedCornersAlbumSubtle"
+        app:shapeAppearanceOverlay="@style/RoundedCornersExploreGrid"
         tools:src="@drawable/ic_playlist_stack" />
 
     <TextView
@@ -44,9 +49,8 @@
         android:id="@+id/playlistTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="2dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="2dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="4dp"
         android:ellipsize="end"
         android:fontFamily="@font/unageo_bold"
         android:includeFontPadding="false"
@@ -56,26 +60,7 @@
         app:layout_constraintTop_toBottomOf="@id/playlistImage"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        tools:text="Late night focus" />
-
-    <TextView
-        android:id="@+id/playlistSubtitle"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="2dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="2dp"
-        android:layout_marginBottom="6dp"
-        android:ellipsize="end"
-        android:fontFamily="@font/unageo_medium"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:textColor="@color/textTheme"
-        android:textSize="12sp"
-        app:layout_constraintTop_toBottomOf="@id/playlistTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        tools:text="Playlist · Resonant" />
+        tools:text="Late night focus" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

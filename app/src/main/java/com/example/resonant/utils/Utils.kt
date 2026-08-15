@@ -12,6 +12,8 @@ import androidx.annotation.IdRes
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import com.example.resonant.ui.activities.MainActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -26,14 +28,15 @@ object Utils {
         return "$minutes:$seconds"
     }
 
-    fun saveBitmapToCache(context: Context, bitmap: Bitmap, songId: String): String {
-        val fileName = "cover_$songId.png"
-        val file = File(context.cacheDir, fileName)
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+    suspend fun saveBitmapToCache(context: Context, bitmap: Bitmap, songId: String): String =
+        withContext(Dispatchers.IO) {
+            val fileName = "cover_$songId.png"
+            val file = File(context.cacheDir, fileName)
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            file.absolutePath
         }
-        return file.absolutePath
-    }
 
     fun saveBitmapToCacheUri(context: Context, bitmap: Bitmap, fileName: String): Uri? {
         return try {
@@ -114,19 +117,26 @@ object Utils {
         return a3 - b3
     }
 
-    fun loadUserProfile(context: Context, userProfileImage: ImageView) {
+    suspend fun loadUserProfile(context: Context, userProfileImage: ImageView) {
         val localFileName = "profile_user.png"
-        val file = File(context.filesDir, localFileName)
 
         // 1. Intentar cargar la imagen
-        if (file.exists()) {
-            try {
-                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-                userProfileImage.setImageBitmap(bitmap)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                userProfileImage.setImageResource(R.drawable.ic_user)
+        val bitmap = withContext(Dispatchers.IO) {
+            val file = File(context.filesDir, localFileName)
+            if (file.exists()) {
+                try {
+                    BitmapFactory.decodeFile(file.absolutePath)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            } else {
+                null
             }
+        }
+
+        if (bitmap != null) {
+            userProfileImage.setImageBitmap(bitmap)
         } else {
             userProfileImage.setImageResource(R.drawable.ic_user)
         }

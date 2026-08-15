@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clone of bg_item_song.xml with a 15dp radius matching item_featured_album's
+     outer CardView, instead of bg_item_song's 8dp — kept as a separate drawable
+     so other consumers of bg_item_song are unaffected. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <solid
+        android:color="@color/cardsTheme">
+    </solid>
+
+    <corners
+        android:radius="15dp">
+    </corners>
+
+</shape>

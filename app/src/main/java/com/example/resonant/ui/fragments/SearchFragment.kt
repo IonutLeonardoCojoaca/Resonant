@@ -15,8 +15,10 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -252,19 +254,22 @@ class SearchFragment : Fragment() {
             searchHistoryManager.addSearch(song.title, song.coverUrl, "Canción")
 
             val currentIndex = songResults.indexOfFirst { it.id == song.id }
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songResults)
 
-            val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.SEARCH)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.SEARCH)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, currentHomeQueueId)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         // 2. CLIC EN ÁLBUM (Implementado en Fragment para guardar historial)
@@ -294,9 +299,11 @@ class SearchFragment : Fragment() {
         }
 
         downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                searchResultAdapter.downloadedSongIds = downloadedIds
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    searchResultAdapter.downloadedSongIds = downloadedIds
+                }
             }
         }
 

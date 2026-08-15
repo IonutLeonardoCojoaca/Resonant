@@ -13,8 +13,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -144,12 +146,10 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         // Usamos requireActivity() para acceder al ViewModel global de descargas
         downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
 
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                songAdapter.downloadedSongIds = downloadedIds
-                // Refrescamos visualmente si ya hay canciones cargadas
-                if (songAdapter.currentList.isNotEmpty()) {
-                    songAdapter.notifyDataSetChanged()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    songAdapter.downloadedSongIds = downloadedIds
                 }
             }
         }
@@ -465,21 +465,24 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                 return@click
             }
             val currentIndex = position
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
 
-            val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.PLAYLIST)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, playlistId)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                val playlistName = playlistViewModel.screenState.value?.playlistDetails?.name
-                putExtra("EXTRA_QUEUE_SOURCE_NAME", playlistName)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.PLAYLIST)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, playlistId)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                    val playlistName = playlistViewModel.screenState.value?.playlistDetails?.name
+                    putExtra("EXTRA_QUEUE_SOURCE_NAME", playlistName)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         songAdapter.onFavoriteClick = { song, wasFavorite ->

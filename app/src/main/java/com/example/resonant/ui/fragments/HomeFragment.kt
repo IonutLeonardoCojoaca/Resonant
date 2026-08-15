@@ -17,6 +17,9 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
+import com.google.android.material.button.MaterialButton
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.R
 import com.example.resonant.playback.QueueSource
@@ -40,8 +43,17 @@ import com.example.resonant.ui.viewmodels.DownloadViewModel
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
+    companion object {
+        private const val TOP_SONGS_COLLAPSED_COUNT = 5
+    }
+
     private lateinit var recyclerViewHistory: RecyclerView
     private lateinit var historyAdapter: SongAdapter
+
+    private lateinit var recyclerViewRecentFavorites: RecyclerView
+    private lateinit var recentFavoritesAdapter: SongAdapter
+    private lateinit var recentFavoritesContainer: View
+    private lateinit var shimmerRecentFavoritesLayout: ShimmerFrameLayout
 
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var artistAdapter: ArtistAdapter
@@ -51,11 +63,18 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     private lateinit var recyclerViewSongs: RecyclerView
     private lateinit var songAdapter: SongAdapter
+    private lateinit var shimmerSongLayout: ShimmerFrameLayout
+    private lateinit var layoutErrorSongs: LinearLayout
+    private lateinit var tvErrorSongs: TextView
+    private lateinit var songsFeaturedTitle: TextView
 
     private lateinit var recyclerViewTopSongs: RecyclerView
     private lateinit var topSongAdapter: SongAdapter
-    private lateinit var topSongsContainer: View
+    private lateinit var listTopSongsContainer: LinearLayout
     private lateinit var shimmerTopSongs: ShimmerFrameLayout
+    private lateinit var btnSeeMoreTopSongs: MaterialButton
+    private var fullTopSongsList: List<com.example.resonant.data.models.Song> = emptyList()
+    private var isTopSongsExpanded = false
 
     private lateinit var recyclerViewTopArtists: RecyclerView
     private lateinit var topArtistAdapter: ArtistAdapter
@@ -69,35 +88,19 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     private lateinit var tvTopAlbumsTitle: TextView
     private lateinit var shimmerTopAlbums: ShimmerFrameLayout
 
-    private lateinit var recyclerViewRecentArtists: RecyclerView
-    private lateinit var recentArtistAdapter: ArtistAdapter
-    private lateinit var recentArtistsContainer: View
-    private lateinit var tvRecentArtistsTitle: TextView
-    private lateinit var shimmerRecentArtists: ShimmerFrameLayout
-
-    private lateinit var recyclerViewRecentAlbums: RecyclerView
-    private lateinit var recentAlbumAdapter: AlbumAdapter
-    private lateinit var recentAlbumsContainer: View
-    private lateinit var tvRecentAlbumsTitle: TextView
-    private lateinit var shimmerRecentAlbums: ShimmerFrameLayout
-
-    private lateinit var songsFeaturedTitle: TextView
     private lateinit var songsFeaturedTitleAlbums: TextView
     private lateinit var songsFeaturedTitleArtists: TextView
-    
+
     // Containers
     private lateinit var historyContainer: View
 
     // Shimmer & Error Layouts
-    private lateinit var shimmerSongLayout: ShimmerFrameLayout
     private lateinit var shimmerHistoryLayout: ShimmerFrameLayout
     private lateinit var shimmerArtistLayout: ShimmerFrameLayout
     private lateinit var shimmerAlbumLayout: ShimmerFrameLayout
-    private lateinit var layoutErrorSongs: LinearLayout
     private lateinit var layoutErrorHistory: LinearLayout
     private lateinit var layoutErrorArtists: LinearLayout
     private lateinit var layoutErrorAlbums: LinearLayout
-    private lateinit var tvErrorSongs: TextView
     private lateinit var tvErrorHistory: TextView
     private lateinit var tvErrorArtists: TextView
     private lateinit var tvErrorAlbums: TextView
@@ -159,8 +162,9 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                    songAdapter.downloadedSongIds = downloadedIds
                     historyAdapter.downloadedSongIds = downloadedIds
+                    recentFavoritesAdapter.downloadedSongIds = downloadedIds
+                    songAdapter.downloadedSongIds = downloadedIds
                     topSongAdapter.downloadedSongIds = downloadedIds
                 }
             }
@@ -168,29 +172,33 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     }
 
     private fun initViews(view: View) {
-        shimmerSongLayout = view.findViewById(R.id.shimmerSongLayout)
         shimmerHistoryLayout = view.findViewById(R.id.shimmerHistory)
         shimmerArtistLayout = view.findViewById(R.id.shimmerArtist)
         shimmerAlbumLayout = view.findViewById(R.id.shimmerAlbum)
-        songsFeaturedTitle = view.findViewById(R.id.songsFeatured)
         songsFeaturedTitleAlbums = view.findViewById(R.id.albumsFeatured)
         songsFeaturedTitleArtists = view.findViewById(R.id.artistFeatured)
-        layoutErrorSongs = view.findViewById(R.id.layoutErrorSongs)
         layoutErrorHistory = view.findViewById(R.id.layoutErrorHistory)
         layoutErrorArtists = view.findViewById(R.id.layoutErrorArtists)
         layoutErrorAlbums = view.findViewById(R.id.layoutErrorAlbums)
-        tvErrorSongs = view.findViewById(R.id.tvErrorSongs)
         tvErrorHistory = view.findViewById(R.id.tvErrorHistory)
         tvErrorArtists = view.findViewById(R.id.tvErrorArtists)
         tvErrorAlbums = view.findViewById(R.id.tvErrorAlbums)
         recyclerViewArtists = view.findViewById(R.id.listArtistsRecycler)
         recyclerViewHistory = view.findViewById(R.id.listHistoryRecycler)
         recyclerViewAlbums = view.findViewById(R.id.listAlbumsRecycler)
-        recyclerViewSongs = view.findViewById(R.id.allSongList)
         historyContainer = view.findViewById(R.id.historyPrincipalContainer)
-        topSongsContainer = view.findViewById(R.id.listTopSongs)
+        recyclerViewSongs = view.findViewById(R.id.allSongList)
+        shimmerSongLayout = view.findViewById(R.id.shimmerSongLayout)
+        layoutErrorSongs = view.findViewById(R.id.layoutErrorSongs)
+        tvErrorSongs = view.findViewById(R.id.tvErrorSongs)
+        songsFeaturedTitle = view.findViewById(R.id.songsFeatured)
+        recyclerViewRecentFavorites = view.findViewById(R.id.listRecentFavoritesRecycler)
+        recentFavoritesContainer = view.findViewById(R.id.recentFavoritesPrincipalContainer)
+        shimmerRecentFavoritesLayout = view.findViewById(R.id.shimmerRecentFavorites)
+        listTopSongsContainer = view.findViewById(R.id.listTopSongs)
         recyclerViewTopSongs = view.findViewById(R.id.allTopSongList)
         shimmerTopSongs = view.findViewById(R.id.shimmerTopSongs)
+        btnSeeMoreTopSongs = view.findViewById(R.id.btnSeeMoreTopSongs)
 
         tvTopArtistsTitle = view.findViewById(R.id.tvTopArtistsTitle)
         topArtistsContainer = view.findViewById(R.id.topArtistsContainer)
@@ -202,18 +210,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         recyclerViewTopAlbums = view.findViewById(R.id.listTopAlbums)
         shimmerTopAlbums = view.findViewById(R.id.shimmerTopAlbums)
 
-        tvRecentArtistsTitle = view.findViewById(R.id.tvRecentArtistsTitle)
-        recentArtistsContainer = view.findViewById(R.id.recentArtistsContainer)
-        recyclerViewRecentArtists = view.findViewById(R.id.listRecentArtists)
-        shimmerRecentArtists = view.findViewById(R.id.shimmerRecentArtists)
-
-        tvRecentAlbumsTitle = view.findViewById(R.id.tvRecentAlbumsTitle)
-        recentAlbumsContainer = view.findViewById(R.id.recentAlbumsContainer)
-        recyclerViewRecentAlbums = view.findViewById(R.id.listRecentAlbums)
-        shimmerRecentAlbums = view.findViewById(R.id.shimmerRecentAlbums)
-
         userProfileImage = view.findViewById(R.id.userProfile)
-        Utils.loadUserProfile(requireContext(), userProfileImage)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
 
         view.findViewById<View>(R.id.searchButton).setOnClickListener {
             exitTransition = null
@@ -222,14 +220,23 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     }
 
     private fun setupRecyclerViews() {
-        // History
-        recyclerViewHistory.layoutManager = GridLayoutManager(context, 2) 
+        // History — grid 2x4 ("Retoma desde donde lo has dejado"). El carrusel
+        // horizontal se probó y se veía como una fila a medio cortar en el
+        // borde de pantalla; el grid de 2 columnas encaja mejor con 8 items.
+        recyclerViewHistory.layoutManager = GridLayoutManager(context, 2)
         historyAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_GRID)
         recyclerViewHistory.adapter = historyAdapter
         recyclerViewHistory.isNestedScrollingEnabled = false
 
-        // Artists
-        recyclerViewArtists.layoutManager = GridLayoutManager(context, 3)
+        // Recent favorites — lista vertical normal (no grid, no carrusel).
+        recyclerViewRecentFavorites.layoutManager = LinearLayoutManager(requireContext())
+        recentFavoritesAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        recyclerViewRecentFavorites.adapter = recentFavoritesAdapter
+        recyclerViewRecentFavorites.isNestedScrollingEnabled = false
+
+        // Artists para ti — carrusel horizontal (mismo view type que ya usa
+        // el carrusel de Top Artists, que ya funciona bien en horizontal).
+        recyclerViewArtists.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
         artistAdapter = ArtistAdapter(mutableListOf())
         artistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_GRID)
         
@@ -278,11 +285,12 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         recyclerViewArtists.adapter = artistAdapter
         recyclerViewArtists.isNestedScrollingEnabled = false
 
-        // Albums: three columns make titles unreadable on phone-sized screens.
-        // Keep the grid dense on larger devices, but give cards enough room on mobile.
-        val albumColumnCount = if (resources.configuration.screenWidthDp >= 600) 3 else 2
-        recyclerViewAlbums.layoutManager = GridLayoutManager(context, albumColumnCount)
+        // Albums para ti — carrusel horizontal (mismo tratamiento que Top Albums).
+        recyclerViewAlbums.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
         albumsAdapter = AlbumAdapter(mutableListOf(), 0)
+        albumsAdapter.itemWidthOverride = dpToPx(
+            if (resources.configuration.screenWidthDp >= 600) 180 else 156
+        )
         albumsAdapter.onAlbumClick = { album ->
             val bundle = Bundle().apply { putString("albumId", album.id) }
             findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
@@ -333,6 +341,13 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         
         recyclerViewAlbums.adapter = albumsAdapter
         recyclerViewAlbums.isNestedScrollingEnabled = false
+
+        // Recomendado para ti (canciones) — listado vertical, entre
+        // Álbumes para ti y Artistas que más escuchas.
+        recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
+        songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        recyclerViewSongs.adapter = songAdapter
+        recyclerViewSongs.isNestedScrollingEnabled = false
 
         // Top Songs — vertical list
         recyclerViewTopSongs.layoutManager = LinearLayoutManager(requireContext())
@@ -434,40 +449,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             if (resources.configuration.screenWidthDp >= 600) 180 else 156
         topAlbumAdapter.itemWidthOverride = dpToPx(horizontalAlbumWidthDp)
 
-        // Recently added artists — horizontal
-        recyclerViewRecentArtists.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-        recentArtistAdapter = ArtistAdapter(mutableListOf())
-        recentArtistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_GRID)
-        recentArtistAdapter.onArtistClick = { artist, sharedImage ->
-            val bundle = Bundle().apply {
-                putString("artistId", artist.id)
-                putString("artistName", artist.name)
-                putString("artistImageUrl", artist.url)
-                putString("artistImageTransitionName", sharedImage.transitionName)
-            }
-            val extras = androidx.navigation.fragment.FragmentNavigatorExtras(sharedImage to sharedImage.transitionName)
-            findNavController().navigate(R.id.action_homeFragment_to_artistFragment, bundle, null, extras)
-        }
-        recyclerViewRecentArtists.adapter = recentArtistAdapter
-        recyclerViewRecentArtists.isNestedScrollingEnabled = false
-
-        // New release albums — horizontal
-        recyclerViewRecentAlbums.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-        recentAlbumAdapter = AlbumAdapter(mutableListOf(), 0)
-        recentAlbumAdapter.onAlbumClick = { album ->
-            val bundle = Bundle().apply { putString("albumId", album.id) }
-            findNavController().navigate(R.id.action_homeFragment_to_albumFragment, bundle)
-        }
-        recentAlbumAdapter.itemWidthOverride = dpToPx(horizontalAlbumWidthDp)
-        recyclerViewRecentAlbums.adapter = recentAlbumAdapter
-        recyclerViewRecentAlbums.isNestedScrollingEnabled = false
-
-        // Songs - NestedScrollView handles the scrolling
-        recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
-        songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
-        recyclerViewSongs.adapter = songAdapter
-        recyclerViewSongs.isNestedScrollingEnabled = false
-
         setupSongClickListeners()
     }
 
@@ -483,25 +464,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     }
 
     private fun setupHomeObservers() {
-        // --- OBSERVAR CANCIONES ---
-        homeViewModel.songs.observe(viewLifecycleOwner) { songs ->
-            songAdapter.submitList(songs)
-            updateSectionState(false, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
-        }
-        homeViewModel.songsTitle.observe(viewLifecycleOwner) { title ->
-            songsFeaturedTitle.text = title
-        }
-        homeViewModel.songsLoading.observe(viewLifecycleOwner) { isLoading ->
-            if (isLoading) {
-                updateSectionState(true, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
-            }
-        }
-        homeViewModel.songsError.observe(viewLifecycleOwner) { error ->
-            if (error != null) updateSectionState(
-                false, true, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs, tvErrorSongs, error
-            )
-        }
-
         // --- OBSERVAR HISTORIAL ---
         homeViewModel.history.observe(viewLifecycleOwner) { history ->
             if (history.isNullOrEmpty()) {
@@ -530,6 +492,31 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                  updateSectionState(
                     false, true, recyclerViewHistory, shimmerHistoryLayout, layoutErrorHistory, tvErrorHistory, error
                 )
+            }
+        }
+
+        // --- OBSERVAR FAVORITOS RECIENTES ---
+        homeViewModel.recentFavorites.observe(viewLifecycleOwner) { songs ->
+            if (songs.isNullOrEmpty()) {
+                recentFavoritesContainer.visibility = View.GONE
+                updateSectionState(false, false, recyclerViewRecentFavorites, shimmerRecentFavoritesLayout, null)
+            } else {
+                recentFavoritesContainer.visibility = View.VISIBLE
+                recentFavoritesAdapter.submitList(songs)
+                updateSectionState(false, false, recyclerViewRecentFavorites, shimmerRecentFavoritesLayout, null)
+            }
+        }
+        homeViewModel.recentFavoritesLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) {
+                recentFavoritesContainer.visibility = View.VISIBLE
+                updateSectionState(true, false, recyclerViewRecentFavorites, shimmerRecentFavoritesLayout, null)
+            } else if (recentFavoritesAdapter.currentList.isEmpty()) {
+                recentFavoritesContainer.visibility = View.GONE
+            }
+        }
+        homeViewModel.recentFavoritesError.observe(viewLifecycleOwner) { error ->
+            if (error != null) {
+                recentFavoritesContainer.visibility = View.GONE
             }
         }
 
@@ -571,6 +558,25 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             )
         }
 
+        // --- OBSERVAR CANCIONES RECOMENDADAS ---
+        homeViewModel.songs.observe(viewLifecycleOwner) { songs ->
+            songAdapter.submitList(songs)
+            updateSectionState(false, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
+        }
+        homeViewModel.songsTitle.observe(viewLifecycleOwner) { title ->
+            songsFeaturedTitle.text = title
+        }
+        homeViewModel.songsLoading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) {
+                updateSectionState(true, false, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs)
+            }
+        }
+        homeViewModel.songsError.observe(viewLifecycleOwner) { error ->
+            if (error != null) updateSectionState(
+                false, true, recyclerViewSongs, shimmerSongLayout, layoutErrorSongs, tvErrorSongs, error
+            )
+        }
+
         // --- OBSERVAR ARTISTAS MÁS ESCUCHADOS ---
         homeViewModel.topArtists.observe(viewLifecycleOwner) { artists ->
             if (artists.isNullOrEmpty()) {
@@ -599,57 +605,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             }
         }
 
-        // --- OBSERVAR ARTISTAS RECIENTEMENTE AÑADIDOS ---
-        homeViewModel.recentArtists.observe(viewLifecycleOwner) { artists ->
-            if (artists.isNullOrEmpty()) {
-                recentArtistsContainer.visibility = View.GONE
-                tvRecentArtistsTitle.visibility = View.GONE
-            } else {
-                recentArtistsContainer.visibility = View.VISIBLE
-                tvRecentArtistsTitle.visibility = View.VISIBLE
-                recentArtistAdapter.submitArtists(artists)
-                shimmerRecentArtists.stopShimmer()
-                shimmerRecentArtists.visibility = View.GONE
-                recyclerViewRecentArtists.visibility = View.VISIBLE
-            }
-        }
-        homeViewModel.recentArtistsLoading.observe(viewLifecycleOwner) { isLoading ->
-            if (isLoading) {
-                recyclerViewRecentArtists.visibility = View.INVISIBLE
-                shimmerRecentArtists.visibility = View.VISIBLE
-                shimmerRecentArtists.startShimmer()
-            } else {
-                shimmerRecentArtists.stopShimmer()
-                shimmerRecentArtists.visibility = View.GONE
-                recyclerViewRecentArtists.visibility = View.VISIBLE
-            }
-        }
-
-        // --- OBSERVAR ÁLBUMES RECIENTEMENTE AÑADIDOS ---
-        homeViewModel.recentAlbums.observe(viewLifecycleOwner) { albums ->
-            if (albums.isNullOrEmpty()) {
-                recentAlbumsContainer.visibility = View.GONE
-                tvRecentAlbumsTitle.visibility = View.GONE
-            } else {
-                recentAlbumsContainer.visibility = View.VISIBLE
-                tvRecentAlbumsTitle.visibility = View.VISIBLE
-                recentAlbumAdapter.updateList(albums)
-                shimmerRecentAlbums.stopShimmer()
-                shimmerRecentAlbums.visibility = View.GONE
-                recyclerViewRecentAlbums.visibility = View.VISIBLE
-            }
-        }
-        homeViewModel.recentAlbumsLoading.observe(viewLifecycleOwner) { isLoading ->
-            if (isLoading) {
-                recyclerViewRecentAlbums.visibility = View.INVISIBLE
-                shimmerRecentAlbums.visibility = View.VISIBLE
-                shimmerRecentAlbums.startShimmer()
-            } else {
-                shimmerRecentAlbums.stopShimmer()
-                shimmerRecentAlbums.visibility = View.GONE
-                recyclerViewRecentAlbums.visibility = View.VISIBLE
-            }
-        }
 
         // --- OBSERVAR ÁLBUMES MÁS ESCUCHADOS ---
         homeViewModel.topAlbums.observe(viewLifecycleOwner) { albums ->
@@ -682,15 +637,16 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         // --- OBSERVAR TUS MÁS ESCUCHADAS ---
         homeViewModel.topSongs.observe(viewLifecycleOwner) { songs ->
             if (songs.isNullOrEmpty()) {
-                topSongsContainer.visibility = View.GONE
+                listTopSongsContainer.visibility = View.GONE
                 view?.findViewById<View>(R.id.titleTopSongsContainer)?.visibility = View.GONE
             } else {
-                topSongsContainer.visibility = View.VISIBLE
+                listTopSongsContainer.visibility = View.VISIBLE
                 view?.findViewById<View>(R.id.titleTopSongsContainer)?.visibility = View.VISIBLE
-                topSongAdapter.submitList(songs)
+                fullTopSongsList = songs
                 shimmerTopSongs.stopShimmer()
                 shimmerTopSongs.visibility = View.GONE
                 recyclerViewTopSongs.visibility = View.VISIBLE
+                updateTopSongsListDisplay()
             }
         }
         homeViewModel.topSongsLoading.observe(viewLifecycleOwner) { isLoading ->
@@ -702,38 +658,84 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         }
         homeViewModel.topSongsError.observe(viewLifecycleOwner) { error ->
             if (error != null) {
-                topSongsContainer.visibility = View.GONE
+                listTopSongsContainer.visibility = View.GONE
                 view?.findViewById<View>(R.id.titleTopSongsContainer)?.visibility = View.GONE
             }
+        }
+
+        btnSeeMoreTopSongs.setOnClickListener {
+            val transition = AutoTransition()
+            transition.duration = 200
+            transition.excludeChildren(recyclerViewTopSongs, true)
+            TransitionManager.beginDelayedTransition(listTopSongsContainer, transition)
+
+            isTopSongsExpanded = !isTopSongsExpanded
+            updateTopSongsListDisplay()
+        }
+    }
+
+    /** Muestra solo las primeras [TOP_SONGS_COLLAPSED_COUNT] canciones hasta que el usuario pide ver más — mismo patrón que ArtistFragment.updateSongsListDisplay(). */
+    private fun updateTopSongsListDisplay() {
+        if (fullTopSongsList.isEmpty()) {
+            btnSeeMoreTopSongs.visibility = View.GONE
+            return
+        }
+
+        val listToShow = if (isTopSongsExpanded) {
+            fullTopSongsList
+        } else {
+            fullTopSongsList.take(TOP_SONGS_COLLAPSED_COUNT)
+        }
+        topSongAdapter.submitList(listToShow)
+
+        if (fullTopSongsList.size > TOP_SONGS_COLLAPSED_COUNT) {
+            btnSeeMoreTopSongs.visibility = View.VISIBLE
+            if (isTopSongsExpanded) {
+                btnSeeMoreTopSongs.text = "Ver menos"
+                btnSeeMoreTopSongs.setIconResource(R.drawable.ic_keyboard_arrow_up)
+            } else {
+                val remaining = fullTopSongsList.size - TOP_SONGS_COLLAPSED_COUNT
+                btnSeeMoreTopSongs.text = "Ver $remaining más"
+                btnSeeMoreTopSongs.setIconResource(R.drawable.ic_keyboard_arrow_down)
+            }
+        } else {
+            btnSeeMoreTopSongs.visibility = View.GONE
         }
     }
 
     private fun setupOtherObservers() {
         // Song playing
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let { 
-                songAdapter.setCurrentPlayingSong(it.id)
+            currentSong?.let {
                 historyAdapter.setCurrentPlayingSong(it.id)
+                recentFavoritesAdapter.setCurrentPlayingSong(it.id)
+                songAdapter.setCurrentPlayingSong(it.id)
                 topSongAdapter.setCurrentPlayingSong(it.id)
             }
         }
 
         // User Profile
         userViewModel.profileImageUpdated.observe(viewLifecycleOwner) { isUpdated ->
-            if (isUpdated) Utils.loadUserProfile(requireContext(), userProfileImage)
+            if (isUpdated) {
+                viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
+            }
         }
 
         // Favorites
         favoritesViewModel.loadFavoriteSongs()
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
-            songAdapter.favoriteSongIds = songIds
             historyAdapter.favoriteSongIds = songIds
+            recentFavoritesAdapter.favoriteSongIds = songIds
+            songAdapter.favoriteSongIds = songIds
             topSongAdapter.favoriteSongIds = songIds
-            if (songAdapter.currentList.isNotEmpty()) {
-                songAdapter.notifyDataSetChanged()
-            }
             if (historyAdapter.currentList.isNotEmpty()) {
                 historyAdapter.notifyDataSetChanged()
+            }
+            if (recentFavoritesAdapter.currentList.isNotEmpty()) {
+                recentFavoritesAdapter.notifyDataSetChanged()
+            }
+            if (songAdapter.currentList.isNotEmpty()) {
+                songAdapter.notifyDataSetChanged()
             }
             if (topSongAdapter.currentList.isNotEmpty()) {
                 topSongAdapter.notifyDataSetChanged()
@@ -743,27 +745,31 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     private fun setupSongClickListeners() {
         val currentHomeQueueId = System.currentTimeMillis().toString()
-        setupAdapterListeners(songAdapter, currentHomeQueueId)
         setupAdapterListeners(historyAdapter, currentHomeQueueId)
+        setupAdapterListeners(recentFavoritesAdapter, currentHomeQueueId)
+        setupAdapterListeners(songAdapter, currentHomeQueueId)
         setupAdapterListeners(topSongAdapter, currentHomeQueueId)
     }
 
     private fun setupAdapterListeners(adapter: SongAdapter, queueId: String) {
         adapter.onItemClick = { (song, bitmap) ->
             val currentIndex = adapter.currentList.indexOfFirst { it.id == song.id }
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(adapter.currentList)
 
-            val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.Companion.ACTION_PLAY
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         adapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }

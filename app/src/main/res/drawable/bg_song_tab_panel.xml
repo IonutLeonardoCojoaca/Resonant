@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static placeholder background for the SongFragment tab content panel.
+     Same look the old lyricsCard had (playerCardBackground); MiniPlayerColorizer
+     tints this at runtime once the dynamic background is wired up. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/playerCardBackground" />
+    <corners android:radius="@dimen/radius_lg" />
+</shape>

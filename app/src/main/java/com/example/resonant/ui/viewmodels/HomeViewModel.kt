@@ -38,11 +38,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var lastHistoryFetchTime: Long = 0
     private var lastArtistsFetchTime: Long = 0
     private var lastAlbumsFetchTime: Long = 0
-    private var lastRecentArtistsFetchTime: Long = 0
-    private var lastRecentAlbumsFetchTime: Long = 0
     private var lastTopSongsFetchTime: Long = 0
     private var lastTopArtistsFetchTime: Long = 0
     private var lastTopAlbumsFetchTime: Long = 0
+    private var lastRecentFavoritesFetchTime: Long = 0
 
     // --- SECCIÓN CANCIONES ---
     private val _songs = MutableLiveData<List<Song>?>()
@@ -61,6 +60,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val historyLoading: LiveData<Boolean> get() = _historyLoading
     private val _historyError = MutableLiveData<String?>()
     val historyError: LiveData<String?> get() = _historyError
+
+    // --- SECCIÓN FAVORITOS RECIENTES ---
+    private val _recentFavorites = MutableLiveData<List<Song>?>()
+    val recentFavorites: LiveData<List<Song>?> get() = _recentFavorites
+    private val _recentFavoritesLoading = MutableLiveData<Boolean>()
+    val recentFavoritesLoading: LiveData<Boolean> get() = _recentFavoritesLoading
+    private val _recentFavoritesError = MutableLiveData<String?>()
+    val recentFavoritesError: LiveData<String?> get() = _recentFavoritesError
 
     // --- SECCIÓN ARTISTAS ---
     private val _artists = MutableLiveData<List<Artist>?>()
@@ -81,22 +88,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val albumsLoading: LiveData<Boolean> get() = _albumsLoading
     private val _albumsError = MutableLiveData<String?>()
     val albumsError: LiveData<String?> get() = _albumsError
-
-    // --- SECCIÓN ARTISTAS RECIENTEMENTE AÑADIDOS ---
-    private val _recentArtists = MutableLiveData<List<Artist>?>()
-    val recentArtists: LiveData<List<Artist>?> get() = _recentArtists
-    private val _recentArtistsLoading = MutableLiveData<Boolean>()
-    val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
-    private val _recentArtistsError = MutableLiveData<String?>()
-    val recentArtistsError: LiveData<String?> get() = _recentArtistsError
-
-    // --- SECCIÓN ÁLBUMES RECIENTEMENTE AÑADIDOS ---
-    private val _recentAlbums = MutableLiveData<List<Album>?>()
-    val recentAlbums: LiveData<List<Album>?> get() = _recentAlbums
-    private val _recentAlbumsLoading = MutableLiveData<Boolean>()
-    val recentAlbumsLoading: LiveData<Boolean> get() = _recentAlbumsLoading
-    private val _recentAlbumsError = MutableLiveData<String?>()
-    val recentAlbumsError: LiveData<String?> get() = _recentAlbumsError
 
     // --- SECCIÓN TUS CANCIONES MÁS ESCUCHADAS ---
     private val _topSongs = MutableLiveData<List<Song>?>()
@@ -183,11 +174,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _history.value != null ||
             _artists.value != null ||
             _albums.value != null ||
-            _recentArtists.value != null ||
-            _recentAlbums.value != null ||
             _topSongs.value != null ||
             _topArtists.value != null ||
-            _topAlbums.value != null
+            _topAlbums.value != null ||
+            _recentFavorites.value != null
     }
 
     private fun clearHomeForOwnerChange() {
@@ -195,21 +185,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _history.value = null
         _artists.value = null
         _albums.value = null
-        _recentArtists.value = null
-        _recentAlbums.value = null
         _topSongs.value = null
         _topArtists.value = null
         _topAlbums.value = null
+        _recentFavorites.value = null
         lastHomeRefreshTime = 0L
         lastSongsFetchTime = 0L
         lastHistoryFetchTime = 0L
         lastArtistsFetchTime = 0L
         lastAlbumsFetchTime = 0L
-        lastRecentArtistsFetchTime = 0L
-        lastRecentAlbumsFetchTime = 0L
         lastTopSongsFetchTime = 0L
         lastTopArtistsFetchTime = 0L
         lastTopAlbumsFetchTime = 0L
+        lastRecentFavoritesFetchTime = 0L
     }
 
     private fun applyHomeResponse(response: HomeResponseDTO): Set<HomeSectionKind> {
@@ -250,20 +238,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     lastAlbumsFetchTime = System.currentTimeMillis()
                     true
                 }
-                HomeSectionKind.RECENT_ARTISTS -> homeItemDecoder.decodeArtists(section)?.let {
-                    _recentArtists.value = it
-                    _recentArtistsError.value = null
-                    _recentArtistsLoading.value = false
-                    lastRecentArtistsFetchTime = System.currentTimeMillis()
-                    true
-                }
-                HomeSectionKind.RECENT_ALBUMS -> homeItemDecoder.decodeAlbums(section)?.let {
-                    _recentAlbums.value = it
-                    _recentAlbumsError.value = null
-                    _recentAlbumsLoading.value = false
-                    lastRecentAlbumsFetchTime = System.currentTimeMillis()
-                    true
-                }
+                // La Home ya no muestra "recientemente añadidos" / "nuevos lanzamientos";
+                // se ignoran aunque el backend siga clasificando secciones así.
+                HomeSectionKind.RECENT_ARTISTS, HomeSectionKind.RECENT_ALBUMS -> true
                 HomeSectionKind.TOP_SONGS -> homeItemDecoder.decodeSongs(section)?.let {
                     _topSongs.value = it
                     _topSongsError.value = null
@@ -303,11 +280,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         if (_history.value == null) _historyLoading.value = true
         if (_artists.value == null) _artistsLoading.value = true
         if (_albums.value == null) _albumsLoading.value = true
-        if (_recentArtists.value == null) _recentArtistsLoading.value = true
-        if (_recentAlbums.value == null) _recentAlbumsLoading.value = true
         if (_topSongs.value == null) _topSongsLoading.value = true
         if (_topArtists.value == null) _topArtistsLoading.value = true
         if (_topAlbums.value == null) _topAlbumsLoading.value = true
+        if (_recentFavorites.value == null) _recentFavoritesLoading.value = true
     }
 
     private fun loadMissingLegacySections(
@@ -330,14 +306,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _albumsLoading.value = false
             loadAlbums(forceRefresh)
         }
-        if (HomeSectionKind.RECENT_ARTISTS !in populated) {
-            _recentArtistsLoading.value = false
-            loadRecentArtists(forceRefresh)
-        }
-        if (HomeSectionKind.RECENT_ALBUMS !in populated) {
-            _recentAlbumsLoading.value = false
-            loadRecentAlbums(forceRefresh)
-        }
         if (HomeSectionKind.TOP_SONGS !in populated) {
             _topSongsLoading.value = false
             loadTopSongs(forceRefresh)
@@ -350,6 +318,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _topAlbumsLoading.value = false
             loadTopAlbums(forceRefresh)
         }
+        // Favoritos recientes no existe como sección del endpoint Home v2
+        // (es una adición nueva solo del cliente) — siempre se carga por la
+        // vía legacy, nunca puede venir "populated" desde el agregado.
+        _recentFavoritesLoading.value = false
+        loadRecentFavorites(forceRefresh)
     }
 
 
@@ -368,7 +341,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val result = songManager.getRecommendedSongs(count = 15)
+                val result = songManager.getRecommendedSongs(count = 10)
 
                 if (result != null && result.items.isNotEmpty()) {
                     _songsTitle.value = result.title ?: "Recomendado para ti"
@@ -411,6 +384,37 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (!hasData) _historyError.value = "Error al cargar historial"
             } finally {
                 _historyLoading.value = false
+            }
+        }
+    }
+
+    fun loadRecentFavorites(forceRefresh: Boolean = false) {
+        val currentTime = System.currentTimeMillis()
+        val isExpired = (currentTime - lastRecentFavoritesFetchTime) > DATA_EXPIRATION_TIME
+        val hasData = _recentFavorites.value != null
+
+        if (!forceRefresh && _recentFavoritesLoading.value == true) return
+        if (hasData && !forceRefresh && !isExpired) return
+
+        val showLoading = !hasData
+        if (showLoading) _recentFavoritesLoading.value = true
+        _recentFavoritesError.value = null
+
+        viewModelScope.launch {
+            try {
+                // sort=recent + limit ya vienen resueltos por el backend —
+                // no hace falta traer todo el listado y ordenar en cliente.
+                // Home solo enseña un preview corto (5), no el listado completo.
+                val songs = songManager.getFavoriteSongs(sort = "recent", limit = 5)
+
+                _recentFavorites.value = songs
+                if (songs.isNotEmpty()) {
+                    lastRecentFavoritesFetchTime = System.currentTimeMillis()
+                }
+            } catch (e: Exception) {
+                if (!hasData) _recentFavoritesError.value = "Error al cargar favoritos"
+            } finally {
+                _recentFavoritesLoading.value = false
             }
         }
     }
@@ -471,70 +475,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (!hasData) _albumsError.value = "Error al cargar álbumes"
             } finally {
                 _albumsLoading.value = false
-            }
-        }
-    }
-
-    fun loadRecentArtists(forceRefresh: Boolean = false) {
-        val currentTime = System.currentTimeMillis()
-        val isExpired = (currentTime - lastRecentArtistsFetchTime) > DATA_EXPIRATION_TIME
-        val hasData = _recentArtists.value != null
-
-        Log.d("HomeVM", "loadRecentArtists: hasData=$hasData forceRefresh=$forceRefresh isExpired=$isExpired")
-        if (!forceRefresh && _recentArtistsLoading.value == true) return
-        if (hasData && !forceRefresh && !isExpired) {
-            Log.d("HomeVM", "loadRecentArtists: skipped (cache, ${_recentArtists.value?.size} items)")
-            return
-        }
-
-        if (!hasData) _recentArtistsLoading.value = true
-        _recentArtistsError.value = null
-
-        viewModelScope.launch {
-            try {
-                Log.d("HomeVM", "loadRecentArtists: calling API...")
-                val result = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 20)
-                Log.d("HomeVM", "loadRecentArtists: got ${result.size} artists")
-                _recentArtists.value = result
-                if (result.isNotEmpty()) lastRecentArtistsFetchTime = System.currentTimeMillis()
-                else if (!hasData) _recentArtistsError.value = "No hay artistas recientes"
-            } catch (e: Exception) {
-                Log.e("HomeVM", "loadRecentArtists: EXCEPTION", e)
-                if (!hasData) _recentArtistsError.value = "Error al cargar artistas recientes"
-            } finally {
-                _recentArtistsLoading.value = false
-            }
-        }
-    }
-
-    fun loadRecentAlbums(forceRefresh: Boolean = false) {
-        val currentTime = System.currentTimeMillis()
-        val isExpired = (currentTime - lastRecentAlbumsFetchTime) > DATA_EXPIRATION_TIME
-        val hasData = _recentAlbums.value != null
-
-        Log.d("HomeVM", "loadRecentAlbums: hasData=$hasData forceRefresh=$forceRefresh isExpired=$isExpired")
-        if (!forceRefresh && _recentAlbumsLoading.value == true) return
-        if (hasData && !forceRefresh && !isExpired) {
-            Log.d("HomeVM", "loadRecentAlbums: skipped (cache, ${_recentAlbums.value?.size} items)")
-            return
-        }
-
-        if (!hasData) _recentAlbumsLoading.value = true
-        _recentAlbumsError.value = null
-
-        viewModelScope.launch {
-            try {
-                Log.d("HomeVM", "loadRecentAlbums: calling API...")
-                val result = AlbumManager.getNewReleaseAlbums(getApplication(), limit = 20)
-                Log.d("HomeVM", "loadRecentAlbums: got ${result.size} albums")
-                _recentAlbums.value = result
-                if (result.isNotEmpty()) lastRecentAlbumsFetchTime = System.currentTimeMillis()
-                else if (!hasData) _recentAlbumsError.value = "No hay álbumes recientes"
-            } catch (e: Exception) {
-                Log.e("HomeVM", "loadRecentAlbums: EXCEPTION", e)
-                if (!hasData) _recentAlbumsError.value = "Error al cargar álbumes recientes"
-            } finally {
-                _recentAlbumsLoading.value = false
             }
         }
     }

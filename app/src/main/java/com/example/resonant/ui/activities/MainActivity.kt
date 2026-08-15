@@ -706,6 +706,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         getProfileImage()
 
         checkNotificationPermission()
+
+        // handleDeepLink() was previously only wired from onNewIntent(), which
+        // never fires on a cold start (app not already running) — exactly the
+        // common case when a user taps a shared song link. That silently
+        // dropped the link and opened straight to Home instead of the song.
+        handleDeepLink(intent)
     }
 
     @Deprecated("This method has been deprecated in favor of using the\n      " +

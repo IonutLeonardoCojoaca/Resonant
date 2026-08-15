@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small solid-red circle for the inline "play this row" button
+     (item_song.xml's playButton) — a plain floating triangle read as an
+     unfinished stray icon; this gives it the same "clear tappable chip"
+     treatment as every other icon button added this session. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/secondaryColorTheme" />
+</shape>

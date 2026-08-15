@@ -33,10 +33,13 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
@@ -94,9 +97,14 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             .orEmpty()
     }
 
-    val downloadedSongIds = dao.getAllByUser(getCurrentUserId()).map { list ->
-        list.map { it.songId }.toSet()
-    }
+    // Compartido entre todas las pantallas (DownloadViewModel es activity-scoped):
+    // sin stateIn, cada fragment que colecta este Flow abriría su propia
+    // suscripción al InvalidationTracker de Room y repetiría la query.
+    // Usa getAllSongIdsByUser (SELECT songId) en vez de getAllByUser (SELECT *)
+    // para no pagar el parseo Gson de la columna album en cada emisión.
+    val downloadedSongIds: StateFlow<Set<String>> = dao.getAllSongIdsByUser(getCurrentUserId())
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     fun loadDownloadedSongs() {
         viewModelScope.launch {
@@ -267,17 +275,30 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             val userId = getCurrentUserId()
             withContext(Dispatchers.IO) {
                 val songIds = dao.getCollectionSongIds(userId, ALBUM_TYPE, albumId)
-                dao.deleteCollectionSongs(userId, ALBUM_TYPE, albumId)
-                dao.deleteCollection(userId, ALBUM_TYPE, albumId)
-                songIds.forEach { songId ->
-                    val entity = dao.getById(userId, songId) ?: return@forEach
-                    val stillReferenced =
-                        dao.countCollectionReferences(userId, songId) > 0
-                    if (!entity.isIndividuallySaved && !stillReferenced) {
-                        dao.deleteSongById(userId, songId)
-                        if (dao.countBySongId(songId) == 0) {
-                            removeOfflineAudio(context, songId, entity.localAudioPath)
-                            deleteCover(context, entity.localImagePath)
+                dao.deleteCollectionAndSongRefs(userId, ALBUM_TYPE, albumId)
+
+                if (songIds.isNotEmpty()) {
+                    val entitiesById = dao.getByIds(userId, songIds).associateBy { it.songId }
+                    val referenceCounts = dao.countCollectionReferencesForSongs(userId, songIds)
+                        .associate { it.songId to it.count }
+
+                    val orphanedSongIds = songIds.filter { songId ->
+                        val entity = entitiesById[songId]
+                        entity != null &&
+                            !entity.isIndividuallySaved &&
+                            (referenceCounts[songId] ?: 0) == 0
+                    }
+
+                    if (orphanedSongIds.isNotEmpty()) {
+                        dao.deleteSongsByIds(userId, orphanedSongIds)
+                        val remainingGlobalCounts = dao.countBySongIds(orphanedSongIds)
+                            .associate { it.songId to it.count }
+                        orphanedSongIds.forEach { songId ->
+                            if ((remainingGlobalCounts[songId] ?: 0) == 0) {
+                                val entity = entitiesById.getValue(songId)
+                                removeOfflineAudio(context, songId, entity.localAudioPath)
+                                deleteCover(context, entity.localImagePath)
+                            }
                         }
                     }
                 }
@@ -342,10 +363,15 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             withContext(Dispatchers.IO) {
-                current.forEach { song ->
-                    if (dao.countBySongId(song.songId) == 0) {
-                        removeOfflineAudio(context, song.songId, song.localAudioPath)
-                        deleteCover(context, song.localImagePath)
+                if (current.isNotEmpty()) {
+                    val songIds = current.map { it.songId }
+                    val remainingGlobalCounts = dao.countBySongIds(songIds)
+                        .associate { it.songId to it.count }
+                    current.forEach { song ->
+                        if ((remainingGlobalCounts[song.songId] ?: 0) == 0) {
+                            removeOfflineAudio(context, song.songId, song.localAudioPath)
+                            deleteCover(context, song.localImagePath)
+                        }
                     }
                 }
             }
@@ -454,16 +480,14 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         request: AlbumDownloadRequest
     ) {
         withContext(Dispatchers.IO) {
-            dao.insertCollection(
+            dao.insertCollectionWithSongs(
                 DownloadCollection(
                     userId = userId,
                     collectionType = ALBUM_TYPE,
                     collectionId = request.albumId,
                     title = request.title,
                     createdAtEpochMs = System.currentTimeMillis()
-                )
-            )
-            dao.insertCollectionSongs(
+                ),
                 request.songs.map { song ->
                     DownloadCollectionSong(
                         userId = userId,

@@ -33,7 +33,7 @@ object ApiClient {
         return retrofit ?: synchronized(this) {
             retrofit ?: run {
             val appContext = context.applicationContext
-            val session = SessionManager(appContext, BASE_URL)
+            val session = SessionManager.getInstance(appContext)
 
                 Retrofit.Builder()
                 .baseUrl(BASE_URL)

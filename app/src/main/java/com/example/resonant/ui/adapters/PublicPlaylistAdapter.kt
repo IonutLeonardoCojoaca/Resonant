@@ -3,6 +3,7 @@ package com.example.resonant.ui.adapters
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
@@ -14,6 +15,13 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.utils.ImageRequestHelper
 
+/**
+ * Fila estilo búsqueda (ver item_result_album.xml / SearchResultAdapter):
+ * portada 52dp con efecto de tarjeta apilada + título + nº de canciones +
+ * avatar/nombre del dueño. Lista plana única — la mezcla entre playlists
+ * oficiales de Resonant y de usuarios ya la resuelve
+ * PublicPlaylistsViewModel.interleaveByOwnerType(), este adapter no agrupa.
+ */
 class PublicPlaylistAdapter(
     private val onPlaylistClick: (Playlist) -> Unit
 ) : ListAdapter<Playlist, PublicPlaylistAdapter.PlaylistViewHolder>(PlaylistDiffCallback()) {
@@ -42,6 +50,9 @@ class PublicPlaylistAdapter(
         private val tvName: TextView = itemView.findViewById(R.id.tvPlaylistName)
         private val tvOwner: TextView = itemView.findViewById(R.id.tvOwnerName)
         private val tvTracks: TextView = itemView.findViewById(R.id.tvTracksCount)
+        private val initialsContainer: FrameLayout = itemView.findViewById(R.id.ownerInitialsContainer)
+        private val tvOwnerInitial: TextView = itemView.findViewById(R.id.tvOwnerInitial)
+        private val ivOwnerResonantAvatar: ImageView = itemView.findViewById(R.id.ivOwnerResonantAvatar)
 
         fun bind(playlist: Playlist) {
             tvName.text = playlist.name
@@ -53,18 +64,23 @@ class PublicPlaylistAdapter(
                 else -> "$trackCount canciones"
             }
 
-            val owner = when {
-                playlist.isSystemPlaylist -> "Resonant"
-                else -> playlist.ownerName?.takeIf { it.isNotBlank() } ?: "Usuario"
+            if (playlist.isSystemPlaylist) {
+                tvOwner.text = "Resonant"
+                initialsContainer.visibility = View.GONE
+                ivOwnerResonantAvatar.visibility = View.VISIBLE
+            } else {
+                val owner = playlist.ownerName?.takeIf { it.isNotBlank() } ?: "Usuario"
+                tvOwner.text = owner
+                tvOwnerInitial.text = owner.firstOrNull()?.uppercase() ?: "U"
+                initialsContainer.visibility = View.VISIBLE
+                ivOwnerResonantAvatar.visibility = View.GONE
             }
-            tvOwner.text = "Por $owner"
 
             ivCover.scaleType = ImageView.ScaleType.CENTER_CROP
+            val url = playlist.imageUrl?.takeIf { it.isNotBlank() }
             Glide.with(itemView.context)
-                .load(playlist.imageUrl?.takeIf { it.isNotBlank() }?.let {
-                    ImageRequestHelper.buildGlideModel(itemView.context, it)
-                })
-                .override(420, 420)
+                .load(url?.let { ImageRequestHelper.buildGlideModel(itemView.context, it) })
+                .override(160, 160)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .timeout(10_000)
                 .placeholder(R.drawable.ic_playlist_stack)

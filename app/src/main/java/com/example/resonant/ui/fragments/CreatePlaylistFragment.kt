@@ -7,6 +7,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.ui.viewmodels.PlaylistsListViewModel
@@ -17,6 +18,7 @@ import com.example.resonant.data.models.Playlist
 import com.example.resonant.utils.Utils
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.launch
 
 class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
@@ -48,7 +50,7 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
         tvVisibilityTitle = view.findViewById(R.id.tvVisibilityTitle)
         createButton = view.findViewById(R.id.createPlaylistButton)
         userProfileImage = view.findViewById(R.id.userProfile)
-        Utils.loadUserProfile(requireContext(), userProfileImage)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
 
         // Update visibility label and description when switch changes
         switchPublic.setOnCheckedChangeListener { _, isChecked ->

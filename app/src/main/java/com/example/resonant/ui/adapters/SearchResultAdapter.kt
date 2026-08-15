@@ -81,8 +81,16 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
     // --- 1. NUEVA VARIABLE PARA IDS DESCARGADOS ---
     var downloadedSongIds: Set<String> = emptySet()
         set(value) {
+            val oldIds = field
             field = value
-            notifyDataSetChanged() // Refrescamos la lista para actualizar los iconos
+
+            val changedIds = (oldIds - value) + (value - oldIds)
+            if (changedIds.isEmpty()) return
+
+            changedIds.forEach { songId ->
+                val index = currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == songId }
+                if (index != -1) notifyItemChanged(index, "silent")
+            }
         }
 
     private var currentPlayingId: String? = null

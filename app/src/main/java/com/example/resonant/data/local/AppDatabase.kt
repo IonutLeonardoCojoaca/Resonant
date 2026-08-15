@@ -17,7 +17,7 @@ import com.example.resonant.data.local.entities.DownloadCollectionSong
         DownloadCollection::class,
         DownloadCollectionSong::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @androidx.room.TypeConverters(Converters::class)
@@ -112,6 +112,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v4 → v5: add an index on songId alone so lookups/counts that filter
+        // only by songId (e.g. countBySongId, countBySongIds) don't fall back
+        // to a full table scan — the existing PK is (userId, songId), which
+        // can't be used as a prefix index without userId in the WHERE clause.
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_downloaded_songs_songId " +
+                        "ON downloaded_songs(songId)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -119,7 +132,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "resonant_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

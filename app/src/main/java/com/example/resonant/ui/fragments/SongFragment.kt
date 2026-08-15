@@ -5,31 +5,36 @@ import android.animation.ObjectAnimator
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.RenderEffect
 import android.graphics.Shader
-import android.graphics.Color
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.VelocityTracker
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.DialogFragment
@@ -49,13 +54,15 @@ import com.example.resonant.utils.PreferenceKeys
 import com.example.resonant.R
 import com.example.resonant.managers.LyricLine
 import com.example.resonant.managers.LyricsManager
+import com.example.resonant.managers.SongManager
 import com.example.resonant.ui.adapters.LyricsAdapter
 import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.PlaybackQueueController
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.ArtistSelectorBottomSheet
-import com.example.resonant.ui.bottomsheets.PlaybackQueueBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaybackDevicesBottomSheet
+import com.example.resonant.utils.MiniPlayerColorizer
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import com.example.resonant.data.network.ApiClient
@@ -65,16 +72,34 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
-import androidx.palette.graphics.Palette
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlaybackConnectRepository
+import com.example.resonant.playback.QueueSource
 import com.example.resonant.data.models.Artist
-import com.google.android.material.card.MaterialCardView
+import com.facebook.shimmer.ShimmerFrameLayout
+import com.google.android.material.tabs.TabLayout
 import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
 class SongFragment : DialogFragment() {
+
+    companion object {
+        /** Horizontal swipe-to-skip on the cover, matching MiniPlayerSwipeHandler's feel. */
+        private const val IMAGE_SWIPE_THRESHOLD_DP = 60f
+        private const val IMAGE_SWIPE_RESISTANCE = 0.45f
+        private const val IMAGE_SWIPE_SNAP_BACK_DURATION_MS = 250L
+        /** Live drag feedback shrinks/fades toward the same 0.8 scale AnimationsUtils.animateSongImage commits to. */
+        private const val IMAGE_SWIPE_SHRINK_AMOUNT = 0.2f
+        private const val IMAGE_SWIPE_FADE_AMOUNT = 0.5f
+
+        /** Vertical drag-to-dismiss, modeled on AriaQuickSheet's expansion gesture. */
+        private const val DISMISS_COMMIT_PROGRESS = 0.28f
+        private const val DISMISS_COMMIT_VELOCITY_PX_PER_SECOND = 900f
+        private const val DISMISS_SNAP_BACK_DURATION_MS = 250L
+        private const val DISMISS_ANIMATION_DURATION_MS = 220L
+    }
+
     private lateinit var blurrySongImageBackground: ImageView
     private lateinit var arrowGoBackButton: FrameLayout
     private lateinit var settingsButton: FrameLayout
@@ -102,6 +127,7 @@ class SongFragment : DialogFragment() {
     private var isPlaying : Boolean = false
     private lateinit var favoritesViewModel: FavoritesViewModel
     private lateinit var favoriteButton: ImageButton
+    private lateinit var shareButton: ImageButton
 
     private lateinit var downloadViewModel: DownloadViewModel
 
@@ -121,16 +147,30 @@ class SongFragment : DialogFragment() {
 
     // Lyrics
     private lateinit var nestedScrollView: NestedScrollView
-    private lateinit var lyricsCard: MaterialCardView
-    private lateinit var lyricsHeader: View
     private lateinit var lyricsTopFade: View
     private lateinit var lyricsBottomFade: View
     private lateinit var lyricsRecyclerView: RecyclerView
     private lateinit var lyricsLoadingIndicator: ProgressBar
     private lateinit var noLyricsText: TextView
     private lateinit var lyricsAdapter: LyricsAdapter
-    private var dominantColor: Int = 0xFF1A1A1A.toInt()
     private var lastLyricsSongId: String? = null
+
+    // Tabs (Up Next / Lyrics / Related)
+    private lateinit var songTabLayout: TabLayout
+    private lateinit var songTabContent: View
+    private lateinit var upNextTabContent: View
+    private lateinit var lyricsTabContent: View
+    private lateinit var relatedTabContent: View
+    private lateinit var queueController: PlaybackQueueController
+
+    // Related tab
+    private lateinit var relatedSongsRecyclerView: RecyclerView
+    private lateinit var relatedSongsShimmer: ShimmerFrameLayout
+    private lateinit var relatedSongsEmpty: TextView
+    private lateinit var relatedSongsHeaderRow: View
+    private lateinit var btnPlayRelated: ImageButton
+    private var relatedSongsRequested = false
+    private var relatedSongsSongId: String? = null
 
     private val lyricsHandler = Handler(Looper.getMainLooper())
     private var lyricLines: List<LyricLine> = emptyList()
@@ -142,6 +182,26 @@ class SongFragment : DialogFragment() {
     private val playbackConnectRepository by lazy {
         PlaybackConnectRepository.get(requireContext())
     }
+
+    // Cover-image swipe-to-skip + header/cover drag-to-dismiss
+    private lateinit var songRootView: View
+    private val touchSlop by lazy { ViewConfiguration.get(requireContext()).scaledTouchSlop }
+    private var imageGestureStartX = 0f
+    private var imageGestureStartY = 0f
+    private var imageGestureDirection = 0 // 0=undecided, 1=horizontal skip, 2=vertical dismiss, -1=ignore (scroll)
+    private var dismissVelocityTracker: VelocityTracker? = null
+    private var dismissDragStartRawY = 0f
+    private var isDraggingDismiss = false
+    private var dismissInProgress = false
+
+    // Contrast-safe icon/text color resolved per song by MiniPlayerColorizer
+    // (always Color.BLACK or Color.WHITE) — applied to buttons that carry
+    // their own selection state (shuffle/repeat/like) and therefore can't be
+    // handed to MiniPlayerColorizer.Targets.iconButtons directly.
+    private var dynamicIconTint: Int = Color.WHITE
+    // Raw per-song background hue resolved alongside dynamicIconTint, passed
+    // to LyricsExpandedFragment (which blends it toward black on its own).
+    private var dynamicBackgroundColor: Int = Color.BLACK
 
     private val lyricsUpdateRunnable = object : Runnable {
         override fun run() {
@@ -193,6 +253,8 @@ class SongFragment : DialogFragment() {
         playmixRingAnimator = null
         stopLyricsSync()
         lyricsHandler.removeCallbacksAndMessages(null)
+        dismissVelocityTracker?.recycle()
+        dismissVelocityTracker = null
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -232,6 +294,7 @@ class SongFragment : DialogFragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_song, container, false)
+        songRootView = view
 
         // 2. Inicializamos el servicio específico
         artistService = ApiClient.getArtistService(requireContext())
@@ -255,6 +318,7 @@ class SongFragment : DialogFragment() {
         arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
         settingsButton = view.findViewById(R.id.settingsBackground)
         favoriteButton = view.findViewById(R.id.likeButton)
+        shareButton = view.findViewById(R.id.shareButton)
         albumTypeView = view.findViewById(R.id.songAlbumType)
         albumTypeView = view.findViewById(R.id.songAlbumType)
         albumNameView = view.findViewById(R.id.songAlbumName)
@@ -267,11 +331,10 @@ class SongFragment : DialogFragment() {
         artistView.isClickable = true
         artistView.isFocusable = true
         artistView.setOnClickListener { openCurrentSongArtists() }
+        // La tarjeta "siguiente" ahora solo selecciona el tab "Up Next" en vez
+        // de abrir el bottom sheet — la cola ya vive inline en la pantalla.
         nextSongContainer.setOnClickListener {
-            PlaybackQueueBottomSheet().show(
-                parentFragmentManager,
-                "PlaybackQueueBottomSheet"
-            )
+            songTabLayout.getTabAt(0)?.select()
         }
         playbackDeviceContainer.setOnClickListener {
             PlaybackDevicesBottomSheet().show(
@@ -280,10 +343,13 @@ class SongFragment : DialogFragment() {
             )
         }
 
+        shareButton.setOnClickListener {
+            val song = songViewModel.currentSongLiveData.value ?: return@setOnClickListener
+            shareSong(song)
+        }
+
         // Lyrics views
         nestedScrollView = view.findViewById(R.id.nestedScrollView)
-        lyricsCard = view.findViewById(R.id.lyricsCard)
-        lyricsHeader = view.findViewById(R.id.header_lyrics)
         lyricsTopFade = view.findViewById(R.id.lyricsTopFade)
         lyricsBottomFade = view.findViewById(R.id.lyricsBottomFade)
         lyricsRecyclerView = view.findViewById(R.id.lyricsRecyclerView)
@@ -306,20 +372,7 @@ class SongFragment : DialogFragment() {
             }
         })
 
-        val lyricsTapDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapUp(e: MotionEvent): Boolean = true
-        })
-        lyricsRecyclerView.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                if (lyricsTapDetector.onTouchEvent(e)) {
-                    openExpandedLyrics()
-                    return true
-                }
-                return false
-            }
-        })
-
-        lyricsCard.setOnClickListener { openExpandedLyrics() }
+        setupSongTabs(view)
 
         // Use the already-in-memory bitmap from PlaybackStateRepository — no disk I/O needed
         val currentBitmap = PlaybackStateRepository.currentSongBitmapLiveData.value
@@ -335,11 +388,10 @@ class SongFragment : DialogFragment() {
         favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
 
         downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
-        lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { downloadedIds ->
-                songAdapter.downloadedSongIds = downloadedIds
-                if (songAdapter.currentList.isNotEmpty()) {
-                    songAdapter.notifyDataSetChanged()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { downloadedIds ->
+                    songAdapter.downloadedSongIds = downloadedIds
                 }
             }
         }
@@ -353,10 +405,22 @@ class SongFragment : DialogFragment() {
             dismiss()
         }
 
+        setupSongImageGestures(imageSong)
+        setupTopBarDismissDrag(view.findViewById(R.id.topBar))
+
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { favoriteIds ->
             val currentSong = songViewModel.currentSongLiveData.value
             val isFavorite = currentSong?.id?.let { favoriteIds.contains(it) } ?: false
             updateFavoriteButtonUI(isFavorite)
+
+            // El adapter del tab "Related" reutiliza este mismo estado para
+            // pintar (o no) el corazón de cada fila — antes nunca se le
+            // pasaba nada y el hueco del botón quedaba siempre reservado
+            // pero vacío.
+            songAdapter.favoriteSongIds = favoriteIds
+            if (songAdapter.currentList.isNotEmpty()) {
+                songAdapter.notifyDataSetChanged()
+            }
         }
 
         favoriteButton.setOnClickListener {
@@ -624,7 +688,7 @@ class SongFragment : DialogFragment() {
                                     }
                                 }
                                 lastSongId = song.id
-                                applyDominantColorToCard(resource)
+                                applyDynamicBackground(resource)
                             }
                             override fun onLoadCleared(placeholder: Drawable?) {}
                         })
@@ -645,6 +709,7 @@ class SongFragment : DialogFragment() {
         songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { isPlayingUpdate ->
             this.isPlaying = isPlayingUpdate
             updatePlayPauseButton(isPlayingUpdate)
+            updateRelatedPlayButtonIcon()
         }
 
         songViewModel.queueSourceLiveData.observe(viewLifecycleOwner) { source ->
@@ -669,13 +734,15 @@ class SongFragment : DialogFragment() {
                 PlaybackStateRepository.REPEAT_MODE_ALL -> replayButton.setImageResource(R.drawable.ic_replay_selected)
                 PlaybackStateRepository.REPEAT_MODE_ONE -> replayButton.setImageResource(R.drawable.ic_replay_one_selected)
             }
+            applyIconTintToStatefulButtons()
         }
 
         songViewModel.isShuffleEnabledLiveData.observe(viewLifecycleOwner) { isEnabled ->
             updateNextSongInfo()
-            shuffleButton.setBackgroundResource(
+            shuffleButton.setImageResource(
                 if (isEnabled) R.drawable.ic_random_selected else R.drawable.ic_random
             )
+            applyIconTintToStatefulButtons()
         }
     }
 
@@ -807,45 +874,434 @@ class SongFragment : DialogFragment() {
         }
     }
 
-    private fun applyDominantColorToCard(bitmap: Bitmap) {
-        Palette.from(bitmap).generate { palette ->
-            val raw = palette?.run {
-                getDarkVibrantColor(0)
-                    .takeIf { it != 0 }
-                    ?: getVibrantColor(0)
-                    .takeIf { it != 0 }
-                    ?: getDarkMutedColor(0)
-                    .takeIf { it != 0 }
-                    ?: getDominantColor(0xFF1A1A1A.toInt())
-            } ?: 0xFF1A1A1A.toInt()
-            dominantColor = ColorUtils.blendARGB(raw, Color.BLACK, 0.35f)
-            lyricsCard.setCardBackgroundColor(dominantColor)
-            lyricsHeader.setBackgroundColor(dominantColor)
-            val topGrad = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(dominantColor, Color.TRANSPARENT)
-            )
-            val botGrad = GradientDrawable(
-                GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(dominantColor, Color.TRANSPARENT)
-            )
-            lyricsTopFade.background = topGrad
-            lyricsBottomFade.background = botGrad
+    /**
+     * Single color-extraction pipeline for the whole screen: tints the root
+     * background + title/artist text via MiniPlayerColorizer using the actual
+     * dominant/vibrant swatch of the album art — no forced blend toward the
+     * brand color, each song gets its own real color. Supersedes the old
+     * applyDominantColorToCard, which only recolored the lyrics card using a
+     * separate, independent Palette pipeline — one extraction now drives the
+     * entire screen instead of two that could disagree with each other.
+     *
+     * Takes [bitmap] directly (not read from the ImageView) because the cover
+     * swap can be animated (see AnimationsUtils.animateSongImage above): the
+     * ImageView's own drawable may not reflect the new bitmap yet at this point.
+     */
+    private fun applyDynamicBackground(bitmap: Bitmap) {
+        val root = view ?: return
+        MiniPlayerColorizer.applyFromBitmap(
+            bitmap = bitmap,
+            targets = MiniPlayerColorizer.Targets(
+                container = root,
+                title = root.findViewById(R.id.song_title),
+                subtitle = root.findViewById(R.id.songArtist),
+                iconButtons = listOf(previousSongButton, nextSongButton, shareButton),
+                seekBar = seekBar
+            ),
+            fallbackColor = ContextCompat.getColor(requireContext(), R.color.songBackgroundFallback),
+            onColorResolved = { iconColor, backgroundColor ->
+                dynamicIconTint = iconColor
+                dynamicBackgroundColor = backgroundColor
+                applyIconTintToStatefulButtons()
+                applyDynamicTabPanelColor(backgroundColor)
+            }
+        )
+    }
+
+    /**
+     * El panel de tabs (Up Next/Lyrics/Related) tenía un fondo estático
+     * (bg_song_tab_panel, playerCardBackground) — se mezcla hacia negro un
+     * 70% (mismo criterio que ya usa LyricsExpandedFragment para su fondo)
+     * para que herede el color de la canción sin perder contraste con el
+     * texto claro de las filas de dentro (cola, letras, relacionadas).
+     */
+    private fun applyDynamicTabPanelColor(backgroundColor: Int) {
+        if (!::songTabContent.isInitialized) return
+        val panelColor = ColorUtils.blendARGB(backgroundColor, Color.BLACK, 0.7f)
+        ViewCompat.setBackgroundTintList(songTabContent, ColorStateList.valueOf(panelColor))
+    }
+
+    /**
+     * Re-applies [dynamicIconTint] to the buttons that carry their own
+     * selection-state color (shuffle/repeat "on" = brand red, like = filled
+     * heart) so a light per-song background doesn't wash out their "off"
+     * icon the way a plain hardcoded white icon would.
+     */
+    private fun applyIconTintToStatefulButtons() {
+        val tint = ColorStateList.valueOf(dynamicIconTint)
+
+        val isShuffleEnabled = songViewModel.isShuffleEnabledLiveData.value ?: false
+        shuffleButton.imageTintList = if (isShuffleEnabled) null else tint
+
+        val repeatMode = songViewModel.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+        replayButton.imageTintList = if (repeatMode == PlaybackStateRepository.REPEAT_MODE_OFF) tint else null
+
+        favoriteButton.imageTintList = tint
+    }
+
+    // ── Cover swipe-to-skip + drag-to-dismiss ──
+
+    /**
+     * Horizontal drag on the cover skips to the next/previous song, with the
+     * same feel as MiniPlayerSwipeHandler (60dp threshold, 0.45 damping,
+     * overshoot snap-back) — but unlike that handler, it doesn't animate its
+     * own "slide new content in": the real transition is already driven by
+     * [com.example.resonant.utils.AnimationsUtils.animateSongImage] once the
+     * new cover bitmap loads (see setupViewModelObservers), exactly the same
+     * path the prev/next buttons already use via [lastDirection]. A vertical
+     * downward drag on the same view is handed off to the shared
+     * drag-to-dismiss gesture instead; a vertical upward drag is released so
+     * the NestedScrollView can scroll normally.
+     */
+    private fun setupSongImageGestures(songImage: View) {
+        songImage.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    imageGestureStartX = event.rawX
+                    imageGestureStartY = event.rawY
+                    imageGestureDirection = 0
+                    beginDismissDrag(event)
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - imageGestureStartX
+                    val dy = event.rawY - imageGestureStartY
+
+                    if (imageGestureDirection == 0) {
+                        imageGestureDirection = when {
+                            abs(dx) > abs(dy) * 1.5f && abs(dx) > touchSlop -> 1
+                            dy > abs(dx) * 1.2f && dy > touchSlop -> 2
+                            dy < -touchSlop -> -1
+                            else -> 0
+                        }
+                        if (imageGestureDirection == 1 || imageGestureDirection == 2) {
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    }
+
+                    when (imageGestureDirection) {
+                        1 -> {
+                            v.translationX = dx * IMAGE_SWIPE_RESISTANCE
+                            // Same shrink+fade look as the committed skip
+                            // transition (AnimationsUtils.animateSongImage),
+                            // just driven continuously by drag progress
+                            // instead of jumping straight there on release.
+                            val progress = (abs(dx) * IMAGE_SWIPE_RESISTANCE /
+                                (IMAGE_SWIPE_THRESHOLD_DP * resources.displayMetrics.density)).coerceIn(0f, 1f)
+                            val scale = 1f - progress * IMAGE_SWIPE_SHRINK_AMOUNT
+                            v.scaleX = scale
+                            v.scaleY = scale
+                            v.alpha = 1f - progress * IMAGE_SWIPE_FADE_AMOUNT
+                            true
+                        }
+                        2 -> updateDismissDrag(event, v)
+                        -1 -> false
+                        else -> true
+                    }
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    when (imageGestureDirection) {
+                        1 -> {
+                            commitOrSnapBackImageSwipe(v)
+                            dismissVelocityTracker?.recycle()
+                            dismissVelocityTracker = null
+                        }
+                        2 -> endDismissDrag()
+                    }
+                    imageGestureDirection = 0
+                    true
+                }
+
+                else -> false
+            }
         }
     }
 
-    private fun openExpandedLyrics() {
-        val song = songViewModel.currentSongLiveData.value ?: return
-        LyricsExpandedFragment.newInstance(song.id, dominantColor)
-            .show(parentFragmentManager, "LyricsExpanded")
+    private fun commitOrSnapBackImageSwipe(imageView: View) {
+        val thresholdPx = IMAGE_SWIPE_THRESHOLD_DP * resources.displayMetrics.density
+        val rawDx = imageView.translationX / IMAGE_SWIPE_RESISTANCE
+
+        if (abs(rawDx) >= thresholdPx) {
+            val isNext = rawDx < 0
+            // The real transition (AnimationsUtils.animateSongImage) takes
+            // over once the new cover bitmap loads, animating smoothly from
+            // whatever translation/scale/alpha the drag left behind — reset
+            // quickly here so there's no stale offset if that takes a beat.
+            imageView.animate()
+                .translationX(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(150L)
+                .start()
+
+            lastDirection = if (isNext) 1 else -1
+            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = if (isNext) MusicPlaybackService.Companion.ACTION_NEXT else MusicPlaybackService.Companion.ACTION_PREVIOUS
+            }
+            requireContext().startService(intent)
+        } else {
+            imageView.animate()
+                .translationX(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(IMAGE_SWIPE_SNAP_BACK_DURATION_MS)
+                .setInterpolator(OvershootInterpolator(2f))
+                .start()
+        }
     }
+
+    /**
+     * Second drag zone for dismissing the screen — the top bar sits outside
+     * the NestedScrollView entirely, so it needs no direction-lock/scroll
+     * hand-off logic, unlike the cover.
+     */
+    private fun setupTopBarDismissDrag(topBar: View) {
+        topBar.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    beginDismissDrag(event)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> updateDismissDrag(event, v)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    endDismissDrag()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun beginDismissDrag(event: MotionEvent) {
+        dismissDragStartRawY = event.rawY
+        isDraggingDismiss = false
+        dismissVelocityTracker?.recycle()
+        dismissVelocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
+    }
+
+    /** Returns true once the drag has been claimed as a dismiss gesture. */
+    private fun updateDismissDrag(event: MotionEvent, originView: View): Boolean {
+        dismissVelocityTracker?.addMovement(event)
+        val dy = event.rawY - dismissDragStartRawY
+
+        if (!isDraggingDismiss && dy > touchSlop) {
+            isDraggingDismiss = true
+            originView.parent?.requestDisallowInterceptTouchEvent(true)
+        }
+
+        if (isDraggingDismiss) {
+            val translation = dy.coerceAtLeast(0f)
+            songRootView.translationY = translation
+            val heightPx = songRootView.height.coerceAtLeast(1)
+            songRootView.alpha = (1f - (translation / heightPx) * 0.6f).coerceIn(0.4f, 1f)
+        }
+        return isDraggingDismiss
+    }
+
+    private fun endDismissDrag() {
+        val wasDragging = isDraggingDismiss
+        dismissVelocityTracker?.computeCurrentVelocity(1000)
+        val velocityY = dismissVelocityTracker?.yVelocity ?: 0f
+        dismissVelocityTracker?.recycle()
+        dismissVelocityTracker = null
+        isDraggingDismiss = false
+
+        if (!wasDragging) return
+
+        val heightPx = songRootView.height.coerceAtLeast(1)
+        val progress = songRootView.translationY / heightPx
+        val shouldDismiss = progress >= DISMISS_COMMIT_PROGRESS ||
+            velocityY >= DISMISS_COMMIT_VELOCITY_PX_PER_SECOND
+
+        if (shouldDismiss) performGestureDismiss() else snapBackDismissDrag()
+    }
+
+    private fun snapBackDismissDrag() {
+        songRootView.animate()
+            .translationY(0f)
+            .alpha(1f)
+            .setDuration(DISMISS_SNAP_BACK_DURATION_MS)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    /** Finishes the drag off-screen by hand, then dismisses without the window's own slide-down so the two don't stack. */
+    private fun performGestureDismiss() {
+        if (dismissInProgress) return
+        dismissInProgress = true
+        songRootView.animate()
+            .translationY(songRootView.height.toFloat())
+            .alpha(0f)
+            .setDuration(DISMISS_ANIMATION_DURATION_MS)
+            .setInterpolator(AccelerateInterpolator())
+            .withEndAction {
+                dialog?.window?.setWindowAnimations(0)
+                dismiss()
+            }
+            .start()
+    }
+
+    // ── End cover swipe-to-skip + drag-to-dismiss ──
 
     // ── End lyrics methods ──
 
+    private fun setupSongTabs(view: View) {
+        songTabLayout = view.findViewById(R.id.songTabLayout)
+        songTabContent = view.findViewById(R.id.songTabContent)
+        upNextTabContent = view.findViewById(R.id.upNextTabContent)
+        lyricsTabContent = view.findViewById(R.id.lyricsTabContent)
+        relatedTabContent = view.findViewById(R.id.relatedTabContent)
+
+        lyricsTabContent.findViewById<View>(R.id.expandLyricsButton).setOnClickListener {
+            val song = songViewModel.currentSongLiveData.value ?: PlaybackStateRepository.currentSong ?: return@setOnClickListener
+            LyricsExpandedFragment.newInstance(song.id, dynamicBackgroundColor)
+                .show(parentFragmentManager, "LyricsExpandedFragment")
+        }
+
+        queueController = PlaybackQueueController(
+            fragment = this,
+            recycler = view.findViewById(R.id.playback_queue_list),
+            subtitle = view.findViewById(R.id.queue_subtitle),
+            hint = view.findViewById(R.id.queue_reorder_hint),
+            clear = view.findViewById(R.id.clear_upcoming),
+            shuffle = view.findViewById(R.id.shuffle_upcoming),
+            actions = view.findViewById(R.id.queue_actions),
+            empty = view.findViewById(R.id.empty_queue),
+            // SongFragment already has its own dedicated Related tab, so the
+            // queue tab doesn't need the "Relacionadas" mini-list too.
+            relatedSection = null,
+            relatedRecycler = null
+        )
+        queueController.start()
+
+        relatedSongsRecyclerView = view.findViewById(R.id.relatedSongsRecyclerView)
+        relatedSongsShimmer = view.findViewById(R.id.relatedSongsShimmer)
+        relatedSongsEmpty = view.findViewById(R.id.relatedSongsEmpty)
+        relatedSongsHeaderRow = view.findViewById(R.id.relatedSongsHeaderRow)
+        btnPlayRelated = view.findViewById(R.id.btnPlayRelated)
+        relatedSongsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        relatedSongsRecyclerView.adapter = songAdapter
+        songAdapter.onItemClick = { (song, _) ->
+            val bundle = Bundle().apply { putParcelable("song", song) }
+            requireActivity().findNavController(R.id.nav_host_fragment)
+                .navigate(R.id.action_global_to_detailedSongFragment, bundle)
+        }
+        songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        songAdapter.showPlayButton = true
+        songAdapter.onPlayClick = { _, position -> playRelatedSongAt(position) }
+        btnPlayRelated.setOnClickListener { playOrPauseRelatedSongs() }
+
+        songTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                upNextTabContent.isVisible = tab.position == 0
+                lyricsTabContent.isVisible = tab.position == 1
+                relatedTabContent.isVisible = tab.position == 2
+                if (tab.position == 2) loadRelatedSongsIfNeeded()
+            }
+
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
+    }
+
+    private fun shareSong(song: com.example.resonant.data.models.Song) {
+        com.example.resonant.utils.ShareUtils.shareSong(requireContext(), song)
+    }
+
+    private fun loadRelatedSongsIfNeeded() {
+        val song = songViewModel.currentSongLiveData.value ?: return
+        if (relatedSongsRequested && relatedSongsSongId == song.id) return
+        relatedSongsRequested = true
+        relatedSongsSongId = song.id
+
+        relatedSongsRecyclerView.isVisible = false
+        relatedSongsEmpty.isVisible = false
+        relatedSongsHeaderRow.isVisible = false
+        relatedSongsShimmer.isVisible = true
+        relatedSongsShimmer.startShimmer()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val related = SongManager(requireContext()).getRelatedSongs(song.id, limit = 20)
+
+            relatedSongsShimmer.stopShimmer()
+            relatedSongsShimmer.isVisible = false
+
+            if (related.isEmpty()) {
+                relatedSongsEmpty.isVisible = true
+            } else {
+                songAdapter.submitList(related)
+                relatedSongsRecyclerView.isVisible = true
+                relatedSongsHeaderRow.isVisible = true
+                updateRelatedPlayButtonIcon()
+            }
+        }
+    }
+
+    /** Reproduce la lista de "Relacionadas" desde el principio, o pausa si ya es esa la lista sonando — mismo patrón que AlbumFragment/ArtistFragment.playButton. */
+    private fun playOrPauseRelatedSongs() {
+        val relatedList = ArrayList(songAdapter.currentList)
+        if (relatedList.isEmpty()) return
+
+        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
+            relatedList.any { it.id == songViewModel.currentSongLiveData.value?.id }
+
+        if (isRelatedListPlaying) {
+            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PAUSE
+            }
+            requireContext().startService(intent)
+        } else {
+            val firstSong = relatedList[0]
+            val seedSongId = relatedSongsSongId ?: songViewModel.currentSongLiveData.value?.id ?: "RELATED_UNKNOWN"
+            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PLAY
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, firstSong)
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
+                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+            }
+            requireContext().startService(playIntent)
+        }
+    }
+
+    /** Botón de play de una fila concreta en "Related" — reproduce esa canción, con el resto de la lista de relacionadas como cola a partir de ahí. */
+    private fun playRelatedSongAt(position: Int) {
+        val relatedList = ArrayList(songAdapter.currentList)
+        if (position !in relatedList.indices) return
+
+        val seedSongId = relatedSongsSongId ?: songViewModel.currentSongLiveData.value?.id ?: "RELATED_UNKNOWN"
+        val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.Companion.ACTION_PLAY
+            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, relatedList[position])
+            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, position)
+            putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
+            putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
+            putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+        }
+        requireContext().startService(playIntent)
+    }
+
+    private fun updateRelatedPlayButtonIcon() {
+        if (!::btnPlayRelated.isInitialized) return
+        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
+            songAdapter.currentList.any { it.id == songViewModel.currentSongLiveData.value?.id }
+        btnPlayRelated.setImageResource(if (isRelatedListPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+    }
+
     private fun updateFavoriteButtonUI(isFavorite: Boolean) {
-        favoriteButton.setBackgroundResource(
+        favoriteButton.setImageResource(
             if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border
         )
+        // Ambos estados usan el color de contraste calculado por
+        // MiniPlayerColorizer en vez de sus colores propios (rojo de marca /
+        // blanco semántico), para que el corazón siga siendo visible sobre
+        // fondos dinámicos muy claros.
+        favoriteButton.imageTintList = ColorStateList.valueOf(dynamicIconTint)
     }
 
     private fun openCurrentSongArtists() {
@@ -917,7 +1373,7 @@ class SongFragment : DialogFragment() {
                 playmixRingAnimator?.start()
             }
         } else {
-            container.setBackgroundResource(R.drawable.bg_play_background)
+            container.setBackgroundResource(R.drawable.bg_play_button_circle)
             ring?.visibility = android.view.View.GONE
             playmixRingAnimator?.cancel()
             playmixRingAnimator = null

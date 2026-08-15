@@ -31,7 +31,7 @@ object AriaPromptDispatcher {
         viewModel.addUserMessage(prompt)
         val appContext = context.applicationContext
         scope.launch(Dispatchers.IO) {
-            val session = SessionManager(appContext, ApiClient.baseUrl())
+            val session = SessionManager.getInstance(appContext)
             val token = session.getValidAccessToken()
             if (token == null) {
                 withContext(Dispatchers.Main) {

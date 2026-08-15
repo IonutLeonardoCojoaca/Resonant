@@ -160,7 +160,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         userProfileImage = view.findViewById(R.id.userProfile)
         playmixEmptyState = view.findViewById(R.id.playmixEmptyState)
         
-        Utils.loadUserProfile(requireContext(), userProfileImage)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
         setupChipStyles()
     }
     
@@ -197,19 +197,22 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                 val currentIndex = songs.indexOfFirst { it.id == song.id }
 
                 if (currentIndex != -1) {
-                    val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), bitmap, song.id) }
                     val songArrayList = ArrayList(songs)
 
-                    val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                        action = MusicPlaybackService.ACTION_PLAY
-                        putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-                        putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
-                        putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                        putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songArrayList)
-                        putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.FAVORITE_SONGS)
-                        putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "favorites")
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), bitmap, song.id) }
+
+                        val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                            action = MusicPlaybackService.ACTION_PLAY
+                            putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+                            putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
+                            putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                            putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songArrayList)
+                            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.FAVORITE_SONGS)
+                            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "favorites")
+                        }
+                        requireContext().startService(intent)
                     }
-                    requireContext().startService(intent)
                 }
             }
             

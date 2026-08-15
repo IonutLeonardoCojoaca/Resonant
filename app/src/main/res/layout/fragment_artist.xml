@@ -167,43 +167,11 @@
                 </LinearLayout>
 
                 <LinearLayout
-                    android:id="@+id/smartPlaylistsContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_below="@id/descriptionContainer"
-                    android:layout_marginBottom="10dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Creado por Resonant"
-                        android:textColor="@color/white"
-                        android:textSize="20sp"
-                        android:fontFamily="@font/unageo_bold"
-                        android:layout_marginStart="20dp"
-                        android:layout_marginTop="10dp"
-                        android:layout_marginBottom="10dp"/>
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/smartPlaylistsRecycler"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                        android:paddingHorizontal="15dp"
-                        android:layout_marginVertical="5dp"
-                        android:clipToPadding="false"/>
-
-                </LinearLayout>
-
-                <LinearLayout
                     android:id="@+id/listSongsContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:layout_below="@id/smartPlaylistsContainer">
+                    android:layout_below="@id/descriptionContainer">
 
                     <FrameLayout
                         android:id="@+id/titleTopSongsContainer"
@@ -258,11 +226,43 @@
 
                 </LinearLayout>
 
+                <LinearLayout
+                    android:id="@+id/smartPlaylistsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_below="@id/listSongsContainer"
+                    android:layout_marginBottom="10dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Creado por Resonant"
+                        android:textColor="@color/white"
+                        android:textSize="20sp"
+                        android:fontFamily="@font/unageo_bold"
+                        android:layout_marginStart="20dp"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="10dp"/>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/smartPlaylistsRecycler"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                        android:paddingHorizontal="15dp"
+                        android:layout_marginVertical="5dp"
+                        android:clipToPadding="false"/>
+
+                </LinearLayout>
+
                 <RelativeLayout
                     android:id="@+id/albumFeatured"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_below="@id/listSongsContainer">
+                    android:layout_below="@id/smartPlaylistsContainer">
 
                     <FrameLayout
                         android:id="@+id/titleFeaturedAlbumContainer"

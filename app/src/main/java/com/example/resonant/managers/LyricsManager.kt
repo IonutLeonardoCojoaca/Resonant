@@ -20,6 +20,12 @@ object LyricsManager {
 
     private val cache = mutableMapOf<String, List<LyricLine>>()
 
+    // org.json's optString() returns the literal string "null" (not the default) when the
+    // key is present but its value is JSON null — this reads it as "missing" instead, so a
+    // backend response like {"plain": null} doesn't turn into a lyric line that just says "null".
+    private fun JSONObject.optNonNullString(key: String): String =
+        if (has(key) && !isNull(key)) optString(key, "") else ""
+
     suspend fun getLyrics(context: Context, songId: String): List<LyricLine> {
         cache[songId]?.let { return it }
 
@@ -44,7 +50,7 @@ object LyricsManager {
                     for (i in 0 until linesArray.length()) {
                         val lineObj = linesArray.getJSONObject(i)
                         val timeMs = lineObj.optLong("time_ms", -1L)
-                        val text = lineObj.optString("text", "").trim()
+                        val text = lineObj.optNonNullString("text").trim()
                         if (text.isNotBlank()) {
                             parsedLines.add(LyricLine(timeMs, text))
                         }
@@ -75,16 +81,16 @@ object LyricsManager {
 
     private fun parseFallback(jsonObj: JSONObject, hasSync: Boolean, rawContent: String): List<LyricLine> {
         return if (hasSync) {
-            val syncedLrc = jsonObj.optString("synced", "")
+            val syncedLrc = jsonObj.optNonNullString("synced")
             if (syncedLrc.isNotBlank()) {
                 Log.d("LyricsManager", "Parsing synced LRC")
                 parseLRC(syncedLrc)
             } else {
-                val plain = jsonObj.optString("plain", "")
+                val plain = jsonObj.optNonNullString("plain")
                 parsePlainText(plain)
             }
         } else {
-            val plain = jsonObj.optString("plain", "")
+            val plain = jsonObj.optNonNullString("plain")
             parsePlainText(plain)
         }
     }

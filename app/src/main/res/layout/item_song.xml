@@ -28,7 +28,7 @@
         android:layout_marginStart="14dp"
         android:layout_marginEnd="8dp"
         app:layout_constraintStart_toEndOf="@id/songImage"
-        app:layout_constraintEnd_toStartOf="@id/likeButton"
+        app:layout_constraintEnd_toStartOf="@id/playButton"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
@@ -72,6 +72,28 @@
         </LinearLayout>
 
     </LinearLayout>
+
+    <!-- Oculto por defecto: solo lo activan las listas donde tocar la fila
+         entera no reproduce (p. ej. la pestaña "Related" de SongFragment,
+         que reserva el tap en la fila para navegar al detalle) —
+         SongAdapter.showPlayButton lo enseña. Círculo sólido en vez de un
+         triángulo suelto sin fondo, para que se lea como un botón real. -->
+    <ImageButton
+        android:id="@+id/playButton"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_play_button_pill_accent"
+        android:foreground="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="7dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_play"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@id/likeButton"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
     <ImageButton
         android:id="@+id/likeButton"

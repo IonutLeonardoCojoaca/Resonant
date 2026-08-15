@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Related" tab content for fragment_song.xml. New tab; data comes from
+     SongManager.getRelatedSongs (already used by DetailedSongFragment). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- Botón "reproducir todas" — solo visible junto con el listado
+         (se togglea a la vez que relatedSongsRecyclerView en
+         SongFragment.loadRelatedSongsIfNeeded()). -->
+    <LinearLayout
+        android:id="@+id/relatedSongsHeaderRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="@font/unageo_medium"
+            android:letterSpacing="0.05"
+            android:text="Escucha también"
+            android:textAllCaps="true"
+            android:textColor="@color/textSecondaryAlpha"
+            android:textSize="10sp" />
+
+        <ImageButton
+            android:id="@+id/btnPlayRelated"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="@drawable/bg_icon_pill"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_play" />
+
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/relatedSongsRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingBottom="16dp" />
+
+        <com.facebook.shimmer.ShimmerFrameLayout
+            android:id="@+id/relatedSongsShimmer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <include layout="@layout/item_song_shimmer_placeholder"/>
+                <include layout="@layout/item_song_shimmer_placeholder"/>
+                <include layout="@layout/item_song_shimmer_placeholder"/>
+            </LinearLayout>
+        </com.facebook.shimmer.ShimmerFrameLayout>
+
+        <TextView
+            android:id="@+id/relatedSongsEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:fontFamily="@font/unageo_medium"
+            android:paddingHorizontal="24dp"
+            android:text="No hay canciones relacionadas"
+            android:textColor="@color/textTertiaryAlpha"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</LinearLayout>

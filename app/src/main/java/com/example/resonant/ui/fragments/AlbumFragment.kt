@@ -124,9 +124,6 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 launch {
                     downloadViewModel.downloadedSongIds.collect { downloadedIds ->
                         songAdapter.downloadedSongIds = downloadedIds
-                        if (songAdapter.currentList.isNotEmpty()) {
-                            songAdapter.notifyDataSetChanged()
-                        }
                     }
                 }
                 launch {
@@ -351,20 +348,23 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         }
 
         songAdapter.onItemClickAtPosition = { song, bitmap, currentIndex ->
-            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
             val songList = ArrayList(songAdapter.currentList)
             val albumId = loadedAlbum?.id ?: song.album?.id ?: ""
 
-            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.ACTION_PLAY
-                putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-                putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
-                putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
-                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.ALBUM)
-                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, albumId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                    action = MusicPlaybackService.ACTION_PLAY
+                    putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+                    putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
+                    putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                    putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.ALBUM)
+                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, albumId)
+                }
+                requireContext().startService(playIntent)
             }
-            requireContext().startService(playIntent)
         }
 
         songAdapter.onFavoriteClick = { song, _ ->

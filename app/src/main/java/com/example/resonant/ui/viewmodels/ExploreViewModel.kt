@@ -32,11 +32,6 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> get() = _error
 
-    private val _recentArtists = MutableLiveData<List<Artist>>()
-    val recentArtists: LiveData<List<Artist>> get() = _recentArtists
-    private val _recentArtistsLoading = MutableLiveData<Boolean>()
-    val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
-
     private val _mostListenedArtists = MutableLiveData<List<Artist>>()
     val mostListenedArtists: LiveData<List<Artist>> get() = _mostListenedArtists
     private val _mostListenedArtistsLoading = MutableLiveData<Boolean>()
@@ -52,6 +47,18 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private val _publicPlaylistsLoading = MutableLiveData<Boolean>()
     val publicPlaylistsLoading: LiveData<Boolean> get() = _publicPlaylistsLoading
 
+    private val _recommendedAlbums = MutableLiveData<List<Album>>()
+    val recommendedAlbums: LiveData<List<Album>> get() = _recommendedAlbums
+    private val _recommendedAlbumsLoading = MutableLiveData<Boolean>()
+    val recommendedAlbumsLoading: LiveData<Boolean> get() = _recommendedAlbumsLoading
+
+    // "Artistas para ti" (recomendados) ya se muestra en Home — en Explore
+    // esta fila es de descubrimiento: artistas recién añadidos al catálogo.
+    private val _recentArtists = MutableLiveData<List<Artist>>()
+    val recentArtists: LiveData<List<Artist>> get() = _recentArtists
+    private val _recentArtistsLoading = MutableLiveData<Boolean>()
+    val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
+
     fun loadPopularGenres() {
         if (_genres.value != null) return
         _isLoading.value = true
@@ -59,13 +66,48 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             try {
-                val result = genreManager.getPopularGenres(count = 32)
+                // Solo se muestran 2 tandas de 6 (ver ExploreFragment), pedimos
+                // un pequeño margen (12) en vez de las 32 que se pedían antes.
+                val result = genreManager.getPopularGenres(count = 12)
                 _genres.value = result
                 Log.i("ExploreVM", "Generos cargados: ${result.size}")
             } catch (e: Exception) {
                 _error.value = "Error al cargar generos: ${e.message}"
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun loadRecommendedAlbums() {
+        if (_recommendedAlbums.value != null) return
+        _recommendedAlbumsLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                val result = AlbumManager.getRecommendedAlbums(getApplication(), count = 12)
+                _recommendedAlbums.value = result?.items ?: emptyList()
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando albumes recomendados: ${e.message}")
+                _recommendedAlbums.value = emptyList()
+            } finally {
+                _recommendedAlbumsLoading.value = false
+            }
+        }
+    }
+
+    fun loadRecentArtists() {
+        if (_recentArtists.value != null) return
+        _recentArtistsLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                _recentArtists.value = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 12)
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando artistas recientes: ${e.message}")
+                _recentArtists.value = emptyList()
+            } finally {
+                _recentArtistsLoading.value = false
             }
         }
     }
@@ -133,22 +175,6 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 _mostListenedArtists.value = emptyList()
             } finally {
                 _mostListenedArtistsLoading.value = false
-            }
-        }
-    }
-
-    fun loadRecentArtists() {
-        if (_recentArtists.value != null) return
-        _recentArtistsLoading.value = true
-
-        viewModelScope.launch {
-            try {
-                _recentArtists.value = ArtistManager.getRecentlyAddedArtists(getApplication(), limit = 20)
-            } catch (e: Exception) {
-                Log.w("ExploreVM", "Error cargando artistas recientes: ${e.message}")
-                _recentArtists.value = emptyList()
-            } finally {
-                _recentArtistsLoading.value = false
             }
         }
     }

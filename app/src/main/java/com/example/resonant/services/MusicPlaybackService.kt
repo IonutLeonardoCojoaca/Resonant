@@ -225,6 +225,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private var clearPlaybackStateOnDestroy: Boolean = false
     private var originalQueueSongs: List<Song>? = null
 
+    // Guards loadArtworkForSong() against fast skips: bumped on every call,
+    // on Main (the only thread that ever calls it). A load whose generation
+    // no longer matches artworkLoadGeneration by the time it would apply its
+    // result is stale and is dropped, even if it finishes after a newer one.
+    private var artworkLoadGeneration = 0L
+    private var currentArtworkTarget: CustomTarget<Bitmap>? = null
+
     // PlayMix crossfade — map key: "fromSongId:toSongId"
     private var playmixTransitions: Map<String, PlaymixTransitionDTO> = emptyMap()
     private var playmixSongIdMap: Map<String, String> = emptyMap() // songId -> playmixSongId
@@ -879,7 +886,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             if (clearPlaybackStateOnDestroy) {
                 playbackStateStore.clear()
             } else {
-                persistPlaybackState(force = true)
+                persistPlaybackState(force = true, synchronous = true)
             }
         }
         stopSeekBarUpdates()
@@ -1457,6 +1464,16 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
 
     private fun loadArtworkForSong(song: Song) {
+        // Invalidate whatever load is in flight before doing anything else,
+        // so a fast skip can never let an older request's callback win —
+        // even one that hasn't been dispatched to Glide yet (see the
+        // generation check right after the coroutine hop below).
+        val generation = ++artworkLoadGeneration
+        currentArtworkTarget?.let { previousTarget ->
+            Glide.with(this@MusicPlaybackService).clear(previousTarget)
+        }
+        currentArtworkTarget = null
+
         val imageUrl = song.coverUrl
         if (imageUrl.isNullOrBlank()) {
             // Si no hay URL, limpiamos el bitmap en el repositorio
@@ -1465,24 +1482,35 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         serviceScope.launch(Dispatchers.Main) {
+            // A newer loadArtworkForSong() call may have already superseded
+            // this one before this coroutine even got to run.
+            if (generation != artworkLoadGeneration) return@launch
+
+            val target = object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                    // The load can finish after a later skip already moved
+                    // on; only the most recent generation is allowed to set
+                    // the bitmap.
+                    if (generation != artworkLoadGeneration) return
+                    Log.d("ArtworkLoader", "✅ Imagen cargada para ${song.title}")
+                    PlaybackStateRepository.setCurrentSongBitmap(resource)
+                    updateMediaSessionMetadata()
+                }
+
+                override fun onLoadFailed(errorDrawable: Drawable?) {
+                    if (generation != artworkLoadGeneration) return
+                    Log.w("ArtworkLoader", "⚠️ Falló la carga de imagen para ${song.title}")
+                    PlaybackStateRepository.setCurrentSongBitmap(null)
+                    updateMediaSessionMetadata()
+                }
+
+                override fun onLoadCleared(placeholder: Drawable?) {}
+            }
+            currentArtworkTarget = target
             Glide.with(this@MusicPlaybackService)
                 .asBitmap()
                 .load(imageUrl)
-                .into(object : CustomTarget<Bitmap>() {
-                    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                        Log.d("ArtworkLoader", "✅ Imagen cargada para ${song.title}")
-                        PlaybackStateRepository.setCurrentSongBitmap(resource)
-                        updateMediaSessionMetadata()
-                    }
-
-                    override fun onLoadFailed(errorDrawable: Drawable?) {
-                        Log.w("ArtworkLoader", "⚠️ Falló la carga de imagen para ${song.title}")
-                        PlaybackStateRepository.setCurrentSongBitmap(null)
-                        updateMediaSessionMetadata()
-                    }
-
-                    override fun onLoadCleared(placeholder: Drawable?) {}
-                })
+                .into(target)
         }
     }
     private fun playSongFromQueue(playWhenReady: Boolean = true) {
@@ -1948,7 +1976,17 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         return playbackMediaItemFactory.create(song)
     }
 
-    private fun persistPlaybackState(force: Boolean = false) {
+    /**
+     * [force] bypasses the 5s throttle so this state change is captured
+     * immediately instead of possibly being skipped until the next window.
+     * [synchronous] blocks the caller (Main) until the write is durable on
+     * disk — only worth paying for when the process might die right after
+     * this call returns, which today is only true in onDestroy(). Every
+     * other call site is async: the snapshot is still built synchronously
+     * here (cheap — field reads and a per-song `copy()`), only the Gson
+     * encode + SharedPreferences write move off Main.
+     */
+    private fun persistPlaybackState(force: Boolean = false, synchronous: Boolean = false) {
         if (!::playbackStateStore.isInitialized) return
         val queue = PlaybackStateRepository.activeQueue ?: return
         val player = exoPlayer
@@ -1967,16 +2005,33 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 ?.times(1_000.0)
                 ?.toLong()
             ?: 0L
-        playbackStateStore.save(
-            queue = queue,
-            currentSongId = player?.currentMediaItem?.mediaId ?: currentSong?.id,
-            positionMs = player?.currentPosition ?: 0L,
-            durationMs = durationMs,
-            repeatMode = PlaybackStateRepository.repeatModeLiveData.value
-                ?: PlaybackStateRepository.REPEAT_MODE_OFF,
-            shuffleEnabled = PlaybackStateRepository.isShuffleEnabledLiveData.value ?: false,
-            synchronous = force
-        )
+        val currentSongId = player?.currentMediaItem?.mediaId ?: currentSong?.id
+        val positionMs = player?.currentPosition ?: 0L
+        val repeatMode = PlaybackStateRepository.repeatModeLiveData.value
+            ?: PlaybackStateRepository.REPEAT_MODE_OFF
+        val shuffleEnabled = PlaybackStateRepository.isShuffleEnabledLiveData.value ?: false
+
+        if (synchronous) {
+            playbackStateStore.save(
+                queue = queue,
+                currentSongId = currentSongId,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                repeatMode = repeatMode,
+                shuffleEnabled = shuffleEnabled,
+                synchronous = true
+            )
+        } else {
+            playbackStateStore.saveAsync(
+                scope = serviceScope,
+                queue = queue,
+                currentSongId = currentSongId,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                repeatMode = repeatMode,
+                shuffleEnabled = shuffleEnabled
+            )
+        }
         lastPlaybackStateSaveAtMs = now
     }
 

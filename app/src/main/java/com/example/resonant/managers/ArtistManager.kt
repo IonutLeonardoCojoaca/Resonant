@@ -23,6 +23,9 @@ object ArtistManager {
     private val topSongsCache = mutableMapOf<String, List<Song>>()
     private val singlesCache = mutableMapOf<String, List<Song>>()
     private val playlistsCache = mutableMapOf<String, List<com.example.resonant.data.models.ArtistSmartPlaylist>>()
+    private val imagesCache = mutableMapOf<String, List<String>>()
+    private val statsCache = mutableMapOf<String, ArtistStatsDTO?>()
+    private val collaboratorsCache = mutableMapOf<String, List<Artist>>()
     private val cacheTimestamps = mutableMapOf<String, Long>() // Para controlar caducidad
 
     private const val CACHE_DURATION_MS = 20 * 60 * 1000L // 20 Minutos
@@ -147,9 +150,16 @@ object ArtistManager {
     }
 
     suspend fun getArtistImages(context: Context, artistId: String): List<String> {
+        val now = System.currentTimeMillis()
+        val lastUpdate = cacheTimestamps[artistId] ?: 0L
+        if ((now - lastUpdate) <= CACHE_DURATION_MS && imagesCache.containsKey(artistId)) {
+            return imagesCache[artistId]!!
+        }
         return try {
             val response = ApiClient.getArtistService(context).getArtistImages(artistId)
-            response.galleryImageUrls ?: emptyList()
+            val result = response.galleryImageUrls ?: emptyList()
+            imagesCache[artistId] = result
+            result
         } catch (e: Exception) {
              Log.e("ArtistManager", "Error fetching images for $artistId", e)
              emptyList()
@@ -193,8 +203,15 @@ object ArtistManager {
     }
 
     suspend fun getArtistStats(context: Context, artistId: String): ArtistStatsDTO? {
+        val now = System.currentTimeMillis()
+        val lastUpdate = cacheTimestamps[artistId] ?: 0L
+        if ((now - lastUpdate) <= CACHE_DURATION_MS && statsCache.containsKey(artistId)) {
+            return statsCache[artistId]
+        }
         return try {
-            ApiClient.getArtistService(context).getArtistStats(artistId)
+            val result = ApiClient.getArtistService(context).getArtistStats(artistId)
+            statsCache[artistId] = result
+            result
         } catch (e: Exception) {
             Log.e("ArtistManager", "Error fetching stats for $artistId", e)
             null
@@ -211,8 +228,15 @@ object ArtistManager {
     }
 
     suspend fun getArtistCollaborators(context: Context, artistId: String, limit: Int = 20): List<Artist> {
+        val now = System.currentTimeMillis()
+        val lastUpdate = cacheTimestamps[artistId] ?: 0L
+        if ((now - lastUpdate) <= CACHE_DURATION_MS && collaboratorsCache.containsKey(artistId)) {
+            return collaboratorsCache[artistId]!!
+        }
         return try {
-            ApiClient.getArtistService(context).getArtistCollaborators(artistId, limit)
+            val result = ApiClient.getArtistService(context).getArtistCollaborators(artistId, limit)
+            collaboratorsCache[artistId] = result
+            result
         } catch (e: Exception) {
             Log.e("ArtistManager", "Error fetching collaborators for $artistId", e)
             emptyList()

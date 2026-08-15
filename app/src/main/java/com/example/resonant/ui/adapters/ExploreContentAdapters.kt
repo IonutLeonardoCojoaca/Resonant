@@ -20,18 +20,9 @@ class ExplorePlaylistAdapter(
     private val onPlaylistClick: (Playlist) -> Unit
 ) : ListAdapter<Playlist, ExplorePlaylistAdapter.PlaylistViewHolder>(PlaylistDiffCallback()) {
 
-    override fun getItemViewType(position: Int): Int {
-        return if (position == 0) VIEW_TYPE_FEATURED else VIEW_TYPE_COMPACT
-    }
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaylistViewHolder {
-        val layoutId = if (viewType == VIEW_TYPE_FEATURED) {
-            R.layout.item_explore_playlist_featured
-        } else {
-            R.layout.item_explore_playlist
-        }
         val view = LayoutInflater.from(parent.context)
-            .inflate(layoutId, parent, false)
+            .inflate(R.layout.item_explore_playlist, parent, false)
         return PlaylistViewHolder(view, onPlaylistClick)
     }
 
@@ -50,12 +41,10 @@ class ExplorePlaylistAdapter(
     ) : RecyclerView.ViewHolder(itemView) {
         val image: ImageView = itemView.findViewById(R.id.playlistImage)
         private val title: TextView = itemView.findViewById(R.id.playlistTitle)
-        private val subtitle: TextView = itemView.findViewById(R.id.playlistSubtitle)
         private val tracks: TextView? = itemView.findViewById(R.id.playlistTracks)
 
         fun bind(playlist: Playlist) {
             title.text = playlist.name
-            subtitle.text = "Playlist · ${playlist.displayOwner()}"
             tracks?.text = playlist.trackCountLabel()
             image.loadExploreImage(playlist.imageUrl, R.drawable.ic_playlist_stack)
             itemView.setOnClickListener { onClick(playlist) }
@@ -63,14 +52,6 @@ class ExplorePlaylistAdapter(
 
         private fun Playlist.trackCountLabel(): String {
             return if (numberOfTracks == 1) "1 tema" else "$numberOfTracks temas"
-        }
-
-        private fun Playlist.displayOwner(): String {
-            return when {
-                isSystemPlaylist -> "Resonant"
-                !ownerName.isNullOrBlank() -> ownerName!!
-                else -> "Usuario"
-            }
         }
     }
 
@@ -80,13 +61,8 @@ class ExplorePlaylistAdapter(
         }
 
         override fun areContentsTheSame(oldItem: Playlist, newItem: Playlist): Boolean {
-            return oldItem == newItem && oldItem.ownerName == newItem.ownerName
+            return oldItem == newItem
         }
-    }
-
-    companion object {
-        private const val VIEW_TYPE_FEATURED = 0
-        private const val VIEW_TYPE_COMPACT = 1
     }
 }
 
@@ -159,20 +135,11 @@ class ExploreAlbumAdapter(
     ) : RecyclerView.ViewHolder(itemView) {
         val image: ImageView = itemView.findViewById(R.id.albumImage)
         private val title: TextView = itemView.findViewById(R.id.albumTitle)
-        private val subtitle: TextView = itemView.findViewById(R.id.albumSubtitle)
 
         fun bind(album: Album) {
             title.text = album.title?.takeIf { it.isNotBlank() } ?: "Album"
-            subtitle.text = album.artistLabel()
             image.loadExploreImage(album.url, R.drawable.ic_album)
             itemView.setOnClickListener { onClick(album) }
-        }
-
-        private fun Album.artistLabel(): String {
-            val artist = artistName?.takeIf { it.isNotBlank() }
-                ?: artists.joinToString(", ") { it.name }.takeIf { it.isNotBlank() }
-                ?: "Artista desconocido"
-            return if (releaseYear > 0) "$artist - $releaseYear" else artist
         }
     }
 

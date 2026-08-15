@@ -54,6 +54,11 @@ data class Song(
 
     var playbackContentLength: Long? = null,
 
-    var playbackSupportsRanges: Boolean? = null
+    var playbackSupportsRanges: Boolean? = null,
+
+    // Solo presente en la respuesta de GET api/songs/favorites — momento
+    // (ISO-8601 UTC) en que el usuario marcó la canción como favorita.
+    @SerializedName("favoritedAt")
+    var favoritedAt: String? = null
 
 ) : Parcelable

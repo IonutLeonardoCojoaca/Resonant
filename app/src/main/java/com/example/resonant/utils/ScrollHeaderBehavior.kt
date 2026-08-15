@@ -3,9 +3,12 @@ package com.example.resonant.utils
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.core.widget.NestedScrollView
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.google.android.material.imageview.ShapeableImageView
+import kotlinx.coroutines.launch
 
 class ScrollHeaderBehavior(
     private val normalHeader: View,
@@ -38,7 +41,9 @@ class ScrollHeaderBehavior(
 
     private fun loadAvatarInSearchHeader() {
         val avatar = searchHeader.findViewById<ShapeableImageView>(R.id.searchHeaderAvatar) ?: return
-        Utils.loadUserProfile(searchHeader.context, avatar)
+        avatar.findViewTreeLifecycleOwner()?.lifecycleScope?.launch {
+            Utils.loadUserProfile(searchHeader.context, avatar)
+        }
     }
 
     fun attachToRecyclerView(recyclerView: RecyclerView) {

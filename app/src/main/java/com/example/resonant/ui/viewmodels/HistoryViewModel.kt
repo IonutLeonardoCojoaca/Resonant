@@ -25,14 +25,27 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     private val _currentLimit = MutableLiveData<Int>(50)
     val currentLimit: LiveData<Int> get() = _currentLimit
 
-    fun loadHistory(limit: Int = _currentLimit.value ?: 50) {
+    private var lastFetchTime = 0L
+    private var lastFetchLimit: Int? = null
+    private val dataExpirationTime = 5 * 60 * 1000L
+
+    fun loadHistory(limit: Int = _currentLimit.value ?: 50, forceRefresh: Boolean = false) {
+        val hasData = _songs.value != null
+        val isSameLimit = lastFetchLimit == limit
+        val isExpired = (System.currentTimeMillis() - lastFetchTime) > dataExpirationTime
+
         _currentLimit.value = limit
+
+        if (!forceRefresh && hasData && isSameLimit && !isExpired) return
+
         _isLoading.value = true
         _error.value = null
         viewModelScope.launch {
             try {
                 val result = songManager.getPlaybackHistory(limit)
                 _songs.value = result
+                lastFetchTime = System.currentTimeMillis()
+                lastFetchLimit = limit
             } catch (e: Exception) {
                 _error.value = "No se pudo cargar el historial"
                 _songs.value = emptyList()

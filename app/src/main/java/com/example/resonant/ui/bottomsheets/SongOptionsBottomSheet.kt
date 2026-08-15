@@ -296,14 +296,7 @@ class SongOptionsBottomSheet(
     }
 
     private fun shareSongLogic(song: Song) {
-        val shareText = buildShareText(song)
-
-        val shareIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, shareText)
-            type = "text/plain"
-        }
-        startActivity(Intent.createChooser(shareIntent, "Compartir canción"))
+        com.example.resonant.utils.ShareUtils.shareSong(requireContext(), song)
     }
 
     private fun sendQueueCommand(action: String) {
@@ -342,18 +335,6 @@ class SongOptionsBottomSheet(
                 )
             }
         }
-    }
-
-    private fun buildShareText(song: Song): String {
-        val songLink = "https://resonantapp.ddns.net/song/${song.id}"
-
-        return """
-        ¡Escucha esta canción en Resonant!
-        🎵 ${song.title}
-        👤 ${song.artistName ?: song.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Desconocido"}
-        
-        $songLink
-    """.trimIndent()
     }
 
     private fun isInternetAvailable(context: Context): Boolean {

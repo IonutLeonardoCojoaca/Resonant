@@ -6,6 +6,7 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.R
 import com.example.resonant.managers.PlaymixManager
@@ -13,6 +14,7 @@ import com.example.resonant.ui.viewmodels.PlaymixListViewModel
 import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
 import com.example.resonant.utils.Utils
 import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.launch
 
 class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
 
@@ -35,7 +37,7 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
         playmixName = view.findViewById(R.id.playmixName)
         createButton = view.findViewById(R.id.createPlaymixButton)
         userProfileImage = view.findViewById(R.id.userProfile)
-        Utils.loadUserProfile(requireContext(), userProfileImage)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
     }
 
     private fun initializeViewModels() {

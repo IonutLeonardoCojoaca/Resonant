@@ -24,9 +24,10 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.views.WaveformView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 
@@ -101,8 +102,11 @@ class WaveformPreviewBottomSheet(
                 songBLabel.text = data.songB.title ?: "Canción B"
 
                 val ctx = requireContext()
-                val ampA = loadAmplitudes(data.songA, ctx)
-                val ampB = loadAmplitudes(data.songB, ctx)
+                val (ampA, ampB) = withContext(Dispatchers.IO) {
+                    val deferredA = async { loadAmplitudes(data.songA, ctx) }
+                    val deferredB = async { loadAmplitudes(data.songB, ctx) }
+                    awaitAll(deferredA, deferredB)
+                }
 
                 waveform.setWaveformData(
                     ampA, ampB,
@@ -164,18 +168,22 @@ class WaveformPreviewBottomSheet(
             val resolvedUrl = if (url.startsWith("http")) url
             else "${ApiClient.baseUrl().trimEnd('/')}/${url.trimStart('/')}"
 
-            val token = SessionManager(ctx, ApiClient.baseUrl()).getAccessToken()
-            val client = OkHttpClient.Builder().apply {
-                if (!token.isNullOrBlank()) {
-                    addInterceptor { chain ->
+            val token = SessionManager.getInstance(ctx).getAccessToken()
+            // Derivado del cliente HTTP compartido (dispatcher/connection pool comunes)
+            // en vez de un OkHttpClient nuevo por descarga.
+            val client = if (!token.isNullOrBlank()) {
+                ApiClient.getMediaHttpClient().newBuilder()
+                    .addInterceptor { chain ->
                         chain.proceed(
                             chain.request().newBuilder()
                                 .header("Authorization", "Bearer $token")
                                 .build()
                         )
                     }
-                }
-            }.build()
+                    .build()
+            } else {
+                ApiClient.getMediaHttpClient()
+            }
 
             val response = client.newCall(Request.Builder().url(resolvedUrl).build()).execute()
             if (!response.isSuccessful) return emptyList()

@@ -56,6 +56,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.resonant.ui.customviews.VoiceSpectrumSphereView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 /**
  * AriaFragment — Aria DJ & AI music assistant chat screen.
  *
@@ -69,6 +71,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         private const val TAG = "AriaFragment"
         private const val MAX_PROMPT_LENGTH = 500
         private const val CHAR_DELAY_MS = 18L
+        private const val KEYBOARD_EXTRA_LIFT_DP = 16
     }
 
     // ── Core Views ────────────────────────────────────────────────────────────
@@ -133,6 +136,10 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private val orbAnimators = mutableListOf<ObjectAnimator>()
     private val fetchedPlaylistImageIds = mutableSetOf<String>()
 
+    // ── Keyboard avoidance for the input bar ─────────────────────────────
+    private var baseInputBottomMargin = 0
+    private var isKeyboardVisible = false
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -148,8 +155,9 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         setupSendButton()
         setupOrbitalChips()
         setupPromptChips()
-        Utils.loadUserProfile(requireContext(), userProfile)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfile) }
         applyBottomOffset()
+        setupKeyboardAvoidance()
         setupAriaOptions()
         setupVoiceRecorder()
 
@@ -237,10 +245,9 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         val v = view ?: return
         listOf(
             R.id.ariaPromptChip1 to "Recomiéndame música relajante para desconectar",
-            R.id.ariaPromptChip2 to "Crea una playlist energética para entrenar",
-            R.id.ariaPromptChip3 to "¿Cuáles son mis canciones y artistas más escuchados?",
-            R.id.ariaPromptChip4 to "Descubre artistas emergentes basados en mi gusto",
-            R.id.ariaPromptChip5 to "Prepara una sesión DJ continua con mis favoritos"
+            R.id.ariaPromptChip2 to "Crea una playlist para entrenar",
+            R.id.ariaPromptChip3 to "¿Cuáles son mis canciones más escuchadas?",
+            R.id.ariaPromptChip4 to "Descubre artistas nuevos para mí"
         ).forEach { (id, prompt) ->
             v.findViewById<View>(id)?.setOnClickListener {
                 inputField.setText(prompt)
@@ -342,7 +349,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val session = SessionManager(requireContext().applicationContext, ApiClient.baseUrl())
+                val session = SessionManager.getInstance(requireContext())
                 val token = session.getValidAccessToken() ?: return@launch
                 val userPrefs = requireContext().getSharedPreferences("user_data", Context.MODE_PRIVATE)
                 val userId = userPrefs.getString("USER_ID", null) ?: return@launch
@@ -367,7 +374,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         typingQueue.clear()
 
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val session = SessionManager(requireContext().applicationContext, ApiClient.baseUrl())
+            val session = SessionManager.getInstance(requireContext())
             val token = session.getValidAccessToken()
             if (token != null) {
                 val sessionId = SessionIdManager.getOrCreateSessionId(requireContext())
@@ -448,7 +455,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             // 1. Trigger collage generation on the backend
             try {
                 val ctx = requireContext()
-                val session = SessionManager(ctx.applicationContext, ApiClient.baseUrl())
+                val session = SessionManager.getInstance(ctx)
                 val token = session.getValidAccessToken()
                 if (!token.isNullOrBlank()) {
                     val url = java.net.URL("${ApiClient.baseUrl()}api/playlists/$playlistId/sync-collage")
@@ -821,17 +828,37 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             val act = activity ?: return@post
             val miniPlayer = act.findViewById<View>(R.id.mini_player)
             val bottomNav  = act.findViewById<View>(R.id.bottom_navigation)
-            val inputContainer = rootView.findViewById<View>(R.id.ariaInputContainer) ?: return@post
 
             val bnHeight  = bottomNav?.height ?: 0
             val mpHeight  = if (miniPlayer?.visibility == View.VISIBLE) miniPlayer.height else 0
-            val newMargin = bnHeight + mpHeight + dpToPx(8)
+            baseInputBottomMargin = bnHeight + mpHeight + dpToPx(8)
+            applyInputBottomMargin()
+        }
+    }
 
-            val params = inputContainer.layoutParams as ViewGroup.MarginLayoutParams
-            if (params.bottomMargin != newMargin) {
-                params.bottomMargin = newMargin
-                inputContainer.requestLayout()
-            }
+    /**
+     * On top of `adjustPan` (set at Activity level for the whole app), the input bar
+     * still keeps its regular bottomMargin (reserved for bottom nav/mini-player) once
+     * the pan happens, which leaves it sitting slightly under the keyboard. Lift it a
+     * bit further only while the IME is visible.
+     */
+    private fun setupKeyboardAvoidance() {
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { _, insets ->
+            isKeyboardVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            applyInputBottomMargin()
+            insets
+        }
+        ViewCompat.requestApplyInsets(rootLayout)
+    }
+
+    private fun applyInputBottomMargin() {
+        val inputContainer = view?.findViewById<View>(R.id.ariaInputContainer) ?: return
+        val extra = if (isKeyboardVisible) dpToPx(KEYBOARD_EXTRA_LIFT_DP) else 0
+        val newMargin = baseInputBottomMargin + extra
+        val params = inputContainer.layoutParams as ViewGroup.MarginLayoutParams
+        if (params.bottomMargin != newMargin) {
+            params.bottomMargin = newMargin
+            inputContainer.requestLayout()
         }
     }
 

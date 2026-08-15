@@ -115,6 +115,13 @@
         <item name="cornerSize">4dp</item>
     </style>
 
+    <!-- Explore grid tiles (item_explore_album/item_explore_playlist): rounder
+         than RoundedCornersAlbumSubtle to read as clean tiles, not thumbnails. -->
+    <style name="RoundedCornersExploreGrid">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/radius_md</item>
+    </style>
+
     <style name="RoundedCornersFavorites">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">8dp</item>
@@ -123,6 +130,12 @@
     <style name="RoundedCornersImage">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">8dp</item>
+    </style>
+
+    <!-- SongFragment hero album art: bigger radius, closer to the reference. -->
+    <style name="RoundedCornersImageLarge">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/radius_xl</item>
     </style>
 
     <style name="RoundedCornersAlbumImage">

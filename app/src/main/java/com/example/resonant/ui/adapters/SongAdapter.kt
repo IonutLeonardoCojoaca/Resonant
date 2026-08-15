@@ -57,6 +57,11 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
 
     var onItemClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     var onItemClickAtPosition: ((Song, Bitmap?, Int) -> Unit)? = null
+    var onPlayClick: ((Song, Int) -> Unit)? = null
+
+    /** Muestra un botón de play explícito en cada fila (VIEW_TYPE_FULL) — para
+     * listas donde tocar la fila entera no reproduce (navega a otro sitio). */
+    var showPlayButton: Boolean = false
     var playlistTrackIds: List<String> = emptyList()
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
@@ -81,9 +86,18 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
 
     var downloadedSongIds: Set<String> = emptySet()
         set(value) {
+            val oldIds = field
             field = value
-            // Notificamos cambios para refrescar los iconos
-            notifyDataSetChanged()
+
+            val changedIds = (oldIds - value) + (value - oldIds)
+            if (changedIds.isEmpty()) return
+
+            changedIds.forEach { songId ->
+                val index = currentList.indexOfFirst { it.id == songId }
+                if (index != -1) {
+                    notifyItemChanged(index, "silent")
+                }
+            }
         }
 
     var hideArtwork: Boolean = false
@@ -91,6 +105,9 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
             field = value
             notifyDataSetChanged()
         }
+
+    /** When > 0, overrides the item root width (use for horizontal RecyclerViews). */
+    var itemWidthOverride: Int = 0
 
     // CORRECCIÓN 2: Añadido el método getItemViewType que faltaba
     override fun getItemViewType(position: Int): Int {
@@ -120,7 +137,14 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         when (holder) {
             is SongViewHolder -> holder.bind(song, partial = false)
             is TopSongViewHolder -> holder.bind(song, position, partial = false)
-            is GridSongViewHolder -> holder.bind(song, partial = false)
+            is GridSongViewHolder -> {
+                if (itemWidthOverride > 0) {
+                    holder.itemView.layoutParams = holder.itemView.layoutParams
+                        ?.also { it.width = itemWidthOverride }
+                        ?: ViewGroup.LayoutParams(itemWidthOverride, ViewGroup.LayoutParams.WRAP_CONTENT)
+                }
+                holder.bind(song, partial = false)
+            }
         }
     }
 
@@ -160,6 +184,7 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         private val artistTextView: TextView = itemView.findViewById(R.id.songArtist)
         private val likeButton: ImageButton = itemView.findViewById(R.id.likeButton)
         private val settingsButton: ImageButton = itemView.findViewById(R.id.featuredButton)
+        private val playButton: ImageButton = itemView.findViewById(R.id.playButton)
         private val downloadedIcon: ImageView = itemView.findViewById(R.id.downloadedIcon)
         private val textContainer: LinearLayout = itemView.findViewById(R.id.songTextContainer)
 
@@ -185,6 +210,14 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                 }
             }
 
+            playButton.setOnClickListener {
+                val position = bindingAdapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    val song = getItem(position)
+                    onPlayClick?.invoke(song, position)
+                }
+            }
+
             itemView.setOnClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
@@ -201,6 +234,8 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
         }
 
         fun bind(song: Song, partial: Boolean = false) {
+
+            playButton.visibility = if (showPlayButton) View.VISIBLE else View.GONE
 
             val isDownloaded = downloadedSongIds.contains(song.id)
             if (isDownloaded) {

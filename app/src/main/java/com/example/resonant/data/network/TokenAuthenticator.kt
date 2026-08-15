@@ -11,7 +11,7 @@ import okhttp3.Route
 
 class TokenAuthenticator(private val context: Context) : Authenticator {
 
-    private val session by lazy { SessionManager(context.applicationContext, ApiClient.baseUrl()) }
+    private val session by lazy { SessionManager.getInstance(context) }
 
     override fun authenticate(route: Route?, response: Response): Request? {
         // Evita bucles: no más de 1 reintento por cadena

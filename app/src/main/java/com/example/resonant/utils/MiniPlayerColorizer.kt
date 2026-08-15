@@ -2,6 +2,7 @@ package com.example.resonant.utils
 
 import android.animation.ValueAnimator
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
@@ -30,22 +31,50 @@ object MiniPlayerColorizer {
         fallbackColor: Int,
         animateMillis: Long = 400L // 👈 más suave
     ) {
-        val drawable = imageView.drawable ?: run {
-            tintBackgroundAndGradient(
-                targets.container, targets.gradientOverlay,
-                Color.TRANSPARENT, fallbackColor, animateMillis
-            )
-            tintTextAndIcons(targets, pickTextColorFor(fallbackColor), animateMillis)
-            return
-        }
+        val bitmap = (imageView.drawable as? BitmapDrawable)?.bitmap
+        applyFromBitmapInternal(bitmap, targets, fallbackColor, animateMillis)
+    }
 
-        val bitmap = (drawable as? BitmapDrawable)?.bitmap
+    /**
+     * Same as [applyFromImageView], but takes the [Bitmap] directly instead of
+     * reading `imageView.drawable` — needed when the caller animates the image
+     * into its ImageView (e.g. SongFragment's cover-swap animation), where the
+     * drawable may not reflect the new bitmap yet at call time.
+     *
+     * [onColorResolved] reports the resolved contrast-safe icon/text color
+     * (always [Color.BLACK] or [Color.WHITE]) so callers can apply it to
+     * buttons that carry their own selection state (e.g. a "shuffle on" red
+     * icon) and therefore can't just be listed in [Targets.iconButtons],
+     * which always gets unconditionally tinted, plus the raw resolved
+     * background color (the actual per-song hue, before the black/white
+     * contrast decision) for callers that need it for their own styling
+     * (e.g. LyricsExpandedFragment's background).
+     */
+    fun applyFromBitmap(
+        bitmap: Bitmap?,
+        targets: Targets,
+        fallbackColor: Int,
+        animateMillis: Long = 400L,
+        onColorResolved: ((iconColor: Int, backgroundColor: Int) -> Unit)? = null
+    ) {
+        applyFromBitmapInternal(bitmap, targets, fallbackColor, animateMillis, onColorResolved)
+    }
+
+    private fun applyFromBitmapInternal(
+        bitmap: Bitmap?,
+        targets: Targets,
+        fallbackColor: Int,
+        animateMillis: Long,
+        onColorResolved: ((iconColor: Int, backgroundColor: Int) -> Unit)? = null
+    ) {
         if (bitmap == null || bitmap.isRecycled) {
+            val textColor = pickTextColorFor(fallbackColor)
             tintBackgroundAndGradient(
                 targets.container, targets.gradientOverlay,
                 Color.TRANSPARENT, fallbackColor, animateMillis
             )
-            tintTextAndIcons(targets, pickTextColorFor(fallbackColor), animateMillis)
+            tintTextAndIcons(targets, textColor, animateMillis)
+            onColorResolved?.invoke(textColor, fallbackColor)
             return
         }
 
@@ -79,6 +108,7 @@ object MiniPlayerColorizer {
             )
 
             tintTextAndIcons(targets, textColor, animateMillis)
+            onColorResolved?.invoke(textColor, bgColor)
         }
     }
 

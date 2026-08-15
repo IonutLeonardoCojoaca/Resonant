@@ -210,19 +210,22 @@ class CollabDetailFragment : Fragment() {
 
     private fun playSong(song: Song, bitmap: Bitmap?) {
         val currentIndex = playableSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-        val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
 
-        val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_PLAY
-            putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-            putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
-            putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-            putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(playableSongs))
-            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.COLLAB_FINDER)
-            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "${args.artistId}:${args.collaboratorId}")
-            putExtra("EXTRA_QUEUE_SOURCE_NAME", collabTitle)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
+
+            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_PLAY
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(playableSongs))
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.COLLAB_FINDER)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "${args.artistId}:${args.collaboratorId}")
+                putExtra("EXTRA_QUEUE_SOURCE_NAME", collabTitle)
+            }
+            requireContext().startService(playIntent)
         }
-        requireContext().startService(playIntent)
     }
 
     private fun showSongOptions(song: Song) {

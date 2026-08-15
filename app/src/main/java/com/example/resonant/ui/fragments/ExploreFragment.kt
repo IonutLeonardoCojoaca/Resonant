@@ -14,6 +14,7 @@ import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -30,28 +31,44 @@ import com.example.resonant.ui.adapters.ExploreArtistAdapter
 import com.example.resonant.ui.adapters.ExplorePlaylistAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.viewmodels.ExploreViewModel
-import com.example.resonant.utils.AnimationsUtils
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.utils.Utils
+import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import kotlinx.coroutines.launch
 
 class ExploreFragment : Fragment() {
+
+    companion object {
+        private const val GENRES_PER_BATCH = 6
+    }
 
     private lateinit var viewModel: ExploreViewModel
     private lateinit var userProfileImage: ImageView
     private lateinit var scrollView: NestedScrollView
 
     private lateinit var playlistsSection: View
-    private lateinit var artistsSection: View
     private lateinit var albumsSection: View
     private lateinit var genresSection: View
+    private lateinit var recommendedAlbumsSection: View
+    private lateinit var recommendedArtistsSection: View
+    private lateinit var genresMoreSection: View
 
     private lateinit var playlistsPlaceholder: TextView
-    private lateinit var artistsPlaceholder: TextView
     private lateinit var albumsPlaceholder: TextView
     private lateinit var genresPlaceholder: TextView
+    private lateinit var recommendedAlbumsPlaceholder: TextView
+    private lateinit var recommendedArtistsPlaceholder: TextView
+    private lateinit var genresMorePlaceholder: TextView
+
+    private lateinit var playlistsShimmer: ShimmerFrameLayout
+    private lateinit var albumsShimmer: ShimmerFrameLayout
+    private lateinit var genresShimmer: ShimmerFrameLayout
+    private lateinit var recommendedAlbumsShimmer: ShimmerFrameLayout
+    private lateinit var recommendedArtistsShimmer: ShimmerFrameLayout
+    private lateinit var genresMoreShimmer: ShimmerFrameLayout
 
     private lateinit var collabPrimaryArtistImage: ImageView
     private lateinit var collabSecondaryArtistImage: ImageView
@@ -60,29 +77,35 @@ class ExploreFragment : Fragment() {
     private lateinit var collabPairMeta: TextView
 
     private lateinit var recyclerViewPlaylists: RecyclerView
-    private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var recyclerViewAlbums: RecyclerView
     private lateinit var recyclerViewGenres: RecyclerView
+    private lateinit var recyclerViewRecommendedAlbums: RecyclerView
+    private lateinit var recyclerViewRecommendedArtists: RecyclerView
+    private lateinit var recyclerViewGenresMore: RecyclerView
 
     private lateinit var playlistAdapter: ExplorePlaylistAdapter
-    private lateinit var artistAdapter: ExploreArtistAdapter
     private lateinit var albumAdapter: ExploreAlbumAdapter
     private lateinit var genreAdapter: GenreAdapter
+    private lateinit var recommendedAlbumAdapter: ExploreAlbumAdapter
+    private lateinit var recommendedArtistAdapter: ExploreArtistAdapter
+    private lateinit var genreAdapterMore: GenreAdapter
 
     private var scrollBehavior: ScrollHeaderBehavior? = null
     private var scrollChangedListener: ViewTreeObserver.OnScrollChangedListener? = null
 
     private var playlistsCount = 0
-    private var artistsCount = 0
     private var albumsCount = 0
     private var genresCount = 0
+    private var recommendedAlbumsCount = 0
+    private var recommendedArtistsCount = 0
+    private var genresMoreCount = 0
 
     private var playlistsRequested = false
-    private var artistsRequested = false
     private var albumsRequested = false
     private var genresRequested = false
+    private var recommendedAlbumsRequested = false
+    private var recommendedArtistsRequested = false
     private var progressiveLoadPending = false
-    private var lastQuickActionChipId = View.NO_ID
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -129,14 +152,25 @@ class ExploreFragment : Fragment() {
         scrollView = view.findViewById(R.id.exploreScrollView)
 
         playlistsSection = view.findViewById(R.id.playlistsSection)
-        artistsSection = view.findViewById(R.id.artistsSection)
         albumsSection = view.findViewById(R.id.albumsSection)
         genresSection = view.findViewById(R.id.genresSection)
+        recommendedAlbumsSection = view.findViewById(R.id.recommendedAlbumsSection)
+        recommendedArtistsSection = view.findViewById(R.id.recommendedArtistsSection)
+        genresMoreSection = view.findViewById(R.id.genresMoreSection)
 
         playlistsPlaceholder = view.findViewById(R.id.playlistsPlaceholder)
-        artistsPlaceholder = view.findViewById(R.id.artistsPlaceholder)
         albumsPlaceholder = view.findViewById(R.id.albumsPlaceholder)
         genresPlaceholder = view.findViewById(R.id.genresPlaceholder)
+        recommendedAlbumsPlaceholder = view.findViewById(R.id.recommendedAlbumsPlaceholder)
+        recommendedArtistsPlaceholder = view.findViewById(R.id.recommendedArtistsPlaceholder)
+        genresMorePlaceholder = view.findViewById(R.id.genresMorePlaceholder)
+
+        playlistsShimmer = view.findViewById(R.id.playlistsShimmer)
+        albumsShimmer = view.findViewById(R.id.albumsShimmer)
+        genresShimmer = view.findViewById(R.id.genresShimmer)
+        recommendedAlbumsShimmer = view.findViewById(R.id.recommendedAlbumsShimmer)
+        recommendedArtistsShimmer = view.findViewById(R.id.recommendedArtistsShimmer)
+        genresMoreShimmer = view.findViewById(R.id.genresMoreShimmer)
 
         collabPrimaryArtistImage = view.findViewById(R.id.collabPrimaryArtistImage)
         collabSecondaryArtistImage = view.findViewById(R.id.collabSecondaryArtistImage)
@@ -145,11 +179,13 @@ class ExploreFragment : Fragment() {
         collabPairMeta = view.findViewById(R.id.collabPairMeta)
 
         recyclerViewPlaylists = view.findViewById(R.id.recyclerViewPlaylists)
-        recyclerViewArtists = view.findViewById(R.id.recyclerViewArtists)
         recyclerViewAlbums = view.findViewById(R.id.recyclerViewAlbums)
         recyclerViewGenres = view.findViewById(R.id.recyclerViewGenres)
+        recyclerViewRecommendedAlbums = view.findViewById(R.id.recyclerViewRecommendedAlbums)
+        recyclerViewRecommendedArtists = view.findViewById(R.id.recyclerViewRecommendedArtists)
+        recyclerViewGenresMore = view.findViewById(R.id.recyclerViewGenresMore)
 
-        Utils.loadUserProfile(requireContext(), userProfileImage)
+        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
 
         view.findViewById<View>(R.id.searchButton).setOnClickListener {
             findNavController().navigate(R.id.action_exploreFragment_to_searchFragment)
@@ -173,60 +209,51 @@ class ExploreFragment : Fragment() {
         }
     }
 
+    /**
+     * Los chips ya no son un filtro seleccionable (nunca filtraban nada en la
+     * propia pantalla: cada uno navega de inmediato a otra pantalla), así que
+     * se quita el estado "checked"/animación de color asociada — ahora son
+     * simples pills de acción con su ripple normal.
+     */
     private fun setupQuickActionChipStyles(view: View) {
         val quickActionsGroup = view.findViewById<ChipGroup>(R.id.quickActionsGroup)
         val font = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
-        val checkedId = quickActionsGroup.checkedChipId
-        lastQuickActionChipId = checkedId
-
         quickActionsGroup.children.forEach { chipView ->
             if (chipView is Chip) {
                 chipView.typeface = font
-                AnimationsUtils.animateChipColor(chipView, chipView.id == checkedId)
             }
-        }
-
-        quickActionsGroup.setOnCheckedStateChangeListener { group, checkedIds ->
-            val newCheckedId = checkedIds.firstOrNull() ?: View.NO_ID
-            if (newCheckedId == lastQuickActionChipId) return@setOnCheckedStateChangeListener
-
-            if (lastQuickActionChipId != View.NO_ID) {
-                group.findViewById<Chip>(lastQuickActionChipId)?.let { chip ->
-                    AnimationsUtils.animateChip(chip, false)
-                    AnimationsUtils.animateChipColor(chip, false)
-                }
-            }
-
-            if (newCheckedId != View.NO_ID) {
-                group.findViewById<Chip>(newCheckedId)?.let { chip ->
-                    AnimationsUtils.animateChip(chip, true)
-                    AnimationsUtils.animateChipColor(chip, true)
-                }
-            }
-
-            lastQuickActionChipId = newCheckedId
         }
     }
 
     private fun setupSectionHeaders(view: View) {
+        configureHeader(
+            view.findViewById(R.id.recommendedAlbumsHeader),
+            title = "Álbumes para ti",
+            onActionClick = { findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment) }
+        )
+        configureHeader(
+            view.findViewById(R.id.albumsHeader),
+            title = "Albumes nuevos",
+            onActionClick = { findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment) }
+        )
+        configureHeader(
+            view.findViewById(R.id.recommendedArtistsHeader),
+            title = "Artistas recién añadidos",
+            onActionClick = { findNavController().navigate(R.id.topArtistsFragment) }
+        )
+        configureHeader(
+            view.findViewById(R.id.genresHeader),
+            title = "Generos populares",
+            onActionClick = { findNavController().navigate(R.id.action_exploreFragment_to_allGenresFragment) }
+        )
         configureHeader(
             view.findViewById(R.id.playlistsHeader),
             title = "Explorar playlists",
             onActionClick = { findNavController().navigate(R.id.action_exploreFragment_to_publicPlaylistsFragment) }
         )
         configureHeader(
-            view.findViewById(R.id.artistsHeader),
-            title = "Artistas en movimiento",
-            onActionClick = { findNavController().navigate(R.id.topArtistsFragment) }
-        )
-        configureHeader(
-            view.findViewById(R.id.albumsHeader),
-            title = "Albumes recientes",
-            onActionClick = { findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment) }
-        )
-        configureHeader(
-            view.findViewById(R.id.genresHeader),
-            title = "Generos populares",
+            view.findViewById(R.id.genresMoreHeader),
+            title = "Menos escuchados",
             onActionClick = { findNavController().navigate(R.id.action_exploreFragment_to_allGenresFragment) }
         )
     }
@@ -240,14 +267,16 @@ class ExploreFragment : Fragment() {
 
     private fun setupRecyclerViews() {
         playlistAdapter = ExplorePlaylistAdapter { navigateToPlaylist(it) }
-        artistAdapter = ExploreArtistAdapter { navigateToArtist(it) }
         albumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
+        recommendedAlbumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
+        recommendedArtistAdapter = ExploreArtistAdapter { navigateToArtist(it) }
 
-        recyclerViewPlaylists.setupPlaylistGrid(playlistAdapter)
-        recyclerViewArtists.setupHorizontalExploreList(artistAdapter)
-        recyclerViewAlbums.setupExploreGrid(albumAdapter)
+        recyclerViewPlaylists.setupHorizontalExploreList(playlistAdapter)
+        recyclerViewAlbums.setupHorizontalExploreList(albumAdapter)
+        recyclerViewRecommendedAlbums.setupHorizontalExploreList(recommendedAlbumAdapter)
+        recyclerViewRecommendedArtists.setupHorizontalExploreList(recommendedArtistAdapter)
 
-        genreAdapter = GenreAdapter(emptyList()) { selectedGenre ->
+        val onGenreClick: (com.example.resonant.data.models.Genre) -> Unit = { selectedGenre ->
             val bundle = Bundle().apply {
                 putString("genreId", selectedGenre.id)
                 putString("genreName", selectedGenre.name)
@@ -255,25 +284,13 @@ class ExploreFragment : Fragment() {
             }
             findNavController().navigate(R.id.action_exploreFragment_to_genreArtistsFragment, bundle)
         }
-        recyclerViewGenres.layoutManager = GridLayoutManager(requireContext(), 2)
-        recyclerViewGenres.adapter = genreAdapter
-        recyclerViewGenres.itemAnimator = null
+        genreAdapter = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
+        genreAdapterMore = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
+        recyclerViewGenres.setupGenreGrid(genreAdapter)
+        recyclerViewGenresMore.setupGenreGrid(genreAdapterMore)
     }
 
-    private fun RecyclerView.setupPlaylistGrid(adapter: ExplorePlaylistAdapter) {
-        layoutManager = GridLayoutManager(requireContext(), 2).apply {
-            spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
-                override fun getSpanSize(position: Int): Int {
-                    return if (position == 0) spanCount else 1
-                }
-            }
-        }
-        this.adapter = adapter
-        itemAnimator = null
-        setHasFixedSize(false)
-    }
-
-    private fun RecyclerView.setupExploreGrid(adapter: RecyclerView.Adapter<*>) {
+    private fun RecyclerView.setupGenreGrid(adapter: RecyclerView.Adapter<*>) {
         layoutManager = GridLayoutManager(requireContext(), 2)
         this.adapter = adapter
         itemAnimator = null
@@ -298,10 +315,9 @@ class ExploreFragment : Fragment() {
             renderSection(
                 recyclerViewPlaylists,
                 playlistsPlaceholder,
+                playlistsShimmer,
                 viewModel.publicPlaylistsLoading.value == true,
-                playlistsCount,
-                "Cargando playlists...",
-                "Aun no hay playlists publicas."
+                playlistsCount
             )
         }
 
@@ -309,34 +325,53 @@ class ExploreFragment : Fragment() {
             renderSection(
                 recyclerViewPlaylists,
                 playlistsPlaceholder,
+                playlistsShimmer,
                 isLoading,
-                playlistsCount,
-                "Cargando playlists...",
-                "Aun no hay playlists publicas."
+                playlistsCount
+            )
+        }
+
+        viewModel.recommendedAlbums.observe(viewLifecycleOwner) { albums ->
+            recommendedAlbumsCount = albums.size
+            recommendedAlbumAdapter.submitList(albums)
+            renderSection(
+                recyclerViewRecommendedAlbums,
+                recommendedAlbumsPlaceholder,
+                recommendedAlbumsShimmer,
+                viewModel.recommendedAlbumsLoading.value == true,
+                recommendedAlbumsCount
+            )
+        }
+
+        viewModel.recommendedAlbumsLoading.observe(viewLifecycleOwner) { isLoading ->
+            renderSection(
+                recyclerViewRecommendedAlbums,
+                recommendedAlbumsPlaceholder,
+                recommendedAlbumsShimmer,
+                isLoading,
+                recommendedAlbumsCount
             )
         }
 
         viewModel.recentArtists.observe(viewLifecycleOwner) { artists ->
-            artistsCount = artists.size
-            artistAdapter.submitList(artists)
+            recommendedArtistsCount = artists.size
+            recommendedArtistAdapter.submitList(artists)
             renderSection(
-                recyclerViewArtists,
-                artistsPlaceholder,
+                recyclerViewRecommendedArtists,
+                recommendedArtistsPlaceholder,
+                recommendedArtistsShimmer,
                 viewModel.recentArtistsLoading.value == true,
-                artistsCount,
-                "Cargando artistas...",
-                "No hay artistas recientes."
+                recommendedArtistsCount
             )
         }
 
         viewModel.recentArtistsLoading.observe(viewLifecycleOwner) { isLoading ->
             renderSection(
-                recyclerViewArtists,
-                artistsPlaceholder,
+                recyclerViewRecommendedArtists,
+                recommendedArtistsPlaceholder,
+                recommendedArtistsShimmer,
                 isLoading,
-                artistsCount,
-                "Cargando artistas...",
-                "No hay artistas recientes."
+                recommendedArtistsCount
             )
         }
 
@@ -346,10 +381,9 @@ class ExploreFragment : Fragment() {
             renderSection(
                 recyclerViewAlbums,
                 albumsPlaceholder,
+                albumsShimmer,
                 viewModel.newReleaseAlbumsLoading.value == true,
-                albumsCount,
-                "Cargando albumes...",
-                "No hay albumes recientes."
+                albumsCount
             )
         }
 
@@ -357,23 +391,38 @@ class ExploreFragment : Fragment() {
             renderSection(
                 recyclerViewAlbums,
                 albumsPlaceholder,
+                albumsShimmer,
                 isLoading,
-                albumsCount,
-                "Cargando albumes...",
-                "No hay albumes recientes."
+                albumsCount
             )
         }
 
+        // Los géneros ya llegan ordenados por popularidad — se reparten en dos
+        // tandas cortas (2x3 cada una) en vez de un único grid sin límite, y
+        // se intercalan con otras secciones para que la pantalla no se sienta
+        // "agrupada por tipo".
         viewModel.genres.observe(viewLifecycleOwner) { genreList ->
-            genresCount = genreList.size
-            genreAdapter.updateList(genreList)
+            val topGenres = genreList.take(GENRES_PER_BATCH)
+            val moreGenres = genreList.drop(GENRES_PER_BATCH).take(GENRES_PER_BATCH)
+
+            genresCount = topGenres.size
+            genreAdapter.updateList(topGenres)
             renderSection(
                 recyclerViewGenres,
                 genresPlaceholder,
+                genresShimmer,
                 viewModel.isLoading.value == true,
-                genresCount,
-                "Cargando generos...",
-                "No hay generos disponibles."
+                genresCount
+            )
+
+            genresMoreCount = moreGenres.size
+            genreAdapterMore.updateList(moreGenres)
+            renderSection(
+                recyclerViewGenresMore,
+                genresMorePlaceholder,
+                genresMoreShimmer,
+                viewModel.isLoading.value == true,
+                genresMoreCount
             )
         }
 
@@ -381,10 +430,16 @@ class ExploreFragment : Fragment() {
             renderSection(
                 recyclerViewGenres,
                 genresPlaceholder,
+                genresShimmer,
                 isLoading,
-                genresCount,
-                "Cargando generos...",
-                "No hay generos disponibles."
+                genresCount
+            )
+            renderSection(
+                recyclerViewGenresMore,
+                genresMorePlaceholder,
+                genresMoreShimmer,
+                isLoading,
+                genresMoreCount
             )
         }
 
@@ -427,14 +482,21 @@ class ExploreFragment : Fragment() {
     private fun renderSection(
         recyclerView: RecyclerView,
         placeholder: TextView,
+        shimmer: ShimmerFrameLayout,
         isLoading: Boolean,
-        itemCount: Int,
-        loadingText: String,
-        emptyText: String
+        itemCount: Int
     ) {
-        recyclerView.isVisible = itemCount > 0
-        placeholder.isVisible = itemCount == 0
-        placeholder.text = if (isLoading) loadingText else emptyText
+        val hasItems = itemCount > 0
+        recyclerView.isVisible = hasItems
+        if (isLoading && !hasItems) {
+            placeholder.isVisible = false
+            shimmer.isVisible = true
+            shimmer.startShimmer()
+        } else {
+            shimmer.stopShimmer()
+            shimmer.isVisible = false
+            placeholder.isVisible = !hasItems
+        }
     }
 
     private fun setupFloatingSearchHeader(view: View) {
@@ -458,24 +520,32 @@ class ExploreFragment : Fragment() {
         if (!isAdded || progressiveLoadPending) return
 
         val requested = when {
-            !playlistsRequested && playlistsSection.isNearViewport(80) -> {
-                playlistsRequested = true
-                viewModel.loadPublicPlaylists()
+            !recommendedAlbumsRequested && recommendedAlbumsSection.isNearViewport(80) -> {
+                recommendedAlbumsRequested = true
+                viewModel.loadRecommendedAlbums()
                 true
             }
-            !artistsRequested && artistsSection.isNearViewport(120) -> {
-                artistsRequested = true
-                viewModel.loadRecentArtists()
-                true
-            }
-            !albumsRequested && albumsSection.isNearViewport(160) -> {
+            !albumsRequested && albumsSection.isNearViewport(120) -> {
                 albumsRequested = true
                 viewModel.loadNewReleaseAlbums()
                 true
             }
-            !genresRequested && genresSection.isNearViewport(220) -> {
+            !recommendedArtistsRequested && recommendedArtistsSection.isNearViewport(160) -> {
+                recommendedArtistsRequested = true
+                viewModel.loadRecentArtists()
+                true
+            }
+            !genresRequested && genresSection.isNearViewport(200) -> {
+                // Una sola carga alimenta las dos tandas de géneros (ver
+                // setupObservers) — el segundo bloque no necesita su propio
+                // trigger de scroll.
                 genresRequested = true
                 viewModel.loadPopularGenres()
+                true
+            }
+            !playlistsRequested && playlistsSection.isNearViewport(240) -> {
+                playlistsRequested = true
+                viewModel.loadPublicPlaylists()
                 true
             }
             else -> false

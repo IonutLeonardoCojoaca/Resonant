@@ -23,6 +23,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -41,6 +42,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.example.resonant.R
 import com.example.resonant.aria.AriaPromptDispatcher
 import com.example.resonant.aria.AriaScreenContextHolder
+import com.example.resonant.ui.adapters.AriaSongDisambiguationUi
+import com.example.resonant.ui.viewmodels.AriaAction
 import com.example.resonant.ui.viewmodels.AriaMessageRole
 import com.example.resonant.ui.viewmodels.AriaViewModel
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -58,6 +61,7 @@ class AriaQuickSheet : Fragment() {
     private lateinit var contextLabel: TextView
     private lateinit var statusText: TextView
     private lateinit var responseText: TextView
+    private lateinit var disambiguationList: LinearLayout
     private lateinit var progress: ProgressBar
     private lateinit var input: EditText
     private lateinit var micButton: ImageButton
@@ -122,6 +126,7 @@ class AriaQuickSheet : Fragment() {
         contextLabel = view.findViewById(R.id.ariaQuickContextLabel)
         statusText = view.findViewById(R.id.ariaQuickStatusText)
         responseText = view.findViewById(R.id.ariaQuickResponseText)
+        disambiguationList = view.findViewById(R.id.ariaQuickDisambiguationList)
         progress = view.findViewById(R.id.ariaQuickProgress)
         input = view.findViewById(R.id.ariaQuickInput)
         micButton = view.findViewById(R.id.ariaQuickMicButton)
@@ -528,6 +533,17 @@ class AriaQuickSheet : Fragment() {
                             }
                             responseText.text = lastAriaMessage.text
                             showResponseCard()
+
+                            val action = lastAriaMessage.actionData
+                            val isSongDisambiguation = lastAriaMessage.isComplete &&
+                                action?.entityKind == "song_disambiguation" &&
+                                !action.songDisambiguation.isNullOrEmpty()
+                            if (isSongDisambiguation) {
+                                renderSongDisambiguation(action!!)
+                                disambiguationList.visibility = View.VISIBLE
+                            } else {
+                                disambiguationList.visibility = View.GONE
+                            }
                         }
                     }
                 }
@@ -552,6 +568,76 @@ class AriaQuickSheet : Fragment() {
         }
     }
 
+    /** Renders Aria's "which song did you mean?" choices as compact tappable rows. */
+    private fun renderSongDisambiguation(action: AriaAction) {
+        disambiguationList.removeAllViews()
+        val context = requireContext()
+        val density = resources.displayMetrics.density
+        AriaSongDisambiguationUi.sortedChoices(action).forEachIndexed { index, choice ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                background = ContextCompat.getDrawable(context, R.drawable.bg_aria_action_card)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { if (index > 0) it.topMargin = (density * 6).toInt() }
+                setPadding(
+                    (density * 12).toInt(),
+                    (density * 10).toInt(),
+                    (density * 12).toInt(),
+                    (density * 10).toInt()
+                )
+                isClickable = true
+                isFocusable = true
+            }
+
+            val choiceNumber = TextView(context).apply {
+                text = choice.choiceNumber.toString()
+                setTextColor(Color.parseColor("#88FFFFFF"))
+                textSize = 12f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                layoutParams = LinearLayout.LayoutParams(
+                    (density * 22).toInt(),
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val infoColumn = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            infoColumn.addView(TextView(context).apply {
+                text = choice.title
+                setTextColor(Color.WHITE)
+                textSize = 13f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            val subtitle = AriaSongDisambiguationUi.subtitle(choice)
+            if (subtitle.isNotEmpty()) {
+                infoColumn.addView(TextView(context).apply {
+                    text = subtitle
+                    setTextColor(Color.parseColor("#88FFFFFF"))
+                    textSize = 11f
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+            }
+
+            row.addView(choiceNumber)
+            row.addView(infoColumn)
+            row.setOnClickListener {
+                registerUserInteraction()
+                disambiguationList.visibility = View.GONE
+                input.setText(AriaSongDisambiguationUi.selectionPrompt(choice.choiceNumber))
+                submitPrompt()
+            }
+            disambiguationList.addView(row)
+        }
+    }
+
     /** Reveals the response card with a smooth fade-in the first time it is needed. */
     private fun showResponseCard() {
         if (responseCard.visibility == View.VISIBLE) return
@@ -573,6 +659,7 @@ class AriaQuickSheet : Fragment() {
             ?.hideSoftInputFromWindow(input.windowToken, 0)
         statusText.text = "Pensando…"
         responseText.text = prompt
+        disambiguationList.visibility = View.GONE
         showResponseCard()
         AriaPromptDispatcher.submit(
             context = requireContext(),
@@ -625,6 +712,7 @@ class AriaQuickSheet : Fragment() {
         isListening = true
         statusText.text = "Escuchando…"
         responseText.text = "Puedes hablar con naturalidad"
+        disambiguationList.visibility = View.GONE
         micButton.isActivated = true
         showResponseCard()
 
@@ -727,6 +815,7 @@ class AriaQuickSheet : Fragment() {
     private fun showVoiceError(message: String) {
         statusText.text = "Aria"
         responseText.text = message
+        disambiguationList.visibility = View.GONE
         progress.visibility = View.GONE
     }
 

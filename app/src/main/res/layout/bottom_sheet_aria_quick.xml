@@ -80,6 +80,16 @@
             android:textColor="#CCFFFFFF"
             android:textSize="14sp" />
 
+        <!-- Song disambiguation choices — visible only while Aria is waiting for the
+             user to pick between two or more matching songs. -->
+        <LinearLayout
+            android:id="@+id/ariaQuickDisambiguationList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical"
+            android:visibility="gone" />
+
         <!-- Context label -->
         <TextView
             android:id="@+id/ariaQuickContextLabel"

@@ -1942,8 +1942,13 @@ class TransitionManager(
                 try {
                     // [CAMBIO] El equivalente a .start() en ExoPlayer es .play()
                     newPlayer.play()
-                    // [MANTENIDO] Dar un respiro mínimo es una buena práctica de robustez.
-                    Thread.sleep(10)
+                    // play() es async: ExoPlayer necesita un instante para
+                    // reflejar isPlaying=true. En vez de bloquear Main con
+                    // Thread.sleep(10) esperando ese instante, dejamos que
+                    // el propio loop de animación reintente: este método se
+                    // vuelve a invocar en el próximo tick, ya programado por
+                    // animateFullyIntelligentMix() cada ANIMATION_FRAME_DELAY_MS
+                    // (16ms), así que la "espera" ocurre igual, sin bloquear.
                 } catch (e: Exception) {
                     Log.e("IntelligentCrossfade", "❌ No se pudo recuperar newPlayer (ExoPlayer)", e)
                     return false

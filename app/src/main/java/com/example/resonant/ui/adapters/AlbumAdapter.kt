@@ -10,6 +10,8 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
@@ -22,9 +24,14 @@ import com.example.resonant.data.models.Album
 import java.util.Calendar
 
 class AlbumAdapter(
-    private var albums: List<Album>,
+    albums: List<Album>,
     private val viewType: Int
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+) : ListAdapter<Album, RecyclerView.ViewHolder>(AlbumDiffCallback()) {
+
+    init {
+        setHasStableIds(true)
+        if (albums.isNotEmpty()) submitList(albums)
+    }
 
     var onSettingsClick: ((Album) -> Unit)? = null // New callback
     var onAlbumClick: ((Album) -> Unit)? = null
@@ -40,6 +47,8 @@ class AlbumAdapter(
     }
 
     override fun getItemViewType(position: Int): Int = viewType
+
+    override fun getItemId(position: Int): Long = getItem(position).id.hashCode().toLong()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
@@ -63,7 +72,7 @@ class AlbumAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val album = albums[position]
+        val album = getItem(position)
         when (holder) {
             is SimpleAlbumViewHolder -> {
                 if (itemWidthOverride > 0) {
@@ -79,8 +88,6 @@ class AlbumAdapter(
         }
     }
 
-    override fun getItemCount(): Int = albums.size
-
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
         when (holder) {
@@ -91,10 +98,8 @@ class AlbumAdapter(
         }
     }
 
-    fun submitAlbums(newAlbums: List<Album>) {
-        this.albums = newAlbums
-        notifyDataSetChanged()
-    }
+    /** [submitAlbums] and [updateList] are kept as aliases of [submitList] for source compatibility. */
+    fun submitAlbums(newAlbums: List<Album>) = submitList(newAlbums)
 
     // ViewHolder simple (grid / tarjetas pequeñas)
     inner class SimpleAlbumViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -229,7 +234,18 @@ class AlbumAdapter(
                 featuredTag.text = "Álbum destacado"
             }
 
-            loadAlbumCover(album.url, albumImage, container, albumName, trackCount)
+            // El título/track-count viven ahora sobre el scrim de la portada
+            // (captionScrim en item_featured_album.xml), no sobre el fondo
+            // plano de itemContainer, así que no se pasan como titleView/
+            // subtitleView: MiniPlayerColorizer calcularía su contraste
+            // contra el color de itemContainer, que ya no es lo que hay
+            // detrás del texto. El contenedor sigue tiñéndose (container),
+            // el texto se queda blanco fijo (ya legible sobre el scrim).
+            // El destacado se muestra a mucho más tamaño que el resto de
+            // tarjetas de este mismo adapter, así que pide una descarga/
+            // decodificación de mayor resolución en vez de compartir el
+            // override(200,200) pensado para miniaturas de grid.
+            loadAlbumCover(album.url, albumImage, container, null, null, highQuality = true)
 
             itemView.setOnClickListener {
                 onAlbumClick?.invoke(album) ?: run {
@@ -237,7 +253,7 @@ class AlbumAdapter(
                     itemView.findNavController().navigate(R.id.albumFragment, bundle)
                 }
             }
-            
+
              itemView.setOnLongClickListener {
                 onSettingsClick?.invoke(album)
                 true
@@ -252,7 +268,8 @@ class AlbumAdapter(
         imageView: ImageView,
         containerView: View? = null,
         titleView: TextView? = null,
-        subtitleView: TextView? = null
+        subtitleView: TextView? = null,
+        highQuality: Boolean = false
     ) {
         val placeholderRes = R.drawable.ic_album_stack
         Glide.with(imageView).clear(imageView)
@@ -278,11 +295,12 @@ class AlbumAdapter(
         }
 
         val model = ImageRequestHelper.buildGlideModel(imageView.context, url)
+        val overrideSize = if (highQuality) 720 else 200
 
         Glide.with(imageView)
             .asBitmap()
             .load(model)
-            .override(200, 200)
+            .override(overrideSize, overrideSize)
             .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
             .timeout(10_000)
             .dontAnimate()
@@ -315,8 +333,10 @@ class AlbumAdapter(
             })
     }
 
-    fun updateList(newList: List<Album>) {
-        this.albums = newList
-        notifyDataSetChanged()
+    fun updateList(newList: List<Album>) = submitList(newList)
+
+    class AlbumDiffCallback : DiffUtil.ItemCallback<Album>() {
+        override fun areItemsTheSame(oldItem: Album, newItem: Album): Boolean = oldItem.id == newItem.id
+        override fun areContentsTheSame(oldItem: Album, newItem: Album): Boolean = oldItem == newItem
     }
 }

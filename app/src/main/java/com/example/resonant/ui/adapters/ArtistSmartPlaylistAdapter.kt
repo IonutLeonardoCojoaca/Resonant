@@ -1,18 +1,24 @@
 package com.example.resonant.ui.adapters
 
+import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.R
 import com.example.resonant.data.models.ArtistSmartPlaylist
 
 import com.example.resonant.utils.ImageRequestHelper
+import com.example.resonant.utils.MiniPlayerColorizer
 
 class ArtistSmartPlaylistAdapter(
     private val onItemClick: (ArtistSmartPlaylist) -> Unit
@@ -33,6 +39,7 @@ class ArtistSmartPlaylistAdapter(
     }
 
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val itemContainer: View = itemView.findViewById(R.id.itemContainer)
         private val coverImage: ImageView = itemView.findViewById(R.id.artistImage)
         private val nameText: TextView = itemView.findViewById(R.id.albumName)
         private val descText: TextView = itemView.findViewById(R.id.artistName)
@@ -48,16 +55,42 @@ class ArtistSmartPlaylistAdapter(
 
             val url = playlist.coverUrl
             val fallbackRes = if (isEssentials) R.drawable.ic_essentials else R.drawable.ic_radio
+            val fallbackColor = ContextCompat.getColor(itemView.context, R.color.cardsTheme)
+
+            // Same dominant-color card tint already used by AlbumAdapter's
+            // detailed/favorite cards: paints itemContainer's flat background
+            // with the cover's Palette color instead of a fixed cardsTheme.
+            val targets = MiniPlayerColorizer.Targets(
+                container = itemContainer,
+                title = nameText,
+                subtitle = descText
+            )
 
             if (url.isNullOrBlank() || url == "null") {
                 coverImage.setImageResource(fallbackRes)
+                MiniPlayerColorizer.applyFromImageView(coverImage, targets, fallbackColor, animateMillis = 0L)
             } else {
                 val model = ImageRequestHelper.buildGlideModel(itemView.context, url)
                 Glide.with(itemView.context)
+                    .asBitmap()
                     .load(model)
                     .placeholder(fallbackRes)
                     .error(fallbackRes)
-                    .into(coverImage)
+                    .into(object : CustomTarget<Bitmap>() {
+                        override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                            coverImage.setImageBitmap(resource)
+                            MiniPlayerColorizer.applyFromImageView(coverImage, targets, fallbackColor, animateMillis = 300L)
+                        }
+
+                        override fun onLoadCleared(placeholder: Drawable?) {
+                            coverImage.setImageDrawable(placeholder)
+                        }
+
+                        override fun onLoadFailed(errorDrawable: Drawable?) {
+                            coverImage.setImageDrawable(errorDrawable)
+                            MiniPlayerColorizer.applyFromImageView(coverImage, targets, fallbackColor, animateMillis = 0L)
+                        }
+                    })
             }
 
             itemView.setOnClickListener { onItemClick(playlist) }

@@ -163,18 +163,38 @@
                 android:textColor="@color/white"
                 android:textSize="15sp" />
 
-            <TextView
-                android:id="@+id/relatedSongsHeader"
+            <LinearLayout
+                android:id="@+id/relatedSongsHeaderRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="20dp"
                 android:layout_marginTop="20dp"
-                android:fontFamily="@font/unageo_medium"
-                android:paddingBottom="10dp"
-                android:text="Canciones relacionadas"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                android:visibility="gone"/>
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/relatedSongsHeader"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/unageo_medium"
+                    android:paddingBottom="10dp"
+                    android:text="Canciones relacionadas"
+                    android:textColor="@color/white"
+                    android:textSize="18sp"/>
+
+                <ImageButton
+                    android:id="@+id/btnPlayRelated"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="7dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_play"
+                    app:tint="@color/secondaryColorTheme" />
+
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/relatedSongsList"

@@ -2,7 +2,7 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <solid android:color="#B81414" />
+            <solid android:color="@color/collabButtonAccent" />
             <corners android:radius="18dp" />
         </shape>
     </item>
@@ -10,7 +10,7 @@
         <shape android:shape="rectangle">
             <gradient
                 android:angle="0"
-                android:endColor="#B81414"
+                android:endColor="@color/collabButtonAccent"
                 android:startColor="@color/secondaryColorTheme" />
             <corners android:radius="18dp" />
         </shape>

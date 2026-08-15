@@ -18,7 +18,7 @@
         android:id="@+id/itemContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/bg_item_song">
+        android:background="@drawable/bg_item_song_featured">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/artistImage"
@@ -50,46 +50,52 @@
             app:layout_constraintTop_toTopOf="@+id/artistImage"
             app:layout_constraintVertical_bias="0.115" />
 
-        <TextView
-            android:id="@+id/textView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_rounded_disc"
-            android:drawableStart="@drawable/ic_sound"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_medium"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="15dp"
-            android:paddingVertical="10dp"
-            android:text="0"
-            android:textSize="15sp"
-            android:textColor="@color/white"
-            android:layout_marginStart="10dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/artistImage" />
+        <!-- Bottom caption scrim: replaces the old two-separate-pills row that
+             used to sit below the image; title + track count now overlay the
+             image itself, always-legible via this fade regardless of the
+             album art's own brightness. -->
+        <View
+            android:id="@+id/captionScrim"
+            android:layout_width="0dp"
+            android:layout_height="96dp"
+            android:background="@drawable/bg_featured_album_caption_scrim"
+            app:layout_constraintStart_toStartOf="@id/artistImage"
+            app:layout_constraintEnd_toEndOf="@id/artistImage"
+            app:layout_constraintBottom_toBottomOf="@id/artistImage" />
 
         <TextView
             android:id="@+id/albumName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="10dp"
-            android:layout_marginVertical="20dp"
-            android:background="@drawable/bg_rounded_pointers"
+            android:layout_marginHorizontal="@dimen/space_md"
+            android:layout_marginBottom="@dimen/space_xs"
             android:ellipsize="end"
-            android:fontFamily="@font/unageo_medium"
+            android:fontFamily="@font/unageo_bold"
             android:maxLines="1"
             android:text=""
             android:textAlignment="viewStart"
-            android:textColor="@color/white"
-            android:textSize="15sp"
-            android:paddingHorizontal="15dp"
-            android:paddingVertical="13dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/textView"
-            app:layout_constraintTop_toBottomOf="@id/artistImage" />
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            app:layout_constraintBottom_toTopOf="@id/textView"
+            app:layout_constraintStart_toStartOf="@id/artistImage"
+            app:layout_constraintEnd_toEndOf="@id/artistImage" />
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="@dimen/space_md"
+            android:layout_marginBottom="@dimen/space_sm"
+            android:drawableStart="@drawable/ic_sound"
+            android:drawablePadding="6dp"
+            android:drawableTint="#CCFFFFFF"
+            android:fontFamily="@font/unageo_medium"
+            android:gravity="center_vertical"
+            android:text="0"
+            android:textSize="12sp"
+            android:textColor="#CCFFFFFF"
+            app:layout_constraintBottom_toBottomOf="@id/artistImage"
+            app:layout_constraintStart_toStartOf="@id/artistImage" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

@@ -43,7 +43,10 @@ interface SongService {
     suspend fun searchSongs(@Query("q") query: String, @Query("limit") limit: Int = 30): SearchResponse<Song>
 
     @GET("api/songs/favorites")
-    suspend fun getFavoriteSongs(): List<Song>
+    suspend fun getFavoriteSongs(
+        @Query("sort") sort: String? = null,
+        @Query("limit") limit: Int? = null
+    ): List<Song>
 
     @GET("api/songs/{id}/favorites/check")
     suspend fun isFavoriteSong(@Path("id") songId: String): Boolean
