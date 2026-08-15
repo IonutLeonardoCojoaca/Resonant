@@ -232,12 +232,14 @@ class AriaFavoriteActionHandler(
     private val onFeedback: (message: String, success: Boolean) -> Unit
 ) {
     suspend fun execute(action: AriaAction) {
-        if (action.type != FAVORITE_ACTION_TYPE || !action.isPendingClientAction()) return
+        if (action.type != FAVORITE_ACTION_TYPE) return
         if (!idempotency.tryClaim(action.actionId)) return
 
-        val songId = action.clientSongId?.trim()?.takeIf { it.isNotEmpty() }
+        val parsedId = (action.songId ?: action.clientSongId)?.trim()?.takeIf { it.isNotEmpty() }
+        val songId = parsedId ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.id
+        
         if (songId == null) {
-            onFeedback("No pude guardar la canción", false)
+            onFeedback("No pude guardar la canción (no hay canción sonando)", false)
             return
         }
 
@@ -250,7 +252,8 @@ class AriaFavoriteActionHandler(
         }
 
         if (saved) {
-            val title = action.clientSongTitle?.trim()?.takeIf { it.isNotEmpty() }
+            val parsedTitle = (action.song?.title ?: action.clientSongTitle)?.trim()?.takeIf { it.isNotEmpty() }
+            val title = parsedTitle ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.title
             onFeedback(
                 title?.let { "$it añadida a favoritos" }
                     ?: "Canción añadida a favoritos",

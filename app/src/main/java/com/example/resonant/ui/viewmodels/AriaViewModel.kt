@@ -625,10 +625,13 @@ class AriaViewModel : ViewModel() {
      */
     fun shouldExecuteClientAction(action: AriaAction): Boolean {
         registerPendingSongChoice(action)
-        return action.type == "controlar_reproduccion" &&
-            action.clientSide &&
-            action.executionStatus == "pending_client" &&
-            !_isAwaitingSongChoice.value
+        if (_isAwaitingSongChoice.value) return false
+        
+        return when (action.type) {
+            "controlar_reproduccion" -> action.clientSide && action.executionStatus == "pending_client"
+            "guardar_actual" -> true
+            else -> false
+        }
     }
 
     private fun registerPendingSongChoice(action: AriaAction) {

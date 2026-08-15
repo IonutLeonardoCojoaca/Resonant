@@ -28,9 +28,25 @@ class AriaClientActionExecutor(
         telemetry = FirebaseAriaActionTelemetry(appContext),
         onFeedback = onFeedback
     )
+    private val favoriteHandler = AriaFavoriteActionHandler(
+        favoriteGateway = AndroidAriaFavoriteGateway(appContext),
+        idempotency = idempotency,
+        onFeedback = onFeedback
+    )
+    
     fun execute(action: AriaAction) {
-        if (action.type != "controlar_reproduccion" || !action.isPendingClientAction()) return
-        scope.launch { playbackHandler.execute(action) }
+        when (action.type) {
+            "controlar_reproduccion" -> {
+                if (action.isPendingClientAction()) {
+                    scope.launch { playbackHandler.execute(action) }
+                }
+            }
+            "guardar_actual" -> {
+                // Ejecutamos siempre que nos llegue guardar_actual, 
+                // ya que puede que el backend no envíe correctamente los flags de pending_client
+                scope.launch { favoriteHandler.execute(action) }
+            }
+        }
     }
 }
 
@@ -39,23 +55,16 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
     private val appContext = context.applicationContext
 
     override suspend fun control(command: AriaTransportControl) {
-        PlaybackControllerConnection.withController(appContext) { controller ->
-            val requiredCommand = when (command) {
-                AriaTransportControl.PLAY,
-                AriaTransportControl.PAUSE -> Player.COMMAND_PLAY_PAUSE
-                AriaTransportControl.NEXT -> Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
-                AriaTransportControl.PREVIOUS -> Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
-            }
-            check(controller.isCommandAvailable(requiredCommand)) {
-                "MediaSession no permite ejecutar el control solicitado"
-            }
-            when (command) {
-                AriaTransportControl.PLAY -> controller.play()
-                AriaTransportControl.PAUSE -> controller.pause()
-                AriaTransportControl.NEXT -> controller.seekToNextMediaItem()
-                AriaTransportControl.PREVIOUS -> controller.seekToPreviousMediaItem()
-            }
+        val action = when (command) {
+            AriaTransportControl.PLAY -> com.example.resonant.services.MusicPlaybackService.ACTION_RESUME
+            AriaTransportControl.PAUSE -> com.example.resonant.services.MusicPlaybackService.ACTION_PAUSE
+            AriaTransportControl.NEXT -> com.example.resonant.services.MusicPlaybackService.ACTION_NEXT
+            AriaTransportControl.PREVIOUS -> com.example.resonant.services.MusicPlaybackService.ACTION_PREVIOUS
         }
+        val intent = android.content.Intent(appContext, com.example.resonant.services.MusicPlaybackService::class.java).apply {
+            this.action = action
+        }
+        appContext.startService(intent)
     }
 
     override suspend fun playSong(songId: String, title: String?, artist: String?) {
@@ -86,6 +95,14 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
             result.extras.getString(QueueCommands.RESULT_MESSAGE)
                 ?: "No se pudo añadir a la cola"
         }
+    }
+}
+
+private class AndroidAriaFavoriteGateway(context: Context) : AriaFavoriteGateway {
+    private val favoriteManager = com.example.resonant.managers.FavoriteManager(context.applicationContext)
+
+    override suspend fun addFavoriteSong(songId: String): Boolean {
+        return favoriteManager.addFavoriteSong(songId)
     }
 }
 
