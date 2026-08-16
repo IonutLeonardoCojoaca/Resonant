@@ -857,29 +857,25 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             )
             .setPeriodicPositionUpdateEnabled(true)
             .build()
+        // Playback in this app is driven entirely through Intent actions
+        // (ACTION_PLAY, ACTION_PAUSE, ...), never through a bound
+        // MediaController. Media3's automatic media notification / foreground
+        // promotion is only wired up once a session is registered via
+        // addSession() (normally triggered by onGetSession() the first time a
+        // MediaController connects) — since that never happens here, we must
+        // register it explicitly or the service never becomes a real
+        // foreground service and gets killed by the background execution
+        // time limit while playing off-screen.
+        addSession(requireNotNull(mediaLibrarySession))
 
         startConnectHeartbeats()
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        val player = exoPlayer
-        // Only stop if there is no active audio AND Connect is not supported/active.
-        // If Connect is available (user is logged in and the feature is reachable),
-        // keep the service alive so the heartbeat continues — other devices can
-        // still find this one and send TRANSFER_IN commands to it.
-        val connectActive = ::playbackConnectRepository.isInitialized &&
-            playbackConnectRepository.uiState.value.let { state ->
-                state.supported || V2EndpointAvailability.shouldTry(
-                    applicationContext,
-                    V2EndpointAvailability.FEATURE_CONNECT
-                )
-            }
-        if (
-            (player == null || (!player.playWhenReady && player.playbackState == Player.STATE_IDLE)) &&
-            !connectActive
-        ) {
-            stopSelf()
-        }
+        // El usuario ha pedido explícitamente que la música se detenga al quitar la app
+        // de la lista de tareas recientes.
+        exoPlayer?.pause()
+        stopSelf()
     }
     override fun onDestroy() {
         if (::playbackStateStore.isInitialized) {
@@ -1266,7 +1262,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
             if (queue.currentIndex == index) {
                 PlaybackStateRepository.setCurrentSong(enrichedSong)
-                applyLoudnessNormalization(enrichedSong)
+                
+                // Solo aplicamos la normalización de volumen al vuelo si la canción acaba
+                // de empezar. Si el volumen cambia a mitad de canción (por ejemplo, al
+                // recibir los metadatos de audio retrasados de red), es muy molesto para el usuario.
+                if ((exoPlayer?.currentPosition ?: 0L) < 2000L) {
+                    applyLoudnessNormalization(enrichedSong)
+                }
+                
                 updateMediaSessionMetadata()
             }
         }
@@ -3086,6 +3089,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         oldPlayer.removeListener(playerListener)
         oldPlayer.release()
         this.exoPlayer = newPlayer
+        // Without this, the MediaLibrarySession keeps observing the released
+        // oldPlayer: the system-facing playback state freezes (NONE, stale
+        // position) right after every crossfade even though audio keeps
+        // playing locally via newPlayer — breaking Bluetooth/AVRCP metadata,
+        // Android Auto's now-playing screen, lock-screen controls, and
+        // eventually the notification/foreground promotion itself. Verified
+        // via dumpsys media_session with/without this line.
+        mediaLibrarySession?.player = newPlayer
         newPlayer.addListener(playerListener)
         newPlayer.addAnalyticsListener(playbackQoeTracker)
         applyStreamingQualityToPlayer(newPlayer)

@@ -1,11 +1,13 @@
 package com.example.resonant.managers
 
 import android.content.Context
+import android.content.Intent
 import android.util.Base64
 import android.util.Log
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RefreshTokenDTO
 import com.example.resonant.data.network.services.AuthService
+import com.example.resonant.services.MusicPlaybackService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -134,6 +136,12 @@ class SessionManager(private val context: Context, private val baseUrl: String) 
         }
         // Borramos localmente siempre
         clearTokens()
+
+        // Detenemos la reproducción de música
+        val intent = Intent(context, MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_SHUTDOWN
+        }
+        context.startService(intent)
     }
 
     fun hasLocalCredentials(): Boolean {

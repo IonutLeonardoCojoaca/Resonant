@@ -458,7 +458,11 @@ class TransitionManager(
             // NO le damos la cola completa, solo la canción que necesita para prepararse.
             newPlayer.setMediaItem(mediaItem)
             newPlayer.volume = 0f // Lo dejamos en silencio
-            newPlayer.prepare() // Iniciamos la preparación en segundo plano
+            if (newPlayer.playbackState == Player.STATE_READY) {
+                preloadListener.onPlaybackStateChanged(Player.STATE_READY)
+            } else {
+                newPlayer.prepare() // Iniciamos la preparación en segundo plano
+            }
 
             // Guardamos la referencia para usarla más tarde.
             this.nextPlayer = newPlayer
@@ -542,7 +546,7 @@ class TransitionManager(
                             val entryMs = transition.entryPointMs.toLong()
                             newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, entryMs)
                             newPlayer.volume = nextSongTargetVolume
-                            newPlayer.addListener(object : Player.Listener {
+                            val listener = object : Player.Listener {
                                 override fun onPlaybackStateChanged(playbackState: Int) {
                                     if (playbackState == Player.STATE_READY) {
                                         newPlayer.removeListener(this)
@@ -554,8 +558,13 @@ class TransitionManager(
                                     newPlayer.removeListener(this)
                                     handleMixFailure(oldPlayer, newPlayer)
                                 }
-                            })
-                            newPlayer.prepare()
+                            }
+                            newPlayer.addListener(listener)
+                            if (newPlayer.playbackState == Player.STATE_READY) {
+                                listener.onPlaybackStateChanged(Player.STATE_READY)
+                            } else {
+                                newPlayer.prepare()
+                            }
                         } catch (e: Exception) {
                             handleMixFailure(oldPlayer, newPlayer)
                         }
@@ -657,7 +666,11 @@ class TransitionManager(
                 }
             }
             newPlayer.addListener(listener)
-            newPlayer.prepare()
+            if (newPlayer.playbackState == Player.STATE_READY) {
+                listener.onPlaybackStateChanged(Player.STATE_READY)
+            } else {
+                newPlayer.prepare()
+            }
 
         } catch (e: Exception) {
             Log.e("PlaymixEngine", "❌ Error preparando PlayMix transition", e)
@@ -956,7 +969,7 @@ class TransitionManager(
                                    else newSong.audioAnalysis?.audioStartMs?.toLong() ?: 0L
             newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, startPositionMs)
 
-            newPlayer.addListener(object : Player.Listener {
+            val listener = object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY) {
                         newPlayer.removeListener(this)
@@ -1020,9 +1033,14 @@ class TransitionManager(
                         handleMixFailure(oldPlayer, newPlayer)
                     }
                 }
-            })
-
-            newPlayer.prepare()
+            }
+            newPlayer.addListener(listener)
+            
+            if (newPlayer.playbackState == Player.STATE_READY) {
+                listener.onPlaybackStateChanged(Player.STATE_READY)
+            } else {
+                newPlayer.prepare()
+            }
 
         } catch (e: Exception) {
             Log.e("MusicService", "Error crítico preparando newPlayer para crossfade.", e)
@@ -1165,7 +1183,7 @@ class TransitionManager(
 
             newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, optimalInPoint.toLong())
 
-            newPlayer.addListener(object : Player.Listener {
+            val listener = object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY) {
                         newPlayer.removeListener(this)
@@ -1218,9 +1236,14 @@ class TransitionManager(
                         handleMixFailure(oldPlayer, newPlayer)
                     }
                 }
-            })
-
-            newPlayer.prepare()
+            }
+            newPlayer.addListener(listener)
+            
+            if (newPlayer.playbackState == Player.STATE_READY) {
+                listener.onPlaybackStateChanged(Player.STATE_READY)
+            } else {
+                newPlayer.prepare()
+            }
 
         } catch (e: Exception) {
             Log.e("IntelligentCrossfade", "❌ Error crítico al preparar mezcla inteligente", e)
