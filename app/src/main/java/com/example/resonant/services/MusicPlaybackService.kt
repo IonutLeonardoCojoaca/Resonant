@@ -69,6 +69,7 @@ import com.example.resonant.playback.withPlaybackInfo
 import com.example.resonant.playback.ResonantLibrarySessionCallback
 import com.example.resonant.playback.PlaybackConnectRepository
 import com.example.resonant.playback.ConnectConflictEvent
+import com.example.resonant.playback.anchoredPositionMs
 import com.example.resonant.data.network.V2EndpointAvailability
 import com.example.resonant.ui.activities.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -77,6 +78,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicBoolean
@@ -134,7 +137,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         // Shortened from 10s: this is also the maximum window during which the
         // device that just lost playback could still be audible alongside the
         // new active device, so keeping it tight matters for Resonant Connect.
-        private const val CONNECT_HEARTBEAT_INTERVAL_MS = 4_000L
+        private const val CONNECT_FALLBACK_INTERVAL_MS = 8_000L
 
         /** Prefetch radio when this many songs (or fewer) remain in the queue. */
         private const val RADIO_PREFETCH_THRESHOLD = 3
@@ -239,6 +242,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private val playbackLoadGeneration = AtomicLong(0L)
     private val connectStateRevision = AtomicLong(0L)
     private val connectSyncInFlight = AtomicBoolean(false)
+    private val connectCommandMutex = Mutex()
     // The activeDeviceId from the most recent heartbeat snapshot.
     @Volatile private var connectPreviousActiveDeviceId: String? = null
     // How many consecutive heartbeat ticks have found another device active
@@ -357,18 +361,25 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private val connectHandler = Handler(Looper.getMainLooper())
     private val connectHeartbeatRunnable = object : Runnable {
         override fun run() {
-            syncPlaybackConnect()
-            connectHandler.postDelayed(this, CONNECT_HEARTBEAT_INTERVAL_MS)
+            playbackConnectRepository.ensureRealtimeConnected()
+            if (!playbackConnectRepository.realtimeConnected.value) {
+                syncPlaybackConnect()
+            }
+            connectHandler.postDelayed(this, CONNECT_FALLBACK_INTERVAL_MS)
         }
     }
 
     private fun startConnectHeartbeats() {
         connectHandler.removeCallbacks(connectHeartbeatRunnable)
+        playbackConnectRepository.startRealtime()
         connectHandler.post(connectHeartbeatRunnable)
     }
 
     private fun stopConnectHeartbeats() {
         connectHandler.removeCallbacks(connectHeartbeatRunnable)
+        if (::playbackConnectRepository.isInitialized) {
+            playbackConnectRepository.stopRealtime()
+        }
     }
 
     private fun requestAudioFocus(): Boolean {
@@ -767,6 +778,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                         pause() 
                     }
                 }
+            }
+        }
+
+        // Commands now arrive immediately over SignalR. Durable command IDs
+        // and acknowledgements still make reconnect/redelivery safe.
+        serviceScope.launch {
+            playbackConnectRepository.commandEvents.collect { command ->
+                processPlaybackConnectCommands(listOf(command))
             }
         }
 
@@ -1606,45 +1625,42 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 // heuristic that caused spurious mid-song pauses due to stale or
                 // temporarily inconsistent activeDeviceId values from the backend.
 
-                commands
-                    .sortedBy(PlaybackConnectCommandDTO::sequence)
-                    .forEach { command ->
-                        if (
-                            playbackConnectRepository.wasCommandProcessed(
-                                command.commandId
-                            )
-                        ) {
-                            playbackConnectRepository.acknowledge(
-                                command,
-                                successful = true
-                            )
-                            return@forEach
-                        }
-                        val applied = runCatching {
-                            applyPlaybackConnectCommand(command)
-                        }.getOrElse { error ->
-                            Log.e(
-                                "ResonantConnect",
-                                "No se pudo aplicar ${command.type}",
-                                error
-                            )
-                            false
-                        }
-                        if (applied) {
-                            playbackConnectRepository.markCommandProcessed(
-                                command.commandId
-                            )
-                        }
-                        playbackConnectRepository.acknowledge(
-                            command = command,
-                            successful = applied,
-                            errorCode = if (applied) null else "command_not_applied"
-                        )
-                    }
+                processPlaybackConnectCommands(commands)
             } finally {
                 connectSyncInFlight.set(false)
             }
         }
+    }
+
+    private suspend fun processPlaybackConnectCommands(
+        commands: List<PlaybackConnectCommandDTO>
+    ) = connectCommandMutex.withLock {
+        commands
+            .sortedBy(PlaybackConnectCommandDTO::sequence)
+            .forEach { command ->
+                if (playbackConnectRepository.wasCommandProcessed(command.commandId)) {
+                    playbackConnectRepository.acknowledge(command, successful = true)
+                    return@forEach
+                }
+                val applied = runCatching {
+                    applyPlaybackConnectCommand(command)
+                }.getOrElse { error ->
+                    Log.e(
+                        "ResonantConnect",
+                        "No se pudo aplicar ${command.type}",
+                        error
+                    )
+                    false
+                }
+                if (applied) {
+                    playbackConnectRepository.markCommandProcessed(command.commandId)
+                }
+                playbackConnectRepository.acknowledge(
+                    command = command,
+                    successful = applied,
+                    errorCode = if (applied) null else "command_not_applied"
+                )
+            }
     }
 
     private fun buildConnectPlaybackState(): PlaybackConnectStateDTO? {
@@ -1738,7 +1754,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     // radio station we had running belonged to the previous
                     // context and must not leak into the new one.
                     resetRadioSession()
-                    pendingStartPositionMs = state.positionMs.coerceAtLeast(0L)
+                    pendingStartPositionMs = state.anchoredPositionMs()
                     PlaybackStateRepository.activeQueue = PlaybackQueue(
                         sourceId = state.sourceId ?: "connect_transfer",
                         sourceType = sourceType,

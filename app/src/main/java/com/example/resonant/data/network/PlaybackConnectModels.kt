@@ -17,6 +17,7 @@ data class PlaybackConnectStateDTO(
     val positionMs: Long,
     val durationMs: Long,
     val isPlaying: Boolean,
+    val positionUpdatedAtUtc: String? = null,
     val sourceType: String,
     val sourceId: String?,
     val repeatMode: Int,
@@ -88,4 +89,3 @@ data class PlaybackConnectCommandAckDTO(
     val status: String,
     val errorCode: String? = null
 )
-

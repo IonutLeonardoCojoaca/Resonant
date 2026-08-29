@@ -108,6 +108,7 @@ dependencies {
     implementation ("com.facebook.shimmer:shimmer:0.5.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.microsoft.signalr:signalr:8.0.30")
 
     implementation ("com.github.bumptech.glide:glide:4.16.0")
 

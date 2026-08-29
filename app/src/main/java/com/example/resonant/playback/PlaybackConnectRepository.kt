@@ -2,16 +2,24 @@ package com.example.resonant.playback
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import com.example.resonant.BuildConfig
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.PlaybackConnectCommandAckDTO
 import com.example.resonant.data.network.PlaybackConnectCommandDTO
 import com.example.resonant.data.network.PlaybackConnectDeviceDTO
 import com.example.resonant.data.network.PlaybackConnectHeartbeatRequestDTO
+import com.example.resonant.data.network.PlaybackConnectHeartbeatResponseDTO
 import com.example.resonant.data.network.PlaybackConnectSnapshotDTO
 import com.example.resonant.data.network.PlaybackConnectStateDTO
 import com.example.resonant.data.network.PlaybackTransferRequestDTO
 import com.example.resonant.data.network.V2EndpointAvailability
+import com.example.resonant.managers.SessionManager
+import com.google.gson.reflect.TypeToken
+import com.microsoft.signalr.HubConnection
+import com.microsoft.signalr.HubConnectionBuilder
+import com.microsoft.signalr.HubConnectionState
+import io.reactivex.rxjava3.core.Single
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +28,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -84,9 +94,16 @@ class PlaybackConnectRepository private constructor(
         }
 
     private val requestMutex = Mutex()
+    private val realtimeMutex = Mutex()
     private val repositoryScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastUploadedQueueRevision: Long? = null
+    @Volatile
+    private var hubConnection: HubConnection? = null
+    @Volatile
+    private var realtimeWanted = false
+    private var reconnectJob: Job? = null
+    private var reconnectAttempt = 0
     @Volatile
     private var scopedUserId: String? = currentUserId()
 
@@ -104,6 +121,16 @@ class PlaybackConnectRepository private constructor(
     )
     val uiState = _uiState.asStateFlow()
 
+    private val _realtimeConnected = MutableStateFlow(false)
+    val realtimeConnected = _realtimeConnected.asStateFlow()
+
+    private val _commandEvents = MutableSharedFlow<PlaybackConnectCommandDTO>(
+        replay = 0,
+        extraBufferCapacity = 64
+    )
+    val commandEvents: SharedFlow<PlaybackConnectCommandDTO> =
+        _commandEvents.asSharedFlow()
+
     /**
      * One-shot events signalling a playback conflict.  The Activity collects
      * this with [SharedFlow] (replay = 0) so each event is delivered exactly
@@ -118,6 +145,119 @@ class PlaybackConnectRepository private constructor(
     /** Emit a conflict event from any coroutine or thread. */
     fun emitConflict(event: ConnectConflictEvent) {
         repositoryScope.launch { _conflictEvents.emit(event) }
+    }
+
+    /** Keeps one low-overhead duplex connection instead of polling every 4s. */
+    fun startRealtime() {
+        val state = hubConnection?.connectionState
+        if (
+            realtimeWanted &&
+            (state == HubConnectionState.CONNECTED ||
+                state == HubConnectionState.CONNECTING ||
+                reconnectJob?.isActive == true)
+        ) return
+        realtimeWanted = true
+        repositoryScope.launch { connectRealtime() }
+    }
+
+    fun ensureRealtimeConnected() {
+        if (!_realtimeConnected.value) startRealtime()
+    }
+
+    fun stopRealtime() {
+        realtimeWanted = false
+        reconnectJob?.cancel()
+        reconnectJob = null
+        reconnectAttempt = 0
+        _realtimeConnected.value = false
+        val connection = hubConnection
+        hubConnection = null
+        if (connection != null) {
+            repositoryScope.launch {
+                runCatching { connection.stop().blockingAwait() }
+            }
+        }
+    }
+
+    private suspend fun connectRealtime() = realtimeMutex.withLock {
+        if (!realtimeWanted || !synchronizeUserScope() || !shouldTryFeature()) return@withLock
+        if (hubConnection?.connectionState == HubConnectionState.CONNECTED) {
+            _realtimeConnected.value = true
+            return@withLock
+        }
+
+        val sessionManager = SessionManager.getInstance(context)
+        if (sessionManager.getValidAccessToken().isNullOrBlank()) return@withLock
+
+        val connection = HubConnectionBuilder
+            .create("${ApiClient.baseUrl().trimEnd('/')}/hubs/connect")
+            .withAccessTokenProvider(
+                Single.defer {
+                    Single.just(sessionManager.getAccessToken().orEmpty())
+                }
+            )
+            .withKeepAliveInterval(30_000L)
+            .withServerTimeout(75_000L)
+            .build()
+
+        connection.on(
+            "SnapshotUpdated",
+            { snapshot: PlaybackConnectSnapshotDTO -> publishSnapshot(snapshot) },
+            PlaybackConnectSnapshotDTO::class.java
+        )
+        val commandListType = (object :
+            TypeToken<List<PlaybackConnectCommandDTO>>() {}).type
+        connection.on<List<PlaybackConnectCommandDTO>>(
+            "CommandsAvailable",
+            { commands ->
+                commands.sortedBy(PlaybackConnectCommandDTO::sequence)
+                    .forEach(_commandEvents::tryEmit)
+            },
+            commandListType
+        )
+        connection.onClosed { error ->
+            if (hubConnection === connection) {
+                hubConnection = null
+                _realtimeConnected.value = false
+                if (error != null) publishRealtimeError(error)
+                scheduleReconnect()
+            }
+        }
+        hubConnection = connection
+
+        try {
+            connection.start().blockingAwait()
+            val response = connection.invoke(
+                PlaybackConnectHeartbeatResponseDTO::class.java,
+                "RegisterDevice",
+                heartbeatRequest(playback = null)
+            ).blockingGet()
+            publishHeartbeatResponse(response, originalPlayback = null)
+            response.commands
+                .sortedBy(PlaybackConnectCommandDTO::sequence)
+                .forEach(_commandEvents::tryEmit)
+            reconnectAttempt = 0
+            recordSuccess()
+            _realtimeConnected.value = true
+        } catch (error: Throwable) {
+            if (hubConnection === connection) hubConnection = null
+            _realtimeConnected.value = false
+            runCatching { connection.stop().blockingAwait() }
+            publishRealtimeError(error)
+            scheduleReconnect()
+        }
+    }
+
+    private fun scheduleReconnect() {
+        if (!realtimeWanted || reconnectJob?.isActive == true) return
+        val delays = longArrayOf(0L, 2_000L, 5_000L, 10_000L, 30_000L)
+        val delayMs = delays[reconnectAttempt.coerceAtMost(delays.lastIndex)]
+        reconnectAttempt++
+        reconnectJob = repositoryScope.launch {
+            delay(delayMs)
+            reconnectJob = null
+            connectRealtime()
+        }
     }
 
     suspend fun heartbeat(
@@ -138,18 +278,30 @@ class PlaybackConnectRepository private constructor(
                 state
             }
         }
+
+        val realtime = hubConnection
+        if (
+            outgoingPlayback?.queueItems == null &&
+            realtime?.connectionState == HubConnectionState.CONNECTED
+        ) {
+            val realtimeResponse = runCatching {
+                realtime.invoke(
+                    PlaybackConnectHeartbeatResponseDTO::class.java,
+                    "PublishState",
+                    heartbeatRequest(outgoingPlayback)
+                ).blockingGet()
+            }.getOrNull()
+            if (realtimeResponse != null) {
+                recordSuccess()
+                publishHeartbeatResponse(realtimeResponse, playback)
+                return@withLock realtimeResponse.commands
+            }
+            _realtimeConnected.value = false
+            scheduleReconnect()
+        }
         val response = runCatching {
-            service.heartbeat(
-                PlaybackConnectHeartbeatRequestDTO(
-                    deviceId = localDeviceId,
-                    deviceName = localDeviceName(),
-                    appVersion = BuildConfig.VERSION_NAME,
-                    capabilities = CAPABILITIES,
-                    playback = outgoingPlayback
-                )
-            )
+            service.heartbeat(heartbeatRequest(outgoingPlayback))
         }.getOrElse { error ->
-            recordFailure()
             publishTransientError(error)
             return@withLock emptyList()
         }
@@ -179,17 +331,31 @@ class PlaybackConnectRepository private constructor(
 
         // ── Success ──
         recordSuccess()
-        if (
-            playback != null &&
-            (
-                body.acceptedQueueRevision == playback.queueRevision ||
-                    outgoingPlayback?.queueItems != null
-                )
-        ) {
-            lastUploadedQueueRevision = playback.queueRevision
-        }
-        publishSnapshot(body.snapshot)
+        publishHeartbeatResponse(body, playback)
         body.commands
+    }
+
+    private fun heartbeatRequest(
+        playback: PlaybackConnectStateDTO?
+    ) = PlaybackConnectHeartbeatRequestDTO(
+        deviceId = localDeviceId,
+        deviceName = localDeviceName(),
+        appVersion = BuildConfig.VERSION_NAME,
+        capabilities = CAPABILITIES,
+        playback = playback
+    )
+
+    private fun publishHeartbeatResponse(
+        response: PlaybackConnectHeartbeatResponseDTO,
+        originalPlayback: PlaybackConnectStateDTO?
+    ) {
+        if (
+            originalPlayback != null &&
+            response.acceptedQueueRevision == originalPlayback.queueRevision
+        ) {
+            lastUploadedQueueRevision = originalPlayback.queueRevision
+        }
+        publishSnapshot(response.snapshot)
     }
 
     fun refreshAsync() {
@@ -207,41 +373,28 @@ class PlaybackConnectRepository private constructor(
      * let that block the calling UI thread.
      */
     fun announcePresenceAsync() {
-        repositoryScope.launch {
-            // Use tryLock first — if a heartbeat is already in flight, skip
-            // this presence ping (the heartbeat itself will carry presence).
-            if (requestMutex.tryLock()) {
-                try {
-                    if (!synchronizeUserScope() || !shouldTryFeature()) return@launch
-                    runCatching {
-                        service.heartbeat(
-                            PlaybackConnectHeartbeatRequestDTO(
-                                deviceId = localDeviceId,
-                                deviceName = localDeviceName(),
-                                appVersion = BuildConfig.VERSION_NAME,
-                                capabilities = CAPABILITIES,
-                                playback = null
-                            )
-                        )
-                    }.onSuccess { response ->
-                        val body = response.body()
-                        if (response.isSuccessful && body != null) {
-                            recordSuccess()
-                            publishSnapshot(body.snapshot)
-                        }
-                    }
-                } finally {
-                    requestMutex.unlock()
-                }
-            }
-            // If mutex was busy a heartbeat is already in progress — no need
-            // to queue another presence ping.
-        }
+        ensureRealtimeConnected()
     }
 
     suspend fun refresh() = requestMutex.withLock {
         if (!synchronizeUserScope() || !shouldTryFeature()) return@withLock
         _uiState.value = _uiState.value.copy(refreshing = true)
+        val realtime = hubConnection
+        if (realtime?.connectionState == HubConnectionState.CONNECTED) {
+            val realtimeSnapshot = runCatching {
+                realtime.invoke(
+                    PlaybackConnectSnapshotDTO::class.java,
+                    "RequestSnapshot"
+                ).blockingGet()
+            }.getOrNull()
+            if (realtimeSnapshot != null) {
+                recordSuccess()
+                publishSnapshot(realtimeSnapshot)
+                return@withLock
+            }
+            _realtimeConnected.value = false
+            scheduleReconnect()
+        }
         val response = runCatching { service.getDevices() }
             .getOrElse { error ->
                 recordFailure()
@@ -362,14 +515,28 @@ class PlaybackConnectRepository private constructor(
         successful: Boolean,
         errorCode: String? = null
     ) {
+        val payload = PlaybackConnectCommandAckDTO(
+            deviceId = localDeviceId,
+            status = if (successful) "applied" else "failed",
+            errorCode = errorCode
+        )
+        val realtime = hubConnection
+        if (realtime?.connectionState == HubConnectionState.CONNECTED) {
+            val sent = runCatching {
+                realtime.invoke(
+                    "AcknowledgeCommand",
+                    command.commandId,
+                    payload
+                ).blockingAwait()
+            }.isSuccess
+            if (sent) return
+            _realtimeConnected.value = false
+            scheduleReconnect()
+        }
         runCatching {
             service.acknowledgeCommand(
                 command.commandId,
-                PlaybackConnectCommandAckDTO(
-                    deviceId = localDeviceId,
-                    status = if (successful) "applied" else "failed",
-                    errorCode = errorCode
-                )
+                payload
             )
         }
     }
@@ -408,11 +575,14 @@ class PlaybackConnectRepository private constructor(
     fun synchronizeUserScope(): Boolean = synchronized(this) {
         val currentUserId = currentUserId()
         if (currentUserId != scopedUserId) {
+            val restartRealtime = realtimeWanted && !currentUserId.isNullOrBlank()
+            stopRealtime()
             scopedUserId = currentUserId
             lastUploadedQueueRevision = null
             _uiState.value = PlaybackConnectUiState(
                 localDeviceId = localDeviceId
             )
+            if (restartRealtime) startRealtime()
         }
         !currentUserId.isNullOrBlank()
     }
@@ -443,6 +613,14 @@ class PlaybackConnectRepository private constructor(
                 errorMessage = if (error is IOException) "Sin conexión" else "Reconectando…"
             )
         }
+    }
+
+    private fun publishRealtimeError(error: Throwable) {
+        Log.w("ResonantConnect", "Canal en tiempo real desconectado; usando REST", error)
+        _uiState.value = _uiState.value.copy(
+            refreshing = false,
+            errorMessage = "Reconectando…"
+        )
     }
 
     private fun publishHttpError(code: Int) {
@@ -548,7 +726,8 @@ class PlaybackConnectRepository private constructor(
         private val CAPABILITIES = listOf(
             "presence-v1",
             "transfer-v1",
-            "queue-snapshot-v1"
+            "queue-snapshot-v1",
+            "realtime-v2"
         )
 
         @Volatile
