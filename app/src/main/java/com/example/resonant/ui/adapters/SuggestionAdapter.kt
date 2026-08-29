@@ -43,6 +43,11 @@ class SuggestionAdapter(
                 DataType.SONG -> "Canción"
                 DataType.ALBUM -> "Álbum"
                 DataType.ARTIST -> "Artista"
+                DataType.PLAYLIST -> "Playlist"
+                DataType.ESSENTIALS -> "Essentials"
+                DataType.PLAYMIX -> "PlayMix"
+                DataType.GENRE -> "Género"
+                DataType.SEARCH -> "Sugerencia"
             }
             itemView.setOnClickListener { onClick(item) }
         }

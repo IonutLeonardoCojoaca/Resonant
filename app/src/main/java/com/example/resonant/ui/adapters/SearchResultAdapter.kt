@@ -2,6 +2,8 @@ package com.example.resonant.ui.adapters
 
 import android.animation.ObjectAnimator
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Drawable
 import android.os.Parcelable
 import android.util.Log
@@ -28,19 +30,38 @@ import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.DataType
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.UniversalSearchHit
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.Utils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import java.util.Collections
 
 sealed class SearchResult : Parcelable {
-    @Parcelize data class SongItem(val song: Song) : SearchResult() { override val type = DataType.SONG }
-    @Parcelize data class AlbumItem(val album: Album) : SearchResult() { override val type = DataType.ALBUM }
-    @Parcelize data class ArtistItem(val artist: Artist) : SearchResult() { override val type = DataType.ARTIST }
+    @Parcelize data class SongItem(val song: Song) : SearchResult() {
+        @IgnoredOnParcel override val type = DataType.SONG
+    }
+    @Parcelize data class AlbumItem(val album: Album) : SearchResult() {
+        @IgnoredOnParcel override val type = DataType.ALBUM
+    }
+    @Parcelize data class ArtistItem(val artist: Artist) : SearchResult() {
+        @IgnoredOnParcel override val type = DataType.ARTIST
+    }
+    @Parcelize data class ResourceItem(val resource: UniversalSearchHit) : SearchResult() {
+        @IgnoredOnParcel
+        override val type: DataType
+            get() = when (resource.type) {
+                "playlist" -> DataType.PLAYLIST
+                "essentials" -> DataType.ESSENTIALS
+                "playmix" -> DataType.PLAYMIX
+                "genre" -> DataType.GENRE
+                else -> DataType.PLAYLIST
+            }
+    }
     abstract val type: DataType
 }
 
@@ -50,6 +71,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         private const val TYPE_SONG = 0
         private const val TYPE_ALBUM = 1
         private const val TYPE_ARTIST = 2
+        private const val TYPE_RESOURCE = 3
     }
 
     // --- CALLBACKS DE CLIC ---
@@ -58,6 +80,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
     var onSongClick: ((Pair<Song, Bitmap?>) -> Unit)? = null
     var onAlbumClick: ((Album) -> Unit)? = null
     var onArtistClick: ((Artist, ImageView) -> Unit)? = null
+    var onResourceClick: ((UniversalSearchHit) -> Unit)? = null
     
     // Settings callbacks
     var onAlbumSettingsClick: ((Album) -> Unit)? = null
@@ -101,6 +124,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         is SearchResult.SongItem -> TYPE_SONG
         is SearchResult.AlbumItem -> TYPE_ALBUM
         is SearchResult.ArtistItem -> TYPE_ARTIST
+        is SearchResult.ResourceItem -> TYPE_RESOURCE
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -109,6 +133,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             TYPE_SONG -> SongViewHolder(inf.inflate(R.layout.item_result_song, parent, false)) // Asegúrate de que este XML tiene el ID downloadedIcon
             TYPE_ALBUM -> AlbumViewHolder(inf.inflate(R.layout.item_result_album, parent, false))
             TYPE_ARTIST -> ArtistViewHolder(inf.inflate(R.layout.item_result_artist, parent, false))
+            TYPE_RESOURCE -> ResourceViewHolder(inf.inflate(R.layout.item_result_album, parent, false))
             else -> error("Unknown viewType: $viewType")
         }
     }
@@ -118,6 +143,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             is SearchResult.SongItem -> (holder as SongViewHolder).bind(item.song)
             is SearchResult.AlbumItem -> (holder as AlbumViewHolder).bind(item.album)
             is SearchResult.ArtistItem -> (holder as ArtistViewHolder).bind(item.artist)
+            is SearchResult.ResourceItem -> (holder as ResourceViewHolder).bind(item.resource)
         }
     }
     
@@ -147,6 +173,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
                 holder.loadingAnimation.cancelAnimation()
                 holder.loadingAnimation.visibility = View.GONE
             }
+            is ResourceViewHolder -> Glide.with(holder.itemView).clear(holder.image)
         }
     }
 
@@ -303,6 +330,63 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         }
     }
 
+    inner class ResourceViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val title: TextView = itemView.findViewById(R.id.albumTitle)
+        private val subtitle: TextView = itemView.findViewById(R.id.albumArtistName)
+        private val dataType: TextView = itemView.findViewById(R.id.dataType)
+        val image: ImageView = itemView.findViewById(R.id.albumImage)
+        private var boundResource: UniversalSearchHit? = null
+
+        init {
+            itemView.findViewById<ImageButton>(R.id.settingsButton).visibility = View.GONE
+            itemView.setOnClickListener { boundResource?.let { onResourceClick?.invoke(it) } }
+        }
+
+        fun bind(resource: UniversalSearchHit) {
+            boundResource = resource
+            title.text = resource.title
+            dataType.text = when (resource.type) {
+                "playlist" -> "Playlist"
+                "essentials" -> "Essentials"
+                "playmix" -> "PlayMix"
+                "genre" -> "Género"
+                else -> resource.type
+            }
+            subtitle.text = buildList {
+                resource.ownerName?.let { add(if (resource.isOwnedByCurrentUser) "Tu lista" else it) }
+                resource.trackCount?.let { add("$it canciones") }
+                if (resource.isPublic == false) add("Privada")
+            }.joinToString(" · ").ifBlank { resource.subtitle.orEmpty() }
+
+            Glide.with(itemView).clear(image)
+            if (resource.type == "genre") {
+                image.setImageDrawable(buildGenreGradient(resource.gradientColors))
+            } else {
+                Glide.with(itemView)
+                    .load(resource.imageUrl)
+                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                    .dontAnimate()
+                    .placeholder(R.drawable.ic_album_stack)
+                    .error(R.drawable.ic_album_stack)
+                    .into(image)
+            }
+        }
+
+        private fun buildGenreGradient(raw: String?): GradientDrawable {
+            val colors = raw.orEmpty().split(';', ',').mapNotNull { value ->
+                runCatching { Color.parseColor(value.trim().let { if (it.startsWith("#")) it else "#$it" }) }.getOrNull()
+            }.take(2)
+            val resolved = when (colors.size) {
+                0 -> intArrayOf(Color.parseColor("#1E3C72"), Color.parseColor("#2A5298"))
+                1 -> intArrayOf(colors[0], colors[0])
+                else -> colors.toIntArray()
+            }
+            return GradientDrawable(GradientDrawable.Orientation.TL_BR, resolved).apply {
+                cornerRadius = 12f * itemView.resources.displayMetrics.density
+            }
+        }
+    }
+
     fun setCurrentPlayingSong(songId: String?) {
         if (currentPlayingId == songId) return
         previousPlayingId = currentPlayingId
@@ -324,6 +408,7 @@ private class SearchResultDiffCallback : DiffUtil.ItemCallback<SearchResult>() {
             oldItem is SearchResult.SongItem && newItem is SearchResult.SongItem -> oldItem.song.id == newItem.song.id
             oldItem is SearchResult.AlbumItem && newItem is SearchResult.AlbumItem -> oldItem.album.id == newItem.album.id
             oldItem is SearchResult.ArtistItem && newItem is SearchResult.ArtistItem -> oldItem.artist.id == newItem.artist.id
+            oldItem is SearchResult.ResourceItem && newItem is SearchResult.ResourceItem -> oldItem.resource.type == newItem.resource.type && oldItem.resource.id == newItem.resource.id
             else -> false
         }
     }

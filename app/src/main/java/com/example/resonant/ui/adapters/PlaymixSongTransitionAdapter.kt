@@ -25,7 +25,8 @@ class PlaymixSongTransitionAdapter(
     private val onSongClick: ((PlaymixSongDTO) -> Unit)? = null,
     private val onSongOptionsClick: ((PlaymixSongDTO) -> Unit)? = null,
     private val onPreviewClick: ((PlaymixTransitionDTO) -> Unit)? = null,
-    private val onCopyTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null
+    private val onCopyTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null,
+    private val isReadOnly: Boolean = false
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -135,6 +136,7 @@ class PlaymixSongTransitionAdapter(
             optionsButton.setOnClickListener {
                 onSongOptionsClick?.invoke(song)
             }
+            optionsButton.visibility = if (isReadOnly) View.GONE else View.VISIBLE
         }
 
         private fun formatDurationMs(totalSeconds: Int): String {
@@ -215,10 +217,14 @@ class PlaymixSongTransitionAdapter(
                 presetChip.visibility = View.GONE
             }
 
-            itemView.setOnClickListener { onTransitionClick(transition) }
+            itemView.setOnClickListener {
+                if (isReadOnly) onPreviewClick?.invoke(transition) else onTransitionClick(transition)
+            }
             previewBtn.setOnClickListener { onPreviewClick?.invoke(transition) }
             copyBtn.setOnClickListener { onCopyTransitionClick?.invoke(transition) }
             editBtn.setOnClickListener { onTransitionClick(transition) }
+            copyBtn.visibility = if (isReadOnly) View.GONE else View.VISIBLE
+            editBtn.visibility = if (isReadOnly) View.GONE else View.VISIBLE
         }
 
         private fun buildModeLabel(mixMode: String?): String {

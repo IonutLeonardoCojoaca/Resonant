@@ -40,12 +40,14 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     private lateinit var viewModel: PlaymixDetailViewModel
     private lateinit var adapter: PlaymixSongTransitionAdapter
     private var playmixId: String = ""
+    private var isReadOnly: Boolean = false
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentPlaymixDetailBinding.bind(view)
 
         playmixId = arguments?.getString("playmixId") ?: return
+        isReadOnly = arguments?.getBoolean("isReadOnly", false) ?: false
 
         val playmixManager = PlaymixManager(requireContext())
         viewModel = ViewModelProvider(this, PlaymixDetailViewModelFactory(playmixManager))
@@ -94,7 +96,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                             .show()
                     }
                 ).show(childFragmentManager, "PlaymixSongOptions")
-            }
+            },
+            isReadOnly = isReadOnly
         )
         binding.songTransitionList.layoutManager = LinearLayoutManager(requireContext())
         binding.songTransitionList.adapter = adapter
@@ -115,6 +118,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         binding.settingsBackground.setOnClickListener {
             showSettingsMenu()
         }
+        binding.settingsBackground.visibility = if (isReadOnly) View.GONE else View.VISIBLE
 
         binding.playButton.setOnClickListener {
             playPlaymix()

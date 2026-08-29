@@ -181,6 +181,86 @@
                     app:rippleColor="@android:color/transparent"
                     app:useMaterialThemeColors="false" />
 
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipPlaylists"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:checkable="true"
+                    android:checked="true"
+                    android:text="Playlists"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    app:chipStartPadding="2dp"
+                    app:chipEndPadding="2dp"
+                    app:checkedIconVisible="false"
+                    app:chipBackgroundColor="@color/chip_filter_background"
+                    app:chipCornerRadius="35dp"
+                    app:chipStrokeColor="@color/transparent"
+                    app:fontFamily="@font/unageo_medium"
+                    app:rippleColor="@android:color/transparent"
+                    app:useMaterialThemeColors="false" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipEssentials"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:checkable="true"
+                    android:checked="true"
+                    android:text="Essentials"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    app:chipStartPadding="2dp"
+                    app:chipEndPadding="2dp"
+                    app:checkedIconVisible="false"
+                    app:chipBackgroundColor="@color/chip_filter_background"
+                    app:chipCornerRadius="35dp"
+                    app:chipStrokeColor="@color/transparent"
+                    app:fontFamily="@font/unageo_medium"
+                    app:rippleColor="@android:color/transparent"
+                    app:useMaterialThemeColors="false" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipPlaymixes"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:checkable="true"
+                    android:checked="true"
+                    android:text="PlayMix"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    app:chipStartPadding="2dp"
+                    app:chipEndPadding="2dp"
+                    app:checkedIconVisible="false"
+                    app:chipBackgroundColor="@color/chip_filter_background"
+                    app:chipCornerRadius="35dp"
+                    app:chipStrokeColor="@color/transparent"
+                    app:fontFamily="@font/unageo_medium"
+                    app:rippleColor="@android:color/transparent"
+                    app:useMaterialThemeColors="false" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipGenres"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:checkable="true"
+                    android:checked="true"
+                    android:text="Géneros"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    app:chipStartPadding="2dp"
+                    app:chipEndPadding="2dp"
+                    app:checkedIconVisible="false"
+                    app:chipBackgroundColor="@color/chip_filter_background"
+                    app:chipCornerRadius="35dp"
+                    app:chipStrokeColor="@color/transparent"
+                    app:fontFamily="@font/unageo_medium"
+                    app:rippleColor="@android:color/transparent"
+                    app:useMaterialThemeColors="false" />
+
             </LinearLayout>
 
         </HorizontalScrollView>
@@ -273,7 +353,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:paddingHorizontal="20dp"
-                android:text="No se han encontrado canciones"
+                android:text="No se han encontrado resultados"
                 android:textColor="@color/numberTime"
                 android:visibility="invisible" />
 

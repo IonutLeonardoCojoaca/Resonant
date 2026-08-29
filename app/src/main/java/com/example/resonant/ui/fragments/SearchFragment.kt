@@ -31,13 +31,12 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.DataType
+import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.models.SuggestionItem
 import com.example.resonant.data.network.ApiClient
-import com.example.resonant.data.network.services.AlbumService
-import com.example.resonant.data.network.services.ArtistService
+import com.example.resonant.data.network.services.UniversalSearchService
 import com.example.resonant.managers.SearchHistoryManager
-import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SearchHistoryAdapter
@@ -51,21 +50,15 @@ import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.AnimationsUtils
-import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import com.google.android.material.chip.Chip
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.collections.get
 
 class SearchFragment : Fragment() {
 
@@ -92,6 +85,10 @@ class SearchFragment : Fragment() {
     private lateinit var chipSongs: Chip
     private lateinit var chipAlbums: Chip
     private lateinit var chipArtists: Chip
+    private lateinit var chipPlaylists: Chip
+    private lateinit var chipEssentials: Chip
+    private lateinit var chipPlaymixes: Chip
+    private lateinit var chipGenres: Chip
 
     private val songResults = mutableListOf<Song>()
     private val albumResults = mutableListOf<Album>()
@@ -100,12 +97,14 @@ class SearchFragment : Fragment() {
     private var showSongs = true
     private var showAlbums = true
     private var showArtists = true
+    private var showPlaylists = true
+    private var showEssentials = true
+    private var showPlaymixes = true
+    private var showGenres = true
 
     private var lastResults: List<SearchResult> = emptyList()
 
-    private lateinit var albumService: AlbumService
-    private lateinit var artistService: ArtistService
-    private lateinit var songManager: SongManager
+    private lateinit var universalSearchService: UniversalSearchService
 
     private lateinit var downloadViewModel: DownloadViewModel
 
@@ -122,6 +121,7 @@ class SearchFragment : Fragment() {
         }
     }
 
+    @OptIn(FlowPreview::class)
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -129,9 +129,7 @@ class SearchFragment : Fragment() {
         val view = inflater.inflate(R.layout.fragment_search, container, false)
 
         val context = requireContext()
-        albumService = ApiClient.getAlbumService(context)
-        artistService = ApiClient.getArtistService(context)
-        songManager = SongManager(context)
+        universalSearchService = ApiClient.getUniversalSearchService(context)
 
         searchHistoryManager = SearchHistoryManager(requireContext())
 
@@ -141,6 +139,14 @@ class SearchFragment : Fragment() {
         chipAlbums.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
         chipArtists = view.findViewById(R.id.chipArtists)
         chipArtists.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
+        chipPlaylists = view.findViewById(R.id.chipPlaylists)
+        chipPlaylists.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
+        chipEssentials = view.findViewById(R.id.chipEssentials)
+        chipEssentials.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
+        chipPlaymixes = view.findViewById(R.id.chipPlaymixes)
+        chipPlaymixes.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
+        chipGenres = view.findViewById(R.id.chipGenres)
+        chipGenres.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
 
         noSongsFounded = view.findViewById(R.id.noSongFoundedText)
         sectionLabel = view.findViewById(R.id.searchSectionLabel)
@@ -194,10 +200,18 @@ class SearchFragment : Fragment() {
         showSongs = savedInstanceState?.getBoolean("showSongs") ?: true
         showAlbums = savedInstanceState?.getBoolean("showAlbums") ?: true
         showArtists = savedInstanceState?.getBoolean("showArtists") ?: true
+        showPlaylists = savedInstanceState?.getBoolean("showPlaylists") ?: true
+        showEssentials = savedInstanceState?.getBoolean("showEssentials") ?: true
+        showPlaymixes = savedInstanceState?.getBoolean("showPlaymixes") ?: true
+        showGenres = savedInstanceState?.getBoolean("showGenres") ?: true
 
         chipSongs.isChecked = showSongs
         chipAlbums.isChecked = showAlbums
         chipArtists.isChecked = showArtists
+        chipPlaylists.isChecked = showPlaylists
+        chipEssentials.isChecked = showEssentials
+        chipPlaymixes.isChecked = showPlaymixes
+        chipGenres.isChecked = showGenres
 
         // --- RESTAURAR ESTADO ---
         val restoredQuery = savedInstanceState?.getString("query")
@@ -242,6 +256,22 @@ class SearchFragment : Fragment() {
             updateFilteredResults()
             AnimationsUtils.animateChip(chip as Chip, isChecked)
             AnimationsUtils.animateChipColor(chip, isChecked)
+        }
+        chipPlaylists.setOnCheckedChangeListener { chip, isChecked ->
+            showPlaylists = isChecked; updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked); AnimationsUtils.animateChipColor(chip, isChecked)
+        }
+        chipEssentials.setOnCheckedChangeListener { chip, isChecked ->
+            showEssentials = isChecked; updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked); AnimationsUtils.animateChipColor(chip, isChecked)
+        }
+        chipPlaymixes.setOnCheckedChangeListener { chip, isChecked ->
+            showPlaymixes = isChecked; updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked); AnimationsUtils.animateChipColor(chip, isChecked)
+        }
+        chipGenres.setOnCheckedChangeListener { chip, isChecked ->
+            showGenres = isChecked; updateFilteredResults()
+            AnimationsUtils.animateChip(chip as Chip, isChecked); AnimationsUtils.animateChipColor(chip, isChecked)
         }
 
         var currentHomeQueueId: String = System.currentTimeMillis().toString()
@@ -296,6 +326,57 @@ class SearchFragment : Fragment() {
             }
             val extras = FragmentNavigatorExtras(imageView to imageView.transitionName)
             requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle, null, extras)
+        }
+
+        searchResultAdapter.onResourceClick = { resource ->
+            searchHistoryManager.addSearch(resource.title, resource.imageUrl, resource.type)
+            val navController = requireActivity().findNavController(R.id.nav_host_fragment)
+            when (resource.type) {
+                "playlist" -> {
+                    val playlist = Playlist(
+                        id = resource.id,
+                        userId = resource.ownerId,
+                        name = resource.title,
+                        description = resource.description,
+                        numberOfTracks = resource.trackCount ?: 0,
+                        duration = resource.duration ?: 0,
+                        isPublic = resource.isPublic,
+                        imageUrl = resource.imageUrl,
+                        isSystemPlaylist = resource.isSystemPlaylist,
+                        canEdit = resource.isOwnedByCurrentUser && !resource.isSystemPlaylist
+                    ).apply { ownerName = resource.ownerName }
+                    val bundle = Bundle().apply {
+                        putParcelable("playlist", playlist)
+                        putString("playlistId", resource.id)
+                        putBoolean("isReadOnly", !resource.isOwnedByCurrentUser || resource.isSystemPlaylist)
+                    }
+                    navController.navigate(R.id.action_global_to_playlistFragment, bundle)
+                }
+                "essentials" -> {
+                    val bundle = Bundle().apply {
+                        putString("artistId", resource.id)
+                        putString("playlistType", "Essentials")
+                        putString("artistName", resource.title.removePrefix("Esto es "))
+                        putString("artworkUrl", resource.imageUrl)
+                    }
+                    navController.navigate(R.id.artistSmartPlaylistFragment, bundle)
+                }
+                "playmix" -> {
+                    val bundle = Bundle().apply {
+                        putString("playmixId", resource.id)
+                        putBoolean("isReadOnly", !resource.isOwnedByCurrentUser)
+                    }
+                    navController.navigate(R.id.action_global_to_playmixDetailFragment, bundle)
+                }
+                "genre" -> {
+                    val bundle = Bundle().apply {
+                        putString("genreId", resource.id)
+                        putString("genreName", resource.title)
+                        putString("genreGradientColors", resource.gradientColors)
+                    }
+                    navController.navigate(R.id.genreArtistsFragment, bundle)
+                }
+            }
         }
 
         downloadViewModel = ViewModelProvider(requireActivity())[DownloadViewModel::class.java]
@@ -484,10 +565,10 @@ class SearchFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             queryFlow
                 .debounce(300)
-                .filter { it.isNotEmpty() }
                 .collectLatest { query ->
+                    if (query.isEmpty()) return@collectLatest
                     withContext(Dispatchers.Main) {
-                        if (editTextQuery?.text?.toString() != query) return@withContext
+                        if (editTextQuery?.text?.toString()?.trim() != query) return@withContext
                         noSongsFounded.visibility = View.GONE
                         resultsRecyclerView.visibility = View.INVISIBLE
                         suggestionsRecyclerView.visibility = View.GONE
@@ -496,48 +577,27 @@ class SearchFragment : Fragment() {
                     }
 
                     try {
-                        val results = withContext(Dispatchers.IO) {
-                            val songsDeferred = async { songManager.searchSongs(query, limit = 30) }
-                            val albumsDeferred = async { albumService.searchAlbumsByQuery(query) }
-                            val artistsDeferred = async { artistService.searchArtistsByQuery(query) }
-
-                            val songsResponse = songsDeferred.await()
-                            val albumsResponse = albumsDeferred.await()
-                            val artistsResponse = artistsDeferred.await()
-
-                            Triple(songsResponse, albumsResponse, artistsResponse)
+                        val response = withContext(Dispatchers.IO) {
+                            universalSearchService.search(query)
                         }
 
-                        val songsResponse = results.first
-                        val albumsResponse = results.second
-                        val artistsResponse = results.third
-
-                        val processedData = withContext(Dispatchers.Default) {
-                            val combinedSuggestions = intercalateAndSortSuggestions(
-                                songsResponse.suggestions,
-                                albumsResponse.suggestions,
-                                artistsResponse.suggestions,
-                                query
-                            )
-
-                            val albums = albumsResponse.results
-                            albums.forEach { album ->
-                                album.artistName = album.artists.joinToString(", ") { it.name }
+                        val combinedResults = response.results.mapNotNull { hit ->
+                            when (hit.type) {
+                                "song" -> hit.song?.also { song ->
+                                    song.artistName = song.artists.joinToString(", ") { it.name }
+                                }?.let { SearchResult.SongItem(it) }
+                                "album" -> hit.album?.also { album ->
+                                    album.artistName = album.artists.joinToString(", ") { it.name }
+                                }?.let { SearchResult.AlbumItem(it) }
+                                "artist" -> hit.artist?.let { SearchResult.ArtistItem(it) }
+                                "playlist", "essentials", "playmix", "genre" -> SearchResult.ResourceItem(hit)
+                                else -> null
                             }
-
-                            val combinedResults = intercalateAndSortResults(
-                                songsResponse.results,
-                                albums,
-                                artistsResponse.results,
-                                query
-                            )
-                            
-                            Triple(combinedSuggestions, combinedResults, Triple(songsResponse.results, albums, artistsResponse.results))
                         }
-
-                        val combinedSuggestions = processedData.first
-                        val combinedResults = processedData.second
-                        val (songs, albums, artists) = processedData.third
+                        val combinedSuggestions = response.suggestions.map { SuggestionItem(it, DataType.SEARCH) }
+                        val songs = combinedResults.filterIsInstance<SearchResult.SongItem>().map { it.song }
+                        val albums = combinedResults.filterIsInstance<SearchResult.AlbumItem>().map { it.album }
+                        val artists = combinedResults.filterIsInstance<SearchResult.ArtistItem>().map { it.artist }
 
                         withContext(Dispatchers.Main) {
                             songResults.clear(); songResults.addAll(songs)
@@ -609,60 +669,19 @@ class SearchFragment : Fragment() {
         }
     }
 
-    // ... (Tus funciones de ordenamiento e intercalado se mantienen igual) ...
-    private fun intercalateAndSortResults(songs: List<Song>, albums: List<Album>, artists: List<Artist>, query: String): List<SearchResult> {
-        val lowerQuery = query.lowercase()
-        val sortedSongs = songs.sortedByDescending { song ->
-            val t = song.title.lowercase(); val a = song.artistName?.lowercase()
-            when { t == lowerQuery -> 40; a == lowerQuery -> 35; t.contains(lowerQuery) -> 30; a?.contains(lowerQuery) == true -> 20; else -> 0 }
-        }.map { SearchResult.SongItem(it) }
-        val sortedAlbums = albums.sortedByDescending { album ->
-            val t = album.title?.lowercase()
-            when { t == lowerQuery -> 70; t?.startsWith(lowerQuery) == true -> 60; t?.contains(lowerQuery) == true -> 50; else -> 0 }
-        }.map { SearchResult.AlbumItem(it) }
-        val sortedArtists = artists.sortedByDescending { artist ->
-            val n = artist.name.lowercase()
-            when { n == lowerQuery -> 100; n.startsWith(lowerQuery) -> 90; n.contains(lowerQuery) -> 80; else -> 0 }
-        }.map { SearchResult.ArtistItem(it) }
-
-        val lists = mutableListOf(sortedArtists, sortedSongs, sortedAlbums)
-        val combined = mutableListOf<SearchResult>()
-        while (lists.any { it.isNotEmpty() }) {
-            lists.forEachIndexed { index, list ->
-                if (list.isNotEmpty()) { combined.add(list.first()); lists[index] = list.drop(1) }
-            }
-        }
-        return combined
-    }
-
-    private fun intercalateAndSortSuggestions(songSuggestions: List<String>, albumSuggestions: List<String>, artistSuggestions: List<String>, query: String): List<SuggestionItem> {
-        val lowerQuery = query.lowercase()
-        fun scoreSuggestion(text: String, baseWeight: Int): Int {
-            val t = text.lowercase()
-            return when { t == lowerQuery -> baseWeight + 100; t.startsWith(lowerQuery) -> baseWeight + 80; t.contains(lowerQuery) -> baseWeight + 60; else -> baseWeight }
-        }
-        val scoredSongs = songSuggestions.map { SuggestionItem(it, DataType.SONG) to scoreSuggestion(it, 40) }
-        val scoredAlbums = albumSuggestions.map { SuggestionItem(it, DataType.ALBUM) to scoreSuggestion(it, 60) }
-        val scoredArtists = artistSuggestions.map { SuggestionItem(it, DataType.ARTIST) to scoreSuggestion(it, 80) }
-        val sortedSongs = scoredSongs.sortedByDescending { it.second }.map { it.first }
-        val sortedAlbums = scoredAlbums.sortedByDescending { it.second }.map { it.first }
-        val sortedArtists = scoredArtists.sortedByDescending { it.second }.map { it.first }
-        val lists = mutableListOf(sortedArtists, sortedSongs, sortedAlbums)
-        val combined = mutableListOf<SuggestionItem>()
-        while (lists.any { it.isNotEmpty() }) {
-            lists.forEachIndexed { index, list ->
-                if (list.isNotEmpty()) { combined.add(list.first()); lists[index] = list.drop(1) }
-            }
-        }
-        return combined.distinctBy { it.text }
-    }
-
     private fun applyActiveFilters(results: List<SearchResult>): List<SearchResult> {
         return results.filter { item ->
             when (item) {
                 is SearchResult.SongItem -> showSongs
                 is SearchResult.AlbumItem -> showAlbums
                 is SearchResult.ArtistItem -> showArtists
+                is SearchResult.ResourceItem -> when (item.resource.type) {
+                    "playlist" -> showPlaylists
+                    "essentials" -> showEssentials
+                    "playmix" -> showPlaymixes
+                    "genre" -> showGenres
+                    else -> false
+                }
             }
         }
     }
@@ -705,5 +724,9 @@ class SearchFragment : Fragment() {
         outState.putBoolean("showSongs", showSongs)
         outState.putBoolean("showAlbums", showAlbums)
         outState.putBoolean("showArtists", showArtists)
+        outState.putBoolean("showPlaylists", showPlaylists)
+        outState.putBoolean("showEssentials", showEssentials)
+        outState.putBoolean("showPlaymixes", showPlaymixes)
+        outState.putBoolean("showGenres", showGenres)
     }
 }
