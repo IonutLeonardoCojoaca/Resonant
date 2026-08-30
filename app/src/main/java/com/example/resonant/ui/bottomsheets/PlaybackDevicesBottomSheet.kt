@@ -60,8 +60,18 @@ class PlaybackDevicesBottomSheet : ResonantBottomSheetDialogFragment() {
                 kotlinx.coroutines.delay(500)
 
                 // Capture current playback state from the service for the
-                // transfer payload (the backend should use this directly).
-                val currentPlayback = buildTransferPlaybackState()
+                // transfer payload (the backend uses this directly) — but
+                // only when this device is actually the source. Sending it
+                // when PULLING playback here (device.deviceId == localDeviceId)
+                // used to overwrite the real source's state (e.g. Web) with
+                // this device's own stale last-known queue, so the target
+                // ended up "resuming" whatever this phone had played before
+                // instead of what was actually playing remotely.
+                val currentPlayback = if (device.deviceId == repository.localDeviceId) {
+                    null
+                } else {
+                    buildTransferPlaybackState()
+                }
 
                 val result = repository.transferTo(device.deviceId, currentPlayback)
                 loading.visibility = View.GONE
