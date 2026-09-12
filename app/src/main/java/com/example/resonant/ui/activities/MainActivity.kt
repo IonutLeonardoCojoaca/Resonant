@@ -1090,11 +1090,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             playbackDeviceBar.visibility = View.GONE
             return
         }
-        playbackDeviceText.text = when {
-            remoteIsActive -> "Reproduciendo en ${active?.name}"
-            state.hasAlternativeDevice -> "Elegir otro dispositivo"
-            else -> "Este dispositivo"
-        }
+        playbackDeviceText.text = "Dispositivos"
         playbackDeviceBar.visibility = View.VISIBLE
     }
 
@@ -1154,7 +1150,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                         if (streaming) {
                             ariaFloatingLabel.text = "Pensando…"
                         } else {
-                            updateAriaFloatingLabel(currentDestinationId)
+                            updateAriaFloatingLabel()
                         }
                     }
                 }
@@ -1263,7 +1259,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     private fun updateAriaFloatingLauncher(destinationId: Int?) {
-        updateAriaFloatingLabel(destinationId)
+        updateAriaFloatingLabel()
         val shouldShow = ariaFloatingAssistantEnabled &&
             destinationId != R.id.ariaFragment &&
             destinationId != R.id.ariaInfoFragment &&
@@ -1290,19 +1286,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
-    private fun updateAriaFloatingLabel(destinationId: Int?) {
+    private fun updateAriaFloatingLabel() {
         if (::ariaViewModel.isInitialized && ariaViewModel.isStreaming.value) return
-        ariaFloatingLabel.text = when (destinationId) {
-            R.id.songFragment -> "¿Qué quieres hacer?"
-            R.id.playlistFragment,
-            R.id.artistFragment,
-            R.id.detailedArtistFragment,
-            R.id.albumFragment,
-            R.id.detailedAlbumFragment,
-            R.id.detailedSongFragment -> "Pregunta por esto"
-            R.id.settingsFragment -> "Estoy aquí"
-            else -> "¿Alguna pregunta?"
-        }
+        ariaFloatingLabel.text = "Pregúntame"
     }
 
     fun openDrawer() {

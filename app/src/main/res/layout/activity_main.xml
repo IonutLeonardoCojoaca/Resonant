@@ -271,39 +271,48 @@
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/playbackDeviceBar"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginHorizontal="12dp"
+            android:layout_width="160dp"
+            android:layout_height="42dp"
+            android:layout_marginEnd="8dp"
             android:layout_marginBottom="4dp"
+            android:clickable="true"
+            android:contentDescription="Abrir Resonant Connect"
+            android:focusable="true"
+            android:translationZ="28dp"
             android:visibility="gone"
             app:cardBackgroundColor="@color/pointersTheme"
-            app:cardCornerRadius="10dp"
-            app:cardElevation="4dp"
-            app:layout_constraintBottom_toTopOf="@id/ariaFloatingLauncher"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:cardCornerRadius="21dp"
+            app:cardElevation="8dp"
+            app:layout_constraintBottom_toTopOf="@id/mini_player"
+            app:layout_constraintEnd_toStartOf="@id/ariaFloatingLauncher"
+            app:layout_goneMarginEnd="0dp"
+            app:layout_constraintHorizontal_chainStyle="packed"
             app:layout_constraintStart_toStartOf="parent"
-            app:strokeColor="@android:color/transparent"
-            app:strokeWidth="0dp">
+            app:strokeColor="@color/dividerOverlay"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingHorizontal="12dp">
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp">
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:background="@drawable/bg_circle_aria_gradient"
                     android:contentDescription="@null"
+                    android:padding="6dp"
                     android:src="@drawable/ic_devices"
-                    app:tint="@color/secondaryColorTheme" />
+                    app:tint="@color/white" />
 
                 <TextView
                     android:id="@+id/playbackDeviceText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="9dp"
+                    android:layout_marginStart="7dp"
                     android:layout_weight="1"
                     android:ellipsize="end"
                     android:fontFamily="@font/unageo_bold"
@@ -312,12 +321,15 @@
                     android:textSize="12sp" />
 
                 <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/bg_aria_mic_button"
                     android:contentDescription="@null"
+                    android:padding="8dp"
                     android:rotation="180"
                     android:src="@drawable/ic_arrow_back"
-                    app:tint="@color/textTheme" />
+                    app:tint="@color/secondaryColorTheme" />
 
             </LinearLayout>
 
@@ -342,7 +354,7 @@
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/ariaFloatingLauncher"
-            android:layout_width="wrap_content"
+            android:layout_width="160dp"
             android:layout_height="42dp"
             android:layout_marginBottom="4dp"
             android:clickable="true"
@@ -355,14 +367,14 @@
             app:cardElevation="8dp"
             app:layout_constraintBottom_toTopOf="@id/mini_player"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toEndOf="@id/playbackDeviceBar"
             app:strokeColor="@color/dividerOverlay"
             app:strokeWidth="1dp">
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:gravity="center_vertical"
+                android:gravity="center"
                 android:orientation="horizontal"
                 android:paddingStart="6dp"
                 android:paddingEnd="4dp">
@@ -383,7 +395,7 @@
                     android:fontFamily="@font/unageo_bold"
                     android:maxWidth="120dp"
                     android:singleLine="true"
-                    android:text="Estoy aquí"
+                    android:text="Pregúntame"
                     android:textColor="@color/white"
                     android:textSize="12sp" />
 
