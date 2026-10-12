@@ -210,4 +210,47 @@
         <item name="android:layout_marginBottom">4dp</item>
     </style>
 
+
+    <!-- Unisound room -->
+    <style name="UnisoundHeaderAction">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">42dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginHorizontal">3dp</item>
+        <item name="android:background">@drawable/bg_unisound_pill</item>
+        <item name="android:padding">11dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="tint">@color/white</item>
+    </style>
+
+    <style name="UnisoundTab">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:drawableTint">@color/textTheme</item>
+        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <style name="UnisoundTime">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="UnisoundRowAction">
+        <item name="android:layout_width">34dp</item>
+        <item name="android:layout_height">34dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="tint">@color/textTheme</item>
+    </style>
 </resources>

@@ -12,7 +12,11 @@ data class QueueItemSnapshot(
     val entryId: String,
     val song: Song,
     val queueIndex: Int,
-    val isCurrent: Boolean
+    val isCurrent: Boolean,
+    /** Añadida por Flow (autoplay) y no por el usuario. */
+    val isFlow: Boolean = false,
+    /** Motivo de Flow ("Parecido a X"), si el servidor lo envió. */
+    val flowReason: String? = null
 )
 
 data class QueueSnapshot(
@@ -148,7 +152,9 @@ object PlaybackStateRepository {
                     entryId = queue.entryIds[index],
                     song = song,
                     queueIndex = index,
-                    isCurrent = index == queue.currentIndex
+                    isCurrent = index == queue.currentIndex,
+                    isFlow = queue.isFlowEntry(index),
+                    flowReason = queue.flowReasons[song.id]
                 )
             },
             shuffleEnabled = shuffleOverride ?: (_isShuffleEnabled.value ?: false)

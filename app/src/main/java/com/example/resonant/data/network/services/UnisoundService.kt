@@ -2,6 +2,8 @@ package com.example.resonant.data.network.services
 
 import com.example.resonant.data.network.UnisoundCodeDTO
 import com.example.resonant.data.network.UnisoundJoinRequestDTO
+import com.example.resonant.data.network.UnisoundSavePlaylistRequestDTO
+import com.example.resonant.data.network.UnisoundSavedPlaylistDTO
 import com.example.resonant.data.network.UnisoundSessionSnapshotDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
 import com.example.resonant.data.network.UnisoundSettingsUpdateDTO
@@ -53,4 +55,15 @@ interface UnisoundService {
         @Path("id") sessionId: String,
         @Body request: UnisoundTransferHostRequestDTO
     ): Response<UnisoundSessionSnapshotDTO>
+
+    /** Also for past rooms the user was in (not kicked); never `UNISOUND_SESSION_ENDED`. */
+    @GET("api/unisound/sessions/{id}/summary")
+    suspend fun getSummary(@Path("id") sessionId: String): Response<UnisoundSessionSummaryDTO>
+
+    /** 201 the first time, 200 when it updates the same playlist. */
+    @POST("api/unisound/sessions/{id}/playlist")
+    suspend fun savePlaylist(
+        @Path("id") sessionId: String,
+        @Body request: UnisoundSavePlaylistRequestDTO
+    ): Response<UnisoundSavedPlaylistDTO>
 }

@@ -1,43 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingVertical="6dp">
+    android:paddingVertical="8dp">
 
-    <TextView
-        android:id="@+id/unisoundMemberName"
+    <FrameLayout
+        android:layout_width="40dp"
+        android:layout_height="40dp">
+
+        <TextView
+            android:id="@+id/unisoundMemberInitial"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_unisound_avatar"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            tools:text="I" />
+
+        <View
+            android:id="@+id/unisoundMemberPresence"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/bg_unisound_presence" />
+    </FrameLayout>
+
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
         android:layout_weight="1"
-        android:ellipsize="end"
-        android:fontFamily="@font/unageo_medium"
-        android:maxLines="1"
-        android:textColor="@color/white"
-        android:textSize="15sp"
-        tools:text="Ana" />
+        android:orientation="vertical">
 
-    <TextView
+        <TextView
+            android:id="@+id/unisoundMemberName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            tools:text="Ionut Leonardo Cojoaca (tú)" />
+
+        <TextView
+            android:id="@+id/unisoundMemberMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_regular"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
+            tools:text="Anfitrión · Conectado" />
+    </LinearLayout>
+
+    <ImageButton
         android:id="@+id/unisoundMemberMakeHost"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:fontFamily="@font/unageo_medium"
-        android:padding="8dp"
-        android:text="Pasar control"
-        android:textColor="@color/textTheme"
-        android:textSize="13sp" />
+        style="@style/UnisoundRowAction"
+        android:contentDescription="Hacer anfitrión"
+        android:src="@drawable/ic_unisound_crown" />
 
-    <TextView
+    <ImageButton
         android:id="@+id/unisoundMemberKick"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:fontFamily="@font/unageo_medium"
-        android:padding="8dp"
-        android:text="Expulsar"
-        android:textColor="@color/secondaryColorTheme"
-        android:textSize="13sp" />
+        style="@style/UnisoundRowAction"
+        android:contentDescription="Expulsar"
+        android:src="@drawable/ic_unisound_user_x" />
 </LinearLayout>

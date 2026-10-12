@@ -10,6 +10,9 @@ import androidx.media3.session.SessionResult
 import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.QueueCommands
 import com.example.resonant.ui.viewmodels.AriaAction
+import com.example.resonant.unisound.UnisoundControl
+import com.example.resonant.unisound.UnisoundControlOrigin
+import com.example.resonant.unisound.UnisoundManager
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -35,10 +38,16 @@ class AriaClientActionExecutor(
         onFeedback = onFeedback
     )
     
+    private val unisoundHandler = AriaUnisoundActionHandler(
+        gateway = UnisoundAriaGateway(appContext),
+        idempotency = idempotency,
+        telemetry = FirebaseAriaActionTelemetry(appContext)
+    )
+
     fun execute(action: AriaAction) {
         when (action.type) {
             "controlar_reproduccion" -> {
-                if (action.isPendingClientAction()) {
+                if (action.isPendingClientAction() && !unisoundHandler.handle(action)) {
                     scope.launch { playbackHandler.execute(action) }
                 }
             }
@@ -49,6 +58,15 @@ class AriaClientActionExecutor(
             }
         }
     }
+}
+
+private class UnisoundAriaGateway(context: Context) : AriaUnisoundGateway {
+    private val manager = UnisoundManager.get(context)
+
+    override fun currentSessionId(): String? = manager.currentSessionIdOrNull()
+
+    override fun control(control: UnisoundControl) =
+        manager.control(control, positionMs = null, origin = UnisoundControlOrigin.ARIA)
 }
 
 /** Bridges Aria to Media3 using only the authoritative song_id supplied by the backend. */

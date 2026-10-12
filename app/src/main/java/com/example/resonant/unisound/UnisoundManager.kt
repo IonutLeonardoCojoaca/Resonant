@@ -9,6 +9,9 @@ import com.example.resonant.data.network.UnisoundCodeDTO
 import com.example.resonant.data.network.UnisoundJoinRequestDTO
 import com.example.resonant.data.network.UnisoundPlaybackStateDTO
 import com.example.resonant.data.network.UnisoundQueueItemDTO
+import com.example.resonant.data.network.UnisoundReactionDTO
+import com.example.resonant.data.network.UnisoundSavePlaylistRequestDTO
+import com.example.resonant.data.network.UnisoundSavedPlaylistDTO
 import com.example.resonant.data.network.UnisoundSessionSnapshotDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
 import com.example.resonant.data.network.UnisoundSettingsUpdateDTO
@@ -20,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +49,9 @@ sealed class UnisoundManagerEvent {
         val summary: UnisoundSessionSummaryDTO? = null
     ) : UnisoundManagerEvent()
 }
+
+/** Result of "Guardar como playlist": [created] is false when the same playlist was updated. */
+data class UnisoundSavedPlaylist(val playlist: UnisoundSavedPlaylistDTO, val created: Boolean)
 
 sealed class UnisoundResult<out T> {
     data class Success<T>(val value: T) : UnisoundResult<T>()
@@ -80,6 +87,16 @@ class UnisoundManager internal constructor(
     @Volatile
     var lastRoomSongs: Map<String, Song> = emptyMap()
         private set
+
+    private val _reactions = MutableSharedFlow<UnisoundReactionDTO>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    /** No replay: a reaction that arrives with the room screen closed is simply lost. */
+    val reactions: SharedFlow<UnisoundReactionDTO> = _reactions.asSharedFlow()
+
+    private val _hiddenEmojis = MutableStateFlow<Set<String>>(emptySet())
+    val hiddenEmojis: StateFlow<Set<String>> = _hiddenEmojis.asStateFlow()
 
     private var connectJob: Job? = null
     private var clockJob: Job? = null
@@ -202,6 +219,51 @@ class UnisoundManager internal constructor(
         hubCall(UnisoundErrorContext.ADD) { sessionId, key ->
             gateway.addItems(sessionId, UnisoundSourceDTO(type = SOURCE_SONG, id = songId), key)
         }
+
+    /** Whole album or playlist, in order; only available songs are added (one revision). */
+    suspend fun addSource(type: String, id: String): UnisoundResult<List<UnisoundQueueItemDTO>> =
+        hubCall(UnisoundErrorContext.ADD_BATCH) { sessionId, key ->
+            gateway.addItems(sessionId, UnisoundSourceDTO(type = type, id = id), key)
+        }
+
+    /** The queue is redrawn from the server's `QueueChanged` (or the snapshot if stale). */
+    suspend fun moveItem(itemId: String, toIndex: Int): UnisoundResult<List<UnisoundQueueItemDTO>> =
+        hubCall(UnisoundErrorContext.COMMAND) { sessionId, key ->
+            gateway.moveItem(sessionId, itemId, toIndex, _state.value?.revision ?: 0L, key)
+        }
+
+    /**
+     * Ephemeral reaction: no idempotency and no retry. Going over the server limit is silent;
+     * an emoji the server does not accept is hidden for the rest of the room.
+     */
+    suspend fun react(emoji: String) {
+        val sessionId = currentSessionIdOrNull() ?: return
+        if (_state.value?.connection != UnisoundConnection.CONNECTED) return
+        try {
+            gateway.react(sessionId, emoji)
+        } catch (error: Throwable) {
+            when (val code = UnisoundErrors.codeOf(error)) {
+                UnisoundErrors.INVALID_REQUEST -> _hiddenEmojis.value = _hiddenEmojis.value + emoji
+                UnisoundErrors.UNISOUND_RATE_LIMITED, null -> Unit
+                else -> if (UnisoundErrors.endsRoom(code)) close(closeReasonFor(code))
+            }
+        }
+    }
+
+    suspend fun getSummary(sessionId: String): UnisoundSessionSummaryDTO? =
+        request { service.getSummary(sessionId) }?.takeIf { it.isSuccessful }?.body()
+
+    /** Creates (201) or updates (200) the user's playlist for that room, even after it ended. */
+    suspend fun savePlaylist(sessionId: String, name: String?): UnisoundResult<UnisoundSavedPlaylist> {
+        val response = request { service.savePlaylist(sessionId, UnisoundSavePlaylistRequestDTO(name)) }
+            ?: return UnisoundResult.Failure(null, SAVE_FAILED)
+        val body = response.body()
+        if (!response.isSuccessful || body == null) {
+            val code = ApiErrorParser.parse(response)?.code
+            return UnisoundResult.Failure(code, if (code == null) SAVE_FAILED else UnisoundErrors.message(code, UnisoundErrorContext.GENERAL))
+        }
+        return UnisoundResult.Success(UnisoundSavedPlaylist(body, created = response.code() == 201))
+    }
 
     suspend fun removeItem(itemId: String): UnisoundResult<Unit> =
         hubCall(UnisoundErrorContext.COMMAND) { sessionId, key -> gateway.removeItem(sessionId, itemId, key) }
@@ -404,6 +466,7 @@ class UnisoundManager internal constructor(
                 is UnisoundEffect.Ended -> close(UnisoundCloseReason.ENDED, effect.summary)
                 is UnisoundEffect.Kicked -> close(UnisoundCloseReason.KICKED, effect.summary)
                 UnisoundEffect.BecameHost -> _events.tryEmit(UnisoundManagerEvent.BecameHost)
+                is UnisoundEffect.Reacted -> _reactions.tryEmit(effect.reaction)
                 UnisoundEffect.PlaybackUpdated -> Unit
             }
         }
@@ -425,6 +488,7 @@ class UnisoundManager internal constructor(
         clockJob = null
         reconnectAttempt = 0
         clock.reset()
+        _hiddenEmojis.value = emptySet()
         scope.launch {
             if (reason == UnisoundCloseReason.LEFT) runCatching { gateway.leaveRoom(sessionId) }
             gateway.disconnect()
@@ -488,6 +552,7 @@ class UnisoundManager internal constructor(
         private const val TAG = "Unisound"
         private const val SOURCE_SONG = "song"
         private const val CREATE_FAILED = "No se ha podido crear la sala. Inténtalo de nuevo"
+        private const val SAVE_FAILED = "No se ha podido guardar. Inténtalo de nuevo"
         const val CLOCK_SAMPLES = 5
         const val CLOCK_REFRESH_MS = 5 * 60 * 1000L
         const val FOREGROUND_RESYNC_MS = 30_000L
@@ -496,6 +561,9 @@ class UnisoundManager internal constructor(
 
         @Volatile
         private var instance: UnisoundManager? = null
+
+        /** Current room without needing a Context (null if the manager was never created). */
+        fun activeSessionIdOrNull(): String? = instance?.currentSessionIdOrNull()
 
         fun get(context: Context): UnisoundManager =
             instance ?: synchronized(this) {

@@ -130,8 +130,16 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <View
+                android:id="@+id/unisoundDivider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="20dp"
+                android:visibility="gone"
+                android:background="#1AFFFFFF" />
+
             <LinearLayout
-                android:id="@+id/optionListenTogether"
+                android:id="@+id/optionUnisound"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
@@ -146,8 +154,10 @@
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
-                    android:src="@drawable/ic_sound"
-                    android:contentDescription="Escuchar juntos"/>
+                    android:padding="2dp"
+                    android:src="@drawable/ic_unisound"
+                    app:tint="@color/secondaryColorTheme"
+                    android:contentDescription="Unisound"/>
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -159,7 +169,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Escuchar juntos"
+                        android:text="Unisound"
                         android:textColor="@color/white"
                         android:textSize="17sp"
                         android:textStyle="bold"
@@ -167,9 +177,10 @@
                         android:layout_marginBottom="2dp"/>
 
                     <TextView
+                        android:id="@+id/optionUnisoundSubtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Crea una sala y escuchad a la vez"
+                        android:text="Escucha música a la vez con tus amigos"
                         android:textColor="#B0B0B0"
                         android:textSize="13sp"
                         android:fontFamily="@font/unageo_regular"
@@ -177,15 +188,48 @@
                         android:maxLines="1"/>
                 </LinearLayout>
             </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Second step of Unisound: create or join. Shown in place of the main card. -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/unisoundCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:cardCornerRadius="15dp"
+        app:cardElevation="12dp"
+        app:cardBackgroundColor="#1F1F1F">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingVertical="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="2dp"
+                android:drawableStart="@drawable/ic_unisound"
+                android:drawablePadding="8dp"
+                android:drawableTint="@color/secondaryColorTheme"
+                android:fontFamily="@font/unageo_bold"
+                android:gravity="center_vertical"
+                android:text="Unisound"
+                android:textColor="@color/white"
+                android:textSize="15sp" />
+
             <LinearLayout
-                android:id="@+id/optionJoinWithCode"
+                android:id="@+id/optionUnisoundCreate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:clickable="true"
                 android:focusable="true"
-                android:visibility="gone"
                 android:background="?attr/selectableItemBackground"
                 android:paddingHorizontal="20dp"
                 android:paddingVertical="16dp">
@@ -193,7 +237,65 @@
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
-                    android:src="@drawable/ic_share"
+                    android:padding="2dp"
+                    android:src="@drawable/ic_unisound_plus"
+                    app:tint="@color/white"
+                    android:contentDescription="Crear sala"/>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="18dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Crear sala"
+                        android:textColor="@color/white"
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        android:fontFamily="@font/unageo_medium"
+                        android:layout_marginBottom="2dp"/>
+
+                    <TextView
+                        android:id="@+id/optionUnisoundCreateSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Serás el anfitrión e invitas con un código"
+                        android:textColor="#B0B0B0"
+                        android:textSize="13sp"
+                        android:fontFamily="@font/unageo_regular"
+                        android:ellipsize="end"
+                        android:maxLines="1"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="20dp"
+                android:background="#1AFFFFFF" />
+
+            <LinearLayout
+                android:id="@+id/optionUnisoundJoin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"
+                android:paddingHorizontal="20dp"
+                android:paddingVertical="16dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:padding="2dp"
+                    android:src="@drawable/ic_unisound_users"
+                    app:tint="@color/white"
                     android:contentDescription="Unirse con código"/>
 
                 <LinearLayout
@@ -214,6 +316,7 @@
                         android:layout_marginBottom="2dp"/>
 
                     <TextView
+                        android:id="@+id/optionUnisoundJoinSubtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Entra en la sala de otra persona"

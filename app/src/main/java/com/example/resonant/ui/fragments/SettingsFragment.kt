@@ -24,6 +24,7 @@ import com.example.resonant.managers.CrossfadeMode
 import com.example.resonant.managers.ThemeMode
 import com.example.resonant.managers.toNightMode
 import com.example.resonant.R
+import com.example.resonant.managers.FlowPreferencesManager
 import com.example.resonant.managers.SettingsManager
 import com.example.resonant.aria.ForegroundAriaWakeWordController
 import com.example.resonant.databinding.FragmentSettingsBinding
@@ -247,7 +248,7 @@ class SettingsFragment : Fragment() {
 
         binding.autoplayRadioSwitch.setOnCheckedChangeListener { _, isChecked ->
             viewLifecycleOwner.lifecycleScope.launch {
-                settingsManager.setAutoplayRadioEnabled(isChecked)
+                FlowPreferencesManager.setEnabled(requireContext(), isChecked)
             }
         }
     }

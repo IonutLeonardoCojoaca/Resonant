@@ -33,4 +33,21 @@
     <string name="login_error_invalid_credential">La credencial recibida no es compatible. Inténtalo de nuevo.</string>
     <string name="login_banned">Tu cuenta tiene el acceso restringido.</string>
 
+    <!-- Flow (continuar la reproducción al acabar la cola) -->
+    <string name="flow_continue_title">Continuar reproduciendo</string>
+    <string name="flow_continue_subtitle">Al acabar tu cola sigue con canciones que encajan</string>
+    <string name="flow_queue_header">Flow · elegido para ti</string>
+    <string name="flow_level_familiar">Familiar</string>
+    <string name="flow_level_balanced">Equilibrado</string>
+    <string name="flow_level_discover">Descubrir</string>
+    <string name="flow_save_session">Guardar esta sesión como playlist</string>
+    <string name="flow_save_session_done">Sesión guardada como «%1$s»</string>
+    <string name="flow_save_session_failed">No se pudo guardar la sesión</string>
+    <string name="flow_less_artist">Menos de este artista</string>
+    <string name="flow_never_song">No volver a sugerir</string>
+    <string name="flow_song_options">Opciones de canción…</string>
+    <string name="flow_feedback_less_done">Verás menos de este artista</string>
+    <string name="flow_feedback_never_done">No volveremos a sugerirla</string>
+    <string name="flow_feedback_failed">No se pudo guardar tu preferencia</string>
+    <string name="flow_feedback_undo">Deshacer</string>
 </resources>

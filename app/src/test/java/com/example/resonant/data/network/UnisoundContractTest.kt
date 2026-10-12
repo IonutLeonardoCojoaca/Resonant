@@ -85,4 +85,62 @@ class UnisoundContractTest {
 
         assertEquals("""{"joinOpen":false}""", json)
     }
+
+    @Test
+    fun `parses room flow items, settings and the aria summary line`() {
+        val snapshot = gson.fromJson(
+            """
+            { "sessionId": "s", "hostUserId": "h",
+              "settings": { "guestsCanAdd": true, "guestsCanControl": true, "joinOpen": true, "roomFlowEnabled": false },
+              "queue": [ { "itemId": "i", "songId": "x", "addedBy": "room_flow", "addedByUserId": null,
+                           "addedByName": null, "sourceType": null, "sourceId": null },
+                         { "itemId": "j", "songId": "y", "addedBy": "user", "sourceType": "album", "sourceId": "ab12" } ] }
+            """.trimIndent(),
+            UnisoundSessionSnapshotDTO::class.java
+        )
+        val summary = gson.fromJson(
+            """{ "sessionId": "s", "songsPlayed": 3, "ariaLine": "Del indie al rock.", "ariaLineStatus": "ready" }""",
+            UnisoundSessionSummaryDTO::class.java
+        )
+
+        assertEquals(false, snapshot.settings?.roomFlowEnabled)
+        assertEquals("album", snapshot.queue!![1].sourceType)
+        assertNull(snapshot.queue!![0].sourceType)
+        assertEquals("ready", summary.ariaLineStatus)
+        assertEquals("Del indie al rock.", summary.ariaLine)
+    }
+
+    @Test
+    fun `older servers without room flow leave the setting unknown`() {
+        val settings = gson.fromJson("""{ "guestsCanAdd": true }""", UnisoundSettingsDTO::class.java)
+
+        assertNull(settings.roomFlowEnabled)
+    }
+
+    @Test
+    fun `parses reactions and saved playlists`() {
+        val reaction = gson.fromJson(
+            """{ "userId": "f00d", "name": "Ana", "emoji": "🔥", "songId": "9b31", "serverTimeUtcMs": 1791640630300 }""",
+            UnisoundReactionDTO::class.java
+        )
+        val saved = gson.fromJson(
+            """{ "playlistId": "5d6e", "name": "Viernes con Ana", "songCount": 13, "addedCount": 3 }""",
+            UnisoundSavedPlaylistDTO::class.java
+        )
+
+        assertEquals("🔥", reaction.emoji)
+        assertEquals(3, saved.addedCount)
+    }
+
+    @Test
+    fun `aria playback action carries the room`() {
+        val action = gson.fromJson(
+            """{ "type": "controlar_reproduccion", "comando": "pause", "client_side": true, "unisound_session_id": "c1f3" }""",
+            AriaClientActionDTO::class.java
+        )
+        val legacy = gson.fromJson("""{ "type": "controlar_reproduccion", "comando": "pause" }""", AriaClientActionDTO::class.java)
+
+        assertEquals("c1f3", action.unisoundSessionId)
+        assertNull(legacy.unisoundSessionId)
+    }
 }

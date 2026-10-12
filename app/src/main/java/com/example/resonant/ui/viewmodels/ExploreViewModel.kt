@@ -1,6 +1,7 @@
 package com.example.resonant.ui.viewmodels
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -10,13 +11,28 @@ import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Genre
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.data.network.ExploreLoadResult
+import com.example.resonant.data.network.ExploreRepository
+import com.example.resonant.data.network.ExploreSectionResult
+import com.example.resonant.explore.ExploreGreeting
+import com.example.resonant.explore.ExploreLayoutEvent
+import com.example.resonant.explore.ExploreLayoutReducer
+import com.example.resonant.explore.ExploreLayoutState
+import com.example.resonant.explore.ExploreMode
+import com.example.resonant.explore.ExploreModeResolver
+import com.example.resonant.explore.ExploreModeResolver.Action
+import com.example.resonant.managers.AriaPickFeedbackResult
+import com.example.resonant.managers.AriaPicksManager
 import com.example.resonant.managers.AlbumManager
 import com.example.resonant.managers.ArtistManager
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.GenreManager
 import com.example.resonant.managers.PlaylistManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 
 class ExploreViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -58,6 +74,126 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     val recentArtists: LiveData<List<Artist>> get() = _recentArtists
     private val _recentArtistsLoading = MutableLiveData<Boolean>()
     val recentArtistsLoading: LiveData<Boolean> get() = _recentArtistsLoading
+
+    // region Explore v2 (dynamic sections); the legacy loads below stay as the fallback.
+
+    private val exploreRepository = ExploreRepository.get(application)
+    private val ariaPicksManager = AriaPicksManager.get(application)
+    private val layoutReducer = ExploreLayoutReducer()
+
+    private val _mode = MutableLiveData<ExploreMode>(ExploreMode.Loading)
+    val mode: LiveData<ExploreMode> get() = _mode
+
+    /** One-shot message of the Aria picks feedback; the screen clears it with [consumeAriaMessage]. */
+    private val _ariaMessage = MutableLiveData<String?>()
+    val ariaMessage: LiveData<String?> get() = _ariaMessage
+
+    private var layout: ExploreLayoutState? = null
+    private var layoutTz: String = ZoneId.systemDefault().id
+    private var exploreJob: Job? = null
+
+    /**
+     * Called on every opening of the screen: paints the session copy at once and revalidates it
+     * (304 keeps it). Rebuilding from the copy also retries deferred sections that failed last time.
+     */
+    fun loadExplore() {
+        if (exploreJob?.isActive == true) return
+        exploreJob = viewModelScope.launch {
+            if (!CapabilitiesManager.refresh(getApplication()).exploreV2) {
+                showLegacy()
+                return@launch
+            }
+            val tz = ZoneId.systemDefault().id
+            layoutTz = tz
+            val copy = exploreRepository.cached(tz)
+            copy?.let { show(ExploreModeResolver.stateFrom(it, layoutReducer)) }
+
+            val result = exploreRepository.load(tz)
+            when (ExploreModeResolver.afterLoad(result, hasCopy = copy != null)) {
+                Action.SHOW_FRESH -> {
+                    val session = (result as ExploreLoadResult.Ok).session
+                    show(ExploreModeResolver.stateFrom(session, layoutReducer))
+                }
+                Action.KEEP_CURRENT -> Unit
+                Action.LEGACY -> showLegacy()
+                Action.DISABLE_AND_LEGACY -> {
+                    CapabilitiesManager.refresh(getApplication(), force = true)
+                    showLegacy()
+                }
+            }
+            Log.i("ExploreVM", "explore mode: ${_mode.value?.javaClass?.simpleName}")
+        }
+    }
+
+    /** Loads a pending section once; a failed one is not retried until Explore is opened again. */
+    fun requestDeferred(id: String) {
+        val current = layout ?: return
+        if (id !in current.pending || id in current.inFlight || id in current.failedOnce) return
+        reduce(ExploreLayoutEvent.DeferredRequested(id))
+        viewModelScope.launch {
+            val event = when (val result = exploreRepository.loadSection(id, layoutTz)) {
+                is ExploreSectionResult.Loaded -> ExploreLayoutEvent.DeferredLoaded(id, result.section)
+                ExploreSectionResult.Missing -> ExploreLayoutEvent.DeferredMissing(id)
+                ExploreSectionResult.Failed -> ExploreLayoutEvent.DeferredFailed(id)
+            }
+            reduce(event)
+        }
+    }
+
+    /** "No me interesa" hides the pick at once and brings it back if the request fails. */
+    fun sendAriaFeedback(songId: String, liked: Boolean) {
+        if (!liked) dismissAriaPick(songId)
+        viewModelScope.launch {
+            when (ariaPicksManager.sendFeedback(songId, liked)) {
+                AriaPickFeedbackResult.Sent -> {
+                    if (liked) _ariaMessage.value = ARIA_LIKED_MESSAGE
+                }
+                AriaPickFeedbackResult.Gone -> {
+                    if (liked) dismissAriaPick(songId)
+                }
+                AriaPickFeedbackResult.Failed -> {
+                    if (!liked) {
+                        reduce(ExploreLayoutEvent.AriaRestored(songId))
+                        rememberDismissed()
+                    }
+                    _ariaMessage.value = ARIA_FAILED_MESSAGE
+                }
+            }
+        }
+    }
+
+    fun consumeAriaMessage() {
+        _ariaMessage.value = null
+    }
+
+    private fun dismissAriaPick(songId: String) {
+        reduce(ExploreLayoutEvent.AriaDismissed(songId))
+        rememberDismissed()
+    }
+
+    private fun rememberDismissed() {
+        val current = layout ?: return
+        exploreRepository.rememberDismissed(layoutTz, current.etag, current.dismissedAriaSongIds)
+    }
+
+    private fun reduce(event: ExploreLayoutEvent) {
+        show(layoutReducer.reduce(layout, event) ?: return)
+    }
+
+    private fun show(state: ExploreLayoutState) {
+        layout = state
+        val userName = getApplication<Application>()
+            .getSharedPreferences("user_data", Context.MODE_PRIVATE)
+            .getString("NAME", null)
+        _mode.value = ExploreModeResolver.modeFor(state, ExploreGreeting.of(state.daypart, userName))
+    }
+
+    private fun showLegacy() {
+        layout = null
+        if (_mode.value != ExploreMode.Legacy) _mode.value = ExploreMode.Legacy
+    }
+
+    // endregion
 
     fun loadPopularGenres() {
         if (_genres.value != null) return
@@ -193,5 +329,10 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 _newReleaseAlbumsLoading.value = false
             }
         }
+    }
+
+    private companion object {
+        const val ARIA_LIKED_MESSAGE = "Gracias, Aria lo tendrá en cuenta"
+        const val ARIA_FAILED_MESSAGE = "No se ha podido enviar, inténtalo de nuevo"
     }
 }

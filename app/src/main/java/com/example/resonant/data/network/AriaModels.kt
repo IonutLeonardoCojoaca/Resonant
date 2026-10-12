@@ -75,7 +75,10 @@ data class AriaClientActionDTO(
     @SerializedName(value = "client_artist_id")
     val clientArtistId: String? = null,
     @SerializedName(value = "client_artist_name")
-    val clientArtistName: String? = null
+    val clientArtistName: String? = null,
+    /** Present on transport orders given inside a Unisound room: they go to the room. */
+    @SerializedName("unisound_session_id")
+    val unisoundSessionId: String? = null
 )
 
 data class AriaFeedbackStats(

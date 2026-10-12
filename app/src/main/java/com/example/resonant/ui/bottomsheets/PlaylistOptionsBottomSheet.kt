@@ -41,6 +41,7 @@ class PlaylistOptionsBottomSheet(
         val toggleVisibilityBtn = view.findViewById<TextView>(R.id.toggleVisibilityButton)
         val deleteBtn = view.findViewById<TextView>(R.id.deletePlaylistButton)
         val cancelButton = view.findViewById<TextView>(R.id.cancelButton)
+        bindAddToRoom(view.findViewById(R.id.addToRoomButton), SOURCE_PLAYLIST, playlist.id.orEmpty())
 
         // Cover image
         val imageUrl = playlist.imageUrl

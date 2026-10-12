@@ -9,6 +9,7 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -28,6 +29,10 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.GoogleTokenDTO
 import com.example.resonant.managers.UserManager
 import com.example.resonant.ui.viewmodels.UserViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.material.button.MaterialButton
@@ -38,6 +43,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class LoginActivity : AppCompatActivity() {
 
@@ -53,6 +59,33 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var userViewModel: UserViewModel
 
     private var signInInProgress = false
+
+    // Respaldo con GoogleSignInClient: en algunos HyperOS el selector de Credential Manager
+    // (CredentialChooserActivity) se abre pero nunca llega a dibujarse y getCredential no responde.
+    @Suppress("DEPRECATION")
+    private val legacySignInLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            try {
+                val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                    .getResult(ApiException::class.java)
+                val idToken = account.idToken
+                if (idToken.isNullOrBlank()) {
+                    Log.w(TAG, "Legacy Google sign-in returned no ID token")
+                    showError(R.string.login_error_invalid_credential)
+                } else {
+                    firebaseAuthWithGoogle(idToken)
+                }
+            } catch (error: ApiException) {
+                if (error.statusCode == CommonStatusCodes.CANCELED ||
+                    error.statusCode == GOOGLE_SIGN_IN_CANCELLED
+                ) {
+                    setLoading(false)
+                } else {
+                    Log.w(TAG, "Legacy Google sign-in failed (${error.statusCode})", error)
+                    showError(R.string.login_error_credentials)
+                }
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -168,17 +201,38 @@ class LoginActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val result = credentialManager.getCredential(
-                    context = this@LoginActivity,
-                    request = request
-                )
-                handleSignIn(result.credential)
+                val result = withTimeoutOrNull(CREDENTIAL_MANAGER_TIMEOUT_MS) {
+                    credentialManager.getCredential(
+                        context = this@LoginActivity,
+                        request = request
+                    )
+                }
+                if (result == null) {
+                    Log.w(TAG, "Credential Manager did not respond, falling back to GoogleSignInClient")
+                    launchLegacyGoogleSignIn()
+                } else {
+                    handleSignIn(result.credential)
+                }
             } catch (_: GetCredentialCancellationException) {
                 setLoading(false)
             } catch (error: GetCredentialException) {
-                Log.w(TAG, "Google credential flow failed", error)
-                showError(R.string.login_error_credentials)
+                Log.w(TAG, "Google credential flow failed, falling back to GoogleSignInClient", error)
+                launchLegacyGoogleSignIn()
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun launchLegacyGoogleSignIn() {
+        setLoading(true, R.string.login_connecting)
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+        val client = GoogleSignIn.getClient(this, options)
+        // signOut previo para que siempre muestre el selector de cuentas
+        client.signOut().addOnCompleteListener(this) {
+            legacySignInLauncher.launch(client.signInIntent)
         }
     }
 
@@ -305,5 +359,8 @@ class LoginActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "LoginActivity"
+        private const val CREDENTIAL_MANAGER_TIMEOUT_MS = 15_000L
+        // GoogleSignInStatusCodes.SIGN_IN_CANCELLED
+        private const val GOOGLE_SIGN_IN_CANCELLED = 12501
     }
 }

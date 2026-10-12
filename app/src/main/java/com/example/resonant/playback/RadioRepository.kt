@@ -4,7 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.ApiClient
+import com.example.resonant.data.network.RadioPreferencesDTO
 import com.example.resonant.data.network.RadioRequestDTO
+import com.example.resonant.data.network.RadioSongReasonDTO
 import com.example.resonant.data.network.V2EndpointAvailability
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +41,16 @@ data class RadioSession(
  * outgoing request so two concurrent calls (e.g. queue-end + prefetch)
  * cannot both open a fresh station.
  */
+/** Lote de Flow: canciones listas para la cola y su motivo por id de canción (vacío con radio-v3). */
+data class RadioBatch(
+    val songs: List<Song>,
+    val reasonsBySongId: Map<String, String> = emptyMap()
+) {
+    companion object {
+        val EMPTY = RadioBatch(emptyList())
+    }
+}
+
 class RadioRepository private constructor(private val context: Context) {
 
     private val service = ApiClient.getRadioService(context)
@@ -47,11 +59,25 @@ class RadioRepository private constructor(private val context: Context) {
     @Volatile
     private var session: RadioSession? = null
 
+    /**
+     * Sube en cada [clearSession]: una respuesta pedida antes no puede volver a fijar la
+     * estación anterior aunque llegue después.
+     */
+    @Volatile
+    private var sessionEpoch = 0L
+
     val currentSession: RadioSession?
         get() = session
 
     fun clearSession() {
+        sessionEpoch++
         session = null
+    }
+
+    /** Recupera la estación persistida tras matar el proceso. */
+    fun restoreSession(restored: RadioSession?) {
+        sessionEpoch++
+        session = restored
     }
 
     /**
@@ -64,31 +90,36 @@ class RadioRepository private constructor(private val context: Context) {
      *                    secondary seed for ambiguous contexts.
      * @param recentSongIds  Rolling window of recently played song ids.
      *                       Server will not return any of these.
-     * @return List of tracks to append, or `emptyList()` if the server
-     *         declined to seed (offline context, empty catalog, etc.).
+     * @param discoveryLevel  0 familiar, 1 equilibrado, 2 descubrir; solo con `flowV2`.
+     * @return Tracks to append with their reasons, or [RadioBatch.EMPTY] if the
+     *         server declined to seed (offline context, empty catalog, etc.).
      */
     suspend fun fetchNextBatch(
         sourceType: String?,
         sourceId: String?,
         lastSongId: String?,
         recentSongIds: List<String>,
-        limit: Int = 20
-    ): List<Song> = requestMutex.withLock {
+        limit: Int = 20,
+        discoveryLevel: Int? = null
+    ): RadioBatch = requestMutex.withLock {
         if (!V2EndpointAvailability.shouldTry(
                 context,
                 V2EndpointAvailability.FEATURE_RADIO
             )
         ) {
-            return@withLock emptyList()
+            return@withLock RadioBatch.EMPTY
         }
 
+        val epoch = sessionEpoch
+        val preferences = discoveryLevel?.let(::RadioPreferencesDTO)
         val activeSession = session
         val request = if (activeSession != null) {
             // Continuation call — reuse radioId, server ignores context fields.
             RadioRequestDTO(
                 radioId = activeSession.radioId,
                 recentSongIds = recentSongIds,
-                limit = limit
+                limit = limit,
+                preferences = preferences
             )
         } else {
             // First call — pass full context so server can pick the seed.
@@ -97,20 +128,21 @@ class RadioRepository private constructor(private val context: Context) {
                 sourceId = sourceId,
                 lastSongId = lastSongId,
                 recentSongIds = recentSongIds,
-                limit = limit
+                limit = limit,
+                preferences = preferences
             )
         }
 
         val response = runCatching { service.getRadio(request) }.getOrElse { error ->
             Log.w(TAG, "Radio request failed", error)
-            return@withLock emptyList()
+            return@withLock RadioBatch.EMPTY
         }
 
         // 204 = server intentionally declined (e.g. DOWNLOADED_SONGS).
         // Don't treat as an error; just stop autoplay silently.
         if (response.code() == 204) {
             Log.d(TAG, "Server declined radio (204) for sourceType=$sourceType")
-            return@withLock emptyList()
+            return@withLock RadioBatch.EMPTY
         }
 
         // 404/405/501 = backend doesn't implement the feature yet; back off
@@ -121,13 +153,13 @@ class RadioRepository private constructor(private val context: Context) {
                 V2EndpointAvailability.FEATURE_RADIO
             )
             Log.w(TAG, "Radio endpoint unsupported (${response.code()})")
-            return@withLock emptyList()
+            return@withLock RadioBatch.EMPTY
         }
 
         val body = response.body()
         if (!response.isSuccessful || body == null || body.songs.isEmpty()) {
             Log.w(TAG, "Radio response empty or failed: code=${response.code()}")
-            return@withLock emptyList()
+            return@withLock RadioBatch.EMPTY
         }
 
         V2EndpointAvailability.markAvailable(
@@ -135,15 +167,26 @@ class RadioRepository private constructor(private val context: Context) {
             V2EndpointAvailability.FEATURE_RADIO
         )
 
-        session = RadioSession(
-            radioId = body.radioId,
-            seedKind = body.seedKind,
-            seedName = body.seedName,
-            seedId = body.seedId,
-            reasonText = body.reasonText
-        )
-        body.songs
+        if (epoch == sessionEpoch) {
+            session = RadioSession(
+                radioId = body.radioId,
+                seedKind = body.seedKind,
+                seedName = body.seedName,
+                seedId = body.seedId,
+                reasonText = body.reasonText
+            )
+        }
+        RadioBatch(body.songs, reasonsOf(body.songReasons))
     }
+
+    private fun reasonsOf(reasons: List<RadioSongReasonDTO>?): Map<String, String> =
+        reasons.orEmpty()
+            .mapNotNull { reason ->
+                val songId = reason.songId?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                val text = reason.text?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                songId to text
+            }
+            .toMap()
 
     companion object {
         private const val TAG = "RadioRepository"

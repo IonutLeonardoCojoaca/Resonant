@@ -30,6 +30,19 @@ class PlaybackQueue(
 
     var entryIds: List<String> = entryIds
 
+    /** Entradas añadidas por Flow (autoplay), siempre detrás de las elegidas por el usuario. */
+    var flowEntryIds: Set<String> = emptySet()
+
+    /** Motivo visible de cada canción de Flow, por id de canción. */
+    var flowReasons: Map<String, String> = emptyMap()
+
+    /**
+     * Origen con el que empezó la cola. Editarla a mano cambia [sourceType] a QUEUE, pero
+     * Flow debe seguir sembrándose con el álbum o la playlist de partida.
+     */
+    var flowSeedSourceType: QueueSource = sourceType
+    var flowSeedSourceId: String = sourceId
+
     /** Lazily built, invalidated automatically whenever [songs] is reassigned. */
     private var songIndexById: Map<String, Int>? = null
 
@@ -77,5 +90,37 @@ class PlaybackQueue(
         ensureEntryIds()
         songs = songs + newSongs
         entryIds = entryIds + newSongs.map { UUID.randomUUID().toString() }
+    }
+
+    /** Añade un lote de Flow al final y marca sus entradas. */
+    fun appendFlowSongs(newSongs: List<Song>, reasonsBySongId: Map<String, String> = emptyMap()) {
+        if (newSongs.isEmpty()) return
+        appendSongs(newSongs)
+        flowEntryIds = flowEntryIds + entryIds.takeLast(newSongs.size)
+        flowReasons = flowReasons + reasonsBySongId.filterKeys { id -> newSongs.any { it.id == id } }
+    }
+
+    fun isFlowEntry(index: Int): Boolean = entryIds.getOrNull(index)?.let { it in flowEntryIds } == true
+
+    fun flowSongIds(): Set<String> = songs.indices
+        .filter(::isFlowEntry)
+        .mapTo(HashSet()) { songs[it].id }
+
+    /**
+     * Vuelve a marcar como Flow las entradas de [songIds] después de que la cola se haya
+     * reconstruido con identidades nuevas (aleatorio, resincronizar playlist).
+     */
+    fun remarkFlowSongs(songIds: Set<String>) {
+        flowEntryIds = songs.indices
+            .filter { songs[it].id in songIds }
+            .mapTo(HashSet()) { entryIds[it] }
+        flowReasons = flowReasons.filterKeys { it in songIds }
+    }
+
+    /** Olvida las marcas de entradas que ya no están en la cola. */
+    fun pruneFlowEntries() {
+        if (flowEntryIds.isEmpty()) return
+        val present = entryIds.toHashSet()
+        flowEntryIds = flowEntryIds.filterTo(HashSet()) { it in present }
     }
 }

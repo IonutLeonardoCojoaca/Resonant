@@ -1,7 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- La cabecera de Flow va dentro de la fila (no es otro tipo de vista) para no alterar
+     las posiciones del arrastre ni los ids estables del adaptador. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/queue_flow_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="6dp"
+        android:fontFamily="@font/unageo_bold"
+        android:text="@string/flow_queue_header"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:id="@+id/queue_item_row"
     android:layout_width="match_parent"
     android:layout_height="68dp"
     android:background="?attr/selectableItemBackground"
@@ -96,3 +118,4 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

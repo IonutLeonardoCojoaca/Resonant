@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos de Explorar v2 y de las elecciones de Aria. -->
+<resources>
+    <string name="aria_badge_label">Recomendado por Aria</string>
+    <string name="aria_pick_like">Me gusta la elección</string>
+    <string name="aria_pick_dismiss">No me interesa</string>
+</resources>

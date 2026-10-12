@@ -30,7 +30,14 @@ data class RadioRequestDTO(
      * Client sends a rolling window of the last ~30 played tracks.
      */
     val recentSongIds: List<String> = emptyList(),
-    val limit: Int = 20
+    val limit: Int = 20,
+    /** Solo con la capacidad `flowV2`; el servidor ignora el campo si el flag está apagado. */
+    val preferences: RadioPreferencesDTO? = null
+)
+
+data class RadioPreferencesDTO(
+    /** 0 familiar, 1 equilibrado, 2 descubrir. */
+    val discoveryLevel: Int
 )
 
 /**
@@ -49,5 +56,44 @@ data class RadioResponseDTO(
     /** Ready-to-play tracks with signed URLs. */
     val songs: List<Song>,
     /** Pre-localized subtitle for the mini-player, e.g. "Basado en X". */
-    val reasonText: String?
+    val reasonText: String?,
+    /** radio-v3 | radio-v4. Opcional: servidores antiguos no lo envían. */
+    val strategyVersion: String? = null,
+    /** Motivo por canción (solo radio-v4), en el mismo orden que [songs]. */
+    val songReasons: List<RadioSongReasonDTO>? = null
+)
+
+data class RadioSongReasonDTO(
+    val songId: String?,
+    val code: String?,
+    val text: String?
+)
+
+/** `GET/PUT api/me/flow-preferences`. */
+data class FlowPreferencesDTO(
+    val enabled: Boolean? = null,
+    /** 0 familiar, 1 equilibrado, 2 descubrir. */
+    val discoveryLevel: Int? = null,
+    val updatedAtUtc: String? = null
+)
+
+/** `POST api/recommendation-feedback`. */
+data class RecommendationFeedbackRequestDTO(
+    /** artist | song */
+    val targetType: String,
+    val targetId: String,
+    /** less | never */
+    val type: String
+)
+
+/** `POST api/radio/playlist`. */
+data class FlowSavePlaylistRequestDTO(
+    val name: String? = null,
+    val songIds: List<String>
+)
+
+data class FlowSavedPlaylistDTO(
+    val playlistId: String? = null,
+    val name: String? = null,
+    val songCount: Int = 0
 )

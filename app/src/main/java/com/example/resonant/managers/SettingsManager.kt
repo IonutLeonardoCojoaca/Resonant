@@ -78,6 +78,8 @@ class SettingsManager(private val context: Context) {
         val AUTOMIX_ENABLED_KEY = booleanPreferencesKey("automix_enabled")
         val LOUDNESS_NORMALIZATION_KEY = booleanPreferencesKey("loudness_normalization_enabled")
         val AUTOPLAY_RADIO_ENABLED_KEY = booleanPreferencesKey("autoplay_radio_enabled")
+        val FLOW_DISCOVERY_LEVEL_KEY = intPreferencesKey("flow_discovery_level")
+        val FLOW_PREFERENCES_PENDING_SYNC_KEY = booleanPreferencesKey("flow_preferences_pending_sync")
         val ARIA_FLOATING_ASSISTANT_ENABLED_KEY = booleanPreferencesKey("aria_floating_assistant_enabled")
         val ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY = booleanPreferencesKey("aria_foreground_wake_word_enabled")
         val EQUALIZER_ENABLED_KEY = booleanPreferencesKey("equalizer_enabled")
@@ -172,6 +174,28 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setAutoplayRadioEnabled(isEnabled: Boolean) {
         context.dataStore.edit { it[AUTOPLAY_RADIO_ENABLED_KEY] = isEnabled }
+    }
+
+    /** Nivel de descubrimiento de Flow: 0 familiar, 1 equilibrado, 2 descubrir. */
+    val flowDiscoveryLevelFlow: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[FLOW_DISCOVERY_LEVEL_KEY] ?: 1
+    }
+
+    /** Hay cambios de Flow pendientes de subir a `PUT api/me/flow-preferences`. */
+    val flowPreferencesPendingSyncFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[FLOW_PREFERENCES_PENDING_SYNC_KEY] ?: false
+    }
+
+    suspend fun setFlowPreferences(enabled: Boolean, discoveryLevel: Int, pendingSync: Boolean) {
+        context.dataStore.edit {
+            it[AUTOPLAY_RADIO_ENABLED_KEY] = enabled
+            it[FLOW_DISCOVERY_LEVEL_KEY] = discoveryLevel
+            it[FLOW_PREFERENCES_PENDING_SYNC_KEY] = pendingSync
+        }
+    }
+
+    suspend fun setFlowPreferencesPendingSync(pending: Boolean) {
+        context.dataStore.edit { it[FLOW_PREFERENCES_PENDING_SYNC_KEY] = pending }
     }
 
     val ariaFloatingAssistantEnabledFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->

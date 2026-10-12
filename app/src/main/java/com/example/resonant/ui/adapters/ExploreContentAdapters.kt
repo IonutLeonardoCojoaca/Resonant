@@ -14,6 +14,8 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.data.models.Song
+import com.example.resonant.explore.AriaPick
 import com.example.resonant.utils.ImageRequestHelper
 
 class ExplorePlaylistAdapter(
@@ -153,6 +155,120 @@ class ExploreAlbumAdapter(
         }
 
         override fun areContentsTheSame(oldItem: Album, newItem: Album): Boolean {
+            return oldItem == newItem
+        }
+    }
+}
+
+/** Songs of an Explore v2 section; the click reports the position so the whole row becomes the queue. */
+class ExploreSongAdapter(
+    private val onSongClick: (Int) -> Unit
+) : ListAdapter<Song, ExploreSongAdapter.SongViewHolder>(SongDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_explore_song, parent, false)
+        return SongViewHolder(view, onSongClick)
+    }
+
+    override fun onBindViewHolder(holder: SongViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    override fun onViewRecycled(holder: SongViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.image)
+    }
+
+    class SongViewHolder(
+        itemView: View,
+        onClick: (Int) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
+        val image: ImageView = itemView.findViewById(R.id.songImage)
+        private val title: TextView = itemView.findViewById(R.id.songTitle)
+        private val artist: TextView = itemView.findViewById(R.id.songArtist)
+
+        init {
+            itemView.setOnClickListener {
+                bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }?.let(onClick)
+            }
+        }
+
+        fun bind(song: Song) {
+            title.text = song.title
+            artist.text = song.artistName.orEmpty()
+            image.loadExploreImage(song.coverUrl ?: song.album?.url, R.drawable.ic_disc)
+        }
+    }
+
+    class SongDiffCallback : DiffUtil.ItemCallback<Song>() {
+        override fun areItemsTheSame(oldItem: Song, newItem: Song): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Song, newItem: Song): Boolean {
+            return oldItem == newItem
+        }
+    }
+}
+
+/** Aria's daily picks: badge + Aria's reason; long press opens the feedback menu. */
+class AriaPickAdapter(
+    private val onPickClick: (Int) -> Unit,
+    private val onPickLongClick: (AriaPick, View) -> Unit
+) : ListAdapter<AriaPick, AriaPickAdapter.PickViewHolder>(PickDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PickViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_aria_pick, parent, false)
+        return PickViewHolder(view, onPickClick) { position, anchor -> onPickLongClick(getItem(position), anchor) }
+    }
+
+    override fun onBindViewHolder(holder: PickViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    override fun onViewRecycled(holder: PickViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.image)
+    }
+
+    class PickViewHolder(
+        itemView: View,
+        onClick: (Int) -> Unit,
+        onLongClick: (Int, View) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
+        val image: ImageView = itemView.findViewById(R.id.ariaPickImage)
+        private val title: TextView = itemView.findViewById(R.id.ariaPickTitle)
+        private val artist: TextView = itemView.findViewById(R.id.ariaPickArtist)
+        private val reason: TextView = itemView.findViewById(R.id.ariaPickReason)
+
+        init {
+            itemView.setOnClickListener {
+                bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }?.let(onClick)
+            }
+            itemView.setOnLongClickListener { view ->
+                val position = bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return@setOnLongClickListener false
+                onLongClick(position, view)
+                true
+            }
+        }
+
+        fun bind(pick: AriaPick) {
+            title.text = pick.song.title
+            artist.text = pick.song.artistName.orEmpty()
+            reason.text = pick.reason
+            image.loadExploreImage(pick.song.coverUrl ?: pick.song.album?.url, R.drawable.ic_disc)
+        }
+    }
+
+    class PickDiffCallback : DiffUtil.ItemCallback<AriaPick>() {
+        override fun areItemsTheSame(oldItem: AriaPick, newItem: AriaPick): Boolean {
+            return oldItem.song.id == newItem.song.id
+        }
+
+        override fun areContentsTheSame(oldItem: AriaPick, newItem: AriaPick): Boolean {
             return oldItem == newItem
         }
     }

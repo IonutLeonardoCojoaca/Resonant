@@ -32,8 +32,6 @@ import com.example.resonant.data.models.Artist
 import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.QueueCommands
 import kotlinx.coroutines.launch
-import com.example.resonant.unisound.UnisoundManager
-import com.example.resonant.unisound.UnisoundResult
 
 class SongOptionsBottomSheet(
     private val song: Song,
@@ -79,7 +77,7 @@ class SongOptionsBottomSheet(
         val shareSongButton: TextView = view.findViewById(R.id.shareSongButton)
         val cancelButton: TextView = view.findViewById(R.id.cancelButton)
 
-        bindAddToRoom(view.findViewById(R.id.addToRoomButton))
+        bindAddToRoom(view.findViewById(R.id.addToRoomButton), SOURCE_SONG, song.id)
         playNextButton.setOnClickListener {
             sendQueueCommand(QueueCommands.PLAY_NEXT)
         }
@@ -300,22 +298,6 @@ class SongOptionsBottomSheet(
 
     private fun shareSongLogic(song: Song) {
         com.example.resonant.utils.ShareUtils.shareSong(requireContext(), song)
-    }
-
-    /** Unisound: shown only while in a room where this user can add songs. */
-    private fun bindAddToRoom(button: TextView) {
-        val manager = UnisoundManager.get(requireContext())
-        button.visibility = if (manager.canAddNow()) View.VISIBLE else View.GONE
-        button.setOnClickListener {
-            val host = requireActivity()
-            dismiss()
-            host.lifecycleScope.launch {
-                // Failures are already reported by the manager.
-                if (manager.addSong(song.id) is UnisoundResult.Success) {
-                    host.showResonantSnackbar("Añadida a la sala", R.color.successColor, R.drawable.ic_success)
-                }
-            }
-        }
     }
 
     private fun sendQueueCommand(action: String) {

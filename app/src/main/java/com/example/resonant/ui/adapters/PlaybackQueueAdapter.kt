@@ -16,7 +16,9 @@ import com.example.resonant.playback.QueueItemSnapshot
 class PlaybackQueueAdapter(
     private val onPlay: (QueueItemSnapshot) -> Unit,
     private val onRemove: (QueueItemSnapshot) -> Unit,
-    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
+    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit,
+    /** Pulsación larga sobre una entrada de Flow; null si no hay opciones de Flow. */
+    private val onFlowLongPress: ((QueueItemSnapshot) -> Unit)? = null
 ) : RecyclerView.Adapter<PlaybackQueueAdapter.QueueViewHolder>() {
     private val items = mutableListOf<QueueItemSnapshot>()
 
@@ -37,7 +39,7 @@ class PlaybackQueueAdapter(
     }
 
     override fun onBindViewHolder(holder: QueueViewHolder, position: Int) {
-        holder.bind(items[position])
+        holder.bind(items[position], showsFlowHeader(items, position))
     }
 
     override fun onBindViewHolder(
@@ -68,7 +70,8 @@ class PlaybackQueueAdapter(
             }
 
             override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                return previous[oldItemPosition] == newItems[newItemPosition]
+                return previous[oldItemPosition] == newItems[newItemPosition] &&
+                    showsFlowHeader(previous, oldItemPosition) == showsFlowHeader(newItems, newItemPosition)
             }
         })
         items.clear()
@@ -98,12 +101,16 @@ class PlaybackQueueAdapter(
         private val remove: ImageButton = itemView.findViewById(R.id.queue_remove)
         private val drag: ImageView = itemView.findViewById(R.id.queue_drag_handle)
         private val nowPlaying: ImageView = itemView.findViewById(R.id.queue_now_playing)
+        private val flowHeader: TextView = itemView.findViewById(R.id.queue_flow_header)
+        private val row: View = itemView.findViewById(R.id.queue_item_row)
 
-        fun bind(item: QueueItemSnapshot) {
+        fun bind(item: QueueItemSnapshot, showFlowHeader: Boolean) {
+            flowHeader.visibility = if (showFlowHeader) View.VISIBLE else View.GONE
             title.text = item.song.title
-            artist.text = item.song.artistName
+            val artistName = item.song.artistName
                 ?: item.song.artists.joinToString(", ") { it.name }
                     .ifBlank { "Desconocido" }
+            artist.text = item.flowReason?.let { "$artistName · $it" } ?: artistName
             title.setTextColor(
                 itemView.context.getColor(
                     if (item.isCurrent) R.color.secondaryColorTheme else R.color.white
@@ -114,8 +121,17 @@ class PlaybackQueueAdapter(
                 .placeholder(R.drawable.ic_disc)
                 .error(R.drawable.ic_disc)
                 .into(image)
-            itemView.setOnClickListener {
+            row.setOnClickListener {
                 if (!item.isCurrent) onPlay(item)
+            }
+            row.setOnLongClickListener {
+                val handler = onFlowLongPress
+                if (item.isFlow && handler != null) {
+                    handler(item)
+                    true
+                } else {
+                    false
+                }
             }
             remove.setOnClickListener { onRemove(item) }
             drag.setOnClickListener { }
@@ -162,5 +178,9 @@ class PlaybackQueueAdapter(
 
     companion object {
         private const val PAYLOAD_CONTROLS = "controls"
+
+        /** La cabecera "Flow · elegido para ti" va sobre la primera entrada Flow visible. */
+        private fun showsFlowHeader(list: List<QueueItemSnapshot>, position: Int): Boolean =
+            list[position].isFlow && list.subList(0, position).none { it.isFlow }
     }
 }

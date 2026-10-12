@@ -88,6 +88,23 @@
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintVertical_bias="0.5"/>
 
+                    <ImageView
+                        android:id="@+id/miniPlayerUnisoundBadge"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="2dp"
+                        android:layout_marginBottom="2dp"
+                        android:background="@drawable/bg_unisound_badge"
+                        android:clickable="true"
+                        android:contentDescription="Estás en una sala de Unisound. Ir a la sala"
+                        android:focusable="true"
+                        android:padding="4dp"
+                        android:src="@drawable/ic_unisound"
+                        android:visibility="gone"
+                        app:layout_constraintBottom_toBottomOf="@id/songImage"
+                        app:layout_constraintEnd_toEndOf="@id/songImage"
+                        app:tint="@color/successColor" />
+
                     <LinearLayout
                         android:id="@+id/songDataPlayer"
                         android:layout_width="0dp"
@@ -331,60 +348,6 @@
                     android:src="@drawable/ic_arrow_back"
                     app:tint="@color/secondaryColorTheme" />
 
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/unisoundRoomBar"
-            android:layout_width="160dp"
-            android:layout_height="42dp"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="4dp"
-            android:clickable="true"
-            android:contentDescription="Abrir la sala"
-            android:focusable="true"
-            android:translationZ="28dp"
-            android:visibility="gone"
-            app:cardBackgroundColor="@color/pointersTheme"
-            app:cardCornerRadius="21dp"
-            app:cardElevation="8dp"
-            app:layout_constraintBottom_toTopOf="@id/mini_player"
-            app:layout_constraintEnd_toStartOf="@id/ariaFloatingLauncher"
-            app:layout_goneMarginEnd="0dp"
-            app:layout_constraintHorizontal_chainStyle="packed"
-            app:layout_constraintStart_toStartOf="parent"
-            app:strokeColor="@color/dividerOverlay"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingStart="6dp"
-                android:paddingEnd="10dp">
-
-                <ImageView
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:background="@drawable/bg_circle_aria_gradient"
-                    android:contentDescription="@null"
-                    android:padding="6dp"
-                    android:src="@drawable/ic_sound"
-                    app:tint="@color/white" />
-
-                <TextView
-                    android:id="@+id/unisoundRoomBarText"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="7dp"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:maxLines="1"
-                    android:textColor="@color/white"
-                    android:textSize="12sp" />
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>

@@ -61,7 +61,9 @@ object SnackbarUtils {
     fun Fragment.showResonantSnackbar(
         text: String,
         colorRes: Int,
-        iconRes: Int
+        iconRes: Int,
+        actionText: String? = null,
+        onAction: (() -> Unit)? = null
     ) {
         val activity = requireActivity()
         val miniPlayerView = activity.findViewById<View>(R.id.mini_player)
@@ -101,6 +103,11 @@ object SnackbarUtils {
         icon?.setBounds(0, 0, icon.intrinsicWidth, icon.intrinsicHeight)
         snackbarTextView.setCompoundDrawables(icon, null, null, null)
         snackbarTextView.compoundDrawablePadding = 24
+
+        if (actionText != null && onAction != null) {
+            snackbar.setActionTextColor(ContextCompat.getColor(requireContext(), android.R.color.white))
+            snackbar.setAction(actionText) { onAction() }
+        }
 
         snackbar.show()
     }

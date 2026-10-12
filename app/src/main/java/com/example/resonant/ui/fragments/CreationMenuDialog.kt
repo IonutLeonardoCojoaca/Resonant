@@ -11,11 +11,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.fragment.app.DialogFragment
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.R
 import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.ui.activities.MainActivity
+import com.example.resonant.unisound.UnisoundManager
 
 class CreationMenuDialog : DialogFragment() {
 
@@ -53,18 +55,54 @@ class CreationMenuDialog : DialogFragment() {
             findNavController().navigate(R.id.action_global_to_createPlaymixFragment)
         }
 
-        val unisoundEnabled = CapabilitiesManager.isUnisoundEnabled()
-        listOf(R.id.optionListenTogether, R.id.optionJoinWithCode).forEach { id ->
-            view.findViewById<View>(id).visibility = if (unisoundEnabled) View.VISIBLE else View.GONE
+        bindUnisound(view)
+    }
+
+    /**
+     * Unisound is one entry; tapping it swaps the menu for a second floating card with
+     * "Crear sala" and "Unirse con código". Already in a room, it goes straight to the room.
+     */
+    private fun bindUnisound(view: View) {
+        val main = activity as? MainActivity
+        val inRoom = UnisoundManager.get(requireContext()).state.value != null
+        val visible = inRoom || CapabilitiesManager.isUnisoundEnabled()
+        listOf(R.id.unisoundDivider, R.id.optionUnisound).forEach { id ->
+            view.findViewById<View>(id).visibility = if (visible) View.VISIBLE else View.GONE
         }
-        view.findViewById<View>(R.id.optionListenTogether).setOnClickListener {
+        if (inRoom) {
+            view.findViewById<TextView>(R.id.optionUnisoundSubtitle).text = "Estás en una sala · toca para volver"
+        }
+        val mainCard = view.findViewById<View>(R.id.cardContent)
+        val unisoundCard = view.findViewById<View>(R.id.unisoundCard)
+        unisoundCard.setOnClickListener { }
+
+        view.findViewById<View>(R.id.optionUnisound).setOnClickListener {
+            if (inRoom) {
+                dismiss()
+                main?.openUnisoundRoom()
+            } else {
+                swapCards(hide = mainCard, show = unisoundCard)
+            }
+        }
+        view.findViewById<View>(R.id.optionUnisoundCreate).setOnClickListener {
             dismiss()
-            (activity as? MainActivity)?.createUnisoundRoom()
+            main?.createUnisoundRoom()
         }
-        view.findViewById<View>(R.id.optionJoinWithCode).setOnClickListener {
+        view.findViewById<View>(R.id.optionUnisoundJoin).setOnClickListener {
             dismiss()
-            (activity as? MainActivity)?.showUnisoundJoin()
+            main?.showUnisoundJoin()
         }
+    }
+
+    private fun swapCards(hide: View, show: View) {
+        val shift = SWAP_SHIFT_DP * resources.displayMetrics.density
+        hide.animate().alpha(0f).translationY(shift).setDuration(SWAP_DURATION_MS).withEndAction {
+            hide.visibility = View.GONE
+            show.alpha = 0f
+            show.translationY = shift
+            show.visibility = View.VISIBLE
+            show.animate().alpha(1f).translationY(0f).setDuration(SWAP_DURATION_MS).start()
+        }.start()
     }
 
     override fun onStart() {
@@ -115,5 +153,10 @@ class CreationMenuDialog : DialogFragment() {
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
         onDismissListener?.invoke()
+    }
+
+    private companion object {
+        const val SWAP_DURATION_MS = 160L
+        const val SWAP_SHIFT_DP = 16f
     }
 }

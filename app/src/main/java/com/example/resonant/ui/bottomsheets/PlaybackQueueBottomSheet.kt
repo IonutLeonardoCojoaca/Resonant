@@ -30,7 +30,8 @@ class PlaybackQueueBottomSheet : ResonantBottomSheetDialogFragment() {
             actions = view.findViewById<View>(R.id.queue_actions),
             empty = view.findViewById<TextView>(R.id.empty_queue),
             relatedSection = view.findViewById<View>(R.id.queueRelatedSection),
-            relatedRecycler = view.findViewById<RecyclerView>(R.id.queueRelatedList)
+            relatedRecycler = view.findViewById<RecyclerView>(R.id.queueRelatedList),
+            flowControls = view.findViewById<View>(R.id.flow_controls)
         ).start()
     }
 }

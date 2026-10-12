@@ -1,7 +1,7 @@
 package com.example.resonant.unisound
 
 /** Where an error happened, because `UNISOUND_NOT_ALLOWED` reads differently in each place. */
-enum class UnisoundErrorContext { JOIN, COMMAND, ADD, HOST_ACTION, GENERAL }
+enum class UnisoundErrorContext { JOIN, COMMAND, ADD, ADD_BATCH, HOST_ACTION, GENERAL }
 
 /** Maps stable backend codes (REST `code` or hub `HubException` message) to Spanish UI text. */
 object UnisoundErrors {
@@ -22,6 +22,8 @@ object UnisoundErrors {
     const val SESSION_FULL = "UNISOUND_SESSION_FULL"
     const val ALREADY_IN_SESSION = "UNISOUND_ALREADY_IN_SESSION"
     const val RATE_LIMITED = "RATE_LIMITED"
+    const val SOURCE_NOT_FOUND = "UNISOUND_SOURCE_NOT_FOUND"
+    const val NOTHING_PLAYED = "UNISOUND_NOTHING_PLAYED"
 
     const val MESSAGE_CONTROL_DENIED = "El anfitrión controla la reproducción"
     const val MESSAGE_RECONNECTING = "Reconectando…"
@@ -62,10 +64,16 @@ object UnisoundErrors {
         UNISOUND_RATE_LIMITED -> "Vas demasiado rápido"
         NOT_ALLOWED -> when (context) {
             UnisoundErrorContext.COMMAND -> MESSAGE_CONTROL_DENIED
-            UnisoundErrorContext.ADD -> "El anfitrión no permite añadir canciones"
+            UnisoundErrorContext.ADD, UnisoundErrorContext.ADD_BATCH -> "El anfitrión no permite añadir canciones"
             else -> "Solo el anfitrión puede hacerlo"
         }
-        SONG_UNAVAILABLE -> "Esta canción no está disponible"
+        SONG_UNAVAILABLE -> if (context == UnisoundErrorContext.ADD_BATCH) {
+            "No hay canciones disponibles para añadir"
+        } else {
+            "Esta canción no está disponible"
+        }
+        SOURCE_NOT_FOUND -> "No se ha encontrado ese álbum o playlist"
+        NOTHING_PLAYED -> "No ha sonado ninguna canción"
         QUEUE_FULL -> "La cola de la sala está llena"
         QUEUE_EMPTY -> "La cola está vacía"
         NOT_MEMBER, SESSION_ENDED -> MESSAGE_ROOM_ENDED

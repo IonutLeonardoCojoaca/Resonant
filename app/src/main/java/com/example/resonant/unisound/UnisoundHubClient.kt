@@ -5,6 +5,7 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.UnisoundMemberDTO
 import com.example.resonant.data.network.UnisoundPlaybackStateDTO
 import com.example.resonant.data.network.UnisoundQueueItemDTO
+import com.example.resonant.data.network.UnisoundReactionDTO
 import com.example.resonant.data.network.UnisoundSessionSnapshotDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
 import com.example.resonant.data.network.UnisoundSettingsDTO
@@ -103,6 +104,23 @@ class UnisoundHubClient(context: Context) : UnisoundHubGateway {
     override suspend fun removeItem(sessionId: String, itemId: String, idempotencyKey: String) =
         callVoid("RemoveItem", sessionId, itemId, idempotencyKey)
 
+    override suspend fun moveItem(
+        sessionId: String,
+        itemId: String,
+        toIndex: Int,
+        expectedRevision: Long,
+        idempotencyKey: String
+    ): List<UnisoundQueueItemDTO> = withContext(Dispatchers.IO) {
+        requireConnection()
+            .invoke<List<UnisoundQueueItemDTO>>(
+                QUEUE_ITEMS_TYPE, "MoveItem", sessionId, itemId, toIndex, expectedRevision, idempotencyKey
+            )
+            .timeout(COMMAND_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .blockingGet()
+    }
+
+    override suspend fun react(sessionId: String, emoji: String) = callVoid("React", sessionId, emoji)
+
     private fun registerEvents(hub: HubConnection) {
         hub.on(
             "SessionSnapshot",
@@ -129,6 +147,11 @@ class UnisoundHubClient(context: Context) : UnisoundHubGateway {
             "PolicyChanged",
             { settings: UnisoundSettingsDTO -> emit(UnisoundEvent.PolicyChanged(settings)) },
             UnisoundSettingsDTO::class.java
+        )
+        hub.on(
+            "ReactionReceived",
+            { reaction: UnisoundReactionDTO -> emit(UnisoundEvent.Reaction(reaction)) },
+            UnisoundReactionDTO::class.java
         )
         hub.on(
             "SessionEnded",

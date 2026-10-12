@@ -29,7 +29,9 @@ data class UnisoundMeDTO(
 data class UnisoundSettingsDTO(
     val guestsCanAdd: Boolean = false,
     val guestsCanControl: Boolean = false,
-    val joinOpen: Boolean = false
+    val joinOpen: Boolean = false,
+    /** Null when the server does not support room Flow: the switch is not offered then. */
+    val roomFlowEnabled: Boolean? = null
 )
 
 data class UnisoundPlaybackStateDTO(
@@ -48,6 +50,9 @@ data class UnisoundQueueItemDTO(
     val addedBy: String = "",
     val addedByUserId: String? = null,
     val addedByName: String? = null,
+    /** song | album | playlist, or null for room Flow items. */
+    val sourceType: String? = null,
+    val sourceId: String? = null,
     val song: Song? = null
 )
 
@@ -66,7 +71,10 @@ data class UnisoundSessionSummaryDTO(
     val endedAtUtc: String? = null,
     val durationMs: Long = 0L,
     val songsPlayed: Int = 0,
-    val songIds: List<String>? = null
+    val songIds: List<String>? = null,
+    val ariaLine: String? = null,
+    /** none | pending | ready | unavailable */
+    val ariaLineStatus: String? = null
 )
 
 data class UnisoundCodeDTO(
@@ -82,15 +90,36 @@ data class UnisoundJoinRequestDTO(
 data class UnisoundSettingsUpdateDTO(
     val guestsCanAdd: Boolean? = null,
     val guestsCanControl: Boolean? = null,
-    val joinOpen: Boolean? = null
+    val joinOpen: Boolean? = null,
+    val roomFlowEnabled: Boolean? = null
 )
 
 data class UnisoundTransferHostRequestDTO(
     val userId: String
 )
 
-/** Hub `AddItems` source: `type` is "song" in this client version. */
+/** Hub `AddItems` source: `type` is "song", "album" or "playlist". */
 data class UnisoundSourceDTO(
     val type: String,
     val id: String
+)
+
+/** Hub `ReactionReceived`: ephemeral, never stored. */
+data class UnisoundReactionDTO(
+    val userId: String = "",
+    val name: String = "",
+    val emoji: String = "",
+    val songId: String? = null,
+    val serverTimeUtcMs: Long = 0L
+)
+
+data class UnisoundSavePlaylistRequestDTO(
+    val name: String? = null
+)
+
+data class UnisoundSavedPlaylistDTO(
+    val playlistId: String = "",
+    val name: String = "",
+    val songCount: Int = 0,
+    val addedCount: Int = 0
 )

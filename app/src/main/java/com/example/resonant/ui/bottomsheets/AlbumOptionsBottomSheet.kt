@@ -45,6 +45,7 @@ class AlbumOptionsBottomSheet(
         val addToFavoriteButton: TextView = view.findViewById(R.id.addToFavoriteButton)
         val viewDetailsButton: TextView = view.findViewById(R.id.viewDetailsButton)
         val shareAlbumButton: TextView = view.findViewById(R.id.shareAlbumButton)
+        bindAddToRoom(view.findViewById(R.id.addToRoomButton), SOURCE_ALBUM, album.id)
 
         albumTitle.text = album.title
         artistName.text = album.artistName ?: album.artists.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() } ?: "Unknown Artist"

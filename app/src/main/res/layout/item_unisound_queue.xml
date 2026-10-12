@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="64dp"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="6dp"
+    android:paddingEnd="8dp">
+
+    <ImageView
+        android:id="@+id/unisoundItemGrip"
+        android:layout_width="28dp"
+        android:layout_height="40dp"
+        android:contentDescription="Mantén pulsado para reordenar"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="10dp"
+        android:src="@drawable/ic_unisound_grip"
+        app:tint="@color/textTheme" />
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/unisoundItemCover"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="4dp"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/RoundedCornersImage"
+        tools:src="@drawable/ic_disc" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/unisoundItemTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            tools:text="My December (Live)" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/unisoundItemAuto"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_marginEnd="4dp"
+                android:contentDescription="Elegido automáticamente"
+                android:src="@drawable/ic_unisound_sparkles"
+                android:visibility="gone"
+                app:tint="@color/successColor" />
+
+            <TextView
+                android:id="@+id/unisoundItemSubtitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="@font/unageo_regular"
+                android:maxLines="1"
+                android:textColor="@color/textTheme"
+                android:textSize="12sp"
+                tools:text="Linkin Park · Elegido para los dos" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/unisoundItemUp"
+        style="@style/UnisoundRowAction"
+        android:contentDescription="Subir"
+        android:src="@drawable/ic_unisound_arrow_up" />
+
+    <ImageButton
+        android:id="@+id/unisoundItemDown"
+        style="@style/UnisoundRowAction"
+        android:contentDescription="Bajar"
+        android:src="@drawable/ic_unisound_arrow_down" />
+
+    <ImageButton
+        android:id="@+id/unisoundItemRemove"
+        style="@style/UnisoundRowAction"
+        android:contentDescription="Quitar de la cola"
+        android:src="@drawable/ic_unisound_x" />
+</LinearLayout>

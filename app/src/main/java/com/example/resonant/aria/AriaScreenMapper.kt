@@ -9,7 +9,8 @@ object AriaScreenMapper {
         R.id.exploreFragment -> "search"
         R.id.savedFragment,
         R.id.downloadedSongsFragment -> "library"
-        R.id.songFragment -> "player"
+        R.id.songFragment,
+        R.id.unisoundRoomFragment -> "player"
         R.id.playlistFragment,
         R.id.editPlaylistFragment -> "playlist_detail"
         R.id.artistFragment,

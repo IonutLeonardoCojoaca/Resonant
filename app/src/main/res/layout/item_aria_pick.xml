@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Elección de Aria en Explorar v2: portada, título, artista, insignia y el
+     motivo que escribió Aria (máximo 2 líneas). Pulsación larga = feedback. -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="260dp"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="5dp"
+    android:layout_marginVertical="5dp"
+    android:background="@drawable/bg_explore_badge"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:padding="10dp">
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/ariaPickImage"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:scaleType="centerCrop"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:shapeAppearanceOverlay="@style/RoundedCornersExploreGrid"
+        tools:src="@drawable/ic_disc" />
+
+    <TextView
+        android:id="@+id/ariaPickTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/ariaPickImage"
+        app:layout_constraintTop_toTopOf="@id/ariaPickImage"
+        tools:text="Like a Villain" />
+
+    <TextView
+        android:id="@+id/ariaPickArtist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_regular"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="@color/textTheme"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/ariaPickTitle"
+        app:layout_constraintTop_toBottomOf="@id/ariaPickTitle"
+        tools:text="Bad Omens" />
+
+    <com.example.resonant.ui.views.AriaBadgeView
+        android:id="@+id/ariaPickBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintStart_toStartOf="@id/ariaPickTitle"
+        app:layout_constraintTop_toBottomOf="@id/ariaPickArtist" />
+
+    <TextView
+        android:id="@+id/ariaPickReason"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_regular"
+        android:lineSpacingExtra="2dp"
+        android:maxLines="2"
+        android:minLines="2"
+        android:textColor="@color/white"
+        android:textSize="13sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ariaPickImage"
+        tools:text="Llevas una semana con Bad Omens; esta tiene la misma rabia pero más melódica." />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

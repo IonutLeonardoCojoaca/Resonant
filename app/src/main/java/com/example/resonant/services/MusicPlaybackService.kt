@@ -39,6 +39,9 @@ import com.example.resonant.playback.PlaybackCache
 import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.playback.PlaybackQueueEnricher
 import com.example.resonant.playback.RadioRepository
+import com.example.resonant.playback.RadioBatch
+import com.example.resonant.playback.FlowSessionSnapshot
+import com.example.resonant.playback.flow.FlowQueuePolicy
 import com.example.resonant.playback.PlaybackMediaItemFactory
 import com.example.resonant.playback.PlaybackMediaSourceFactory
 import com.example.resonant.playback.PlaybackStateRepository
@@ -60,6 +63,8 @@ import com.example.resonant.data.network.PlaybackConnectQueueItemDTO
 import com.example.resonant.data.network.PlaybackConnectStateDTO
 import com.example.resonant.data.network.SongPlaybackDTO
 import com.example.resonant.managers.SettingsManager
+import com.example.resonant.managers.FlowPreferencesManager
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.TransitionManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.data.models.Song
@@ -153,10 +158,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         // new active device, so keeping it tight matters for Resonant Connect.
         private const val CONNECT_FALLBACK_INTERVAL_MS = 8_000L
 
-        /** Prefetch radio when this many songs (or fewer) remain in the queue. */
-        private const val RADIO_PREFETCH_THRESHOLD = 3
         /** Rolling window size of recentSongIds we send to the server. */
         private const val RADIO_RECENT_WINDOW_SIZE = 30
+        private const val FLOW_TAG = "Flow"
         private const val CONNECT_MAX_QUEUE_ITEMS = 500
         /** Orders are anchored ~300 ms ahead; never wait longer than this for an anchor. */
         private const val UNISOUND_MAX_ANCHOR_WAIT_MS = 2_000L
@@ -214,6 +218,23 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     /** true iff the user has autoplay enabled in Settings. */
     @Volatile private var autoplayRadioEnabled: Boolean = true
+
+    /** Nivel de descubrimiento elegido (0-2); solo se envía con la capacidad `flowV2`. */
+    @Volatile private var flowDiscoveryLevel: Int = 1
+
+    /**
+     * Sube cada vez que el contexto de Flow deja de valer (cola nueva, sala, interruptor
+     * apagado): una respuesta pedida con una generación anterior se descarta.
+     */
+    private val flowGeneration = AtomicLong(0L)
+
+    /** La cola terminó esperando un lote de Flow: al llegar se avanza a él (solo Main). */
+    private var flowAdvancePending = false
+    private val flowHandler = Handler(Looper.getMainLooper())
+    private val flowAdvanceTimeout = Runnable {
+        Log.d(FLOW_TAG, "Sin lote de Flow a tiempo: la cola termina.")
+        flowAdvancePending = false
+    }
     private lateinit var librarySessionCallback: ResonantLibrarySessionCallback
     private val audioEqualizerController = AudioEqualizerController()
     private var mediaLibrarySession: MediaLibrarySession? = null
@@ -533,47 +554,17 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     /**
-     * Kick off a radio fetch as the user hits the end of the queue.  When
-     * the request comes back we advance the player into the first newly
-     * appended track.  Fire-and-forget: if the network is slow the queue
-     * simply ends as before.
+     * La cola ha terminado: se pide un lote de Flow (o se espera al que ya está en vuelo)
+     * y se avanza a él en cuanto llega. Si no llega en [FlowQueuePolicy.QUEUE_END_TIMEOUT_MS]
+     * la cola se queda terminada y usable.
      */
+    @androidx.annotation.MainThread
     private fun tryStartRadioAtQueueEnd(queue: PlaybackQueue) {
-        if (!autoplayRadioEnabled) return
-        if (queue.sourceType == QueueSource.PLAYMIX ||
-            queue.sourceType == QueueSource.DOWNLOADED_SONGS
-        ) return
-        if (!radioPrefetchInFlight.compareAndSet(false, true)) return
-
-        val sourceType = queue.sourceType.name
-        val sourceId = queue.sourceId
-        val lastSongId = queue.songs.getOrNull(queue.currentIndex)?.id
-        val recentIds = radioRecentSongIds.toList()
-        val queueSizeBefore = queue.songs.size
-
-        serviceScope.launch {
-            try {
-                val newSongs = radioRepository.fetchNextBatch(
-                    sourceType = sourceType,
-                    sourceId = sourceId,
-                    lastSongId = lastSongId,
-                    recentSongIds = recentIds
-                )
-                if (newSongs.isEmpty()) return@launch
-
-                withContext(Dispatchers.Main) {
-                    appendRadioSongsToQueue(newSongs)
-                    val liveQueue = PlaybackStateRepository.activeQueue ?: return@withContext
-                    // The append may have deduplicated; only advance if
-                    // there really are new songs after the current index.
-                    if (liveQueue.songs.size > queueSizeBefore) {
-                        moveToQueueIndex(queueSizeBefore)
-                    }
-                }
-            } finally {
-                radioPrefetchInFlight.set(false)
-            }
-        }
+        if (!isFlowEligible(queue)) return
+        flowAdvancePending = true
+        flowHandler.removeCallbacks(flowAdvanceTimeout)
+        flowHandler.postDelayed(flowAdvanceTimeout, FlowQueuePolicy.QUEUE_END_TIMEOUT_MS)
+        requestFlowBatch(queue)
     }
     override fun playPrevious() {
         if (isUnisoundMode) return
@@ -653,6 +644,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
         persistPlaybackState(force = true)
         syncPlaybackConnect()
+        // onMediaItemTransition no lo ve como cambio porque el índice ya se actualizó arriba.
+        recordRecentSong(targetSong.id)
+        maybePrefetchRadio()
     }
 
     override fun stop() {
@@ -726,6 +720,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             playmixTransitions = emptyMap()
             playmixSongIdMap = emptyMap()
             pendingStartPositionMs = 0L
+            resetRadioSession()
             PlaybackStateRepository.activeQueue = PlaybackQueue(
                 songs = songs,
                 currentIndex = 0,
@@ -776,8 +771,17 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         serviceScope.launch {
             settingsManager.autoplayRadioEnabledFlow.collect { enabled ->
                 autoplayRadioEnabled = enabled
+                if (!enabled) {
+                    // Apagar Flow surte efecto ya: se descarta el lote en vuelo.
+                    flowGeneration.incrementAndGet()
+                    withContext(Dispatchers.Main) { cancelFlowAdvance() }
+                }
             }
         }
+        serviceScope.launch {
+            settingsManager.flowDiscoveryLevelFlow.collect { level -> flowDiscoveryLevel = level }
+        }
+        serviceScope.launch { FlowPreferencesManager.syncOnStart(applicationContext) }
         observeSettings() // <-- Movido aquí
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -992,8 +996,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val newIndex = currentSongId?.let { id -> newSongs.indexOfFirst { it.id == id } } ?: -1
 
         // Actualizamos la cola en el Repository
+        val flowSongIds = queue.flowSongIds()
         queue.songs = newSongs.toMutableList()
         queue.resetEntriesForSongs()
+        queue.remarkFlowSongs(flowSongIds)
 
         if (newSongs.isEmpty()) {
             stop()
@@ -1140,7 +1146,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                             val playlistManager = PlaylistManager(applicationContext)
                             val newSongs = playlistManager.getSongsByPlaylistId(activeQueue.sourceId)
                             withContext(Dispatchers.Main) {
-                                updateSongs(newSongs)
+                                updateSongs(keepingFlowBlock(newSongs))
                             }
                         }
                     }
@@ -1908,6 +1914,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 PlaybackStateRepository.streamReported = false
                 updatePredictedDurationAsync()
                 prepareNextTransitionPlayer(index)
+                recordRecentSong(enrichedCurrentSong.id)
+                maybePrefetchRadio()
             }
         }
     }
@@ -2144,93 +2152,127 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
     }
 
+    private fun isFlowEligible(queue: PlaybackQueue): Boolean = FlowQueuePolicy.isEligible(
+        sourceType = queue.sourceType,
+        repeatMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF,
+        enabled = autoplayRadioEnabled
+    )
+
     /**
-     * Prefetch radio tracks when the queue is running out.  Called from
-     * [onMediaItemTransition] as the user advances through songs.
-     *
-     * Skips silently if:
-     *  - autoplay is disabled in settings,
-     *  - the queue is a PlayMix (has its own curated ending semantics),
-     *  - the queue is DOWNLOADED_SONGS (user is in offline mode),
-     *  - we're already fetching,
-     *  - or fewer than [RADIO_PREFETCH_THRESHOLD] songs remain but there's
-     *    still work to do (the check catches the transition into that state).
+     * Precarga Flow cuando quedan [FlowQueuePolicy.PREFETCH_THRESHOLD] canciones o menos.
+     * Se llama en cada cambio de canción: automático, manual, relevo de crossfade, inicio
+     * de cola y restauración.
      */
+    @androidx.annotation.MainThread
     private fun maybePrefetchRadio() {
-        if (!autoplayRadioEnabled || isUnisoundMode) return
         if (isSeeking) return
-
         val queue = PlaybackStateRepository.activeQueue ?: return
-        if (queue.songs.isEmpty()) return
+        if (!isFlowEligible(queue)) return
+        if (!FlowQueuePolicy.shouldPrefetch(queue.currentIndex, queue.songs.size, radioPrefetchInFlight.get())) return
+        requestFlowBatch(queue)
+    }
 
-        // Don't hijack playmixes (curated arc) or offline sessions.
-        if (queue.sourceType == QueueSource.PLAYMIX ||
-            queue.sourceType == QueueSource.DOWNLOADED_SONGS
-        ) return
-
-        // Repeat-all naturally cycles forever, no radio needed.
-        if (PlaybackStateRepository.repeatModeLiveData.value ==
-            PlaybackStateRepository.REPEAT_MODE_ALL
-        ) return
-
-        val songsRemainingAfterCurrent =
-            queue.songs.size - 1 - queue.currentIndex
-        if (songsRemainingAfterCurrent > RADIO_PREFETCH_THRESHOLD) return
-
+    /** Lanza la petición de radio si no hay otra en vuelo. Main: lee la cola. */
+    @androidx.annotation.MainThread
+    private fun requestFlowBatch(queue: PlaybackQueue) {
         if (!radioPrefetchInFlight.compareAndSet(false, true)) return
 
-        val sourceType = queue.sourceType.name
-        val sourceId = queue.sourceId
+        val generation = flowGeneration.get()
+        val sourceType = queue.flowSeedSourceType.name
+        val sourceId = queue.flowSeedSourceId
         val lastSongId = queue.songs.getOrNull(queue.currentIndex)?.id
         val recentIds = radioRecentSongIds.toList()
+        val discoveryLevel = flowDiscoveryLevel.takeIf { CapabilitiesManager.isFlowV2Enabled() }
+        Log.d(FLOW_TAG, "Pidiendo lote (seed=$sourceType, nivel=$discoveryLevel, generación=$generation)")
 
         serviceScope.launch {
             try {
-                val newSongs = radioRepository.fetchNextBatch(
+                val batch = radioRepository.fetchNextBatch(
                     sourceType = sourceType,
                     sourceId = sourceId,
                     lastSongId = lastSongId,
-                    recentSongIds = recentIds
+                    recentSongIds = recentIds,
+                    discoveryLevel = discoveryLevel
                 )
-                if (newSongs.isEmpty()) return@launch
-
-                withContext(Dispatchers.Main) { appendRadioSongsToQueue(newSongs) }
+                withContext(Dispatchers.Main) { onFlowBatch(batch, generation) }
             } finally {
                 radioPrefetchInFlight.set(false)
             }
         }
     }
 
+    @androidx.annotation.MainThread
+    private fun onFlowBatch(batch: RadioBatch, generation: Long) {
+        val queue = PlaybackStateRepository.activeQueue
+        val eligible = queue != null && isFlowEligible(queue)
+        if (queue == null || !FlowQueuePolicy.shouldApply(generation, flowGeneration.get(), eligible)) {
+            Log.d(FLOW_TAG, "Lote descartado: el contexto cambió mientras se pedía.")
+            return
+        }
+
+        val firstNewIndex = queue.songs.size
+        appendRadioSongsToQueue(batch)
+        if (!flowAdvancePending) return
+        cancelFlowAdvance()
+        // Solo se avanza si seguimos parados en la última canción de antes del lote.
+        val stillAtEnd = queue.currentIndex == firstNewIndex - 1 && exoPlayer?.isPlaying != true
+        if (stillAtEnd && queue.songs.size > firstNewIndex) {
+            moveToQueueIndex(firstNewIndex)
+        }
+    }
+
+    @androidx.annotation.MainThread
+    private fun cancelFlowAdvance() {
+        flowAdvancePending = false
+        flowHandler.removeCallbacks(flowAdvanceTimeout)
+    }
+
     /**
-     * Appends radio-fetched songs to the active queue in place.  Runs on
-     * main because it mutates the ExoPlayer timeline.  Preserves the
+     * Appends radio-fetched songs to the active queue in place, marked as Flow.
+     * Runs on main because it mutates the ExoPlayer timeline.  Preserves the
      * queue's original [QueueSource] — the sourceType stays as e.g. ALBUM
      * for Connect purposes, and we surface the radio state separately via
      * [PlaybackStateRepository.radioSessionLiveData].
      */
     @androidx.annotation.MainThread
-    private fun appendRadioSongsToQueue(newSongs: List<com.example.resonant.data.models.Song>) {
+    private fun appendRadioSongsToQueue(batch: RadioBatch) {
         val queue = PlaybackStateRepository.activeQueue ?: return
-        val existingIds = queue.songs.mapTo(HashSet(queue.songs.size)) { it.id }
-        val toAppend = newSongs.filter { it.id.isNotBlank() && it.id !in existingIds }
+        val toAppend = FlowQueuePolicy.songsToAppend(queue.songs.map { it.id }, batch.songs)
         if (toAppend.isEmpty()) return
 
-        queue.appendSongs(toAppend)
+        val hadNextSong = queue.currentIndex < queue.songs.lastIndex
+        queue.appendFlowSongs(toAppend, batch.reasonsBySongId)
         PlaybackStateRepository.publishQueue()
         PlaybackStateRepository.setRadioSession(radioRepository.currentSession)
 
         // Push the new items into the ExoPlayer timeline too, otherwise the
         // native "play next" would still hit end-of-queue.
-        val player = exoPlayer ?: return
-        val newMediaItems = toAppend.map(playbackMediaItemFactory::create)
-        player.addMediaItems(newMediaItems)
+        val player = exoPlayer
+        if (player != null) {
+            player.addMediaItems(toAppend.map(playbackMediaItemFactory::create))
+            // Si la actual era la última, ahora tiene siguiente: se prepara el relevo.
+            if (!hadNextSong) prepareNextTransitionPlayer(queue.currentIndex)
+        }
+        persistPlaybackState(force = true)
 
         Log.d(
-            "MusicService",
+            FLOW_TAG,
             "🎧 Resonant Radio: added ${toAppend.size} songs " +
                 "(seed=${radioRepository.currentSession?.seedName})"
         )
     }
+
+    /** Canciones nuevas de la playlist de origen seguidas del bloque Flow actual. */
+    private fun keepingFlowBlock(userSongs: List<Song>): List<Song> {
+        val queue = PlaybackStateRepository.activeQueue ?: return userSongs
+        val flowSongs = queue.songs.filterIndexed { index, _ -> queue.isFlowEntry(index) }
+        if (flowSongs.isEmpty()) return userSongs
+        val flowIds = flowSongs.mapTo(HashSet()) { it.id }
+        return userSongs.filter { it.id !in flowIds } + flowSongs
+    }
+
+    private fun flowSessionSnapshot(): FlowSessionSnapshot =
+        FlowSessionSnapshot(radioRepository.currentSession, radioRecentSongIds.toList())
 
     /**
      * Clears the current radio session — call whenever the user starts a
@@ -2239,6 +2281,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
      * station instead of continuing the previous one.
      */
     private fun resetRadioSession() {
+        flowGeneration.incrementAndGet()
+        cancelFlowAdvance()
         radioRepository.clearSession()
         radioRecentSongIds.clear()
         PlaybackStateRepository.setRadioSession(null)
@@ -2362,7 +2406,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 durationMs = durationMs,
                 repeatMode = repeatMode,
                 shuffleEnabled = shuffleEnabled,
-                synchronous = true
+                synchronous = true,
+                flowSession = flowSessionSnapshot()
             )
         } else {
             playbackStateStore.saveAsync(
@@ -2372,7 +2417,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 positionMs = positionMs,
                 durationMs = durationMs,
                 repeatMode = repeatMode,
-                shuffleEnabled = shuffleEnabled
+                shuffleEnabled = shuffleEnabled,
+                flowSession = flowSessionSnapshot()
             )
         }
         lastPlaybackStateSaveAtMs = now
@@ -2387,6 +2433,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         PlaybackStateRepository.restore(restored)
         currentSongStartTimeMs = 0L
         loadArtworkForSong(currentSong)
+        restored.flowSession?.let { flow ->
+            radioRepository.restoreSession(flow.radioSession)
+            radioRecentSongIds.clear()
+            radioRecentSongIds.addAll(flow.recentSongIds.takeLast(RADIO_RECENT_WINDOW_SIZE))
+            PlaybackStateRepository.setRadioSession(flow.radioSession)
+        }
 
         player.repeatMode = when (restored.repeatMode) {
             PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
@@ -2400,6 +2452,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         )
         applyLoudnessNormalization(currentSong)
         updateMediaSessionMetadata()
+        maybePrefetchRadio()
     }
 
     private fun reportCurrentSongFinished(wasSkipped: Boolean) {
@@ -2678,7 +2731,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                         val playlistManager = PlaylistManager(applicationContext)
                         val newSongs = playlistManager.getSongsByPlaylistId(modifiedPlaylistId)
                         withContext(Dispatchers.Main) {
-                            updateSongs(newSongs)
+                            updateSongs(keepingFlowBlock(newSongs))
                         }
                     }
                 }
@@ -2788,6 +2841,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 QueueCommands.CLEAR_UPCOMING -> clearUpcomingQueue()
 
                 QueueCommands.SHUFFLE_UPCOMING -> shuffleUpcomingQueue()
+
+                QueueCommands.FLOW_FEEDBACK_APPLY -> applyFlowFeedback(
+                    arguments.getString(QueueCommands.ARG_TARGET_TYPE).orEmpty(),
+                    arguments.getString(QueueCommands.ARG_TARGET_ID).orEmpty()
+                )
+
+                QueueCommands.FLOW_FEEDBACK_UNDO -> undoFlowFeedback()
                 else -> queueCommandResult(
                     SessionResult.RESULT_ERROR_NOT_SUPPORTED,
                     "Comando no compatible"
@@ -2817,7 +2877,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val insertionIndex = if (playNext) {
             (existingQueue.currentIndex + 1).coerceAtMost(songs.size)
         } else {
-            songs.size
+            FlowQueuePolicy.insertionIndexForAdd(entryIds, existingQueue.flowEntryIds, existingQueue.currentIndex)
         }
         songs.add(insertionIndex, song)
         entryIds.add(insertionIndex, UUID.randomUUID().toString())
@@ -2947,14 +3007,63 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         prepareForManualQueueMutation(queue)
         val prefixSongs = queue.songs.take(upcomingStart)
         val prefixIds = queue.entryIds.take(upcomingStart)
-        val shuffledUpcoming = queue.songs
-            .drop(upcomingStart)
-            .zip(queue.entryIds.drop(upcomingStart))
-            .shuffled()
+        val shuffledUpcoming = FlowQueuePolicy.reorderPreservingFlow(
+            items = queue.songs.drop(upcomingStart).zip(queue.entryIds.drop(upcomingStart)),
+            isFlow = { (_, entryId) -> entryId in queue.flowEntryIds },
+            reorderUser = { it.shuffled() }
+        )
         queue.songs = prefixSongs + shuffledUpcoming.map { it.first }
         queue.entryIds = prefixIds + shuffledUpcoming.map { it.second }
         finishQueueMutation(queue)
         return queueCommandResult(SessionResult.RESULT_SUCCESS, "Próximas canciones mezcladas")
+    }
+
+    /** Entradas Flow quitadas por el último feedback, para poder deshacerlo. */
+    private data class RemovedFlowEntry(val index: Int, val song: Song, val entryId: String, val reason: String?)
+    private var lastFlowRemoval: List<RemovedFlowEntry> = emptyList()
+
+    private fun applyFlowFeedback(targetType: String, targetId: String): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+            ?: return queueCommandResult(SessionResult.RESULT_ERROR_INVALID_STATE, "No hay una cola activa")
+        val indices = FlowQueuePolicy.upcomingFlowMatches(
+            queue.songs, queue::isFlowEntry, queue.currentIndex, targetType, targetId
+        )
+        lastFlowRemoval = indices.map { index ->
+            val song = queue.songs[index]
+            RemovedFlowEntry(index, song, queue.entryIds[index], queue.flowReasons[song.id])
+        }
+        if (indices.isEmpty()) return queueCommandResult(SessionResult.RESULT_SUCCESS, "")
+
+        cancelCurrentTransitionAndRestoreEffects()
+        val removed = indices.toHashSet()
+        queue.songs = queue.songs.filterIndexed { index, _ -> index !in removed }
+        queue.entryIds = queue.entryIds.filterIndexed { index, _ -> index !in removed }
+        finishQueueMutation(queue)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "")
+    }
+
+    private fun undoFlowFeedback(): SessionResult {
+        val queue = PlaybackStateRepository.activeQueue
+        val removal = lastFlowRemoval
+        lastFlowRemoval = emptyList()
+        if (queue == null || removal.isEmpty()) return queueCommandResult(SessionResult.RESULT_SUCCESS, "")
+
+        cancelCurrentTransitionAndRestoreEffects()
+        val songs = queue.songs.toMutableList()
+        val entryIds = queue.entryIds.toMutableList()
+        val present = songs.mapTo(HashSet()) { it.id }
+        for (entry in removal.sortedBy { it.index }) {
+            if (!present.add(entry.song.id)) continue
+            val index = FlowQueuePolicy.restoreIndex(entry.index, queue.currentIndex, songs.size)
+            songs.add(index, entry.song)
+            entryIds.add(index, entry.entryId)
+        }
+        queue.songs = songs
+        queue.entryIds = entryIds
+        queue.flowEntryIds = queue.flowEntryIds + removal.map { it.entryId }
+        queue.flowReasons = queue.flowReasons + removal.mapNotNull { e -> e.reason?.let { e.song.id to it } }
+        finishQueueMutation(queue)
+        return queueCommandResult(SessionResult.RESULT_SUCCESS, "")
     }
 
     private fun prepareForManualQueueMutation(queue: PlaybackQueue) {
@@ -2973,6 +3082,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun finishQueueMutation(queue: PlaybackQueue) {
+        queue.pruneFlowEntries()
         queue.currentIndex = queue.currentIndex.coerceIn(queue.songs.indices)
         synchronizeExoPlayerQueue()
         PlaybackStateRepository.publishQueue()
@@ -3099,28 +3209,32 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val isShuffle = PlaybackStateRepository.isShuffleEnabledLiveData.value ?: false
         val newShuffleState = !isShuffle
 
+        // El bloque Flow nunca se mezcla: sigue detrás de las canciones del usuario.
+        val flowSongIds = queue.flowSongIds()
         if (newShuffleState) {
             // Activar Shuffle
             if (originalQueueSongs == null) {
-                originalQueueSongs = queue.songs.toList()
+                originalQueueSongs = queue.songs.filter { it.id !in flowSongIds }
             }
             val currentSongId = PlaybackStateRepository.currentSong?.id
-            val shuffled = queue.songs.shuffled().toMutableList()
-
-            // Mover canción actual al inicio para no interrumpir
-            if (currentSongId != null) {
-                 val currentSong = shuffled.find { it.id == currentSongId }
-                 if (currentSong != null) {
-                     shuffled.remove(currentSong)
-                     shuffled.add(0, currentSong)
-                 }
+            val shuffled = FlowQueuePolicy.reorderPreservingFlow(queue.songs, { it.id in flowSongIds }) { userSongs ->
+                val mixed = userSongs.shuffled().toMutableList()
+                // Mover canción actual al inicio para no interrumpir
+                if (currentSongId != null) {
+                    val currentSong = mixed.find { it.id == currentSongId }
+                    if (currentSong != null) {
+                        mixed.remove(currentSong)
+                        mixed.add(0, currentSong)
+                    }
+                }
+                mixed
             }
             updateSongs(shuffled)
         } else {
             // Desactivar Shuffle (Restaurar)
             val original = originalQueueSongs
             if (original != null) {
-                updateSongs(original)
+                updateSongs(keepingFlowBlock(original))
                 originalQueueSongs = null
             }
         }
@@ -3486,6 +3600,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         updatePredictedDurationAsync()
+
+        // onMediaItemTransition se ignora durante el relevo: Flow se revisa aquí.
+        recordRecentSong(completedSong.id)
+        maybePrefetchRadio()
 
         val nextSong = PlaybackStateRepository.getNextSong(newQueueIndex.takeIf { it >= 0 } ?: newPlayer.currentMediaItemIndex)
         transitionManager.preloadNextSong(nextSong)

@@ -1,11 +1,14 @@
 package com.example.resonant.ui.fragments
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.res.ResourcesCompat
@@ -19,19 +22,24 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.R
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
+import com.example.resonant.data.models.Genre
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.data.models.Song
 import com.example.resonant.data.models.StatsPeriod
+import com.example.resonant.explore.AriaPick
+import com.example.resonant.explore.ExploreMode
+import com.example.resonant.playback.QueueSource
+import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.ExploreAlbumAdapter
 import com.example.resonant.ui.adapters.ExploreArtistAdapter
 import com.example.resonant.ui.adapters.ExplorePlaylistAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
+import com.example.resonant.ui.explore.ExploreCollabCard
+import com.example.resonant.ui.explore.ExploreSectionsRenderer
 import com.example.resonant.ui.viewmodels.ExploreViewModel
-import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
@@ -43,6 +51,9 @@ class ExploreFragment : Fragment() {
 
     companion object {
         private const val GENRES_PER_BATCH = 6
+        private const val DEFERRED_SECTION_MARGIN_DP = 200
+        private const val MENU_ARIA_LIKE = 1
+        private const val MENU_ARIA_DISMISS = 2
     }
 
     private lateinit var viewModel: ExploreViewModel
@@ -70,11 +81,14 @@ class ExploreFragment : Fragment() {
     private lateinit var recommendedArtistsShimmer: ShimmerFrameLayout
     private lateinit var genresMoreShimmer: ShimmerFrameLayout
 
-    private lateinit var collabPrimaryArtistImage: ImageView
-    private lateinit var collabSecondaryArtistImage: ImageView
-    private lateinit var collabPrimaryArtistName: TextView
-    private lateinit var collabSecondaryArtistName: TextView
-    private lateinit var collabPairMeta: TextView
+    private lateinit var collabCard: View
+
+    private lateinit var heroTitle: TextView
+    private lateinit var legacyContainer: View
+    private lateinit var dynamicContainer: LinearLayout
+    private var sectionsRenderer: ExploreSectionsRenderer? = null
+    private var defaultHeroTitle: CharSequence = ""
+    private var legacyStarted = false
 
     private lateinit var recyclerViewPlaylists: RecyclerView
     private lateinit var recyclerViewAlbums: RecyclerView
@@ -129,8 +143,7 @@ class ExploreFragment : Fragment() {
         setupFloatingSearchHeader(view)
         setupProgressiveLoading()
 
-        viewModel.loadMostListenedArtists()
-        scrollView.post { loadVisibleSections() }
+        viewModel.loadExplore()
     }
 
     override fun onDestroyView() {
@@ -142,6 +155,7 @@ class ExploreFragment : Fragment() {
             }
         }
         scrollChangedListener = null
+        sectionsRenderer = null
         scrollBehavior?.reset()
         scrollBehavior = null
         super.onDestroyView()
@@ -172,11 +186,13 @@ class ExploreFragment : Fragment() {
         recommendedArtistsShimmer = view.findViewById(R.id.recommendedArtistsShimmer)
         genresMoreShimmer = view.findViewById(R.id.genresMoreShimmer)
 
-        collabPrimaryArtistImage = view.findViewById(R.id.collabPrimaryArtistImage)
-        collabSecondaryArtistImage = view.findViewById(R.id.collabSecondaryArtistImage)
-        collabPrimaryArtistName = view.findViewById(R.id.collabPrimaryArtistName)
-        collabSecondaryArtistName = view.findViewById(R.id.collabSecondaryArtistName)
-        collabPairMeta = view.findViewById(R.id.collabPairMeta)
+        collabCard = view.findViewById(R.id.collabFinderSection)
+
+        heroTitle = view.findViewById(R.id.exploreHeroTitle)
+        defaultHeroTitle = heroTitle.text
+        legacyContainer = view.findViewById(R.id.exploreLegacyContainer)
+        dynamicContainer = view.findViewById(R.id.exploreDynamicContainer)
+        sectionsRenderer = ExploreSectionsRenderer(dynamicContainer, sectionCallbacks)
 
         recyclerViewPlaylists = view.findViewById(R.id.recyclerViewPlaylists)
         recyclerViewAlbums = view.findViewById(R.id.recyclerViewAlbums)
@@ -190,11 +206,7 @@ class ExploreFragment : Fragment() {
         view.findViewById<View>(R.id.searchButton).setOnClickListener {
             findNavController().navigate(R.id.action_exploreFragment_to_searchFragment)
         }
-        val openCollabFinder = View.OnClickListener {
-            findNavController().navigate(R.id.action_exploreFragment_to_collab_finder_nav)
-        }
-        view.findViewById<View>(R.id.collabFinderSection).setOnClickListener(openCollabFinder)
-        view.findViewById<View>(R.id.collabFinderButton).setOnClickListener(openCollabFinder)
+        ExploreCollabCard.setOnOpenListener(collabCard, ::openCollabFinder)
         view.findViewById<View>(R.id.btnPopulares).setOnClickListener {
             navigateToChart("Top Diario", StatsPeriod.DAILY.value, false, "#FF9F40", "#F53B57")
         }
@@ -276,14 +288,7 @@ class ExploreFragment : Fragment() {
         recyclerViewRecommendedAlbums.setupHorizontalExploreList(recommendedAlbumAdapter)
         recyclerViewRecommendedArtists.setupHorizontalExploreList(recommendedArtistAdapter)
 
-        val onGenreClick: (com.example.resonant.data.models.Genre) -> Unit = { selectedGenre ->
-            val bundle = Bundle().apply {
-                putString("genreId", selectedGenre.id)
-                putString("genreName", selectedGenre.name)
-                putString("genreGradientColors", selectedGenre.gradientColors)
-            }
-            findNavController().navigate(R.id.action_exploreFragment_to_genreArtistsFragment, bundle)
-        }
+        val onGenreClick: (Genre) -> Unit = ::navigateToGenre
         genreAdapter = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
         genreAdapterMore = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
         recyclerViewGenres.setupGenreGrid(genreAdapter)
@@ -305,8 +310,17 @@ class ExploreFragment : Fragment() {
     }
 
     private fun setupObservers() {
+        viewModel.mode.observe(viewLifecycleOwner, ::applyMode)
+
+        viewModel.ariaMessage.observe(viewLifecycleOwner) { message ->
+            if (message != null) {
+                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                viewModel.consumeAriaMessage()
+            }
+        }
+
         viewModel.mostListenedArtists.observe(viewLifecycleOwner) { artists ->
-            bindCollabFinderArtists(artists)
+            ExploreCollabCard.bind(collabCard, artists)
         }
 
         viewModel.publicPlaylists.observe(viewLifecycleOwner) { playlists ->
@@ -448,35 +462,88 @@ class ExploreFragment : Fragment() {
         }
     }
 
-    private fun bindCollabFinderArtists(artists: List<Artist>) {
-        val primary = artists.getOrNull(0)
-        val secondary = artists.getOrNull(1)
-
-        collabPrimaryArtistName.text = primary?.name?.takeIf { it.isNotBlank() } ?: "Tu artista top"
-        collabSecondaryArtistName.text = secondary?.name?.takeIf { it.isNotBlank() } ?: "Segundo artista"
-        collabPairMeta.text = when {
-            primary != null && secondary != null -> "Top 1 + Top 2 segun tus escuchas"
-            primary != null -> "Desde tu artista mas escuchado"
-            else -> "Basado en tus escuchas"
+    /**
+     * Explore v2 when the server offers it; otherwise (flag off, failure, nothing to show) the
+     * fixed screen, whose loads only start once that fallback is decided.
+     */
+    private fun applyMode(mode: ExploreMode) {
+        when (mode) {
+            ExploreMode.Loading -> {
+                legacyContainer.isVisible = false
+                dynamicContainer.isVisible = false
+            }
+            ExploreMode.Legacy -> {
+                sectionsRenderer?.clear()
+                dynamicContainer.isVisible = false
+                legacyContainer.isVisible = true
+                heroTitle.text = defaultHeroTitle
+                if (!legacyStarted) {
+                    legacyStarted = true
+                    viewModel.loadMostListenedArtists()
+                    scrollView.post { loadVisibleSections() }
+                }
+            }
+            is ExploreMode.Dynamic -> {
+                legacyContainer.isVisible = false
+                dynamicContainer.isVisible = true
+                heroTitle.text = mode.greeting ?: defaultHeroTitle
+                sectionsRenderer?.render(mode.state.visibleSections)
+                scrollView.post { loadVisibleSections() }
+            }
         }
-
-        loadCollabArtistImage(collabPrimaryArtistImage, primary?.url)
-        loadCollabArtistImage(collabSecondaryArtistImage, secondary?.url)
     }
 
-    private fun loadCollabArtistImage(imageView: ImageView, url: String?) {
-        Glide.with(imageView)
-            .load(url?.takeIf { it.isNotBlank() }?.let {
-                ImageRequestHelper.buildGlideModel(imageView.context, it)
-            })
-            .override(240, 240)
-            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .timeout(10_000)
-            .placeholder(R.drawable.ic_user)
-            .error(R.drawable.ic_user)
-            .circleCrop()
-            .dontAnimate()
-            .into(imageView)
+    private val sectionCallbacks = object : ExploreSectionsRenderer.Callbacks {
+        override fun onSongClick(sectionId: String, songs: List<Song>, index: Int) =
+            playFromExplore(songs, index, QueueSource.EXPLORE, sectionId)
+
+        override fun onAriaPickClick(sectionId: String, picks: List<AriaPick>, index: Int) =
+            playFromExplore(picks.map { it.song }, index, QueueSource.ARIA_PICK, sectionId)
+
+        override fun onAriaPickLongClick(pick: AriaPick, anchor: View) = showAriaPickMenu(pick, anchor)
+        override fun onAlbumClick(album: Album) = navigateToAlbum(album)
+        override fun onArtistClick(artist: Artist) = navigateToArtist(artist)
+        override fun onPlaylistClick(playlist: Playlist) = navigateToPlaylist(playlist)
+        override fun onGenreClick(genre: Genre) = navigateToGenre(genre)
+
+        override fun onSeeAllGenres() {
+            findNavController().navigate(R.id.action_exploreFragment_to_allGenresFragment)
+        }
+
+        override fun onSeeAllPlaylists() {
+            findNavController().navigate(R.id.action_exploreFragment_to_publicPlaylistsFragment)
+        }
+
+        override fun onOpenCollabFinder() = openCollabFinder()
+    }
+
+    private fun showAriaPickMenu(pick: AriaPick, anchor: View) {
+        PopupMenu(requireContext(), anchor).apply {
+            menu.add(0, MENU_ARIA_LIKE, 0, R.string.aria_pick_like)
+            menu.add(0, MENU_ARIA_DISMISS, 1, R.string.aria_pick_dismiss)
+            setOnMenuItemClickListener { item ->
+                viewModel.sendAriaFeedback(pick.song.id, liked = item.itemId == MENU_ARIA_LIKE)
+                true
+            }
+        }.show()
+    }
+
+    /** Plays [songs] as the queue starting at [index], like Home does with its rows. */
+    private fun playFromExplore(songs: List<Song>, index: Int, source: QueueSource, sectionId: String) {
+        val song = songs.getOrNull(index) ?: return
+        val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_PLAY
+            putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
+            putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, index)
+            putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(songs))
+            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, source)
+            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "explore:$sectionId")
+        }
+        requireContext().startService(playIntent)
+    }
+
+    private fun openCollabFinder() {
+        findNavController().navigate(R.id.action_exploreFragment_to_collab_finder_nav)
     }
 
     private fun renderSection(
@@ -517,7 +584,14 @@ class ExploreFragment : Fragment() {
     }
 
     private fun loadVisibleSections() {
-        if (!isAdded || progressiveLoadPending) return
+        if (!isAdded) return
+        if (viewModel.mode.value is ExploreMode.Dynamic) {
+            sectionsRenderer
+                ?.pendingIdsNear { it.isNearViewport(DEFERRED_SECTION_MARGIN_DP) }
+                ?.forEach(viewModel::requestDeferred)
+            return
+        }
+        if (progressiveLoadPending) return
 
         val requested = when {
             !recommendedAlbumsRequested && recommendedAlbumsSection.isNearViewport(80) -> {
@@ -562,7 +636,18 @@ class ExploreFragment : Fragment() {
 
     private fun View.isNearViewport(extraDp: Int): Boolean {
         val triggerY = scrollView.scrollY + scrollView.height + extraDp.dp()
-        return top <= triggerY
+        return topInScrollContent() <= triggerY
+    }
+
+    /** Sections live inside the legacy/dynamic containers, so add the offsets up to the scroll content. */
+    private fun View.topInScrollContent(): Int {
+        var offset = top
+        var parentView = parent as? View
+        while (parentView != null && parentView.parent !== scrollView && parentView !== scrollView) {
+            offset += parentView.top
+            parentView = parentView.parent as? View
+        }
+        return offset
     }
 
     private fun Int.dp(): Int {
@@ -604,6 +689,15 @@ class ExploreFragment : Fragment() {
             putString("artistImageUrl", artist.url)
         }
         findNavController().navigate(R.id.action_exploreFragment_to_artistFragment, bundle)
+    }
+
+    private fun navigateToGenre(genre: Genre) {
+        val bundle = Bundle().apply {
+            putString("genreId", genre.id)
+            putString("genreName", genre.name)
+            putString("genreGradientColors", genre.gradientColors)
+        }
+        findNavController().navigate(R.id.action_exploreFragment_to_genreArtistsFragment, bundle)
     }
 
     private fun navigateToAlbum(album: Album) {

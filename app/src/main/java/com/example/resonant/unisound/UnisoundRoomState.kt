@@ -3,6 +3,7 @@ package com.example.resonant.unisound
 import com.example.resonant.data.network.UnisoundMemberDTO
 import com.example.resonant.data.network.UnisoundPlaybackStateDTO
 import com.example.resonant.data.network.UnisoundQueueItemDTO
+import com.example.resonant.data.network.UnisoundReactionDTO
 import com.example.resonant.data.network.UnisoundSessionSnapshotDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
 import com.example.resonant.data.network.UnisoundSettingsDTO
@@ -93,6 +94,9 @@ sealed class UnisoundEvent {
     data class MembersChanged(val members: List<UnisoundMemberDTO>) : UnisoundEvent()
     data class PolicyChanged(val settings: UnisoundSettingsDTO) : UnisoundEvent()
     data class Ended(val summary: UnisoundSessionSummaryDTO) : UnisoundEvent()
+
+    /** Ephemeral: never changes the room state or its revision. */
+    data class Reaction(val reaction: UnisoundReactionDTO) : UnisoundEvent()
 }
 
 sealed class UnisoundEffect {
@@ -102,6 +106,7 @@ sealed class UnisoundEffect {
     data class Ended(val summary: UnisoundSessionSummaryDTO) : UnisoundEffect()
     data class Kicked(val summary: UnisoundSessionSummaryDTO) : UnisoundEffect()
     object BecameHost : UnisoundEffect()
+    data class Reacted(val reaction: UnisoundReactionDTO) : UnisoundEffect()
 }
 
 data class UnisoundReduction(
@@ -123,6 +128,7 @@ object UnisoundRoomReducer {
         is UnisoundEvent.QueueChanged -> applyQueue(state, event.revision, event.items)
         is UnisoundEvent.MembersChanged -> applyMembers(state, event.members)
         is UnisoundEvent.PolicyChanged -> UnisoundReduction(state.copy(settings = event.settings))
+        is UnisoundEvent.Reaction -> UnisoundReduction(state, listOf(UnisoundEffect.Reacted(event.reaction)))
         is UnisoundEvent.Ended -> UnisoundReduction(
             state = null,
             effects = listOf(

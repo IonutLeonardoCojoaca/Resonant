@@ -1,5 +1,7 @@
 ﻿package com.example.resonant.ui.fragments
 
+import com.example.resonant.ui.bottomsheets.FlowSongOptionsBottomSheet
+import com.example.resonant.ui.flow.FlowFeedbackActions
 import android.content.Context
 import android.animation.ObjectAnimator
 
@@ -473,62 +475,11 @@ class SongFragment : DialogFragment() {
         settingsButton.setOnClickListener {
             val currentSong = songViewModel.currentSongLiveData.value
             currentSong?.let { song ->
-                lifecycleScope.launch {
-                    // Use artists already embedded in the song from the API
-                    song.artistName = song.artists.joinToString(", ") { it.name }
-
-                    bottomSheet = SongOptionsBottomSheet(
-                        song = song,
-                        onSeeSongClick = { selectedSong ->
-                            val bundle = Bundle().apply { putParcelable("song", selectedSong) }
-                            requireActivity().findNavController(R.id.nav_host_fragment)
-                                .navigate(R.id.action_global_to_detailedSongFragment, bundle)
-
-                            bottomSheet.dismiss()
-                            this@SongFragment.dismiss()
-                        },
-                        onFavoriteToggled = { toggledSong ->
-                            favoritesViewModel.toggleFavoriteSong(toggledSong)
-                        },
-                        onAddToPlaylistClick = { songToAdd ->
-                            val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
-                                song = songToAdd,
-                                onNoPlaylistsFound = {
-                                    this@SongFragment.dismiss()
-                                    requireActivity().findNavController(R.id.nav_host_fragment)
-                                        .navigate(R.id.action_global_to_createPlaylistFragment)
-                                }
-                            )
-                            selectPlaylistBottomSheet.show(
-                                parentFragmentManager,
-                                "SelectPlaylistBottomSheet"
-                            )
-                        },
-                        onDownloadClick = { songToDownload ->
-                            downloadViewModel.downloadSong(songToDownload)
-                        },
-                        onRemoveDownloadClick = { songToDelete ->
-                            downloadViewModel.deleteSong(songToDelete)
-                        },
-                        onGoToAlbumClick = { albumId ->
-                            val bundle = Bundle().apply { putString("albumId", albumId) }
-                            // Using direct ID navigation as action might not be defined for SongFragment -> AlbumFragment
-                            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
-                            bottomSheet.dismiss()
-                            this@SongFragment.dismiss()
-                        },
-                        onGoToArtistClick = { artist ->
-                             val bundle = Bundle().apply { 
-                                 putString("artistId", artist.id)
-                                 putString("artistName", artist.name)
-                                 putString("artistImageUrl", artist.url)
-                            }
-                            requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
-                            bottomSheet.dismiss()
-                            this@SongFragment.dismiss()
-                        }
-                    )
-                    bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
+                if (FlowFeedbackActions.isCurrentFlowEntry() && CapabilitiesManager.isFlowV2Enabled()) {
+                    FlowSongOptionsBottomSheet(song) { showSongOptions(it) }
+                        .show(parentFragmentManager, "FlowSongOptionsBottomSheet")
+                } else {
+                    showSongOptions(song)
                 }
             }
         }
@@ -614,6 +565,66 @@ class SongFragment : DialogFragment() {
             }
         })
         return view
+    }
+
+    private fun showSongOptions(song: com.example.resonant.data.models.Song) {
+        lifecycleScope.launch {
+            // Use artists already embedded in the song from the API
+            song.artistName = song.artists.joinToString(", ") { it.name }
+
+            bottomSheet = SongOptionsBottomSheet(
+                song = song,
+                onSeeSongClick = { selectedSong ->
+                    val bundle = Bundle().apply { putParcelable("song", selectedSong) }
+                    requireActivity().findNavController(R.id.nav_host_fragment)
+                        .navigate(R.id.action_global_to_detailedSongFragment, bundle)
+
+                    bottomSheet.dismiss()
+                    this@SongFragment.dismiss()
+                },
+                onFavoriteToggled = { toggledSong ->
+                    favoritesViewModel.toggleFavoriteSong(toggledSong)
+                },
+                onAddToPlaylistClick = { songToAdd ->
+                    val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                        song = songToAdd,
+                        onNoPlaylistsFound = {
+                            this@SongFragment.dismiss()
+                            requireActivity().findNavController(R.id.nav_host_fragment)
+                                .navigate(R.id.action_global_to_createPlaylistFragment)
+                        }
+                    )
+                    selectPlaylistBottomSheet.show(
+                        parentFragmentManager,
+                        "SelectPlaylistBottomSheet"
+                    )
+                },
+                onDownloadClick = { songToDownload ->
+                    downloadViewModel.downloadSong(songToDownload)
+                },
+                onRemoveDownloadClick = { songToDelete ->
+                    downloadViewModel.deleteSong(songToDelete)
+                },
+                onGoToAlbumClick = { albumId ->
+                    val bundle = Bundle().apply { putString("albumId", albumId) }
+                    // Using direct ID navigation as action might not be defined for SongFragment -> AlbumFragment
+                    requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.albumFragment, bundle)
+                    bottomSheet.dismiss()
+                    this@SongFragment.dismiss()
+                },
+                onGoToArtistClick = { artist ->
+                     val bundle = Bundle().apply { 
+                         putString("artistId", artist.id)
+                         putString("artistName", artist.name)
+                         putString("artistImageUrl", artist.url)
+                    }
+                    requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.artistFragment, bundle)
+                    bottomSheet.dismiss()
+                    this@SongFragment.dismiss()
+                }
+            )
+            bottomSheet.show(parentFragmentManager, "SongOptionsBottomSheet")
+        }
     }
 
     private fun loadAlbumInfo(song: com.example.resonant.data.models.Song) {
@@ -1199,7 +1210,8 @@ class SongFragment : DialogFragment() {
             // SongFragment already has its own dedicated Related tab, so the
             // queue tab doesn't need the "Relacionadas" mini-list too.
             relatedSection = null,
-            relatedRecycler = null
+            relatedRecycler = null,
+            flowControls = view.findViewById(R.id.flow_controls)
         )
         queueController.start()
 

@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de Collab Finder: la usan el Explorar fijo y el dinámico (Explorar v2). -->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/collabFinderSection"
+    android:layout_width="match_parent"
+    android:layout_height="260dp"
+    android:layout_marginHorizontal="18dp"
+    android:layout_marginTop="26dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/transparent"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="0dp">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_explore_collab_card"
+        android:padding="18dp">
+
+        <TextView
+            android:id="@+id/collabEyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:background="@drawable/bg_explore_badge"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:letterSpacing="0.06"
+            android:paddingHorizontal="9dp"
+            android:text="COLLAB FINDER"
+            android:textColor="@color/secondaryColorTheme"
+            android:textSize="9sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/collabVisualPanel"
+            android:layout_width="132dp"
+            android:layout_height="150dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <FrameLayout
+                android:id="@+id/collabPrimaryArtistFrame"
+                android:layout_width="78dp"
+                android:layout_height="78dp"
+                android:background="@drawable/bg_explore_collab_avatar_ring"
+                android:elevation="4dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/collabPrimaryArtistImage"
+                    android:layout_width="70dp"
+                    android:layout_height="70dp"
+                    android:layout_gravity="center"
+                    android:background="@color/discTheme"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_user"
+                    app:shapeAppearanceOverlay="@style/CircularUserImage"
+                    tools:src="@drawable/ic_user" />
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/collabSecondaryArtistFrame"
+                android:layout_width="74dp"
+                android:layout_height="74dp"
+                android:background="@drawable/bg_explore_collab_avatar_ring"
+                android:elevation="5dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="@id/collabPrimaryArtistFrame"
+                app:layout_constraintVertical_bias="0.55"
+                app:layout_constraintBottom_toBottomOf="@id/collabPrimaryArtistFrame">
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/collabSecondaryArtistImage"
+                    android:layout_width="66dp"
+                    android:layout_height="66dp"
+                    android:layout_gravity="center"
+                    android:background="@color/discTheme"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_user"
+                    app:shapeAppearanceOverlay="@style/CircularUserImage"
+                    tools:src="@drawable/ic_user" />
+
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/collabPlus"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="@drawable/bg_explore_collab_plus"
+                android:elevation="6dp"
+                android:fontFamily="@font/unageo_bold"
+                android:gravity="center"
+                android:text="+"
+                android:textColor="@android:color/white"
+                android:textSize="17sp"
+                app:layout_constraintBottom_toBottomOf="@id/collabPrimaryArtistFrame"
+                app:layout_constraintEnd_toEndOf="@id/collabPrimaryArtistFrame"
+                app:layout_constraintStart_toStartOf="@id/collabSecondaryArtistFrame"
+                app:layout_constraintTop_toTopOf="@id/collabSecondaryArtistFrame" />
+
+            <TextView
+                android:id="@+id/collabPrimaryArtistName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/unageo_bold"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="Tu artista top"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/collabPrimaryArtistFrame" />
+
+            <TextView
+                android:id="@+id/collabSecondaryArtistName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/unageo_medium"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="Segundo artista"
+                android:textColor="@color/textTheme"
+                android:textSize="11sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/collabPrimaryArtistName" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <TextView
+            android:id="@+id/collabTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginEnd="16dp"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:text="Encuentra conexiones"
+            android:textColor="@color/white"
+            android:textSize="21sp"
+            app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/collabEyebrow" />
+
+        <TextView
+            android:id="@+id/collabSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:fontFamily="@font/unageo_regular"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="2"
+            android:text="Cruza tus artistas top y descubre colaboraciones que ya existen."
+            android:textColor="@color/textTheme"
+            android:textSize="13sp"
+            app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/collabTitle" />
+
+        <TextView
+            android:id="@+id/collabPairMeta"
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_explore_collab_metric"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:paddingHorizontal="10dp"
+            android:text="Basado en tus escuchas"
+            android:textColor="@color/textTheme"
+            android:textSize="11sp"
+            app:layout_constraintEnd_toStartOf="@id/collabVisualPanel"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/collabSubtitle" />
+
+        <TextView
+            android:id="@+id/collabFinderButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_explore_collab_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:minWidth="164dp"
+            android:paddingHorizontal="16dp"
+            android:text="Abrir buscador"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/collabPairMeta" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>

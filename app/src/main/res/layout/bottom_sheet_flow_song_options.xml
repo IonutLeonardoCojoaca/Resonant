@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:orientation="vertical"
+    android:paddingTop="14dp"
+    android:paddingBottom="22dp">
+
+    <View
+        android:layout_width="42dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_bottom_sheet_handle" />
+
+    <TextView
+        android:id="@+id/flowOptionsTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_bold"
+        android:maxLines="1"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="2dp"
+        android:textColor="@color/white"
+        android:textSize="17sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_regular"
+        android:paddingHorizontal="20dp"
+        android:paddingBottom="8dp"
+        android:text="@string/flow_queue_header"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/flowLessArtistButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="@string/flow_less_artist"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/flowNeverSongButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="@string/flow_never_song"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/flowSongOptionsButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="start|center_vertical"
+        android:padding="16dp"
+        android:text="@string/flow_song_options"
+        android:textColor="@color/textTheme"
+        android:textSize="15sp" />
+</LinearLayout>

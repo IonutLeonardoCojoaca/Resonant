@@ -2,7 +2,11 @@ package com.example.resonant.ui.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.UnisoundCodeDTO
+import com.example.resonant.data.network.UnisoundReactionDTO
+import com.example.resonant.managers.SongManager
+import com.example.resonant.unisound.UnisoundSavedPlaylist
 import com.example.resonant.data.network.UnisoundQueueItemDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
 import com.example.resonant.data.network.UnisoundSettingsUpdateDTO
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** Activity-scoped access to the Unisound room for the room, share, settings and join screens. */
 class UnisoundViewModel(application: Application) : AndroidViewModel(application) {
     private val manager = UnisoundManager.get(application)
+    private val songManager = SongManager(application)
 
     val state: StateFlow<UnisoundRoomState?> = manager.state
     val events: SharedFlow<UnisoundManagerEvent> = manager.events
@@ -47,4 +52,24 @@ class UnisoundViewModel(application: Application) : AndroidViewModel(application
 
     fun control(control: UnisoundControl, positionMs: Long? = null) =
         manager.control(control, positionMs, UnisoundControlOrigin.APP)
+
+    val reactions: SharedFlow<UnisoundReactionDTO> = manager.reactions
+    val hiddenEmojis: StateFlow<Set<String>> = manager.hiddenEmojis
+
+    suspend fun moveItem(itemId: String, toIndex: Int) = manager.moveItem(itemId, toIndex)
+
+    suspend fun react(emoji: String) = manager.react(emoji)
+
+    suspend fun savePlaylist(sessionId: String, name: String?): UnisoundResult<UnisoundSavedPlaylist> =
+        manager.savePlaylist(sessionId, name)
+
+    suspend fun getSummary(sessionId: String): UnisoundSessionSummaryDTO? = manager.getSummary(sessionId)
+
+    /** Song search for the room's "Añadir" tab (same endpoint as the app search). */
+    suspend fun searchSongs(query: String): List<Song> =
+        runCatching { songManager.searchSongs(query, SEARCH_LIMIT).results }.getOrDefault(emptyList())
+
+    private companion object {
+        const val SEARCH_LIMIT = 25
+    }
 }

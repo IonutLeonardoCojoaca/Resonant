@@ -4,6 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.aria.AriaScreenContextHolder
+import com.example.resonant.aria.AriaUnisoundContext
+import com.example.resonant.unisound.UnisoundManager
 import com.example.resonant.data.network.AriaClientActionDTO
 import com.example.resonant.playback.PlaybackStateRepository
 import com.google.gson.Gson
@@ -146,6 +148,8 @@ data class AriaAction(
     // Effects executed by the Android client
     val clientSide: Boolean = false,
     val playbackCommand: String? = null,
+    /** Room the order belongs to; such orders go to Unisound instead of the local player. */
+    val unisoundSessionId: String? = null,
     val songId: String? = null,
     val song: AriaActionSong? = null,
     val selectionMode: String? = null,
@@ -505,6 +509,9 @@ class AriaViewModel : ViewModel() {
                 context.put("queue_ids", JSONArray(nextIds))
             }
         }
+
+        AriaUnisoundContext.sessionFields(UnisoundManager.activeSessionIdOrNull())
+            ?.let { context.put("session", JSONObject(it)) }
 
         context.takeIf { it.length() > 0 }
     }.onFailure {
@@ -966,6 +973,7 @@ class AriaViewModel : ViewModel() {
 
         return AriaAction(
             type = requireNotNull(type),
+            unisoundSessionId = unisoundSessionId?.takeIf { it.isNotBlank() },
             actionId = actionId?.takeIf { it.isNotBlank() },
             executionStatus = executionStatus?.takeIf { it.isNotBlank() },
             verified = verified,

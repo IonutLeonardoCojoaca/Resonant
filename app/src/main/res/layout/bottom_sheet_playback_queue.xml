@@ -102,6 +102,13 @@
             app:strokeWidth="0dp" />
     </LinearLayout>
 
+    <include
+        android:id="@+id/flow_controls"
+        layout="@layout/view_flow_queue_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp" />
+
     <TextView
         android:id="@+id/queue_reorder_hint"
         android:layout_width="match_parent"

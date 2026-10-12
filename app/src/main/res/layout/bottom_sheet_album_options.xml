@@ -78,6 +78,21 @@
         app:layout_constraintTop_toBottomOf="@+id/headerLayout">
 
         <TextView
+            android:id="@+id/addToRoomButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_add"
+            android:drawablePadding="16dp"
+            android:drawableTint="@color/white"
+            android:gravity="start|center_vertical"
+            android:fontFamily="@font/unageo_regular"
+            android:padding="16dp"
+            android:text="Añadir a la sala"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:visibility="gone"/>
+
+        <TextView
             android:id="@+id/goToAlbumButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

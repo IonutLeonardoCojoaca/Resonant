@@ -26,6 +26,12 @@ class CapabilitiesCacheTest {
     }
 
     @Test
+    fun `flow v2 flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(flowV2 = true) }.refresh().flowV2)
+        assertFalse(cache { PlatformFeaturesDTO() }.refresh().flowV2)
+    }
+
+    @Test
     fun `disabled flag is exposed`() = runTest {
         val cache = cache { PlatformFeaturesDTO(unisound = false) }
 
@@ -44,6 +50,19 @@ class CapabilitiesCacheTest {
     }
 
     @Test
+    fun `failure is not cached and the next refresh asks again`() = runTest {
+        var fail = true
+        val cache = cache { if (fail) throw IOException("401") else PlatformFeaturesDTO(unisound = true) }
+        assertFalse(cache.refresh().unisound)
+
+        fail = false
+        nowMs += 1_000L
+
+        assertTrue(cache.refresh().unisound)
+        assertEquals(2, calls)
+    }
+
+    @Test
     fun `missing features object counts as disabled`() = runTest {
         assertFalse(cache { null }.refresh().unisound)
     }
@@ -59,6 +78,25 @@ class CapabilitiesCacheTest {
         nowMs += 2
         cache.refresh()
         assertEquals(2, calls)
+    }
+
+    @Test
+    fun `explore v2 flag is exposed`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(exploreV2 = true) }.refresh().exploreV2)
+        assertFalse(cache { PlatformFeaturesDTO(exploreV2 = false) }.refresh().exploreV2)
+    }
+
+    @Test
+    fun `forced refresh replaces the cached value`() = runTest {
+        var exploreV2 = true
+        val cache = cache { PlatformFeaturesDTO(exploreV2 = exploreV2) }
+        assertTrue(cache.refresh().exploreV2)
+
+        exploreV2 = false
+
+        assertTrue(cache.refresh().exploreV2)
+        assertFalse(cache.refresh(force = true).exploreV2)
+        assertFalse(cache.features.exploreV2)
     }
 
     @Test

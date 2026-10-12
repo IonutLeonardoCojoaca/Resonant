@@ -4,9 +4,11 @@ import android.content.Context
 
 import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.AppService
+import com.example.resonant.data.network.services.AriaPicksService
 import com.example.resonant.data.network.services.AriaService
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.AuthService
+import com.example.resonant.data.network.services.ExploreService
 import com.example.resonant.data.network.services.GenreService
 import com.example.resonant.data.network.services.HomeService
 import com.example.resonant.data.network.services.LyricsService
@@ -129,6 +131,14 @@ object ApiClient {
 
     fun getUnisoundService(context: Context): UnisoundService {
         return getRetrofitInstance(context).create(UnisoundService::class.java)
+    }
+
+    fun getExploreService(context: Context): ExploreService {
+        return getRetrofitInstance(context).create(ExploreService::class.java)
+    }
+
+    fun getAriaPicksService(context: Context): AriaPicksService {
+        return getRetrofitInstance(context).create(AriaPicksService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

@@ -1,302 +1,588 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Unisound room, mirroring the web: header with the code and actions, tabs
+     Sala / Añadir / Miembros and the room content under them. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
     <ImageButton
         android:id="@+id/unisoundBackButton"
         android:layout_width="44dp"
         android:layout_height="44dp"
         android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Volver"
         android:padding="10dp"
         android:src="@drawable/ic_arrow_back"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
         app:tint="@color/white" />
 
-    <TextView
-        android:id="@+id/unisoundTitle"
-        android:layout_width="0dp"
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:fontFamily="@font/unageo_bold"
-        android:text="Escuchar juntos"
-        android:textColor="@color/white"
-        android:textSize="20sp"
-        app:layout_constraintEnd_toStartOf="@id/unisoundShareButton"
-        app:layout_constraintStart_toEndOf="@id/unisoundBackButton"
-        app:layout_constraintTop_toTopOf="@id/unisoundBackButton" />
-
-    <TextView
-        android:id="@+id/unisoundConnectionStatus"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_regular"
-        android:textColor="@color/textTheme"
-        android:textSize="12sp"
-        app:layout_constraintEnd_toEndOf="@id/unisoundTitle"
-        app:layout_constraintStart_toStartOf="@id/unisoundTitle"
-        app:layout_constraintTop_toBottomOf="@id/unisoundTitle"
-        tools:text="Código K7M2QX" />
-
-    <ImageButton
-        android:id="@+id/unisoundShareButton"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Compartir la sala"
-        android:padding="10dp"
-        android:src="@drawable/ic_share"
-        app:layout_constraintEnd_toStartOf="@id/unisoundSettingsButton"
-        app:layout_constraintTop_toTopOf="@id/unisoundBackButton"
-        app:tint="@color/white" />
-
-    <ImageButton
-        android:id="@+id/unisoundSettingsButton"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Ajustes de la sala"
-        android:padding="10dp"
-        android:src="@drawable/ic_settings"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/unisoundBackButton"
-        app:tint="@color/white" />
-
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/unisoundNowPlayingCard"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="16dp"
-        app:cardBackgroundColor="@color/cardsTheme"
-        app:cardCornerRadius="18dp"
-        app:cardElevation="0dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/unisoundConnectionStatus">
+        android:layout_marginHorizontal="12dp"
+        android:background="@drawable/bg_unisound_card"
+        android:orientation="vertical"
+        android:padding="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_unisound"
+                app:tint="@color/secondaryColorTheme" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Unisound"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:id="@+id/unisoundRoleText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_regular"
+                    android:textColor="@color/textTheme"
+                    android:textSize="13sp"
+                    tools:text="Eres invitado · 2 conectados" />
+
+                <TextView
+                    android:id="@+id/unisoundHealthText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:drawableStart="@drawable/bg_unisound_dot"
+                    android:drawablePadding="6dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:gravity="center_vertical"
+                    android:textColor="@color/successColor"
+                    android:textSize="12sp"
+                    tools:text="Todo correcto" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_medium"
+                    android:letterSpacing="0.12"
+                    android:text="CÓDIGO"
+                    android:textColor="@color/textTheme"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:id="@+id/unisoundCodeText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:letterSpacing="0.15"
+                    android:textColor="@color/white"
+                    android:textSize="22sp"
+                    tools:text="4QF3F4" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/unisoundActionCopy"
+                style="@style/UnisoundHeaderAction"
+                android:contentDescription="Copiar código"
+                android:src="@drawable/ic_unisound_copy" />
+
+            <ImageButton
+                android:id="@+id/unisoundActionShare"
+                style="@style/UnisoundHeaderAction"
+                android:contentDescription="Invitar con QR o enlace"
+                android:src="@drawable/ic_unisound_link" />
+
+            <ImageButton
+                android:id="@+id/unisoundActionSave"
+                style="@style/UnisoundHeaderAction"
+                android:contentDescription="Guardar lo que ha sonado como playlist"
+                android:src="@drawable/ic_unisound_list_plus" />
+
+            <ImageButton
+                android:id="@+id/unisoundActionLeave"
+                style="@style/UnisoundHeaderAction"
+                android:contentDescription="Salir de la sala"
+                android:src="@drawable/ic_unisound_log_out" />
+
+            <ImageButton
+                android:id="@+id/unisoundActionEnd"
+                style="@style/UnisoundHeaderAction"
+                android:background="@drawable/bg_unisound_pill_danger"
+                android:contentDescription="Terminar la sala para todos"
+                android:src="@drawable/ic_unisound_power"
+                android:visibility="gone"
+                app:tint="@color/secondaryColorTheme" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Tabs -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_unisound_card"
+        android:orientation="horizontal"
+        android:padding="5dp">
+
+        <TextView
+            android:id="@+id/unisoundTabRoom"
+            style="@style/UnisoundTab"
+            android:drawableStart="@drawable/ic_unisound"
+            android:text="Sala" />
+
+        <TextView
+            android:id="@+id/unisoundTabAdd"
+            style="@style/UnisoundTab"
+            android:drawableStart="@drawable/ic_unisound_search"
+            android:text="Añadir" />
+
+        <TextView
+            android:id="@+id/unisoundTabMembers"
+            style="@style/UnisoundTab"
+            android:drawableStart="@drawable/ic_unisound_users"
+            android:text="Miembros" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/unisoundBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_unisound_card"
+        android:fontFamily="@font/unageo_medium"
+        android:padding="12dp"
+        android:text="Conectando con la sala…"
+        android:textColor="@color/adviseColor"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Sala -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/unisoundRoomTab"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="24dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:paddingHorizontal="12dp">
 
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/unisoundCover"
-                    android:layout_width="64dp"
-                    android:layout_height="64dp"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_disc"
-                    app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp">
+
+                    <LinearLayout
+                        android:id="@+id/unisoundNowPlaying"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_unisound_card"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical"
+                        android:padding="20dp">
+
+                        <com.google.android.material.imageview.ShapeableImageView
+                            android:id="@+id/unisoundCover"
+                            android:layout_width="200dp"
+                            android:layout_height="200dp"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/ic_disc"
+                            app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
+
+                        <TextView
+                            android:id="@+id/unisoundEyebrow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:letterSpacing="0.1"
+                            android:textAllCaps="true"
+                            android:textColor="@color/secondaryColorTheme"
+                            android:textSize="11sp"
+                            tools:text="Elegido para la sala" />
+
+                        <TextView
+                            android:id="@+id/unisoundSongTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/unageo_bold"
+                            android:gravity="center"
+                            android:maxLines="2"
+                            android:textColor="@color/white"
+                            android:textSize="20sp"
+                            tools:text="XO / The Host" />
+
+                        <TextView
+                            android:id="@+id/unisoundSongArtist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="@font/unageo_regular"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="@color/textTheme"
+                            android:textSize="14sp"
+                            tools:text="The Weeknd" />
+
+                        <LinearLayout
+                            android:id="@+id/unisoundProgressRow"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/unisoundElapsed"
+                                style="@style/UnisoundTime"
+                                tools:text="3:25" />
+
+                            <com.google.android.material.progressindicator.LinearProgressIndicator
+                                android:id="@+id/unisoundProgress"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginHorizontal="10dp"
+                                android:layout_weight="1"
+                                android:max="1000"
+                                app:indicatorColor="@color/white"
+                                app:trackColor="@color/discTheme"
+                                app:trackCornerRadius="2dp" />
+
+                            <TextView
+                                android:id="@+id/unisoundDuration"
+                                style="@style/UnisoundTime"
+                                tools:text="7:24" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/unisoundControls"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageButton
+                                android:id="@+id/unisoundPreviousButton"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
+                                android:background="@drawable/bg_unisound_round_button"
+                                android:contentDescription="Anterior"
+                                android:padding="12dp"
+                                android:scaleType="fitCenter"
+                                android:src="@drawable/ic_skip_previous"
+                                app:tint="@color/white" />
+
+                            <ImageButton
+                                android:id="@+id/unisoundPlayPauseButton"
+                                android:layout_width="60dp"
+                                android:layout_height="60dp"
+                                android:layout_marginHorizontal="22dp"
+                                android:background="@drawable/bg_unisound_play_button"
+                                android:contentDescription="Reproducir o pausar"
+                                android:padding="18dp"
+                                android:scaleType="fitCenter"
+                                android:src="@drawable/ic_play"
+                                app:tint="@color/primaryColorTheme" />
+
+                            <ImageButton
+                                android:id="@+id/unisoundNextButton"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
+                                android:background="@drawable/bg_unisound_round_button"
+                                android:contentDescription="Siguiente"
+                                android:padding="12dp"
+                                android:scaleType="fitCenter"
+                                android:src="@drawable/ic_skip_next"
+                                app:tint="@color/white" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/unisoundLockedNote"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:fontFamily="@font/unageo_regular"
+                            android:text="El anfitrión controla la reproducción"
+                            android:textColor="@color/textTheme"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/unisoundReengageButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="@drawable/bg_unisound_pill"
+                            android:fontFamily="@font/unageo_bold"
+                            android:paddingHorizontal="18dp"
+                            android:paddingVertical="10dp"
+                            android:text="Volver a la sala"
+                            android:textColor="@color/secondaryColorTheme"
+                            android:textSize="14sp"
+                            android:visibility="gone" />
+
+                        <!-- Empty room -->
+                        <TextView
+                            android:id="@+id/unisoundEmptyHint"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="@drawable/bg_unisound_pill"
+                            android:drawableStart="@drawable/ic_unisound_search"
+                            android:drawablePadding="8dp"
+                            android:drawableTint="@color/white"
+                            android:fontFamily="@font/unageo_bold"
+                            android:gravity="center_vertical"
+                            android:paddingHorizontal="18dp"
+                            android:paddingVertical="10dp"
+                            android:text="Buscar canciones"
+                            android:textColor="@color/white"
+                            android:textSize="14sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <!-- Floating reactions, drawn over the now-playing card -->
+                    <FrameLayout
+                        android:id="@+id/unisoundReactionLayer"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:clickable="false"
+                        android:focusable="false" />
+                </FrameLayout>
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:id="@+id/unisoundReactionBar"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_unisound_card"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:paddingVertical="6dp" />
 
-                    <TextView
-                        android:id="@+id/unisoundSongTitle"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_unisound_card"
+                    android:orientation="vertical"
+                    android:paddingVertical="10dp">
+
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:fontFamily="@font/unageo_bold"
-                        android:maxLines="1"
-                        android:textColor="@color/white"
-                        android:textSize="16sp"
-                        tools:text="Do I Wanna Know?" />
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="16dp"
+                        android:paddingBottom="8dp">
 
-                    <TextView
-                        android:id="@+id/unisoundSongSubtitle"
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/unageo_bold"
+                            android:text="A continuación"
+                            android:textColor="@color/white"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/unisoundQueueCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_medium"
+                            android:textColor="@color/textTheme"
+                            android:textSize="13sp"
+                            tools:text="3/200" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/dividerOverlay" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/unisoundQueue"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
+                        android:nestedScrollingEnabled="false" />
+
+                    <TextView
+                        android:id="@+id/unisoundEmptyQueue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_regular"
-                        android:maxLines="1"
+                        android:gravity="center"
+                        android:padding="20dp"
+                        android:text="No hay nada en la cola"
                         android:textColor="@color/textTheme"
                         android:textSize="13sp"
-                        tools:text="Arctic Monkeys · Añadido por Ana" />
+                        android:visibility="gone" />
                 </LinearLayout>
             </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
 
-            <com.google.android.material.progressindicator.LinearProgressIndicator
-                android:id="@+id/unisoundProgress"
+        <!-- Añadir -->
+        <LinearLayout
+            android:id="@+id/unisoundAddTab"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:paddingHorizontal="12dp"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/unisoundSearchInput"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_unisound_input"
+                android:drawableStart="@drawable/ic_unisound_search"
+                android:drawablePadding="10dp"
+                android:drawableTint="@color/textTheme"
+                android:fontFamily="@font/unageo_regular"
+                android:hint="Busca canciones para la sala"
+                android:imeOptions="actionSearch"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:paddingHorizontal="14dp"
+                android:textColor="@color/white"
+                android:textColorHint="@color/textTheme"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/unisoundSearchHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:max="1000"
-                app:indicatorColor="@color/secondaryColorTheme"
-                app:trackColor="@color/discTheme"
-                app:trackCornerRadius="2dp" />
+                android:fontFamily="@font/unageo_regular"
+                android:gravity="center"
+                android:padding="24dp"
+                android:text="Escribe para buscar. También puedes añadir álbumes y playlists desde sus opciones."
+                android:textColor="@color/textTheme"
+                android:textSize="13sp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/unisoundSearchResults"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="6dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="24dp" />
+        </LinearLayout>
+
+        <!-- Miembros -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/unisoundMembersTab"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="24dp"
+            android:visibility="gone">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="12dp"
                 android:layout_marginTop="10dp"
-                android:gravity="center"
-                android:orientation="horizontal">
+                android:background="@drawable/bg_unisound_card"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <ImageButton
-                    android:id="@+id/unisoundPreviousButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Anterior"
-                    android:padding="12dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_skip_previous"
-                    app:tint="@color/white" />
+                <LinearLayout
+                    android:id="@+id/unisoundMemberList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
 
-                <ImageButton
-                    android:id="@+id/unisoundPlayPauseButton"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_marginHorizontal="20dp"
-                    android:background="@drawable/bg_play_button_pill_accent"
-                    android:contentDescription="Reproducir o pausar"
-                    android:padding="16dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_play"
-                    app:tint="@android:color/white" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Ajustes de la sala"
+                    android:textColor="@color/white"
+                    android:textSize="15sp" />
 
-                <ImageButton
-                    android:id="@+id/unisoundNextButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Siguiente"
-                    android:padding="12dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_skip_next"
-                    app:tint="@color/white" />
+                <LinearLayout
+                    android:id="@+id/unisoundSettingsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/unisoundNewCodeButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_unisound_pill"
+                    android:drawableStart="@drawable/ic_unisound_refresh"
+                    android:drawablePadding="8dp"
+                    android:drawableTint="@color/white"
+                    android:fontFamily="@font/unageo_medium"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="10dp"
+                    android:text="Nuevo código"
+                    android:textColor="@color/white"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/unisoundSettingsNote"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:fontFamily="@font/unageo_regular"
+                    android:text="Solo el anfitrión puede cambiar estos ajustes."
+                    android:textColor="@color/textTheme"
+                    android:textSize="12sp" />
             </LinearLayout>
-
-            <TextView
-                android:id="@+id/unisoundReengageButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:background="?attr/selectableItemBackground"
-                android:fontFamily="@font/unageo_bold"
-                android:gravity="center"
-                android:padding="10dp"
-                android:text="Volver a la sala"
-                android:textColor="@color/secondaryColorTheme"
-                android:textSize="14sp"
-                android:visibility="gone" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-
-    <TextView
-        android:id="@+id/unisoundMembersLabel"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="20dp"
-        android:layout_marginTop="18dp"
-        android:fontFamily="@font/unageo_bold"
-        android:text="En la sala"
-        android:textColor="@color/white"
-        android:textSize="15sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/unisoundNowPlayingCard" />
-
-    <com.google.android.material.chip.ChipGroup
-        android:id="@+id/unisoundMembers"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="6dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/unisoundMembersLabel" />
-
-    <TextView
-        android:id="@+id/unisoundQueueLabel"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="20dp"
-        android:layout_marginTop="14dp"
-        android:fontFamily="@font/unageo_bold"
-        android:text="A continuación"
-        android:textColor="@color/white"
-        android:textSize="15sp"
-        app:layout_constraintEnd_toStartOf="@id/unisoundAddButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/unisoundMembers" />
-
-    <TextView
-        android:id="@+id/unisoundAddButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="12dp"
-        android:background="?attr/selectableItemBackground"
-        android:fontFamily="@font/unageo_bold"
-        android:padding="8dp"
-        android:text="Añadir"
-        android:textColor="@color/secondaryColorTheme"
-        android:textSize="14sp"
-        app:layout_constraintBaseline_toBaselineOf="@id/unisoundQueueLabel"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/unisoundQueue"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="6dp"
-        android:clipToPadding="false"
-        android:paddingBottom="8dp"
-        app:layout_constraintBottom_toTopOf="@id/unisoundLeaveButton"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/unisoundQueueLabel" />
-
-    <TextView
-        android:id="@+id/unisoundEmptyQueue"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="32dp"
-        android:fontFamily="@font/unageo_regular"
-        android:gravity="center"
-        android:text="La cola está vacía. Añade una canción para empezar"
-        android:textColor="@color/textTheme"
-        android:textSize="14sp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@id/unisoundQueue"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/unisoundQueue" />
-
-    <TextView
-        android:id="@+id/unisoundLeaveButton"
-        android:layout_width="0dp"
-        android:layout_height="52dp"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="16dp"
-        android:background="?attr/selectableItemBackground"
-        android:fontFamily="@font/unageo_bold"
-        android:gravity="center"
-        android:text="Salir de la sala"
-        android:textColor="@color/secondaryColorTheme"
-        android:textSize="15sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+        </androidx.core.widget.NestedScrollView>
+    </FrameLayout>
+</LinearLayout>

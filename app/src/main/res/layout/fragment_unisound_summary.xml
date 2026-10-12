@@ -34,6 +34,67 @@
         app:layout_constraintTop_toBottomOf="@id/unisoundSummaryTitle"
         tools:text="42 min · 11 canciones" />
 
+    <TextView
+        android:id="@+id/unisoundSummaryAriaLine"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/bg_unisound_card"
+        android:drawableStart="@drawable/ic_unisound_sparkles"
+        android:drawablePadding="10dp"
+        android:drawableTint="@color/secondaryColorTheme"
+        android:fontFamily="@font/unageo_medium"
+        android:gravity="center_vertical"
+        android:padding="14dp"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@id/unisoundSummaryTitle"
+        app:layout_constraintStart_toStartOf="@id/unisoundSummaryTitle"
+        app:layout_constraintTop_toBottomOf="@id/unisoundSummaryStats"
+        tools:text="Habéis pasado del indie al rock duro en 40 minutos." />
+
+    <LinearLayout
+        android:id="@+id/unisoundSummaryActions"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="@id/unisoundSummaryTitle"
+        app:layout_constraintStart_toStartOf="@id/unisoundSummaryTitle"
+        app:layout_constraintTop_toBottomOf="@id/unisoundSummaryAriaLine">
+
+        <TextView
+            android:id="@+id/unisoundSummarySave"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_unisound_pill"
+            android:drawableStart="@drawable/ic_unisound_list_plus"
+            android:drawablePadding="8dp"
+            android:drawableTint="@color/white"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:text="Guardar como playlist"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/unisoundSummaryOpen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_unisound_pill"
+            android:fontFamily="@font/unageo_bold"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:text="Abrir"
+            android:textColor="@color/secondaryColorTheme"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/unisoundSummarySongs"
         android:layout_width="0dp"
@@ -42,7 +103,7 @@
         app:layout_constraintBottom_toTopOf="@id/unisoundSummaryClose"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/unisoundSummaryStats" />
+        app:layout_constraintTop_toBottomOf="@id/unisoundSummaryActions" />
 
     <TextView
         android:id="@+id/unisoundSummaryEmpty"

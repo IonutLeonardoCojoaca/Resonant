@@ -15,5 +15,7 @@ data class PlatformFeaturesDTO(
     val unisound: Boolean = false,
     val connect: Boolean = false,
     val exploreV2: Boolean = false,
-    val ariaPicks: Boolean = false
+    val ariaPicks: Boolean = false,
+    /** Flow v2: nivel de descubrimiento, motivos, feedback y guardar sesión. */
+    val flowV2: Boolean = false
 )

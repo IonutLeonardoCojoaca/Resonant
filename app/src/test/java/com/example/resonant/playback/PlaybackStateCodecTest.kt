@@ -4,6 +4,7 @@ import com.example.resonant.data.models.Song
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackStateCodecTest {
@@ -130,6 +131,59 @@ class PlaybackStateCodecTest {
         )
 
         assertNull(codec.decode(json, currentUserId = "user-1"))
+    }
+
+    @Test
+    fun `flow marks, seed and station survive a round trip`() {
+        val queue = PlaybackQueue(
+            sourceId = "album-1",
+            sourceType = QueueSource.ALBUM,
+            songs = listOf(song("song-a", "A")),
+            currentIndex = 0
+        )
+        queue.appendFlowSongs(listOf(song("flow-1", "F1"), song("flow-2", "F2")), mapOf("flow-1" to "Parecido a A"))
+        queue.sourceType = QueueSource.QUEUE
+        queue.sourceId = "manual_queue"
+        val session = RadioSession("radio-1", "artist", "Artista", "artist-1", "Basado en Artista")
+
+        val restored = codec.decode(
+            json = codec.encode(
+                ownerUserId = "user-1",
+                queue = queue,
+                currentSongId = "flow-1",
+                positionMs = 0L,
+                durationMs = 180_000L,
+                repeatMode = PlaybackStateRepository.REPEAT_MODE_OFF,
+                shuffleEnabled = false,
+                flowSession = FlowSessionSnapshot(session, listOf("song-a", "flow-1"))
+            ),
+            currentUserId = "user-1"
+        )!!
+
+        assertEquals(listOf(false, true, true), restored.queue.songs.indices.map(restored.queue::isFlowEntry))
+        assertEquals("Parecido a A", restored.queue.flowReasons["flow-1"])
+        assertEquals(QueueSource.ALBUM, restored.queue.flowSeedSourceType)
+        assertEquals("album-1", restored.queue.flowSeedSourceId)
+        assertEquals(session, restored.flowSession?.radioSession)
+        assertEquals(listOf("song-a", "flow-1"), restored.flowSession?.recentSongIds)
+    }
+
+    @Test
+    fun `legacy snapshot without flow fields restores as before`() {
+        val legacyJson = """
+            {"schemaVersion":2,"ownerUserId":"user-1","sourceId":"home","sourceType":"HOME",
+             "songs":[{"id":"song-a","title":"A","duration":"180"},{"id":"song-b","title":"B","duration":"180"}],
+             "currentIndex":1,"positionMs":1000,"durationMs":180000,"repeatMode":0,
+             "shuffleEnabled":false,"savedAtEpochMs":$nowMs}
+        """.trimIndent()
+
+        val restored = codec.decode(legacyJson, currentUserId = "user-1")!!
+
+        assertEquals(1, restored.queue.currentIndex)
+        assertEquals(2, restored.queue.entryIds.toSet().size)
+        assertTrue(restored.queue.flowEntryIds.isEmpty())
+        assertEquals(QueueSource.HOME, restored.queue.flowSeedSourceType)
+        assertNull(restored.flowSession)
     }
 
     private fun song(

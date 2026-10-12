@@ -6,16 +6,28 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.View
+import android.widget.CompoundButton
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.session.SessionResult
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.ApiClient
+import com.example.resonant.data.network.FlowSavePlaylistRequestDTO
+import com.example.resonant.managers.CapabilitiesManager
+import com.example.resonant.managers.FlowPreferencesManager
+import com.example.resonant.managers.SettingsManager
+import com.example.resonant.playback.flow.FlowQueuePolicy
+import com.example.resonant.ui.bottomsheets.FlowSongOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.PlaybackStateRepository
@@ -54,7 +66,9 @@ class PlaybackQueueController(
     private val actions: View,
     private val empty: TextView,
     private val relatedSection: View?,
-    private val relatedRecycler: RecyclerView?
+    private val relatedRecycler: RecyclerView?,
+    /** Bloque `view_flow_queue_controls` incluido en el layout del host. */
+    private val flowControls: View? = null
 ) {
     private lateinit var adapter: PlaybackQueueAdapter
     private lateinit var touchHelper: ItemTouchHelper
@@ -65,11 +79,14 @@ class PlaybackQueueController(
     private var dragFromQueueIndex: Int? = null
     private var dragToQueueIndex: Int? = null
     private var relatedSeedSongId: String? = null
+    private var flowV2Enabled = false
+    private var saveSessionButton: View? = null
     private val swipeBackground = ColorDrawable(Color.parseColor("#B3261E"))
     private val swipeDeleteIcon by lazy {
         ContextCompat.getDrawable(fragment.requireContext(), R.drawable.ic_cancel)
     }
     private val songManager by lazy { SongManager(fragment.requireContext()) }
+    private val settingsManager by lazy { SettingsManager(fragment.requireContext()) }
 
     /** Wires the RecyclerView/adapter/touch-helper and starts observing the live queue. */
     fun start() {
@@ -80,7 +97,10 @@ class PlaybackQueueController(
             onRemove = { item ->
                 sendIndexCommand(QueueCommands.REMOVE, item.queueIndex)
             },
-            onStartDrag = { holder -> touchHelper.startDrag(holder) }
+            onStartDrag = { holder -> touchHelper.startDrag(holder) },
+            onFlowLongPress = { item ->
+                if (CapabilitiesManager.isFlowV2Enabled()) showFlowOptions(item.song)
+            }
         )
         recycler.layoutManager = LinearLayoutManager(fragment.requireContext())
         recycler.adapter = adapter
@@ -118,6 +138,95 @@ class PlaybackQueueController(
         PlaybackStateRepository.queueSnapshotLiveData.observe(fragment.viewLifecycleOwner) {
             render(it)
         }
+        flowControls?.let(::bindFlowControls)
+    }
+
+    private fun showFlowOptions(song: Song) {
+        FlowSongOptionsBottomSheet(song) { selected ->
+            SongOptionsBottomSheet(selected).show(fragment.parentFragmentManager, "SongOptionsBottomSheet")
+        }.show(fragment.parentFragmentManager, "FlowSongOptionsBottomSheet")
+    }
+
+    /**
+     * "Continuar reproduciendo" (el mismo ajuste persistente que el de Ajustes) y, con la
+     * capacidad `flowV2`, el nivel de descubrimiento y "Guardar esta sesión".
+     */
+    private fun bindFlowControls(controls: View) {
+        val continueSwitch = controls.findViewById<CompoundButton>(R.id.flow_continue_switch)
+        val owner = fragment.viewLifecycleOwner
+        var applyingSetting = false
+        owner.lifecycleScope.launch {
+            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                settingsManager.autoplayRadioEnabledFlow.collect { enabled ->
+                    if (continueSwitch.isChecked != enabled) {
+                        applyingSetting = true
+                        continueSwitch.isChecked = enabled
+                        applyingSetting = false
+                    }
+                }
+            }
+        }
+        continueSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (applyingSetting) return@setOnCheckedChangeListener
+            owner.lifecycleScope.launch { FlowPreferencesManager.setEnabled(fragment.requireContext(), isChecked) }
+        }
+
+        val discoveryGroup = controls.findViewById<MaterialButtonToggleGroup>(R.id.flow_discovery_group)
+        val saveSession = controls.findViewById<View>(R.id.flow_save_session)
+        owner.lifecycleScope.launch {
+            CapabilitiesManager.refresh(fragment.requireContext())
+            flowV2Enabled = CapabilitiesManager.isFlowV2Enabled()
+            discoveryGroup.visibility = if (flowV2Enabled) View.VISIBLE else View.GONE
+            snapshot?.let(::render)
+        }
+        owner.lifecycleScope.launch {
+            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                settingsManager.flowDiscoveryLevelFlow.collect { level ->
+                    val buttonId = LEVEL_BUTTONS.getOrElse(level) { R.id.flow_level_balanced }
+                    if (discoveryGroup.checkedButtonId != buttonId) {
+                        applyingSetting = true
+                        discoveryGroup.check(buttonId)
+                        applyingSetting = false
+                    }
+                }
+            }
+        }
+        discoveryGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked || applyingSetting) return@addOnButtonCheckedListener
+            val level = LEVEL_BUTTONS.indexOf(checkedId).takeIf { it >= 0 } ?: return@addOnButtonCheckedListener
+            owner.lifecycleScope.launch { FlowPreferencesManager.setDiscoveryLevel(fragment.requireContext(), level) }
+        }
+        saveSessionButton = saveSession
+        saveSession.setOnClickListener { saveFlowSession(saveSession) }
+    }
+
+    private fun saveFlowSession(button: View) {
+        val current = snapshot ?: return
+        val songIds = FlowQueuePolicy.sessionSongIds(current.items.map { it.song }, current.currentIndex)
+        if (songIds.isEmpty()) return
+        button.isEnabled = false
+        val context = fragment.requireContext().applicationContext
+        fragment.viewLifecycleOwner.lifecycleScope.launch {
+            val saved = runCatching {
+                ApiClient.getRadioService(context)
+                    .saveFlowSession(FlowSavePlaylistRequestDTO(songIds = songIds))
+                    .takeIf { it.isSuccessful }?.body()
+            }.getOrNull()
+            button.isEnabled = true
+            if (saved != null) {
+                fragment.showResonantSnackbar(
+                    fragment.getString(R.string.flow_save_session_done, saved.name.orEmpty()),
+                    R.color.successColor,
+                    R.drawable.ic_success
+                )
+            } else {
+                fragment.showResonantSnackbar(
+                    fragment.getString(R.string.flow_save_session_failed),
+                    R.color.errorColor,
+                    R.drawable.ic_warning
+                )
+            }
+        }
     }
 
     private fun render(value: QueueSnapshot?) {
@@ -129,11 +238,14 @@ class PlaybackQueueController(
             actions.visibility = View.GONE
             hint.visibility = View.GONE
             empty.visibility = View.VISIBLE
+            saveSessionButton?.visibility = View.GONE
             subtitle.text = ""
             adapter.submitQueue(emptyList())
             return
         }
 
+        saveSessionButton?.visibility =
+            if (flowV2Enabled && value.items.any { it.isFlow }) View.VISIBLE else View.GONE
         visibleQueueStart = value.currentIndex
         val visibleItems = value.items.drop(value.currentIndex)
         adapter.canReorderUpcoming = value.canReorderUpcoming
@@ -373,5 +485,10 @@ class PlaybackQueueController(
 
         override fun isLongPressDragEnabled(): Boolean = false
         override fun isItemViewSwipeEnabled(): Boolean = true
+    }
+
+    private companion object {
+        /** Botón del deslizador por nivel: 0 familiar, 1 equilibrado, 2 descubrir. */
+        val LEVEL_BUTTONS = listOf(R.id.flow_level_familiar, R.id.flow_level_balanced, R.id.flow_level_discover)
     }
 }

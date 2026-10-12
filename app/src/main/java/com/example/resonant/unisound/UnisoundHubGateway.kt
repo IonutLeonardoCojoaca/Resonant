@@ -36,6 +36,17 @@ interface UnisoundHubGateway {
     suspend fun addItems(sessionId: String, source: UnisoundSourceDTO, idempotencyKey: String): List<UnisoundQueueItemDTO>
     suspend fun removeItem(sessionId: String, itemId: String, idempotencyKey: String)
 
+    /** Returns the pending queue after the move; the group also gets `QueueChanged`. */
+    suspend fun moveItem(
+        sessionId: String,
+        itemId: String,
+        toIndex: Int,
+        expectedRevision: Long,
+        idempotencyKey: String
+    ): List<UnisoundQueueItemDTO>
+
+    suspend fun react(sessionId: String, emoji: String)
+
     companion object {
         const val SKIP_NEXT = "next"
         const val SKIP_PREVIOUS = "previous"

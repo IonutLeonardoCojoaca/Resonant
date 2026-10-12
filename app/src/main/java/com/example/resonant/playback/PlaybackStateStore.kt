@@ -14,7 +14,24 @@ data class RestoredPlaybackState(
     val positionMs: Long,
     val durationMs: Long,
     val repeatMode: Int,
-    val shuffleEnabled: Boolean
+    val shuffleEnabled: Boolean,
+    val flowSession: FlowSessionSnapshot? = null
+)
+
+/** Estación de Flow activa y ventana de canciones recientes, para continuar tras matar el proceso. */
+data class FlowSessionSnapshot(
+    val radioSession: RadioSession?,
+    val recentSongIds: List<String>
+)
+
+/** Todos los campos admiten null: Gson no aplica los valores por defecto de Kotlin a JSON antiguos. */
+internal data class PersistedFlowSession(
+    val radioId: String? = null,
+    val seedKind: String? = null,
+    val seedName: String? = null,
+    val seedId: String? = null,
+    val reasonText: String? = null,
+    val recentSongIds: List<String>? = null
 )
 
 internal data class PersistedPlaybackState(
@@ -28,7 +45,13 @@ internal data class PersistedPlaybackState(
     val durationMs: Long = 0L,
     val repeatMode: Int = PlaybackStateRepository.REPEAT_MODE_OFF,
     val shuffleEnabled: Boolean = false,
-    val savedAtEpochMs: Long = 0L
+    val savedAtEpochMs: Long = 0L,
+    val entryIds: List<String>? = null,
+    val flowEntryIds: List<String>? = null,
+    val flowReasons: Map<String, String>? = null,
+    val flowSeedSourceType: String? = null,
+    val flowSeedSourceId: String? = null,
+    val flowSession: PersistedFlowSession? = null
 )
 
 internal class PlaybackStateCodec(
@@ -52,7 +75,8 @@ internal class PlaybackStateCodec(
         positionMs: Long,
         durationMs: Long,
         repeatMode: Int,
-        shuffleEnabled: Boolean
+        shuffleEnabled: Boolean,
+        flowSession: FlowSessionSnapshot? = null
     ): PersistedPlaybackState {
         val songs = queue.songs.map { it.withoutExpiringPlaybackUrl() }
         val synchronizedIndex = currentSongId
@@ -77,7 +101,22 @@ internal class PlaybackStateCodec(
             durationMs = safeDurationMs,
             repeatMode = repeatMode,
             shuffleEnabled = shuffleEnabled,
-            savedAtEpochMs = nowEpochMs()
+            savedAtEpochMs = nowEpochMs(),
+            entryIds = queue.entryIds.toList(),
+            flowEntryIds = queue.flowEntryIds.toList(),
+            flowReasons = queue.flowReasons.toMap(),
+            flowSeedSourceType = queue.flowSeedSourceType.name,
+            flowSeedSourceId = queue.flowSeedSourceId,
+            flowSession = flowSession?.let { flow ->
+                PersistedFlowSession(
+                    radioId = flow.radioSession?.radioId,
+                    seedKind = flow.radioSession?.seedKind,
+                    seedName = flow.radioSession?.seedName,
+                    seedId = flow.radioSession?.seedId,
+                    reasonText = flow.radioSession?.reasonText,
+                    recentSongIds = flow.recentSongIds
+                )
+            }
         )
     }
 
@@ -88,10 +127,11 @@ internal class PlaybackStateCodec(
         positionMs: Long,
         durationMs: Long,
         repeatMode: Int,
-        shuffleEnabled: Boolean
+        shuffleEnabled: Boolean,
+        flowSession: FlowSessionSnapshot? = null
     ): String = gson.toJson(
         buildSnapshot(
-            ownerUserId, queue, currentSongId, positionMs, durationMs, repeatMode, shuffleEnabled
+            ownerUserId, queue, currentSongId, positionMs, durationMs, repeatMode, shuffleEnabled, flowSession
         )
     )
 
@@ -124,20 +164,53 @@ internal class PlaybackStateCodec(
             }
 
         return RestoredPlaybackState(
-            queue = PlaybackQueue(
-                sourceId = persisted.sourceId.orEmpty(),
-                sourceType = source,
-                songs = songs,
-                currentIndex = index
-            ),
+            queue = restoreQueue(persisted, source, songs, index),
             positionMs = positionMs,
             durationMs = durationMs,
             repeatMode = persisted.repeatMode.coerceIn(
                 PlaybackStateRepository.REPEAT_MODE_OFF,
                 PlaybackStateRepository.REPEAT_MODE_ALL
             ),
-            shuffleEnabled = persisted.shuffleEnabled
+            shuffleEnabled = persisted.shuffleEnabled,
+            flowSession = persisted.flowSession?.toSnapshot()
         )
+    }
+
+    private fun restoreQueue(
+        persisted: PersistedPlaybackState,
+        source: QueueSource,
+        songs: List<Song>,
+        index: Int
+    ): PlaybackQueue {
+        val entryIds = persisted.entryIds
+            ?.takeIf { ids -> ids.size == songs.size && ids.none(String::isBlank) && ids.toSet().size == ids.size }
+        val queue = if (entryIds != null) {
+            PlaybackQueue(persisted.sourceId.orEmpty(), source, songs, index, entryIds)
+        } else {
+            PlaybackQueue(persisted.sourceId.orEmpty(), source, songs, index)
+        }
+        if (entryIds != null) {
+            queue.flowEntryIds = persisted.flowEntryIds.orEmpty().filterTo(HashSet()) { it in entryIds }
+            queue.flowReasons = persisted.flowReasons.orEmpty()
+        }
+        persisted.flowSeedSourceType
+            ?.let { name -> runCatching { QueueSource.valueOf(name) }.getOrNull() }
+            ?.let { queue.flowSeedSourceType = it }
+        persisted.flowSeedSourceId?.let { queue.flowSeedSourceId = it }
+        return queue
+    }
+
+    private fun PersistedFlowSession.toSnapshot(): FlowSessionSnapshot {
+        val session = radioId?.takeIf(String::isNotBlank)?.let { id ->
+            RadioSession(
+                radioId = id,
+                seedKind = seedKind.orEmpty(),
+                seedName = seedName.orEmpty(),
+                seedId = seedId,
+                reasonText = reasonText
+            )
+        }
+        return FlowSessionSnapshot(session, recentSongIds.orEmpty())
     }
 
     private fun Song.knownDurationMs(): Long {
@@ -203,7 +276,8 @@ class PlaybackStateStore(
         durationMs: Long,
         repeatMode: Int,
         shuffleEnabled: Boolean,
-        synchronous: Boolean = false
+        synchronous: Boolean = false,
+        flowSession: FlowSessionSnapshot? = null
     ) {
         if (queue.songs.isEmpty() || !PlaybackStateCodec.isPersistable(queue.sourceType)) {
             clear()
@@ -218,7 +292,8 @@ class PlaybackStateStore(
             positionMs = positionMs,
             durationMs = durationMs,
             repeatMode = repeatMode,
-            shuffleEnabled = shuffleEnabled
+            shuffleEnabled = shuffleEnabled,
+            flowSession = flowSession
         )
         val sequence = writeSequence.incrementAndGet()
         synchronized(writeLock) {
@@ -247,7 +322,8 @@ class PlaybackStateStore(
         positionMs: Long,
         durationMs: Long,
         repeatMode: Int,
-        shuffleEnabled: Boolean
+        shuffleEnabled: Boolean,
+        flowSession: FlowSessionSnapshot? = null
     ) {
         if (queue.songs.isEmpty() || !PlaybackStateCodec.isPersistable(queue.sourceType)) {
             clear()
@@ -262,7 +338,8 @@ class PlaybackStateStore(
             positionMs = positionMs,
             durationMs = durationMs,
             repeatMode = repeatMode,
-            shuffleEnabled = shuffleEnabled
+            shuffleEnabled = shuffleEnabled,
+            flowSession = flowSession
         )
         val sequence = writeSequence.incrementAndGet()
         scope.launch(ioDispatcher) {

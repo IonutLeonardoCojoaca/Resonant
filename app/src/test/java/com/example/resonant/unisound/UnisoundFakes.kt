@@ -4,6 +4,8 @@ import com.example.resonant.data.network.UnisoundCodeDTO
 import com.example.resonant.data.network.UnisoundJoinRequestDTO
 import com.example.resonant.data.network.UnisoundPlaybackStateDTO
 import com.example.resonant.data.network.UnisoundQueueItemDTO
+import com.example.resonant.data.network.UnisoundSavePlaylistRequestDTO
+import com.example.resonant.data.network.UnisoundSavedPlaylistDTO
 import com.example.resonant.data.network.UnisoundSessionSnapshotDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
 import com.example.resonant.data.network.UnisoundSettingsUpdateDTO
@@ -29,6 +31,8 @@ class FakeUnisoundService : UnisoundService {
     var endResponse: Response<UnisoundSessionSummaryDTO>? = null
     var settingsResponse: Response<UnisoundSessionSnapshotDTO>? = null
     var codeResponse: Response<UnisoundCodeDTO>? = null
+    var summaryResponse: Response<UnisoundSessionSummaryDTO>? = null
+    var savePlaylistResponse: Response<UnisoundSavedPlaylistDTO>? = null
 
     var currentCalls = 0
     var leaveCalls = 0
@@ -66,6 +70,11 @@ class FakeUnisoundService : UnisoundService {
 
     override suspend fun transferHost(sessionId: String, request: UnisoundTransferHostRequestDTO) =
         respond(settingsResponse)
+
+    override suspend fun getSummary(sessionId: String) = respond(summaryResponse)
+
+    override suspend fun savePlaylist(sessionId: String, request: UnisoundSavePlaylistRequestDTO) =
+        respond(savePlaylistResponse)
 }
 
 /** Hand-written hub fake. Command handlers can be replaced per test. */
@@ -136,6 +145,27 @@ class FakeUnisoundHubGateway : UnisoundHubGateway {
 
     override suspend fun removeItem(sessionId: String, itemId: String, idempotencyKey: String) {
         record("RemoveItem", idempotencyKey)
+    }
+
+    var moveError: Throwable? = null
+    var reactError: Throwable? = null
+    val reactions = mutableListOf<String>()
+
+    override suspend fun moveItem(
+        sessionId: String,
+        itemId: String,
+        toIndex: Int,
+        expectedRevision: Long,
+        idempotencyKey: String
+    ): List<UnisoundQueueItemDTO> {
+        record("MoveItem:$itemId:$toIndex:$expectedRevision", idempotencyKey)
+        moveError?.let { throw it }
+        return emptyList()
+    }
+
+    override suspend fun react(sessionId: String, emoji: String) {
+        reactions += emoji
+        reactError?.let { throw it }
     }
 
     private fun record(command: String, key: String) {

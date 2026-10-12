@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Contenido de AriaBadgeView: "✦ Recomendado por Aria". Se reutiliza en Explorar,
+     Live y la canción del día, así que no lleva márgenes propios. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        android:id="@+id/ariaBadgeIcon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:text="✦"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/ariaBadgeLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="@string/aria_badge_label"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="10sp" />
+</merge>

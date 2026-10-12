@@ -84,6 +84,9 @@ import com.example.resonant.ui.fragments.UnisoundRoomFragment
 import com.example.resonant.ui.fragments.UnisoundSummaryFragment
 import com.example.resonant.ui.viewmodels.UnisoundViewModel
 import com.example.resonant.unisound.UnisoundCloseReason
+import com.example.resonant.unisound.UnisoundConnection
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
 import com.example.resonant.unisound.UnisoundErrors
 import com.example.resonant.unisound.UnisoundJoinCode
 import com.example.resonant.unisound.UnisoundLinkAction
@@ -147,8 +150,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var playbackDeviceBar: View
     private lateinit var playbackDeviceText: TextView
     private lateinit var unisoundViewModel: UnisoundViewModel
-    private lateinit var unisoundRoomBar: View
-    private lateinit var unisoundRoomBarText: TextView
+    private lateinit var unisoundBadge: ImageView
     private var lastStoppedAtMs = 0L
     private var shouldShowMiniPlayer = true
     private var latestConnectState: PlaybackConnectUiState? = null
@@ -280,9 +282,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songName = miniPlayer.findViewById(R.id.songTitle)
         songArtist = miniPlayer.findViewById(R.id.songArtist)
         playbackDeviceBar = findViewById(R.id.playbackDeviceBar)
-        unisoundRoomBar = findViewById(R.id.unisoundRoomBar)
-        unisoundRoomBarText = findViewById(R.id.unisoundRoomBarText)
-        unisoundRoomBar.setOnClickListener { openUnisoundRoom() }
+        unisoundBadge = miniPlayer.findViewById(R.id.miniPlayerUnisoundBadge)
+        unisoundBadge.setOnClickListener { openUnisoundRoom() }
         setupUnisound()
         playbackDeviceText = playbackDeviceBar.findViewById(R.id.playbackDeviceText)
         dimOverlay = findViewById(R.id.dim_overlay)
@@ -647,9 +648,6 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             }
             latestConnectState?.let { state ->
                 renderPlaybackDeviceState(state, destination.id)
-            }
-            if (::unisoundViewModel.isInitialized) {
-                renderUnisoundRoomBar(unisoundViewModel.state.value, destination.id)
             }
         }
 
@@ -1109,7 +1107,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     unisoundViewModel.state.collect { state ->
-                        renderUnisoundRoomBar(state)
+                        renderUnisoundBadge(state)
                         latestConnectState?.let(::renderPlaybackDeviceState)
                     }
                 }
@@ -1133,11 +1131,17 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
-    private fun renderUnisoundRoomBar(state: UnisoundRoomState?, destinationId: Int? = null) {
-        if (!::unisoundRoomBar.isInitialized) return
-        val visible = state != null && isConnectAllowedForCurrentDestination(destinationId)
-        unisoundRoomBar.visibility = if (visible) View.VISIBLE else View.GONE
-        if (state != null) unisoundRoomBarText.text = "En sala · ${state.connectedMembers}"
+    /** Unisound mark docked on the mini-player cover: green when all is well, amber reconnecting. */
+    private fun renderUnisoundBadge(state: UnisoundRoomState?) {
+        if (!::unisoundBadge.isInitialized) return
+        unisoundBadge.visibility = if (state != null) View.VISIBLE else View.GONE
+        if (state == null) return
+        val color = getColor(
+            if (state.connection == UnisoundConnection.CONNECTED) R.color.successColor else R.color.adviseColor
+        )
+        unisoundBadge.imageTintList = ColorStateList.valueOf(color)
+        (unisoundBadge.background.mutate() as? GradientDrawable)
+            ?.setStroke(resources.getDimensionPixelSize(R.dimen.unisound_badge_stroke), color)
     }
 
     fun openUnisoundRoom(showShare: Boolean = false) {
@@ -1460,7 +1464,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val shouldShow = ariaFloatingAssistantEnabled &&
             destinationId != R.id.ariaFragment &&
             destinationId != R.id.ariaInfoFragment &&
-            destinationId != R.id.settingsFragment
+            destinationId != R.id.settingsFragment &&
+            destinationId != R.id.unisoundRoomFragment &&
+            destinationId != R.id.unisoundSummaryFragment
         if (shouldShow && ariaFloatingLauncher.visibility != View.VISIBLE) {
             ariaFloatingLauncher.alpha = 0f
             ariaFloatingLauncher.translationY = 16f * resources.displayMetrics.density
