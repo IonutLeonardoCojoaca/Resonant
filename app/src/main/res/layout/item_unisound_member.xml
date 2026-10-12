@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingVertical="6dp">
+
+    <TextView
+        android:id="@+id/unisoundMemberName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_medium"
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="15sp"
+        tools:text="Ana" />
+
+    <TextView
+        android:id="@+id/unisoundMemberMakeHost"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:fontFamily="@font/unageo_medium"
+        android:padding="8dp"
+        android:text="Pasar control"
+        android:textColor="@color/textTheme"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/unisoundMemberKick"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:fontFamily="@font/unageo_medium"
+        android:padding="8dp"
+        android:text="Expulsar"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="13sp" />
+</LinearLayout>

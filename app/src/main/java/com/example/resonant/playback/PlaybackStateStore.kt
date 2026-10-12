@@ -111,6 +111,7 @@ internal class PlaybackStateCodec(
         val source = runCatching {
             QueueSource.valueOf(persisted.sourceType.orEmpty())
         }.getOrDefault(QueueSource.UNKNOWN)
+        if (!isPersistable(source)) return null
         val index = persisted.currentIndex.coerceIn(songs.indices)
         val currentSong = songs[index]
         val durationMs = persisted.durationMs
@@ -150,8 +151,11 @@ internal class PlaybackStateCodec(
             ?: 0L
     }
 
-    private companion object {
-        const val CURRENT_SCHEMA_VERSION = 2
+    companion object {
+        private const val CURRENT_SCHEMA_VERSION = 2
+
+        /** A Unisound room is recovered from the server, never from local storage. */
+        fun isPersistable(source: QueueSource): Boolean = source != QueueSource.UNISOUND
     }
 }
 
@@ -201,7 +205,7 @@ class PlaybackStateStore(
         shuffleEnabled: Boolean,
         synchronous: Boolean = false
     ) {
-        if (queue.songs.isEmpty()) {
+        if (queue.songs.isEmpty() || !PlaybackStateCodec.isPersistable(queue.sourceType)) {
             clear()
             return
         }
@@ -245,7 +249,7 @@ class PlaybackStateStore(
         repeatMode: Int,
         shuffleEnabled: Boolean
     ) {
-        if (queue.songs.isEmpty()) {
+        if (queue.songs.isEmpty() || !PlaybackStateCodec.isPersistable(queue.sourceType)) {
             clear()
             return
         }

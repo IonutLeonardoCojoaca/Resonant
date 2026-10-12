@@ -12,11 +12,13 @@ import com.example.resonant.data.network.services.HomeService
 import com.example.resonant.data.network.services.LyricsService
 import com.example.resonant.data.network.services.PlaybackAnalyticsService
 import com.example.resonant.data.network.services.PlaybackConnectService
+import com.example.resonant.data.network.services.PlatformService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.PlaymixService
 import com.example.resonant.data.network.services.RadioService
 import com.example.resonant.data.network.services.SongService
 import com.example.resonant.data.network.services.TransitionPresetService
+import com.example.resonant.data.network.services.UnisoundService
 import com.example.resonant.data.network.services.UniversalSearchService
 
 import com.example.resonant.data.network.services.UserService
@@ -119,6 +121,14 @@ object ApiClient {
 
     fun getUniversalSearchService(context: Context): UniversalSearchService {
         return getRetrofitInstance(context).create(UniversalSearchService::class.java)
+    }
+
+    fun getPlatformService(context: Context): PlatformService {
+        return getRetrofitInstance(context).create(PlatformService::class.java)
+    }
+
+    fun getUnisoundService(context: Context): UnisoundService {
+        return getRetrofitInstance(context).create(UnisoundService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

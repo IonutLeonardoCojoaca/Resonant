@@ -14,7 +14,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.playback.PlaybackConnectRepository
 import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.data.network.PlaybackConnectDeviceDTO
 import com.example.resonant.data.network.PlaybackConnectQueueItemDTO
+import com.example.resonant.ui.dialogs.ResonantDialog
+import com.example.resonant.unisound.UnisoundManager
 import com.example.resonant.data.network.PlaybackConnectStateDTO
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.PlaybackDeviceAdapter
@@ -27,6 +30,7 @@ class PlaybackDevicesBottomSheet : ResonantBottomSheetDialogFragment() {
     private val repository by lazy {
         PlaybackConnectRepository.get(requireContext())
     }
+    private val unisound by lazy { UnisoundManager.get(requireContext()) }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -45,7 +49,7 @@ class PlaybackDevicesBottomSheet : ResonantBottomSheetDialogFragment() {
             R.id.loadingIndicator
         )
         val error = view.findViewById<TextView>(R.id.errorText)
-        val adapter = PlaybackDeviceAdapter(repository.localDeviceId) { device ->
+        val transfer: (PlaybackConnectDeviceDTO) -> Unit = { device ->
             viewLifecycleOwner.lifecycleScope.launch {
                 loading.visibility = View.VISIBLE
                 // Build a fresh playback state snapshot to send with the
@@ -113,6 +117,29 @@ class PlaybackDevicesBottomSheet : ResonantBottomSheetDialogFragment() {
                 )
                 if (result.successful) dismiss()
             }
+        }
+        val adapter = PlaybackDeviceAdapter(repository.localDeviceId) { device ->
+            // Unisound and Connect are exclusive: transferring leaves the room first.
+            if (unisound.state.value == null) {
+                transfer(device)
+            } else {
+                ResonantDialog(requireContext())
+                    .setSection("Escuchar juntos")
+                    .setTitle("Saldrás de la sala")
+                    .setMessage("Para pasar la música a otro dispositivo tienes que salir de la sala.")
+                    .setPositiveButton("Salir y transferir") {
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            unisound.leaveRoom()
+                            transfer(device)
+                        }
+                    }
+                    .setNegativeButton("Cancelar")
+                    .show()
+            }
+        }
+        if (unisound.state.value != null) {
+            view.findViewById<TextView>(R.id.subtitle).text =
+                "Estás en una sala: transferir la música te sacará de ella."
         }
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = adapter

@@ -84,6 +84,20 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
+import androidx.media3.common.PlaybackParameters
+import com.example.resonant.playback.UnisoundAwarePlayer
+import com.example.resonant.playback.UnisoundPlaybackAdapter
+import com.example.resonant.playback.UnisoundPlaybackBridge
+import com.example.resonant.unisound.UnisoundControl
+import com.example.resonant.unisound.UnisoundControlOrigin
+import com.example.resonant.unisound.UnisoundDriftAction
+import com.example.resonant.unisound.UnisoundDriftPolicy
+import com.example.resonant.unisound.UnisoundDriftReport
+import com.example.resonant.unisound.UnisoundManager
+import com.example.resonant.unisound.UnisoundMirrorChange
+import com.example.resonant.unisound.UnisoundMirrorPlan
+import com.example.resonant.unisound.UnisoundRoomState
+import com.google.firebase.analytics.FirebaseAnalytics
 
 @OptIn(UnstableApi::class)
 class MusicPlaybackService : MediaLibraryService(), PlayerController {
@@ -144,6 +158,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         /** Rolling window size of recentSongIds we send to the server. */
         private const val RADIO_RECENT_WINDOW_SIZE = 30
         private const val CONNECT_MAX_QUEUE_ITEMS = 500
+        /** Orders are anchored ~300 ms ahead; never wait longer than this for an anchor. */
+        private const val UNISOUND_MAX_ANCHOR_WAIT_MS = 2_000L
+        private const val UNISOUND_LEAVE_TO_PLAY_MESSAGE = "Sal de la sala para reproducir tu música"
         private val LEGACY_CUSTOM_ACTIONS = setOf(
             ACTION_PLAY,
             ACTION_PAUSE,
@@ -258,6 +275,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
      */
     private val pendingConnectPlayIntents =
         java.util.concurrent.ConcurrentHashMap<String, Intent>()
+
+    // Unisound: while in a room the queue mirrors the server and controls go to the hub.
+    private lateinit var unisoundManager: UnisoundManager
+    private lateinit var unisoundAdapter: UnisoundPlaybackAdapter
+    private val unisoundHandler = Handler(Looper.getMainLooper())
+    private var unisoundApplyRunnable: Runnable? = null
+    private val isUnisoundMode: Boolean
+        get() = PlaybackStateRepository.activeQueue?.sourceType == QueueSource.UNISOUND
     private var progressiveFallbackSongId: String? = null
 
     private val exoAudioAttributes = ExoAudioAttributes.Builder()
@@ -276,7 +301,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 }
                 if (resumeOnAudioFocusGain) {
                     resumeOnAudioFocusGain = false
-                    exoPlayer?.play()
+                    if (inUnisoundRoom()) unisoundManager.setLocalHold(false) else exoPlayer?.play()
                 }
             }
 
@@ -286,12 +311,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 duckedByAudioFocus = false
                 pauseForAudioFocus(shouldResume = false)
                 abandonAudioFocus()
+                holdUnisoundLocally()
             }
 
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 Log.d("AudioFocus", "Foco perdido temporalmente")
                 duckedByAudioFocus = false
                 pauseForAudioFocus(shouldResume = exoPlayer?.isPlaying == true)
+                holdUnisoundLocally()
             }
 
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
@@ -309,7 +336,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
                 Log.d("AudioFocus", "Salida de audio desconectada. Pausando reproducción.")
                 resumeOnAudioFocusGain = false
-                pause()
+                if (inUnisoundRoom()) holdUnisoundLocally() else pause()
             }
         }
     }
@@ -471,6 +498,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         persistPlaybackState(force = true)
     }
     override fun playNext() {
+        // In a room the server decides what plays next (end of song, retries, queue end).
+        if (isUnisoundMode) return
         reportCurrentSongFinished(wasSkipped = true)
 
         if (transitionManager.isTransitioning) {
@@ -547,6 +576,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
     }
     override fun playPrevious() {
+        if (isUnisoundMode) return
         reportCurrentSongFinished(wasSkipped = true)
 
         if (transitionManager.isTransitioning) {
@@ -775,7 +805,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 if (isAnotherDeviceActive && PlaybackStateRepository.isPlaying) {
                     withContext(Dispatchers.Main) { 
                         Log.w("MusicService", "Connect: Otro dispositivo tomó el control ($isAnotherDeviceActive). Pausando inmediatamente.")
-                        pause() 
+                        if (inUnisoundRoom()) holdUnisoundLocally() else pause()
                     }
                 }
             }
@@ -857,9 +887,15 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             onQueueCommand = ::handleQueueCommand,
             playbackPositionMs = { exoPlayer?.currentPosition ?: 0L }
         )
+        unisoundManager = UnisoundManager.get(applicationContext)
+        unisoundAdapter = UnisoundPlaybackAdapter(
+            manager = unisoundManager,
+            host = unisoundHost,
+            reportDrift = ::reportUnisoundDrift
+        )
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
-            requireNotNull(exoPlayer),
+            UnisoundAwarePlayer(requireNotNull(exoPlayer), ::interceptUnisoundControl),
             librarySessionCallback
         )
             .setSessionActivity(
@@ -888,6 +924,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         addSession(requireNotNull(mediaLibrarySession))
 
         startConnectHeartbeats()
+        unisoundAdapter.start(serviceScope)
+        serviceScope.launch { unisoundManager.restore() }
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
@@ -906,6 +944,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
         stopSeekBarUpdates()
         stopConnectHeartbeats()
+        if (::unisoundAdapter.isInitialized) unisoundAdapter.stop()
+        unisoundApplyRunnable?.let(unisoundHandler::removeCallbacks)
 
         if (::transitionManager.isInitialized) {
             transitionManager.release()
@@ -1124,6 +1164,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 if (playbackState == Player.STATE_ENDED) {
                     if (transitionManager.isTransitioning) {
                         Log.d("PlayerListener", "STATE_ENDED ignorado porque hay una transición en curso.")
+                        return
+                    }
+                    if (isUnisoundMode) {
+                        Log.d("PlayerListener", "Fin de la cola espejo: se espera al estado de la sala.")
                         return
                     }
                     Log.i("PlayerListener", "\uD83C\uDFC1 Canción finalizada naturalmente. Forzando paso a la siguiente.")
@@ -1388,6 +1432,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun calculateTriggerPosition(): Long {
+        // Everyone in a room must hear the same cut: no crossfade or transitions.
+        if (isUnisoundMode) return -1L
         val song = PlaybackStateRepository.currentSong
         if (song == null) {
             return -1L
@@ -1535,6 +1581,271 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 .into(target)
         }
     }
+    // region Unisound room mode
+    //
+    // The room state lives in UnisoundManager; UnisoundPlaybackAdapter tells this service what
+    // changed. Everything below runs on Main and only acts while the queue is the room mirror.
+
+    private val unisoundHost = object : UnisoundPlaybackAdapter.Host {
+        override fun applyUnisoundState(state: UnisoundRoomState?, change: UnisoundMirrorChange) =
+            this@MusicPlaybackService.applyUnisoundState(state, change)
+
+        override fun unisoundPlayerSample(): UnisoundPlaybackAdapter.PlayerSample? {
+            val player = exoPlayer ?: return null
+            if (!isUnisoundMode || player.mediaItemCount == 0) return null
+            val nextIndex = player.currentMediaItemIndex + 1
+            val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0L }
+            return UnisoundPlaybackAdapter.PlayerSample(
+                positionMs = player.currentPosition,
+                mediaId = player.currentMediaItem?.mediaId,
+                nextMediaId = if (nextIndex < player.mediaItemCount) player.getMediaItemAt(nextIndex).mediaId else null,
+                remainingMs = duration?.let { it - player.currentPosition } ?: -1L,
+                buffering = player.playbackState == Player.STATE_BUFFERING,
+                playing = player.isPlaying
+            )
+        }
+
+        override fun applyUnisoundDrift(action: UnisoundDriftAction, state: UnisoundRoomState) =
+            this@MusicPlaybackService.applyUnisoundDrift(action, state)
+    }
+
+    private fun inUnisoundRoom(): Boolean =
+        ::unisoundManager.isInitialized && unisoundManager.state.value != null
+
+    /** Pause only this device (focus loss, noisy output, Connect); the room keeps going. */
+    private fun holdUnisoundLocally() {
+        if (inUnisoundRoom()) unisoundManager.setLocalHold(true)
+    }
+
+    private fun shouldSoundUnisound(state: UnisoundRoomState): Boolean =
+        state.isPlaying && !state.localHold && state.current != null
+
+    /** Controls coming from the MediaSession (notification, lock screen, headset, Bluetooth). */
+    private fun interceptUnisoundControl(control: UnisoundControl, positionMs: Long?): Boolean {
+        if (!inUnisoundRoom()) return false
+        unisoundManager.control(control, positionMs ?: exoPlayer?.currentPosition, UnisoundControlOrigin.SYSTEM)
+        return true
+    }
+
+    /** In-app controls and Aria arrive as Intents; in a room they become room orders. */
+    private fun interceptUnisoundAction(action: String, intent: Intent): Boolean {
+        if (!inUnisoundRoom()) return false
+        val position = exoPlayer?.currentPosition
+        when (action) {
+            ACTION_PAUSE -> unisoundManager.control(UnisoundControl.PAUSE, position, UnisoundControlOrigin.APP)
+            ACTION_RESUME -> unisoundManager.control(UnisoundControl.PLAY, position, UnisoundControlOrigin.APP)
+            ACTION_NEXT -> unisoundManager.control(UnisoundControl.NEXT, position, UnisoundControlOrigin.APP)
+            ACTION_PREVIOUS -> unisoundManager.control(UnisoundControl.PREVIOUS, position, UnisoundControlOrigin.APP)
+            ACTION_SEEK_TO -> unisoundManager.control(
+                UnisoundControl.SEEK,
+                intent.getIntExtra(EXTRA_SEEK_POSITION, 0).toLong(),
+                UnisoundControlOrigin.APP
+            )
+            ACTION_PLAY -> {
+                // Own music while in a room: the visible screen asks "Saldrás de la sala".
+                if (!UnisoundPlaybackBridge.offerConflict(Intent(intent))) {
+                    unisoundManager.notify(UNISOUND_LEAVE_TO_PLAY_MESSAGE)
+                }
+            }
+            ACTION_TOGGLE_SHUFFLE, ACTION_TOGGLE_REPEAT, ACTION_UPDATE_QUEUE,
+            ACTION_PLAY_CONNECT_CONFIRMED -> Unit
+            else -> return false
+        }
+        return true
+    }
+
+    private fun applyUnisoundState(state: UnisoundRoomState?, change: UnisoundMirrorChange) {
+        when (change) {
+            UnisoundMirrorChange.NONE -> return
+            UnisoundMirrorChange.EXIT -> {
+                exitUnisoundMode()
+                return
+            }
+            UnisoundMirrorChange.REBUILD -> rebuildUnisoundQueue(requireNotNull(state))
+            UnisoundMirrorChange.QUEUE -> replaceUnisoundPending(requireNotNull(state))
+            UnisoundMirrorChange.STATE -> Unit
+        }
+        applyUnisoundPlayback(requireNotNull(state))
+    }
+
+    private fun enterUnisoundModeIfNeeded() {
+        if (isUnisoundMode) return
+        reportCurrentSongFinished(wasSkipped = true)
+        cancelCurrentTransitionAndRestoreEffects()
+        resetRadioSession()
+        playmixTransitions = emptyMap()
+        playmixSongIdMap = emptyMap()
+        originalQueueSongs = null
+        exoPlayer?.repeatMode = Player.REPEAT_MODE_OFF
+    }
+
+    private fun rebuildUnisoundQueue(state: UnisoundRoomState) {
+        enterUnisoundModeIfNeeded()
+        val player = exoPlayer ?: return
+        val songs = UnisoundMirrorPlan.songsOf(state)
+        val current = songs.firstOrNull()
+        if (current != null && isUnisoundMode && playerIsOnOrEnteringSong(player, current.id)) {
+            // ExoPlayer already moved (or is about to move) to this song gaplessly: keep it.
+            replaceUnisoundPending(state)
+            PlaybackStateRepository.setCurrentSong(current)
+            loadArtworkForSong(current)
+            updateUiAndSystem()
+            updateMediaSessionMetadata()
+            return
+        }
+
+        reportCurrentSongFinished(wasSkipped = true)
+        PlaybackStateRepository.activeQueue = PlaybackQueue(
+            sourceId = state.sessionId,
+            sourceType = QueueSource.UNISOUND,
+            songs = songs,
+            currentIndex = 0,
+            entryIds = UnisoundMirrorPlan.entryIdsOf(state)
+        )
+        if (current == null) {
+            player.stop()
+            player.clearMediaItems()
+            PlaybackStateRepository.setCurrentSong(null)
+            PlaybackStateRepository.setIsPlaying(false)
+            stopSeekBarUpdates()
+            updateUiAndSystem()
+            return
+        }
+        playSongFromQueue(playWhenReady = shouldSoundUnisound(state))
+    }
+
+    private fun playerIsOnOrEnteringSong(player: ExoPlayer, songId: String): Boolean {
+        if (player.mediaItemCount == 0) return false
+        if (player.currentMediaItem?.mediaId == songId) return true
+        val nextIndex = player.currentMediaItemIndex + 1
+        val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0L } ?: return false
+        return nextIndex < player.mediaItemCount &&
+            player.getMediaItemAt(nextIndex).mediaId == songId &&
+            duration - player.currentPosition <= UnisoundMirrorPlan.SONG_BOUNDARY_GRACE_MS
+    }
+
+    /** Same current song: swap only the items after it, so ExoPlayer keeps buffering. */
+    private fun replaceUnisoundPending(state: UnisoundRoomState) {
+        val player = exoPlayer ?: return
+        val queue = PlaybackStateRepository.activeQueue?.takeIf { isUnisoundMode }
+        val songs = UnisoundMirrorPlan.songsOf(state)
+        val currentId = songs.firstOrNull()?.id
+        if (queue == null || currentId == null || !playerIsOnOrEnteringSong(player, currentId)) {
+            unisoundAdapter.forceRebuild()
+            return
+        }
+        queue.songs = songs
+        queue.entryIds = UnisoundMirrorPlan.entryIdsOf(state)
+        queue.currentIndex = 0
+
+        val playingIndex = player.currentMediaItemIndex
+        val currentIndex = if (player.currentMediaItem?.mediaId == currentId) playingIndex else playingIndex + 1
+        if (currentIndex + 1 < player.mediaItemCount) {
+            player.removeMediaItems(currentIndex + 1, player.mediaItemCount)
+        }
+        player.addMediaItems(songs.drop(1).map(playbackMediaItemFactory::create))
+        if (currentIndex == playingIndex && playingIndex > 0) player.removeMediaItems(0, playingIndex)
+        PlaybackStateRepository.publishQueue()
+    }
+
+    /** Play/pause/seek exactly at the order's anchor, converted to this device's clock. */
+    private fun applyUnisoundPlayback(state: UnisoundRoomState) {
+        unisoundApplyRunnable?.let(unisoundHandler::removeCallbacks)
+        val runnable = Runnable { applyUnisoundPlaybackNow(state) }
+        unisoundApplyRunnable = runnable
+        val delayMs = unisoundAdapter.clock.toDeviceTime(state.playback.anchorServerTimeUtcMs) -
+            System.currentTimeMillis()
+        unisoundHandler.postDelayed(runnable, delayMs.coerceIn(0L, UNISOUND_MAX_ANCHOR_WAIT_MS))
+    }
+
+    private fun applyUnisoundPlaybackNow(state: UnisoundRoomState) {
+        val player = exoPlayer ?: return
+        val current = state.current ?: return
+        // Still loading the song: playSongFromQueue starts it and the drift loop aligns it.
+        if (!isUnisoundMode || player.currentMediaItem?.mediaId != current.songId) return
+
+        if (shouldSoundUnisound(state)) {
+            val expected = state.expectedPositionMs(unisoundAdapter.clock.now())
+            if (kotlin.math.abs(player.currentPosition - expected) > UnisoundDriftPolicy.TOLERANCE_MS) {
+                player.seekTo(expected)
+            }
+            if (!player.isPlaying && requestAudioFocus()) {
+                registerBecomingNoisyReceiver()
+                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+                if (currentSongStartTimeMs <= 0L) currentSongStartTimeMs = System.currentTimeMillis()
+                player.play()
+            }
+            return
+        }
+
+        player.playbackParameters = PlaybackParameters.DEFAULT
+        if (player.playWhenReady) player.pause()
+        if (!state.isPlaying) {
+            player.seekTo(state.playback.positionMsAtAnchor.coerceIn(0L, current.durationMs.coerceAtLeast(0L)))
+        }
+        // Same reason as pause(): keep the observable state authoritative.
+        PlaybackStateRepository.setIsPlaying(false)
+        stopSeekBarUpdates()
+        updateUiAndSystem()
+    }
+
+    private fun applyUnisoundDrift(action: UnisoundDriftAction, state: UnisoundRoomState) {
+        val player = exoPlayer ?: return
+        when (action) {
+            is UnisoundDriftAction.Seek -> {
+                val songId = state.current?.songId
+                val index = (0 until player.mediaItemCount).firstOrNull {
+                    player.getMediaItemAt(it).mediaId == songId
+                }
+                if (index == null) {
+                    unisoundAdapter.forceRebuild()
+                    return
+                }
+                player.playbackParameters = PlaybackParameters.DEFAULT
+                if (index == player.currentMediaItemIndex) player.seekTo(action.positionMs)
+                else player.seekTo(index, action.positionMs)
+            }
+            is UnisoundDriftAction.SetSpeed -> player.playbackParameters = PlaybackParameters(action.speed)
+            UnisoundDriftAction.None -> Unit
+        }
+    }
+
+    /** Back to normal playback: room audio stops and personal settings apply again. */
+    private fun exitUnisoundMode() {
+        unisoundApplyRunnable?.let(unisoundHandler::removeCallbacks)
+        val player = exoPlayer
+        player?.playbackParameters = PlaybackParameters.DEFAULT
+        player?.repeatMode = when (PlaybackStateRepository.repeatModeLiveData.value) {
+            PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+            PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+            else -> Player.REPEAT_MODE_OFF
+        }
+        // The user may already be playing their own music (left to play an album).
+        if (!isUnisoundMode) return
+        reportCurrentSongFinished(wasSkipped = true)
+        player?.stop()
+        player?.clearMediaItems()
+        stopSeekBarUpdates()
+        unregisterBecomingNoisyReceiver()
+        abandonAudioFocus()
+        PlaybackStateRepository.reset()
+        updateUiAndSystem()
+    }
+
+    private fun reportUnisoundDrift(report: UnisoundDriftReport) {
+        FirebaseAnalytics.getInstance(applicationContext).logEvent(
+            "unisound_drift",
+            Bundle().apply {
+                putLong("p50_ms", report.p50Ms)
+                putLong("max_ms", report.maxMs)
+                putLong("seeks", report.seeks.toLong())
+                putLong("samples", report.samples.toLong())
+            }
+        )
+    }
+
+    // endregion
+
     private fun playSongFromQueue(playWhenReady: Boolean = true) {
         val queue = PlaybackStateRepository.activeQueue ?: return
         val index = queue.currentIndex
@@ -1571,7 +1882,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 val mediaItems = enrichedSongs.map(playbackMediaItemFactory::create)
                 if (mediaItems.isEmpty()) return@withContext
 
-                val startPosition = pendingStartPositionMs
+                val startPosition = if (queue.sourceType == QueueSource.UNISOUND) {
+                    unisoundAdapter.expectedPositionMs() ?: pendingStartPositionMs
+                } else {
+                    pendingStartPositionMs
+                }
                 pendingStartPositionMs = 0L
 
                 player.setMediaItems(mediaItems, index, startPosition)
@@ -1598,6 +1913,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun syncPlaybackConnect() {
+        // A room is not this user's own playback: never publish it to Connect.
+        if (isUnisoundMode) return
         if (
             !::playbackConnectRepository.isInitialized ||
             !connectSyncInFlight.compareAndSet(false, true)
@@ -1723,14 +2040,20 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     ): Boolean {
         return when (command.type.uppercase()) {
             "YIELD", "PAUSE" -> {
-                withContext(Dispatchers.Main) { pause() }
+                withContext(Dispatchers.Main) {
+                    if (inUnisoundRoom()) holdUnisoundLocally() else pause()
+                }
                 true
             }
             "RESUME" -> {
-                withContext(Dispatchers.Main) { resume() }
+                withContext(Dispatchers.Main) { if (!inUnisoundRoom()) resume() }
                 true
             }
             "TRANSFER_IN" -> {
+                if (inUnisoundRoom()) {
+                    Log.w("MusicService", "Connect TRANSFER_IN ignorado: el dispositivo está en una sala de Unisound.")
+                    return true
+                }
                 val state = command.playback ?: return false
                 val items = state.queueItems.orEmpty()
                 if (items.isEmpty()) return false
@@ -1788,6 +2111,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun prepareNextTransitionPlayer(currentQueueIndex: Int) {
+        if (isUnisoundMode) return
         val queue = PlaybackStateRepository.activeQueue ?: return
         val nextSong = queue.songs.getOrNull(currentQueueIndex + 1)
         val needsSecondPlayer = nextSong != null && (
@@ -1833,7 +2157,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
      *    still work to do (the check catches the transition into that state).
      */
     private fun maybePrefetchRadio() {
-        if (!autoplayRadioEnabled) return
+        if (!autoplayRadioEnabled || isUnisoundMode) return
         if (isSeeking) return
 
         val queue = PlaybackStateRepository.activeQueue ?: return
@@ -2225,6 +2549,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         originalQueueSongs = null
     }
     private fun handleAction(action: String, intent: Intent) {
+        if (interceptUnisoundAction(action, intent)) return
         when (action) {
             ACTION_PLAY -> {
                 reportCurrentSongFinished(wasSkipped = true)
@@ -2377,6 +2702,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         action: String,
         arguments: Bundle
     ): SessionResult {
+        if (isUnisoundMode) {
+            return queueCommandResult(
+                SessionResult.RESULT_ERROR_INVALID_STATE,
+                "La cola es de la sala; se gestiona desde la pantalla de sala"
+            )
+        }
         val expectedRevision = arguments
             .takeIf { it.containsKey(QueueCommands.ARG_EXPECTED_REVISION) }
             ?.getLong(QueueCommands.ARG_EXPECTED_REVISION)
@@ -3112,7 +3443,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         // Android Auto's now-playing screen, lock-screen controls, and
         // eventually the notification/foreground promotion itself. Verified
         // via dumpsys media_session with/without this line.
-        mediaLibrarySession?.player = newPlayer
+        mediaLibrarySession?.player = UnisoundAwarePlayer(newPlayer, ::interceptUnisoundControl)
         newPlayer.addListener(playerListener)
         newPlayer.addAnalyticsListener(playbackQoeTracker)
         applyStreamingQualityToPlayer(newPlayer)

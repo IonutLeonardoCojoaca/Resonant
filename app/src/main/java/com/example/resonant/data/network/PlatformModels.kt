@@ -1,0 +1,19 @@
+package com.example.resonant.data.network
+
+/** `GET api/time`: server clock in Unix milliseconds (UTC). */
+data class ServerTimeDTO(
+    val serverTimeUtcMs: Long = 0L
+)
+
+/** `GET api/capabilities`: features enabled on the server via the `PlatformFeatures` flags. */
+data class CapabilitiesDTO(
+    val serverTimeUtcMs: Long = 0L,
+    val features: PlatformFeaturesDTO? = null
+)
+
+data class PlatformFeaturesDTO(
+    val unisound: Boolean = false,
+    val connect: Boolean = false,
+    val exploreV2: Boolean = false,
+    val ariaPicks: Boolean = false
+)

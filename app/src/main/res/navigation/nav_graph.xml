@@ -409,6 +409,29 @@
         app:destination="@id/playlistFragment" />
 
     <fragment
+        android:id="@+id/unisoundRoomFragment"
+        android:name="com.example.resonant.ui.fragments.UnisoundRoomFragment"
+        android:label="Escuchar juntos"
+        tools:layout="@layout/fragment_unisound_room" />
+
+    <fragment
+        android:id="@+id/unisoundSummaryFragment"
+        android:name="com.example.resonant.ui.fragments.UnisoundSummaryFragment"
+        android:label="Resumen de la sala"
+        tools:layout="@layout/fragment_unisound_summary" />
+
+    <action
+        android:id="@+id/action_global_to_unisoundRoom"
+        app:destination="@id/unisoundRoomFragment"
+        app:launchSingleTop="true" />
+
+    <action
+        android:id="@+id/action_global_to_unisoundSummary"
+        app:destination="@id/unisoundSummaryFragment"
+        app:popUpTo="@id/unisoundRoomFragment"
+        app:popUpToInclusive="true" />
+
+    <fragment
         android:id="@+id/detailedAlbumFragment"
         android:name="com.example.resonant.ui.fragments.DetailedAlbumFragment"
         android:label="Detailed Album"

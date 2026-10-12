@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingBottom="24dp">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_bottom_sheet_handle" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:fontFamily="@font/unageo_bold"
+        android:text="Invita a escuchar juntos"
+        android:textColor="@color/white"
+        android:textSize="19sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:layout_marginHorizontal="24dp"
+        android:fontFamily="@font/unageo_regular"
+        android:gravity="center"
+        android:text="Escanea el código con la cámara o escríbelo en «Unirse con código»"
+        android:textColor="@color/textTheme"
+        android:textSize="13sp" />
+
+    <FrameLayout
+        android:layout_width="232dp"
+        android:layout_height="232dp"
+        android:layout_marginTop="18dp"
+        android:background="@android:color/white"
+        android:padding="8dp">
+
+        <ImageView
+            android:id="@+id/unisoundQrImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Código QR de la sala" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/unisoundShareCode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/unageo_bold"
+        android:letterSpacing="0.3"
+        android:textColor="@color/white"
+        android:textIsSelectable="true"
+        android:textSize="30sp"
+        tools:text="K7M2QX" />
+
+    <TextView
+        android:id="@+id/unisoundShareClosed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="La entrada está cerrada: nadie más puede unirse"
+        android:textColor="@color/secondaryColorTheme"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/unisoundShareLinkButton"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="18dp"
+        android:background="@drawable/bg_play_button_pill_accent"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        android:text="Compartir enlace"
+        android:textColor="@android:color/white"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/unisoundRegenerateButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="?attr/selectableItemBackground"
+        android:fontFamily="@font/unageo_medium"
+        android:padding="10dp"
+        android:text="Regenerar código"
+        android:textColor="@color/textTheme"
+        android:textSize="14sp"
+        android:visibility="gone" />
+</LinearLayout>

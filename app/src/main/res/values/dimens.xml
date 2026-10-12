@@ -16,4 +16,5 @@
     <dimen name="space_md">12dp</dimen>
     <dimen name="space_lg">16dp</dimen>
     <dimen name="space_xl">24dp</dimen>
+    <dimen name="unisound_qr_size">216dp</dimen>
 </resources>

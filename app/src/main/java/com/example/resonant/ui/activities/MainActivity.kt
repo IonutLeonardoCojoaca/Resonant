@@ -74,6 +74,26 @@ import java.util.concurrent.TimeUnit
 import androidx.core.graphics.toColorInt
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.os.bundleOf
+import com.example.resonant.managers.CapabilitiesManager
+import com.example.resonant.managers.SessionManager
+import com.example.resonant.playback.UnisoundPlaybackBridge
+import com.example.resonant.ui.bottomsheets.UnisoundJoinBottomSheet
+import com.example.resonant.ui.dialogs.ResonantDialog
+import com.example.resonant.ui.fragments.UnisoundRoomFragment
+import com.example.resonant.ui.fragments.UnisoundSummaryFragment
+import com.example.resonant.ui.viewmodels.UnisoundViewModel
+import com.example.resonant.unisound.UnisoundCloseReason
+import com.example.resonant.unisound.UnisoundErrors
+import com.example.resonant.unisound.UnisoundJoinCode
+import com.example.resonant.unisound.UnisoundLinkAction
+import com.example.resonant.unisound.UnisoundLinkDecision
+import com.example.resonant.unisound.UnisoundManager
+import com.example.resonant.unisound.UnisoundManagerEvent
+import com.example.resonant.unisound.UnisoundPendingLink
+import com.example.resonant.unisound.UnisoundResult
+import com.example.resonant.unisound.UnisoundRoomState
+import com.google.gson.Gson
 import com.example.resonant.managers.DownloadStatus
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.playback.PlaybackStateRepository
@@ -126,6 +146,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var miniPlayer: View
     private lateinit var playbackDeviceBar: View
     private lateinit var playbackDeviceText: TextView
+    private lateinit var unisoundViewModel: UnisoundViewModel
+    private lateinit var unisoundRoomBar: View
+    private lateinit var unisoundRoomBarText: TextView
+    private var lastStoppedAtMs = 0L
     private var shouldShowMiniPlayer = true
     private var latestConnectState: PlaybackConnectUiState? = null
     /**
@@ -256,6 +280,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         songName = miniPlayer.findViewById(R.id.songTitle)
         songArtist = miniPlayer.findViewById(R.id.songArtist)
         playbackDeviceBar = findViewById(R.id.playbackDeviceBar)
+        unisoundRoomBar = findViewById(R.id.unisoundRoomBar)
+        unisoundRoomBarText = findViewById(R.id.unisoundRoomBarText)
+        unisoundRoomBar.setOnClickListener { openUnisoundRoom() }
+        setupUnisound()
         playbackDeviceText = playbackDeviceBar.findViewById(R.id.playbackDeviceText)
         dimOverlay = findViewById(R.id.dim_overlay)
         drawerLayout = findViewById(R.id.drawerLayout)
@@ -426,7 +454,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         miniPlayerQueueButton.setOnClickListener {
-            if (supportFragmentManager.findFragmentByTag(QUEUE_SHEET_TAG) == null) {
+            if (isInUnisoundRoom()) {
+                openUnisoundRoom()
+            } else if (supportFragmentManager.findFragmentByTag(QUEUE_SHEET_TAG) == null) {
                 PlaybackQueueBottomSheet().show(supportFragmentManager, QUEUE_SHEET_TAG)
             }
         }
@@ -509,7 +539,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         val fragmentsNoToolbarNoBottomNav = setOf(
             R.id.songFragment,
-            R.id.collabSearchFragment
+            R.id.collabSearchFragment,
+            R.id.unisoundRoomFragment,
+            R.id.unisoundSummaryFragment
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
@@ -616,6 +648,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             latestConnectState?.let { state ->
                 renderPlaybackDeviceState(state, destination.id)
             }
+            if (::unisoundViewModel.isInitialized) {
+                renderUnisoundRoomBar(unisoundViewModel.state.value, destination.id)
+            }
         }
 
         bottomNavigationView.setOnItemSelectedListener { item ->
@@ -719,6 +754,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         // common case when a user taps a shared song link. That silently
         // dropped the link and opened straight to Home instead of the song.
         handleDeepLink(intent)
+        UnisoundPendingLink.consume()?.let(::handleUnisoundLink)
     }
 
     @Deprecated("This method has been deprecated in favor of using the\n      " +
@@ -960,6 +996,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private fun handleDeepLink(intent: Intent) {
         val data: Uri = intent.data ?: return
+        UnisoundJoinCode.fromLink(data.host, data.path)?.let { code ->
+            handleUnisoundLink(code)
+            return
+        }
         if (data.host == "resonantapp.ddns.net") {
             val segments = data.pathSegments
             if (segments.isNotEmpty() && segments[0] == "song") {
@@ -1037,6 +1077,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         private const val ARIA_SCRIM_EXPANDED_ALPHA = 0xA0
 
         private val CONNECT_EXCLUDED_FRAGMENTS = setOf(
+            R.id.unisoundRoomFragment,
+            R.id.unisoundSummaryFragment,
             R.id.settingsFragment,
             R.id.createPlaylistFragment,
             R.id.editPlaylistFragment,
@@ -1053,9 +1095,159 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         private val FRAGMENTS_NO_TOOLBAR_NO_BOTTOM_NAV = setOf(
             R.id.songFragment,
-            R.id.collabSearchFragment
+            R.id.collabSearchFragment,
+            R.id.unisoundRoomFragment,
+            R.id.unisoundSummaryFragment
         )
     }
+
+    // region Unisound
+
+    private fun setupUnisound() {
+        unisoundViewModel = ViewModelProvider(this)[UnisoundViewModel::class.java]
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    unisoundViewModel.state.collect { state ->
+                        renderUnisoundRoomBar(state)
+                        latestConnectState?.let(::renderPlaybackDeviceState)
+                    }
+                }
+                launch { unisoundViewModel.events.collect(::handleUnisoundEvent) }
+                launch { UnisoundPlaybackBridge.conflicts.collect(::confirmLeaveRoomToPlay) }
+            }
+        }
+    }
+
+    private fun isInUnisoundRoom(): Boolean =
+        ::unisoundViewModel.isInitialized && unisoundViewModel.state.value != null
+
+    private fun refreshUnisoundOnStart() {
+        val manager = UnisoundManager.get(this)
+        if (manager.state.value != null && lastStoppedAtMs > 0L) {
+            manager.onForeground(System.currentTimeMillis() - lastStoppedAtMs)
+        }
+        lifecycleScope.launch {
+            CapabilitiesManager.refresh(this@MainActivity)
+            if (manager.state.value == null) manager.restore()
+        }
+    }
+
+    private fun renderUnisoundRoomBar(state: UnisoundRoomState?, destinationId: Int? = null) {
+        if (!::unisoundRoomBar.isInitialized) return
+        val visible = state != null && isConnectAllowedForCurrentDestination(destinationId)
+        unisoundRoomBar.visibility = if (visible) View.VISIBLE else View.GONE
+        if (state != null) unisoundRoomBarText.text = "En sala · ${state.connectedMembers}"
+    }
+
+    fun openUnisoundRoom(showShare: Boolean = false) {
+        if (!::navController.isInitialized) return
+        navController.navigate(
+            R.id.action_global_to_unisoundRoom,
+            bundleOf(UnisoundRoomFragment.ARG_SHOW_SHARE to showShare)
+        )
+    }
+
+    /** "Escuchar juntos": creates the room (or reopens the current one) and shows the invite. */
+    fun createUnisoundRoom() {
+        lifecycleScope.launch {
+            when (val result = unisoundViewModel.createRoom()) {
+                is UnisoundResult.Success -> openUnisoundRoom(showShare = result.value.isHost)
+                is UnisoundResult.Failure -> showUnisoundMessage(result.message)
+            }
+        }
+    }
+
+    fun showUnisoundJoin() {
+        if (supportFragmentManager.findFragmentByTag(UnisoundJoinBottomSheet.TAG) == null) {
+            UnisoundJoinBottomSheet().show(supportFragmentManager, UnisoundJoinBottomSheet.TAG)
+        }
+    }
+
+    private fun handleUnisoundLink(code: String) {
+        if (!SessionManager.getInstance(this).hasLocalCredentials()) {
+            UnisoundPendingLink.store(code)
+            return
+        }
+        lifecycleScope.launch {
+            CapabilitiesManager.refresh(this@MainActivity)
+            val action = UnisoundLinkDecision.decide(
+                code = code,
+                featureEnabled = CapabilitiesManager.isUnisoundEnabled(),
+                room = unisoundViewModel.state.value
+            )
+            when (action) {
+                UnisoundLinkAction.Unavailable -> showUnisoundMessage(UnisoundErrors.MESSAGE_NOT_AVAILABLE)
+                UnisoundLinkAction.OpenCurrentRoom -> openUnisoundRoom()
+                is UnisoundLinkAction.ConfirmJoin -> ResonantDialog(this@MainActivity)
+                    .setSection("Escuchar juntos")
+                    .setTitle("¿Unirte a la sala ${action.code}?")
+                    .setMessage("Escucharéis la misma música a la vez, cada uno en su móvil.")
+                    .setPositiveButton("Unirme") { joinUnisoundFromLink(action.code, leaveFirst = false) }
+                    .setNegativeButton("Cancelar")
+                    .show()
+                is UnisoundLinkAction.ConfirmSwitch -> ResonantDialog(this@MainActivity)
+                    .setSection("Escuchar juntos")
+                    .setTitle("¿Cambiar de sala?")
+                    .setMessage("Saldrás de tu sala actual para unirte a ${action.code}.")
+                    .setPositiveButton("Cambiar") { joinUnisoundFromLink(action.code, leaveFirst = true) }
+                    .setNegativeButton("Cancelar")
+                    .show()
+            }
+        }
+    }
+
+    private fun joinUnisoundFromLink(code: String, leaveFirst: Boolean) {
+        lifecycleScope.launch {
+            if (leaveFirst) unisoundViewModel.leaveRoom()
+            when (val result = unisoundViewModel.joinRoom(code)) {
+                is UnisoundResult.Success -> openUnisoundRoom()
+                is UnisoundResult.Failure -> showUnisoundMessage(result.message)
+            }
+        }
+    }
+
+    private fun handleUnisoundEvent(event: UnisoundManagerEvent) {
+        when (event) {
+            is UnisoundManagerEvent.Message -> showUnisoundMessage(event.text)
+            UnisoundManagerEvent.BecameHost -> showResonantSnackbar(
+                text = "Ahora controlas la sala",
+                colorRes = R.color.successColor,
+                iconRes = R.drawable.ic_success
+            )
+            is UnisoundManagerEvent.Closed -> when {
+                event.reason == UnisoundCloseReason.KICKED -> showUnisoundMessage("Te han sacado de la sala")
+                event.reason == UnisoundCloseReason.ENDED && event.summary != null &&
+                    ::navController.isInitialized -> navController.navigate(
+                    R.id.action_global_to_unisoundSummary,
+                    bundleOf(UnisoundSummaryFragment.ARG_SUMMARY_JSON to Gson().toJson(event.summary))
+                )
+                else -> Unit
+            }
+        }
+    }
+
+    /** The user started their own music while in a room (intercepted by the service). */
+    private fun confirmLeaveRoomToPlay(playIntent: Intent) {
+        ResonantDialog(this)
+            .setSection("Escuchar juntos")
+            .setTitle("Saldrás de la sala")
+            .setMessage("Para reproducir tu música tienes que salir de la sala.")
+            .setPositiveButton("Salir y reproducir") {
+                lifecycleScope.launch {
+                    unisoundViewModel.leaveRoom()
+                    startService(playIntent)
+                }
+            }
+            .setNegativeButton("Cancelar")
+            .show()
+    }
+
+    private fun showUnisoundMessage(text: String) {
+        showResonantSnackbar(text = text, colorRes = R.color.errorColor, iconRes = R.drawable.ic_warning)
+    }
+
+    // endregion
 
     private fun isConnectAllowedForCurrentDestination(destinationId: Int? = null): Boolean {
         if (!::navController.isInitialized) return true
@@ -1068,6 +1260,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private fun renderPlaybackDeviceState(state: PlaybackConnectUiState, destinationId: Int? = null) {
         if (!::playbackDeviceBar.isInitialized) return
+        // Connect transfers are off while in a Unisound room; the room bar takes this place.
+        if (isInUnisoundRoom()) {
+            playbackDeviceBar.visibility = View.GONE
+            return
+        }
 
         val isAllowed = isConnectAllowedForCurrentDestination(destinationId)
         if (!isAllowed) {
@@ -1304,9 +1501,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         // next 4s heartbeat from MusicPlaybackService.
         playbackConnectRepository.announcePresenceAsync()
         playbackConnectRepository.refreshAsync()
+        refreshUnisoundOnStart()
     }
 
     override fun onStop() {
+        lastStoppedAtMs = System.currentTimeMillis()
         ariaWakeWordController.stop()
         super.onStop()
     }

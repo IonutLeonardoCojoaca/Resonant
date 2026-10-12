@@ -52,9 +52,12 @@ import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.utils.AnimationsUtils
 import com.example.resonant.utils.PreferenceKeys
 import com.example.resonant.R
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.LyricLine
 import com.example.resonant.managers.LyricsManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.ui.activities.MainActivity
+import com.example.resonant.unisound.UnisoundManager
 import com.example.resonant.ui.adapters.LyricsAdapter
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.PlaybackQueueController
@@ -118,6 +121,8 @@ class SongFragment : DialogFragment() {
     private lateinit var nextSongContainer: View
     private lateinit var nextSongInfo: TextView
     private lateinit var playbackDeviceContainer: View
+    private lateinit var listenTogetherContainer: View
+    private lateinit var listenTogetherText: TextView
     private lateinit var playbackDeviceText: TextView
 
     private lateinit var sharedPref: SharedPreferences
@@ -275,7 +280,9 @@ class SongFragment : DialogFragment() {
                             active.deviceId != state.localDeviceId
                     val visible = state.supported &&
                         (remoteIsActive || state.hasAlternativeDevice)
-                    playbackDeviceContainer.isVisible = visible
+                    // Connect transfers are off while in a Unisound room.
+                    playbackDeviceContainer.isVisible = visible &&
+                        UnisoundManager.get(requireContext()).state.value == null
                     playbackDeviceText.text = when {
                         remoteIsActive ->
                             "Reproduciendo en ${active?.name}"
@@ -287,6 +294,16 @@ class SongFragment : DialogFragment() {
             }
         }
         playbackConnectRepository.refreshAsync()
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                UnisoundManager.get(requireContext()).state.collect { room ->
+                    listenTogetherContainer.isVisible = room != null || CapabilitiesManager.isUnisoundEnabled()
+                    listenTogetherText.text = room?.let { "En sala · ${it.connectedMembers}" } ?: "Escuchar juntos"
+                    if (room != null) playbackDeviceContainer.isVisible = false
+                }
+            }
+        }
     }
 
     override fun onCreateView(
@@ -327,6 +344,14 @@ class SongFragment : DialogFragment() {
         playbackDeviceContainer =
             view.findViewById(R.id.playbackDeviceContainer)
         playbackDeviceText = view.findViewById(R.id.playbackDeviceText)
+        listenTogetherContainer = view.findViewById(R.id.listenTogetherContainer)
+        listenTogetherText = view.findViewById(R.id.listenTogetherText)
+        listenTogetherContainer.setOnClickListener {
+            val main = activity as? MainActivity ?: return@setOnClickListener
+            val inRoom = UnisoundManager.get(requireContext()).state.value != null
+            dismiss()
+            if (inRoom) main.openUnisoundRoom() else main.createUnisoundRoom()
+        }
 
         artistView.isClickable = true
         artistView.isFocusable = true

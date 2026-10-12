@@ -110,6 +110,28 @@ class PlaybackStateCodecTest {
         assertNull(codec.decode(json, currentUserId = "user-1"))
     }
 
+    @Test
+    fun `unisound queues are never persistable`() {
+        assertEquals(false, PlaybackStateCodec.isPersistable(QueueSource.UNISOUND))
+        assertEquals(true, PlaybackStateCodec.isPersistable(QueueSource.PLAYLIST))
+    }
+
+    @Test
+    fun `persisted unisound snapshot is not restored`() {
+        val json = gson.toJson(
+            PersistedPlaybackState(
+                ownerUserId = "user-1",
+                sourceId = "c1f3a2de-6a0b-4b8e-9d7e-2f0c4a9b1e55",
+                sourceType = QueueSource.UNISOUND.name,
+                songs = listOf(song("song-a", "A")),
+                currentIndex = 0,
+                savedAtEpochMs = nowMs
+            )
+        )
+
+        assertNull(codec.decode(json, currentUserId = "user-1"))
+    }
+
     private fun song(
         id: String,
         title: String,

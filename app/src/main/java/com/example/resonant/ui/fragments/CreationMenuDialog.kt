@@ -14,6 +14,8 @@ import android.widget.LinearLayout
 import androidx.fragment.app.DialogFragment
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.R
+import com.example.resonant.managers.CapabilitiesManager
+import com.example.resonant.ui.activities.MainActivity
 
 class CreationMenuDialog : DialogFragment() {
 
@@ -49,6 +51,19 @@ class CreationMenuDialog : DialogFragment() {
         view.findViewById<LinearLayout>(R.id.optionCreatePlaymix).setOnClickListener {
             dismiss()
             findNavController().navigate(R.id.action_global_to_createPlaymixFragment)
+        }
+
+        val unisoundEnabled = CapabilitiesManager.isUnisoundEnabled()
+        listOf(R.id.optionListenTogether, R.id.optionJoinWithCode).forEach { id ->
+            view.findViewById<View>(id).visibility = if (unisoundEnabled) View.VISIBLE else View.GONE
+        }
+        view.findViewById<View>(R.id.optionListenTogether).setOnClickListener {
+            dismiss()
+            (activity as? MainActivity)?.createUnisoundRoom()
+        }
+        view.findViewById<View>(R.id.optionJoinWithCode).setOnClickListener {
+            dismiss()
+            (activity as? MainActivity)?.showUnisoundJoin()
         }
     }
 

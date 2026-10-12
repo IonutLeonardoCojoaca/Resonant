@@ -12,4 +12,6 @@ enum class QueueSource {
     DOWNLOADED_SONGS,
     QUEUE,
     RELATED_SONGS,
+    /** Mirror of a Unisound room: owned by the server, never persisted or restored. */
+    UNISOUND,
     UNKNOWN }

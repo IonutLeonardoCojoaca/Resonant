@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingBottom="24dp">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_bottom_sheet_handle" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:fontFamily="@font/unageo_bold"
+        android:text="Unirse con código"
+        android:textColor="@color/white"
+        android:textSize="19sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="@font/unageo_regular"
+        android:text="Pide el código de 6 caracteres a quien creó la sala"
+        android:textColor="@color/textTheme"
+        android:textSize="13sp" />
+
+    <EditText
+        android:id="@+id/unisoundJoinCodeInput"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="18dp"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        android:hint="K7M2QX"
+        android:importantForAutofill="no"
+        android:inputType="textCapCharacters|textNoSuggestions"
+        android:letterSpacing="0.3"
+        android:maxLength="8"
+        android:textColor="@color/white"
+        android:textColorHint="@color/discTheme"
+        android:textSize="26sp" />
+
+    <TextView
+        android:id="@+id/unisoundJoinError"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:fontFamily="@font/unageo_medium"
+        android:gravity="center"
+        android:textColor="@color/errorColor"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/unisoundJoinButton"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_play_button_pill_accent"
+        android:enabled="false"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        android:text="Unirme"
+        android:textColor="@android:color/white"
+        android:textSize="15sp" />
+</LinearLayout>
