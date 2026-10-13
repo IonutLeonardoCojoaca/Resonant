@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Collab Finder · mapa completo de un artista. Capas (de atrás a delante):
+    foto del artista desenfocada (parallax lento) → glow de acento → cabecera y mapa
+    de órbitas → estadísticas, orden y lista de colaboradores.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -19,312 +24,207 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingBottom="170dp">
+            android:layout_height="wrap_content">
 
-            <androidx.constraintlayout.widget.ConstraintLayout
-                android:id="@+id/headerBlock"
+            <!-- Capa de fondo: foto del artista desenfocada + fundido al fondo -->
+            <FrameLayout
+                android:id="@+id/heroBackdrop"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="22dp">
+                android:layout_height="440dp">
 
-                <ImageButton
-                    android:id="@+id/btnBack"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_marginStart="16dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:padding="8dp"
-                    android:src="@drawable/ic_arrow_back"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:tint="@color/white" />
+                <ImageView
+                    android:id="@+id/ivBackdrop"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:alpha="0"
+                    android:importantForAccessibility="no"
+                    android:scaleType="centerCrop" />
 
-                <TextView
-                    android:id="@+id/tvTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="11dp"
-                    android:fontFamily="@font/unageo_extra_bold"
-                    android:letterSpacing="0.12"
-                    android:text="COLLAB FINDER"
-                    android:textColor="@color/secondaryColorTheme"
-                    android:textSize="17sp"
-                    app:layout_constraintEnd_toStartOf="@id/btnSearchAnother"
-                    app:layout_constraintStart_toEndOf="@id/btnBack"
-                    app:layout_constraintTop_toTopOf="parent" />
+                <View
+                    android:id="@+id/backdropGlow"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSearchAnother"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginEnd="14dp"
-                    android:fontFamily="@font/unageo_bold"
-                    android:minWidth="0dp"
-                    android:paddingHorizontal="12dp"
-                    android:text="Buscar"
-                    android:textColor="@android:color/white"
-                    android:textSize="11sp"
-                    app:backgroundTint="@color/secondaryColorTheme"
-                    app:cornerRadius="18dp"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
-
-                <TextView
-                    android:id="@+id/tvHeaderArtist"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="28dp"
-                    android:layout_marginTop="10dp"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textColor="@color/white"
-                    android:textSize="24sp"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvTitle"
-                    tools:text="The Weeknd" />
-
-                <TextView
-                    android:id="@+id/tvHeaderSubtitle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="44dp"
-                    android:layout_marginTop="4dp"
-                    android:fontFamily="@font/unageo_regular"
-                    android:gravity="center"
-                    android:text="Explora sus artistas conectados y abre cualquier colaboración."
-                    android:textColor="@color/textTheme"
-                    android:textSize="12sp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvHeaderArtist" />
-
-            </androidx.constraintlayout.widget.ConstraintLayout>
-
-            <com.example.resonant.feature.collabfinder.ui.views.BubbleOrbitView
-                android:id="@+id/bubbleOrbitView"
-                android:layout_width="match_parent"
-                android:layout_height="322dp"
-                android:layout_marginTop="4dp" />
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="260dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/bg_chart_hero_scrim"
+                    android:importantForAccessibility="no" />
+            </FrameLayout>
 
             <LinearLayout
-                android:id="@+id/statsStrip"
                 android:layout_width="match_parent"
-                android:layout_height="78dp"
-                android:layout_marginHorizontal="18dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_collab_stats_panel"
-                android:gravity="center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="10dp">
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="170dp">
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:paddingHorizontal="12dp">
+
+                    <ImageButton
+                        android:id="@+id/btnBack"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="start|center_vertical"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Atrás"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_arrow_back"
+                        app:tint="@color/white" />
 
                     <TextView
-                        android:id="@+id/tvCollabValue"
+                        android:id="@+id/tvTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:fontFamily="@font/unageo_extra_bold"
+                        android:letterSpacing="0.18"
+                        android:text="COLLAB FINDER"
+                        android:textColor="#8C9DFF"
+                        android:textSize="12sp" />
+
+                    <ImageButton
+                        android:id="@+id/btnSearchAnother"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Buscar otro artista"
+                        android:padding="9dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_search"
+                        app:tint="@color/white" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:id="@+id/headerBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="28dp"
+                    android:paddingTop="4dp">
+
+                    <TextView
+                        android:id="@+id/tvHeaderEyebrow"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/unageo_bold"
-                        android:includeFontPadding="false"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        tools:text="64" />
+                        android:letterSpacing="0.16"
+                        android:text="Mapa de colaboraciones"
+                        android:textAllCaps="true"
+                        android:textColor="#8C9DFF"
+                        android:textSize="10sp" />
 
                     <TextView
-                        android:id="@+id/tvCollabLabel"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvHeaderArtist"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:includeFontPadding="false"
-                        android:text="colaboradores"
-                        android:textColor="@color/textTheme"
-                        android:textSize="11.5sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvSongsValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:ellipsize="end"
                         android:fontFamily="@font/unageo_bold"
+                        android:gravity="center"
                         android:includeFontPadding="false"
+                        android:letterSpacing="-0.02"
+                        android:maxLines="1"
+                        android:shadowColor="#99000000"
+                        android:shadowDy="2"
+                        android:shadowRadius="10"
                         android:textColor="@color/white"
-                        android:textSize="18sp"
-                        tools:text="139" />
+                        android:textSize="32sp"
+                        tools:text="The Weeknd" />
 
                     <TextView
-                        android:id="@+id/tvSongsLabel"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvHeaderSubtitle"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginTop="8dp"
                         android:fontFamily="@font/unageo_medium"
-                        android:includeFontPadding="false"
-                        android:text="canciones"
+                        android:gravity="center"
+                        android:text="Toca cualquier artista para abrir vuestra colaboración"
                         android:textColor="@color/textTheme"
-                        android:textSize="11.5sp" />
+                        android:textSize="13sp" />
                 </LinearLayout>
 
+                <com.example.resonant.feature.collabfinder.ui.views.BubbleOrbitView
+                    android:id="@+id/bubbleOrbitView"
+                    android:layout_width="match_parent"
+                    android:layout_height="340dp"
+                    android:layout_marginTop="2dp" />
+
+                <!-- Estadísticas: tres tarjetas -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:id="@+id/statsStrip"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="14dp">
 
-                    <TextView
-                        android:id="@+id/tvYearsValue"
-                        android:layout_width="wrap_content"
+                    <include
+                        android:id="@+id/statCollabs"
+                        layout="@layout/view_collab_stat"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_bold"
-                        android:includeFontPadding="false"
-                        android:textColor="@color/white"
-                        android:textSize="15sp"
-                        tools:text="2011 – 2026" />
+                        android:layout_marginHorizontal="4dp"
+                        android:layout_weight="1" />
 
-                    <TextView
-                        android:id="@+id/tvYearsLabel"
-                        android:layout_width="wrap_content"
+                    <include
+                        android:id="@+id/statSongs"
+                        layout="@layout/view_collab_stat"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:includeFontPadding="false"
-                        android:text="periodo"
-                        android:textColor="@color/textTheme"
-                        android:textSize="11.5sp" />
+                        android:layout_marginHorizontal="4dp"
+                        android:layout_weight="1" />
+
+                    <include
+                        android:id="@+id/statYears"
+                        layout="@layout/view_collab_stat"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="4dp"
+                        android:layout_weight="1" />
                 </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvListTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="20dp"
+                    android:layout_marginTop="26dp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Todos sus colaboradores"
+                    android:textColor="@color/white"
+                    android:textSize="19sp" />
+
+                <include
+                    android:id="@+id/sortSelector"
+                    layout="@layout/view_chart_period_selector"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginTop="12dp" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvCollaborators"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:layoutAnimation="@anim/layout_animation_fade_slide"
+                    android:nestedScrollingEnabled="false"
+                    android:paddingHorizontal="8dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="10dp"
+                    tools:listitem="@layout/item_collaborator_list" />
 
             </LinearLayout>
-
-            <HorizontalScrollView
-                android:id="@+id/filterScroll"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:clipToPadding="false"
-                android:overScrollMode="never"
-                android:paddingBottom="4dp"
-                android:scrollbars="none">
-
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/chipGroupFilters"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="15dp"
-                    android:theme="@style/Theme.MaterialComponents.Light"
-                    app:chipSpacingHorizontal="6dp"
-                    app:selectionRequired="true"
-                    app:singleLine="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipMoreCollabs"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:checkable="true"
-                        android:checked="true"
-                        android:text="Más collabs"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@android:color/transparent"
-                        app:useMaterialThemeColors="false" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipRecent"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:checkable="true"
-                        android:text="Más reciente"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@android:color/transparent"
-                        app:useMaterialThemeColors="false" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAlpha"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:checkable="true"
-                        android:text="Alfabético"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@android:color/transparent"
-                        app:useMaterialThemeColors="false" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
-
-            <TextView
-                android:id="@+id/tvListTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:layout_marginTop="8dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Colaboradores"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvCollaborators"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clipToPadding="false"
-                android:nestedScrollingEnabled="false"
-                android:paddingHorizontal="8dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="10dp"
-                tools:listitem="@layout/item_collaborator_list" />
-
-        </LinearLayout>
+        </FrameLayout>
     </androidx.core.widget.NestedScrollView>
-
-    <com.airbnb.lottie.LottieAnimationView
-        android:id="@+id/lottieLoader"
-        android:layout_width="190dp"
-        android:layout_height="190dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:lottie_autoPlay="false"
-        app:lottie_enableMergePathsForKitKatAndAbove="true"
-        app:lottie_fileName="loader.json"
-        app:lottie_loop="true"
-        app:lottie_repeatCount="-1" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

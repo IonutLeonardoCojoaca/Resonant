@@ -12,7 +12,7 @@ import androidx.core.graphics.ColorUtils
 import com.example.resonant.R
 
 /**
- * Controla `view_chart_period_selector`: control segmentado de 4 opciones con un
+ * Controla `view_chart_period_selector`: control segmentado de 2 a 4 opciones con un
  * indicador del color de acento que se desliza bajo la opción elegida.
  * [onSelected] solo se llama cuando el usuario cambia a una opción distinta.
  */
@@ -46,6 +46,11 @@ class ChartPeriodSelector(
         ).apply { cornerRadius = radius }
 
         options.forEachIndexed { index, option ->
+            // Admite de 2 a 4 opciones: las que sobran se ocultan y el resto se reparte el ancho.
+            if (index >= labels.size) {
+                option.visibility = View.GONE
+                return@forEachIndexed
+            }
             option.text = labels[index]
             option.setOnClickListener {
                 if (index != selectedIndex) {

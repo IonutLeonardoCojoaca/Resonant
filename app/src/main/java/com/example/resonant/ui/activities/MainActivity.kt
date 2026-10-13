@@ -94,6 +94,7 @@ import com.example.resonant.unisound.UnisoundLinkAction
 import com.example.resonant.unisound.UnisoundLinkDecision
 import com.example.resonant.unisound.UnisoundManager
 import com.example.resonant.unisound.UnisoundManagerEvent
+import com.example.resonant.ui.whatsnew.WhatsNewDialog
 import com.example.resonant.unisound.UnisoundPendingLink
 import com.example.resonant.unisound.UnisoundResult
 import com.example.resonant.unisound.UnisoundRoomState
@@ -755,7 +756,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         // common case when a user taps a shared song link. That silently
         // dropped the link and opened straight to Home instead of the song.
         handleDeepLink(intent)
-        UnisoundPendingLink.consume()?.let(::handleUnisoundLink)
+        val pendingUnisoundLink = UnisoundPendingLink.consume()
+        pendingUnisoundLink?.let(::handleUnisoundLink)
+
+        // Novedades de la versión, una vez: solo en un arranque normal, sin tapar un
+        // enlace que el usuario acaba de abrir (en ese caso salen en el siguiente).
+        if (savedInstanceState == null && intent?.data == null && pendingUnisoundLink == null) {
+            WhatsNewDialog.showIfNeeded(this)
+        }
     }
 
     @Deprecated("This method has been deprecated in favor of using the\n      " +
@@ -1078,6 +1086,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         private const val ARIA_SCRIM_EXPANDED_ALPHA = 0xA0
 
         private val CONNECT_EXCLUDED_FRAGMENTS = setOf(
+            // Aria tiene su propio input fijo abajo: la burbuja de dispositivos se solapaba con él.
+            R.id.ariaFragment,
             R.id.unisoundRoomFragment,
             R.id.unisoundSummaryFragment,
             R.id.settingsFragment,

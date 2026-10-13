@@ -3,21 +3,27 @@ package com.example.resonant.feature.collabfinder.ui.views
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.Rect
-import android.graphics.RectF
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.drawable.Drawable
+import android.text.TextPaint
+import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
-import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
@@ -25,13 +31,22 @@ import com.example.resonant.R
 import com.example.resonant.feature.collabfinder.domain.model.ArtistSearchItem
 import com.example.resonant.feature.collabfinder.domain.model.CollaboratorNode
 import kotlin.math.PI
-import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.sin
-import kotlin.math.sqrt
 
+/**
+ * Mapa de órbitas de Collab Finder: artista central rodeado de sus colaboradores.
+ *
+ * Todo lo animado (entrada escalonada, flotado, pulso de carga, fundido de imágenes,
+ * orbes ambientales) sale de un único reloj, así que no hay animadores que compitan
+ * entre sí ni saltos de posición: el flotado crece desde 0 a la vez que cada orbe
+ * entra. Los estados se encadenan sin cambiar de vista: reposo/carga muestran el
+ * motivo de órbitas (orbes ambientales + radar) y al llegar datos esos orbes se
+ * desvanecen mientras crecen los colaboradores.
+ */
 class BubbleOrbitView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -42,493 +57,522 @@ class BubbleOrbitView @JvmOverloads constructor(
     var onBubbleLongPressed: ((CollaboratorNode) -> Unit)? = null
     var onCenterTapped: (() -> Unit)? = null
 
-    private var centralArtistBitmap: Bitmap? = null
-    private var centralArtistName: String = ""
-    private var bubbles: List<BubbleData> = emptyList()
-    private var isLoading: Boolean = false
-    private var showAmbientMockup: Boolean = true
+    @ColorInt
+    var accentColor: Int = 0xFF8C9DFF.toInt()
+        set(value) {
+            field = value
+            shadersDirty = true
+            invalidate()
+        }
 
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isDither = true
+    private class Bubble(val node: CollaboratorNode, val index: Int) {
+        var x = 0f
+        var y = 0f
+        var radius = 0f
+        var depth = 0f
+        var bitmap: Bitmap? = null
+        var shader: BitmapShader? = null
+        var imageLoadedAt = -1f
+        var tapStartedAt = -1f
+        var target: CustomTarget<Bitmap>? = null
+        val phase = (index * 0.75f) % (2f * PI.toFloat())
+        // Posición final dibujada en el último frame (para el hit testing).
+        var drawX = 0f
+        var drawY = 0f
+        var drawRadius = 0f
     }
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+    private class Slot(val x: Float, val y: Float, val radiusDp: Float)
+
+    private companion object {
+        /** Tiempo tras el cual toda la coreografía de entrada ha terminado. */
+        const val ENTRANCE_DONE_S = 3f
+    }
+
+    private val slots = listOf(
+        Slot(0.34f, 0.13f, 26f),
+        Slot(0.77f, 0.15f, 38f),
+        Slot(0.13f, 0.44f, 33f),
+        Slot(0.88f, 0.55f, 31f),
+        Slot(0.25f, 0.84f, 34f),
+        Slot(0.68f, 0.85f, 29f)
+    )
+
+    /** Orbes ambientales (mismo motivo que la tarjeta de Explorar), en radios de anillo. */
+    private val ambient = floatArrayOf(
+        1.17f, -1.66f, 0.44f, -0.61f, -1.74f, 0.27f, 0.43f, -1.51f, 0.15f, -1.04f, -1.29f, 0.16f,
+        -0.53f, -1.22f, 0.08f, -1.16f, -0.87f, 0.08f, -1.73f, -0.61f, 0.40f, -1.94f, 0.06f, 0.14f,
+        -1.63f, 0.35f, 0.08f, -1.23f, 0.59f, 0.16f, -1.39f, 1.25f, 0.34f, -0.53f, 1.64f, 0.35f,
+        0.00f, 1.39f, 0.08f, 0.65f, 1.60f, 0.38f, 1.36f, 1.27f, 0.25f, 1.13f, 0.74f, 0.16f,
+        1.65f, 0.22f, 0.37f, 1.44f, -0.73f, 0.24f, 1.00f, -1.02f, 0.12f, 1.83f, 1.15f, 0.08f
+    )
+
+    private var central: ArtistSearchItem? = null
+    private var centralBitmap: Bitmap? = null
+    private var centralShader: BitmapShader? = null
+    private var centralLoadedAt = -1f
+    private var centralTarget: CustomTarget<Bitmap>? = null
+    private var bubbles: List<Bubble> = emptyList()
+
+    private var isLoading = false
+    private var dataShownAt = -1f
+    private var loadingStartedAt = 0f
+    private var time = 0f
+    private var parallax = 0f
+
+    private val density = resources.displayMetrics.density
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val badgeTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textAlign = Paint.Align.CENTER
+        typeface = ResourcesCompat.getFont(context, R.font.unageo_bold)
+    }
+    private val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = ContextCompat.getColor(context, R.color.white)
         textAlign = Paint.Align.CENTER
-        isFakeBoldText = true
+        textSize = 10.5f * density
+        typeface = ResourcesCompat.getFont(context, R.font.unageo_medium)
     }
-
-    private var floatAnimator: ValueAnimator? = null
-    private var loadingAnimator: ValueAnimator? = null
-    private var loadingRadius = 0f
-
-    private val accentRed by lazy { ContextCompat.getColor(context, R.color.secondaryColorTheme) }
-    private val dotColor by lazy { ContextCompat.getColor(context, R.color.discTheme) }
-    private val emptyBubbleColor by lazy { ContextCompat.getColor(context, R.color.cardsTheme) }
+    private val shaderMatrix = Matrix()
+    private val placeholderFill by lazy { ContextCompat.getColor(context, R.color.cardsTheme) }
     private val artistPlaceholder: Drawable? by lazy {
         ContextCompat.getDrawable(context, R.drawable.ic_user)?.mutate()?.apply {
             setTint(ContextCompat.getColor(context, R.color.textTheme))
         }
     }
 
-    private val collaboratorSlots = listOf(
-        BubbleSlot(x = 0.36f, y = 0.11f, radiusDp = 23f),
-        BubbleSlot(x = 0.77f, y = 0.14f, radiusDp = 40f),
-        BubbleSlot(x = 0.13f, y = 0.42f, radiusDp = 34f),
-        BubbleSlot(x = 0.89f, y = 0.58f, radiusDp = 32f),
-        BubbleSlot(x = 0.24f, y = 0.89f, radiusDp = 35f),
-        BubbleSlot(x = 0.66f, y = 0.87f, radiusDp = 30f)
-    )
+    private var shadersDirty = true
+    private var haloShader: Shader? = null
+    private val glyphClip = Path()
 
-    private val backgroundDots = listOf(
-        DotSpec(0.28f, 0.07f, 5f),
-        DotSpec(0.55f, 0.06f, 5f),
-        DotSpec(0.21f, 0.16f, 5f),
-        DotSpec(0.29f, 0.20f, 13f),
-        DotSpec(0.49f, 0.21f, 8f),
-        DotSpec(0.58f, 0.16f, 9f),
-        DotSpec(0.68f, 0.16f, 13f),
-        DotSpec(0.88f, 0.22f, 5f),
-        DotSpec(0.26f, 0.29f, 7f),
-        DotSpec(0.75f, 0.27f, 10f),
-        DotSpec(0.84f, 0.34f, 19f),
-        DotSpec(0.94f, 0.41f, 9f),
-        DotSpec(0.11f, 0.50f, 11f),
-        DotSpec(0.21f, 0.49f, 5f),
-        DotSpec(0.17f, 0.56f, 8f),
-        DotSpec(0.27f, 0.66f, 13f),
-        DotSpec(0.74f, 0.64f, 13f),
-        DotSpec(0.15f, 0.74f, 5f),
-        DotSpec(0.89f, 0.70f, 7f),
-        DotSpec(0.40f, 0.84f, 27f),
-        DotSpec(0.51f, 0.78f, 7f),
-        DotSpec(0.80f, 0.76f, 20f),
-        DotSpec(0.28f, 0.88f, 5f)
-    )
+    private val ticker = ValueAnimator.ofFloat(0f, 1f).apply {
+        duration = 1000
+        repeatCount = ValueAnimator.INFINITE
+        interpolator = LinearInterpolator()
+        var last = 0L
+        addUpdateListener {
+            val now = it.currentPlayTime
+            val delta = if (last == 0L || now < last) 16L else (now - last).coerceAtMost(48L)
+            last = now
+            time += delta / 1000f
+            invalidate()
+        }
+    }
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onLongPress(e: MotionEvent) {
-            bubbles.forEach { bubble ->
-                val dist = distance(e.x, e.y, bubble.drawX(), bubble.drawY())
-                if (dist <= bubble.currentRadius()) {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    onBubbleLongPressed?.invoke(bubble.node)
-                    return
-                }
+            hitBubble(e.x, e.y)?.let {
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                onBubbleLongPressed?.invoke(it.node)
             }
         }
     })
 
-    data class BubbleData(
-        val node: CollaboratorNode,
-        var bitmap: Bitmap? = null,
-        var x: Float = 0f,
-        var y: Float = 0f,
-        var radius: Float = 0f,
-        var floatOffsetX: Float = 0f,
-        var floatOffsetY: Float = 0f,
-        var floatPhase: Float = 0f,
-        var scale: Float = 1f,
-        var baseDistance: Float = 0f,
-        var baseAngle: Float = 0f
-    )
+    // ─────────────────────────────────────────────── API
 
-    private data class BubbleSlot(
-        val x: Float,
-        val y: Float,
-        val radiusDp: Float
-    )
-
-    private data class DotSpec(
-        val x: Float,
-        val y: Float,
-        val radiusDp: Float
-    )
-
-    fun setData(centralArtist: ArtistSearchItem, collaborators: List<CollaboratorNode>) {
+    /**
+     * @param animate false para mostrar el resultado ya colocado (p. ej. al recrear la
+     * vista al volver a la pantalla), sin repetir la entrada.
+     */
+    fun setData(centralArtist: ArtistSearchItem, collaborators: List<CollaboratorNode>, animate: Boolean = true) {
         isLoading = false
-        showAmbientMockup = false
-        loadingAnimator?.cancel()
-        centralArtistBitmap = null
-        centralArtistName = centralArtist.name
+        val shown = collaborators.take(slots.size)
+        val sameData = central?.id == centralArtist.id &&
+            bubbles.map { it.node.id } == shown.map { it.id } &&
+            dataShownAt >= 0f
+        if (sameData) {
+            // Mismo resultado (p. ej. al volver a la pantalla): no se re-anima nada.
+            invalidate()
+            return
+        }
 
-        bubbles = collaborators
-            .take(collaboratorSlots.size)
-            .mapIndexed { index, node ->
-                BubbleData(
-                    node = node,
-                    floatPhase = (index * 0.75f) % (2 * PI.toFloat())
-                )
-            }
-
-        calculateBubblePositions()
-        animateBubblesIn()
+        clearImageRequests()
+        central = centralArtist
+        centralBitmap = null
+        centralShader = null
+        centralLoadedAt = -1f
+        bubbles = shown.mapIndexed { index, node -> Bubble(node, index) }
+        dataShownAt = if (animate) time else time - ENTRANCE_DONE_S
+        layoutBubbles()
         loadImages(centralArtist)
-    }
-
-    private fun loadImages(centralArtist: ArtistSearchItem) {
-        if (!centralArtist.imageUrl.isNullOrEmpty()) {
-            Glide.with(context)
-                .asBitmap()
-                .load(centralArtist.imageUrl)
-                .centerCrop()
-                .into(object : CustomTarget<Bitmap>() {
-                    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                        centralArtistBitmap = resource
-                        invalidate()
-                    }
-
-                    override fun onLoadCleared(placeholder: Drawable?) = Unit
-                })
-        }
-
-        bubbles.forEach { bubble ->
-            if (!bubble.node.imageUrl.isNullOrEmpty()) {
-                Glide.with(context)
-                    .asBitmap()
-                    .load(bubble.node.imageUrl)
-                    .centerCrop()
-                    .into(object : CustomTarget<Bitmap>() {
-                        override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                            bubble.bitmap = resource
-                            invalidate()
-                        }
-
-                        override fun onLoadCleared(placeholder: Drawable?) = Unit
-                    })
-            }
-        }
-    }
-
-    fun setLoading(loading: Boolean) {
-        isLoading = loading
-        if (loading) {
-            showAmbientMockup = false
-            startLoadingAnimation()
-        } else {
-            loadingAnimator?.cancel()
-        }
+        updateTicker()
         invalidate()
     }
 
-    private fun calculateBubblePositions() {
-        if (width == 0 || height == 0) return
-
-        val centerX = width / 2f
-        val centerY = centerY()
-        val sidePadding = dp(6f)
-
-        bubbles.forEachIndexed { index, bubble ->
-            val slot = collaboratorSlots[index]
-            val radius = dp(slot.radiusDp)
-
-            bubble.radius = radius
-            bubble.x = (width * slot.x).coerceIn(radius + sidePadding, width - radius - sidePadding)
-            bubble.y = (height * slot.y).coerceIn(radius + sidePadding, height - radius - sidePadding)
-            bubble.baseDistance = distance(bubble.x, bubble.y, centerX, centerY)
-            bubble.baseAngle = atan2(bubble.y - centerY, bubble.x - centerX)
+    fun setLoading(loading: Boolean) {
+        if (loading == isLoading) return
+        isLoading = loading
+        if (loading) {
+            loadingStartedAt = time
+            // Mientras carga se vuelve al motivo de órbitas (sin artista central).
+            clearImageRequests()
+            bubbles = emptyList()
+            central = null
+            centralBitmap = null
+            centralShader = null
+            dataShownAt = -1f
         }
+        updateTicker()
+        invalidate()
     }
 
-    private fun animateBubblesIn() {
-        floatAnimator?.cancel()
-
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 520
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { anim ->
-                val fraction = anim.animatedValue as Float
-                bubbles.forEach { bubble ->
-                    bubble.scale = fraction
-                }
-                invalidate()
-            }
-            doOnEnd { startFloatAnimation() }
-            start()
-        }
+    /** Desplazamiento de scroll del contenedor: las capas lejanas se quedan atrás. */
+    fun setParallax(scrollOffset: Float) {
+        if (parallax == scrollOffset) return
+        parallax = scrollOffset
+        invalidate()
     }
 
-    private fun ValueAnimator.doOnEnd(action: () -> Unit) {
-        addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                action()
-            }
-        })
-    }
-
-    private fun startFloatAnimation() {
-        val horizontalAmplitude = dp(5f)
-        val verticalAmplitude = dp(8f)
-
-        floatAnimator = ValueAnimator.ofFloat(0f, (2 * PI).toFloat()).apply {
-            duration = 5400
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.RESTART
-            interpolator = LinearInterpolator()
-            addUpdateListener { animator ->
-                val phase = animator.animatedValue as Float
-                bubbles.forEach { bubble ->
-                    val bubblePhase = phase + bubble.floatPhase
-                    bubble.floatOffsetX = cos(bubblePhase) * horizontalAmplitude
-                    bubble.floatOffsetY = sin(phase * 2f + bubble.floatPhase) * verticalAmplitude
-                }
-                invalidate()
-            }
-            start()
-        }
-    }
-
-    private fun startLoadingAnimation() {
-        loadingAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 1500
-            repeatCount = ValueAnimator.INFINITE
-            addUpdateListener {
-                loadingRadius = it.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
-    }
+    // ─────────────────────────────────────────────── Layout
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        calculateBubblePositions()
+        shadersDirty = true
+        layoutBubbles()
+    }
+
+    private fun layoutBubbles() {
+        if (width == 0 || height == 0) return
+        val side = 6 * density
+        val labelSpace = 18 * density
+        bubbles.forEach { bubble ->
+            val slot = slots[bubble.index]
+            val radius = slot.radiusDp * density
+            bubble.radius = radius
+            bubble.x = (width * slot.x).coerceIn(radius + side, width - radius - side)
+            bubble.y = (height * slot.y).coerceIn(radius + side, height - radius - side - labelSpace)
+            // Los orbes pequeños parecen más lejanos: se quedan más atrás con el parallax.
+            bubble.depth = 1f - ((slot.radiusDp - 26f) / 12f).coerceIn(0f, 1f)
+        }
+    }
+
+    private fun centerX() = width / 2f
+    private fun centerY() = height * 0.5f
+    private fun centralRadius(): Float =
+        min(min(width * 0.18f, height * 0.17f), 66 * density).coerceAtLeast(50 * density)
+
+    // ─────────────────────────────────────────────── Images
+
+    private fun loadImages(centralArtist: ArtistSearchItem) {
+        val centralSize = (centralRadius() * 2).toInt().coerceAtLeast(64)
+        centralTarget = loadCircle(centralArtist.imageUrl, centralSize) { bitmap ->
+            centralBitmap = bitmap
+            centralShader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            centralLoadedAt = time
+        }
+        bubbles.forEach { bubble ->
+            val size = (slots[bubble.index].radiusDp * 2 * density).toInt()
+            bubble.target = loadCircle(bubble.node.imageUrl, size) { bitmap ->
+                bubble.bitmap = bitmap
+                bubble.shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+                bubble.imageLoadedAt = time
+            }
+        }
+    }
+
+    private fun loadCircle(url: String?, sizePx: Int, onReady: (Bitmap) -> Unit): CustomTarget<Bitmap>? {
+        if (url.isNullOrBlank()) return null
+        val target = object : CustomTarget<Bitmap>(sizePx, sizePx) {
+            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                onReady(resource)
+                invalidate()
+            }
+
+            override fun onLoadCleared(placeholder: Drawable?) = Unit
+        }
+        Glide.with(this).asBitmap().load(url).centerCrop().into(target)
+        return target
+    }
+
+    private fun clearImageRequests() {
+        val glide = Glide.with(this)
+        centralTarget?.let(glide::clear)
+        centralTarget = null
+        bubbles.forEach { bubble -> bubble.target?.let(glide::clear) }
+    }
+
+    // ─────────────────────────────────────────────── Drawing
+
+    private fun rebuildShaders() {
+        val cx = centerX()
+        val cy = centerY()
+        haloShader = RadialGradient(
+            cx, cy, centralRadius() * 2.6f,
+            ColorUtils.setAlphaComponent(accentColor, 0x55), 0x00000000, Shader.TileMode.CLAMP
+        )
+        shadersDirty = false
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (isLoading) {
-            drawLoadingState(canvas)
-            return
-        }
-
-        if (bubbles.isEmpty()) {
-            if (showAmbientMockup) drawAmbientDots(canvas)
-            return
-        }
-
-        drawBubbles(canvas)
-        drawCentralArtist(canvas)
-    }
-
-    private fun drawAmbientDots(canvas: Canvas) {
         if (width == 0 || height == 0) return
+        if (shadersDirty) rebuildShaders()
 
-        val scale = min(width / dp(393f), height / dp(390f)).coerceIn(0.84f, 1.14f)
-        paint.alpha = 255
-        paint.style = Paint.Style.FILL
-        paint.color = dotColor
+        val hasData = bubbles.isNotEmpty() || central != null
+        val reveal = if (hasData && dataShownAt >= 0f) ease((time - dataShownAt) / 0.7f) else 0f
 
-        backgroundDots.forEach { dot ->
-            canvas.drawCircle(
-                width * dot.x,
-                height * dot.y,
-                dp(dot.radiusDp) * scale,
-                paint
-            )
+        drawHalo(canvas)
+        // Orbes ambientales: presentes en reposo/carga, se desvanecen al llegar datos.
+        drawAmbient(canvas, alpha = 1f - reveal)
+        if (isLoading || !hasData) drawRadar(canvas, intensity = if (isLoading) 1f else 0.45f)
+
+        if (hasData) {
+            drawConnections(canvas)
+            bubbles.forEach { drawBubble(canvas, it) }
+        }
+        drawCenter(canvas)
+    }
+
+    private fun drawHalo(canvas: Canvas) {
+        fillPaint.shader = haloShader
+        fillPaint.alpha = 255
+        canvas.drawCircle(centerX(), centerY() + parallax * 0.12f, centralRadius() * 2.6f, fillPaint)
+        fillPaint.shader = null
+    }
+
+    private fun drawAmbient(canvas: Canvas, alpha: Float) {
+        if (alpha <= 0.01f) return
+        val unit = centralRadius() * 1.12f
+        val cx = centerX()
+        val cy = centerY() + parallax * 0.35f
+        var i = 0
+        while (i < ambient.size) {
+            val n = i / 3
+            val wobble = 0.05f * unit
+            val x = cx + ambient[i] * unit + sin(time * (0.6f + n % 5 * 0.12f) + n * 0.73f) * wobble
+            val y = cy + ambient[i + 1] * unit + sin(time * 0.5f + n * 1.24f) * wobble
+            val r = ambient[i + 2] * unit
+            val strength = (ambient[i + 2] / 0.44f).coerceIn(0.25f, 1f)
+            fillPaint.color = ColorUtils.blendARGB(accentColor, Color.BLACK, 0.55f - 0.25f * strength)
+            fillPaint.alpha = ((70 + 90 * strength) * alpha).toInt()
+            canvas.drawCircle(x, y, r, fillPaint)
+            i += 3
         }
     }
 
-    private fun drawLoadingState(canvas: Canvas) {
-        val cx = width / 2f
-        val cy = centerY()
-        val maxR = min(width, height) * 0.34f
-
-        paint.style = Paint.Style.STROKE
-        paint.color = accentRed
-
+    private fun drawRadar(canvas: Canvas, intensity: Float) {
+        val maxR = centralRadius() * 2.4f
+        val since = time - loadingStartedAt
+        strokePaint.strokeWidth = 2 * density
         for (i in 0..2) {
-            val phase = (loadingRadius + i * 0.33f) % 1f
-            paint.alpha = ((1f - phase) * 190).toInt()
-            paint.strokeWidth = dp(2f)
-            canvas.drawCircle(cx, cy, phase * maxR, paint)
+            val phase = ((since / 1.8f) + i / 3f) % 1f
+            strokePaint.color = ColorUtils.setAlphaComponent(accentColor, ((1f - phase) * 170 * intensity).toInt())
+            canvas.drawCircle(centerX(), centerY() + parallax * 0.12f, centralRadius() + phase * (maxR - centralRadius()), strokePaint)
         }
-        paint.alpha = 255
     }
 
-    private fun drawBubbles(canvas: Canvas) {
+    private fun bubbleProgress(bubble: Bubble): Float {
+        if (dataShownAt < 0f) return 0f
+        return ((time - dataShownAt - 0.15f - bubble.index * 0.09f) / 0.75f).coerceIn(0f, 1f)
+    }
+
+    private fun drawConnections(canvas: Canvas) {
+        val maxCount = bubbles.maxOfOrNull { it.node.collaborationCount }?.coerceAtLeast(1) ?: 1
+        val cx = centerX()
+        val cy = centerY() + parallax * 0.12f
         bubbles.forEach { bubble ->
-            val cx = bubble.drawX()
-            val cy = bubble.drawY()
-            val radius = bubble.currentRadius()
-
-            paint.alpha = 255
-            paint.style = Paint.Style.FILL
-            paint.color = emptyBubbleColor
-            canvas.drawCircle(cx, cy, radius, paint)
-
-            val bitmap = bubble.bitmap
-            if (bitmap != null) {
-                drawCircularBitmap(canvas, bitmap, cx, cy, radius)
-            } else {
-                drawArtistPlaceholder(canvas, cx, cy, radius)
-            }
-
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = dp(1.4f)
-            paint.color = Color.parseColor("#050505")
-            canvas.drawCircle(cx, cy, radius, paint)
-
-            drawCollabCountOrb(canvas, cx, cy, radius, bubble.node.collaborationCount)
+            val p = ease(bubbleProgress(bubble))
+            if (p <= 0f) return@forEach
+            positionBubble(bubble)
+            val weight = bubble.node.collaborationCount / maxCount.toFloat()
+            linePaint.strokeWidth = (1f + 2f * weight) * density
+            linePaint.color = ColorUtils.setAlphaComponent(accentColor, ((40 + 110 * weight) * p).toInt())
+            // La línea "crece" del centro al colaborador durante su entrada.
+            canvas.drawLine(cx, cy, cx + (bubble.drawX - cx) * p, cy + (bubble.drawY - cy) * p, linePaint)
         }
     }
 
-    private fun drawCollabCountOrb(
-        canvas: Canvas,
-        cx: Float,
-        cy: Float,
-        radius: Float,
-        count: Int
-    ) {
-        if (radius <= 0f) return
+    private fun positionBubble(bubble: Bubble) {
+        val progress = bubbleProgress(bubble)
+        val entrance = overshoot(progress)
+        // El flotado crece con la entrada: nunca hay un salto al terminarla.
+        val amp = ease(progress)
+        val fx = cos(time * 1.16f + bubble.phase) * 5 * density * amp
+        val fy = sin(time * 2.32f + bubble.phase) * 7 * density * amp
+        val tap = tapScale(bubble)
+        bubble.drawX = bubble.x + fx
+        bubble.drawY = bubble.y + fy + parallax * (0.06f + 0.16f * bubble.depth)
+        bubble.drawRadius = bubble.radius * entrance * tap
+    }
 
-        val badgeRadius = (radius * 0.27f).coerceIn(dp(10f), dp(15f))
-        val badgeX = cx + radius * 0.68f
-        val badgeY = cy - radius * 0.68f
+    private fun drawBubble(canvas: Canvas, bubble: Bubble) {
+        positionBubble(bubble)
+        val r = bubble.drawRadius
+        if (r <= 0.5f) return
+        val cx = bubble.drawX
+        val cy = bubble.drawY
+
+        fillPaint.color = placeholderFill
+        fillPaint.alpha = 255
+        canvas.drawCircle(cx, cy, r, fillPaint)
+
+        val shader = bubble.shader
+        val imageAlpha = if (bubble.imageLoadedAt >= 0f) ease((time - bubble.imageLoadedAt) / 0.3f) else 0f
+        if (imageAlpha < 1f) drawPlaceholder(canvas, cx, cy, r, 1f - imageAlpha)
+        if (shader != null && bubble.bitmap != null) {
+            drawImage(canvas, shader, bubble.bitmap!!, cx, cy, r, imageAlpha)
+        }
+
+        strokePaint.strokeWidth = 1.5f * density
+        strokePaint.color = ColorUtils.setAlphaComponent(accentColor, 0x99)
+        canvas.drawCircle(cx, cy, r, strokePaint)
+
+        drawCountBadge(canvas, cx, cy, r, bubble.node.collaborationCount)
+
+        val labelAlpha = ((bubbleProgress(bubble) - 0.5f) * 2f).coerceIn(0f, 1f)
+        if (labelAlpha > 0f) {
+            labelPaint.alpha = (215 * labelAlpha).toInt()
+            val label = TextUtils.ellipsize(bubble.node.name, labelPaint, r * 2.6f, TextUtils.TruncateAt.END)
+            canvas.drawText(label, 0, label.length, cx, cy + bubble.radius + 14 * density, labelPaint)
+        }
+    }
+
+    private fun drawCountBadge(canvas: Canvas, cx: Float, cy: Float, r: Float, count: Int) {
+        val badgeR = (r * 0.3f).coerceIn(9 * density, 13 * density)
+        val bx = cx + r * 0.7f
+        val by = cy - r * 0.7f
+        fillPaint.color = ColorUtils.blendARGB(accentColor, Color.BLACK, 0.25f)
+        fillPaint.alpha = 255
+        canvas.drawCircle(bx, by, badgeR, fillPaint)
+        strokePaint.strokeWidth = 1.5f * density
+        strokePaint.color = Color.BLACK
+        canvas.drawCircle(bx, by, badgeR, strokePaint)
         val label = count.toString()
-
-        paint.alpha = 255
-        paint.style = Paint.Style.FILL
-        paint.color = accentRed
-        canvas.drawCircle(badgeX, badgeY, badgeRadius, paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = dp(1.2f)
-        paint.color = Color.BLACK
-        canvas.drawCircle(badgeX, badgeY, badgeRadius, paint)
-
-        textPaint.textSize = when {
-            label.length >= 3 -> badgeRadius * 0.76f
-            label.length == 2 -> badgeRadius * 0.92f
-            else -> badgeRadius * 1.08f
-        }
-        val textY = badgeY - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(label, badgeX, textY, textPaint)
+        badgeTextPaint.textSize = badgeR * if (label.length >= 3) 0.78f else if (label.length == 2) 0.95f else 1.1f
+        canvas.drawText(label, bx, by - (badgeTextPaint.descent() + badgeTextPaint.ascent()) / 2f, badgeTextPaint)
     }
 
-    private fun drawCentralArtist(canvas: Canvas) {
-        val cx = width / 2f
-        val cy = centerY()
+    private fun drawCenter(canvas: Canvas) {
+        val cx = centerX()
+        val cy = centerY() + parallax * 0.12f
         val radius = centralRadius()
+        // Respira suavemente mientras busca.
+        val breathe = if (isLoading) 1f + sin(time * 3f) * 0.025f else 1f
 
-        paint.alpha = 255
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = dp(3f)
-        paint.color = accentRed
-        canvas.drawCircle(cx, cy, radius + dp(9f), paint)
+        strokePaint.strokeWidth = 2.5f * density
+        strokePaint.color = ColorUtils.setAlphaComponent(accentColor, 0xCC)
+        canvas.drawCircle(cx, cy, (radius + 8 * density) * breathe, strokePaint)
+        strokePaint.strokeWidth = 1f * density
+        strokePaint.color = ColorUtils.setAlphaComponent(accentColor, 0x66)
+        canvas.drawCircle(cx, cy, (radius + 2.5f * density) * breathe, strokePaint)
 
-        paint.strokeWidth = dp(1.25f)
-        paint.alpha = 180
-        canvas.drawCircle(cx, cy, radius + dp(2.5f), paint)
-        paint.alpha = 255
+        fillPaint.color = ColorUtils.blendARGB(accentColor, Color.BLACK, 0.72f)
+        fillPaint.alpha = 255
+        canvas.drawCircle(cx, cy, radius * breathe, fillPaint)
 
-        paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#151515")
-        canvas.drawCircle(cx, cy, radius, paint)
-
-        val bitmap = centralArtistBitmap
-        if (bitmap != null) {
-            drawCircularBitmap(canvas, bitmap, cx, cy, radius - dp(1.5f))
-        } else {
-            drawArtistPlaceholder(canvas, cx, cy, radius - dp(1.5f))
-        }
+        val imageAlpha = if (centralLoadedAt >= 0f) ease((time - centralLoadedAt) / 0.35f) else 0f
+        if (imageAlpha < 1f) drawPersonGlyph(canvas, cx, cy, radius * breathe, 1f - imageAlpha)
+        val shader = centralShader
+        val bitmap = centralBitmap
+        if (shader != null && bitmap != null) drawImage(canvas, shader, bitmap, cx, cy, radius - 1.5f * density, imageAlpha)
     }
 
-    private fun drawArtistPlaceholder(
-        canvas: Canvas,
-        cx: Float,
-        cy: Float,
-        radius: Float
-    ) {
-        val drawable = artistPlaceholder ?: return
-        val iconSize = (radius * 1.14f).toInt()
-        val halfSize = iconSize / 2
-
-        drawable.setBounds(
-            (cx - halfSize).toInt(),
-            (cy - halfSize).toInt(),
-            (cx + halfSize).toInt(),
-            (cy + halfSize).toInt()
-        )
-        drawable.draw(canvas)
-    }
-
-    private fun drawCircularBitmap(
-        canvas: Canvas,
-        bitmap: Bitmap,
-        cx: Float,
-        cy: Float,
-        radius: Float
-    ) {
-        val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
-        val destRect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
-        val clipPath = Path().apply { addCircle(cx, cy, radius, Path.Direction.CW) }
-
+    /** Silueta de persona del prototipo (cabeza + hombros) dentro del círculo central. */
+    private fun drawPersonGlyph(canvas: Canvas, cx: Float, cy: Float, r: Float, alpha: Float) {
+        fillPaint.color = ColorUtils.blendARGB(accentColor, Color.BLACK, 0.9f)
+        fillPaint.alpha = (255 * alpha).toInt()
         canvas.save()
-        canvas.clipPath(clipPath)
-        paint.style = Paint.Style.FILL
-        canvas.drawBitmap(bitmap, srcRect, destRect, paint)
+        glyphClip.reset()
+        glyphClip.addCircle(cx, cy, r * 0.97f, Path.Direction.CW)
+        canvas.clipPath(glyphClip)
+        canvas.drawCircle(cx, cy - r * 0.27f, r * 0.34f, fillPaint)
+        canvas.drawOval(cx - r * 0.62f, cy + r * 0.2f, cx + r * 0.62f, cy + r * 1.25f, fillPaint)
         canvas.restore()
     }
 
+    private fun drawPlaceholder(canvas: Canvas, cx: Float, cy: Float, r: Float, alpha: Float) {
+        val drawable = artistPlaceholder ?: return
+        val half = (r * 0.57f).toInt()
+        drawable.alpha = (255 * alpha).toInt()
+        drawable.setBounds((cx - half).toInt(), (cy - half).toInt(), (cx + half).toInt(), (cy + half).toInt())
+        drawable.draw(canvas)
+    }
+
+    private fun drawImage(canvas: Canvas, shader: BitmapShader, bitmap: Bitmap, cx: Float, cy: Float, r: Float, alpha: Float) {
+        if (alpha <= 0f) return
+        val scale = (2 * r) / min(bitmap.width, bitmap.height)
+        shaderMatrix.setScale(scale, scale)
+        shaderMatrix.postTranslate(cx - bitmap.width * scale / 2f, cy - bitmap.height * scale / 2f)
+        shader.setLocalMatrix(shaderMatrix)
+        imagePaint.shader = shader
+        imagePaint.alpha = (255 * alpha).toInt()
+        canvas.drawCircle(cx, cy, r, imagePaint)
+    }
+
+    // ─────────────────────────────────────────────── Touch
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_UP) {
-            val centerDist = distance(event.x, event.y, width / 2f, centerY())
-            if (centerDist <= centralRadius() + dp(9f)) {
+            val centerDist = hypot(event.x - centerX(), event.y - (centerY() + parallax * 0.12f))
+            if (central != null && centerDist <= centralRadius() + 9 * density) {
                 onCenterTapped?.invoke()
                 return true
             }
-
-            bubbles.forEach { bubble ->
-                val dist = distance(event.x, event.y, bubble.drawX(), bubble.drawY())
-                if (dist <= bubble.currentRadius()) {
-                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    animateBubbleTap(bubble)
-                    onBubbleTapped?.invoke(bubble.node)
-                    return true
-                }
+            hitBubble(event.x, event.y)?.let { bubble ->
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                bubble.tapStartedAt = time
+                onBubbleTapped?.invoke(bubble.node)
+                return true
             }
         }
-
         gestureDetector.onTouchEvent(event)
         return true
     }
 
-    private fun animateBubbleTap(bubble: BubbleData) {
-        ValueAnimator.ofFloat(1f, 0.86f, 1f).apply {
-            duration = 280
-            addUpdateListener { anim ->
-                bubble.scale = anim.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
+    private fun hitBubble(x: Float, y: Float): Bubble? =
+        bubbles.firstOrNull { hypot(x - it.drawX, y - it.drawY) <= it.drawRadius + 4 * density }
+
+    private fun tapScale(bubble: Bubble): Float {
+        if (bubble.tapStartedAt < 0f) return 1f
+        val t = (time - bubble.tapStartedAt) / 0.28f
+        if (t >= 1f) return 1f
+        return 1f - 0.14f * sin(t * PI.toFloat())
     }
 
-    private fun BubbleData.currentRadius(): Float = radius * scale
+    // ─────────────────────────────────────────────── Easing / lifecycle
 
-    private fun BubbleData.drawX(): Float = x + floatOffsetX
-
-    private fun BubbleData.drawY(): Float = y + floatOffsetY
-
-    private fun centralRadius(): Float {
-        val byWidth = width * 0.195f
-        val byHeight = height * 0.185f
-        return min(min(byWidth, byHeight), dp(74f)).coerceAtLeast(dp(56f))
+    private fun ease(t: Float): Float {
+        val c = t.coerceIn(0f, 1f)
+        return 1f - (1f - c) * (1f - c) * (1f - c)
     }
 
-    private fun centerY(): Float = height * 0.52f
-
-    private fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
-        return sqrt((x1 - x2).pow(2) + (y1 - y2).pow(2))
+    /** Escala con un pequeño rebote amortiguado al final (sin pasar de ~8%). */
+    private fun overshoot(t: Float): Float {
+        if (t <= 0f) return 0f
+        if (t >= 1f) return 1f
+        return (1f - exp(-6f * t) * cos(9f * t)).coerceAtLeast(0f)
     }
 
-    private fun dp(value: Float): Float {
-        return value * resources.displayMetrics.density
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        updateTicker()
     }
 
     override fun onDetachedFromWindow() {
+        ticker.cancel()
+        clearImageRequests()
         super.onDetachedFromWindow()
-        floatAnimator?.cancel()
-        loadingAnimator?.cancel()
+    }
+
+    override fun onVisibilityAggregated(isVisible: Boolean) {
+        super.onVisibilityAggregated(isVisible)
+        updateTicker()
+    }
+
+    private fun updateTicker() {
+        val shouldRun = isAttachedToWindow && isShown && ValueAnimator.areAnimatorsEnabled()
+        if (shouldRun && !ticker.isStarted) ticker.start()
+        if (!shouldRun && ticker.isStarted) ticker.cancel()
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            // Sin animaciones del sistema: todo directamente en su estado final.
+            time += 10f
+            invalidate()
+        }
     }
 }

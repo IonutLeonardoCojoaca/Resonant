@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tarjeta de Collab Finder en Explorar. A propósito distinta del resto de tarjetas
+    (ancha, sin el logo de Resonant): lleva el motivo de órbitas del propio Collab
+    Finder animado a la derecha, recortado por el borde. La rellena ExploreCollabFinderCard.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="172dp"
+    android:layout_marginHorizontal="13dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="6dp"
+    android:background="@drawable/bg_explore_quick_card"
+    android:clickable="true"
+    android:clipChildren="true"
+    android:clipToOutline="true"
+    android:contentDescription="Collab Finder. Descubre conexiones entre artistas"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:stateListAnimator="@animator/explore_quick_card_press">
+
+    <View
+        android:id="@+id/collabCardGlow"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <com.example.resonant.feature.collabfinder.ui.views.CollabOrbitMotifView
+        android:id="@+id/collabCardMotif"
+        android:layout_width="210dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:importantForAccessibility="no"
+        android:paddingVertical="6dp"
+        android:translationX="44dp" />
+
+    <LinearLayout
+        android:id="@+id/collabCardText"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingStart="18dp"
+        android:paddingEnd="150dp">
+
+        <TextView
+            android:id="@+id/collabCardEyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.14"
+            android:maxLines="1"
+            android:text="Descubre conexiones"
+            android:textAllCaps="true"
+            android:textColor="#8C9DFF"
+            android:textSize="9sp" />
+
+        <TextView
+            android:id="@+id/collabCardTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="-0.01"
+            android:maxLines="1"
+            android:shadowColor="#99000000"
+            android:shadowDy="1"
+            android:shadowRadius="6"
+            android:text="Collab Finder"
+            android:textColor="@android:color/white"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/collabCardSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:text="Cruza artistas y encuentra con quién han colaborado"
+            android:textColor="#A6FFFFFF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/collabCardCta"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginTop="14dp"
+            android:drawablePadding="6dp"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:paddingStart="14dp"
+            android:paddingEnd="12dp"
+            android:text="Empezar"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            app:drawableEndCompat="@drawable/ic_arrow_up_right_mini" />
+    </LinearLayout>
+</FrameLayout>

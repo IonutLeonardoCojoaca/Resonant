@@ -8,61 +8,42 @@
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.CreatePlaymixFragment">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <FrameLayout
         android:id="@+id/superiorToolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingVertical="5dp"
-        android:paddingHorizontal="14dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        android:layout_height="56dp"
         app:layout_constraintTop_toTopOf="parent">
 
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Atrás"
+            android:scaleX="0.8"
+            android:scaleY="0.8"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/white" />
+
         <TextView
-            android:id="@+id/textView2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center"
             android:fontFamily="@font/unageo_bold"
             android:text="Nuevo PlayMix"
             android:textColor="@color/white"
-            android:textSize="22sp"
-            android:layout_marginStart="14dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/arrowGoBackBackground"
-            app:layout_constraintTop_toTopOf="parent" />
+            android:textSize="17sp" />
+    </FrameLayout>
 
-        <FrameLayout
-            android:id="@+id/arrowGoBackBackground"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/arrowGoBackButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:scaleX="0.8"
-                android:scaleY="0.8"
-                android:background="@drawable/ic_arrow_back"
-                android:clickable="false"
-                android:focusable="false" />
-
-        </FrameLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- Scrollable content -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:fillViewport="true"
+        android:overScrollMode="never"
         android:scrollbars="none"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/superiorToolbar">
 
         <LinearLayout
@@ -71,117 +52,87 @@
             android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingHorizontal="24dp"
-            android:paddingBottom="120dp">
+            android:paddingBottom="140dp">
 
-            <!-- Cover artwork placeholder -->
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <!-- Portada de vista previa: muestra el nombre en directo -->
+            <FrameLayout
+                android:layout_width="192dp"
+                android:layout_height="192dp"
+                android:layout_marginTop="4dp">
+
+                <include
+                    android:id="@+id/coverPreview"
+                    layout="@layout/view_explore_quick_card"
+                    android:layout_width="140dp"
+                    android:layout_height="140dp"
+                    android:layout_gravity="center"
+                    android:scaleX="1.3"
+                    android:scaleY="1.3" />
+            </FrameLayout>
+
+            <include
+                android:id="@+id/nameField"
+                layout="@layout/view_create_name_field"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp">
+                android:layout_marginTop="22dp" />
 
-                <androidx.cardview.widget.CardView
-                    android:layout_width="120dp"
-                    android:layout_height="120dp"
-                    app:cardBackgroundColor="#1E1E1E"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="8dp"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintBottom_toBottomOf="parent">
-
-                    <ImageView
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:scaleType="centerInside"
-                        android:padding="24dp"
-                        android:src="@drawable/ic_playmix"
-                        app:tint="#55FFFFFF" />
-
-                </androidx.cardview.widget.CardView>
-
-            </androidx.constraintlayout.widget.ConstraintLayout>
-
-            <!-- Name field -->
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/inputNameLayout"
+            <!-- Cómo funciona un PlayMix -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
-                android:hint="Nombre del PlayMix"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:hintTextColor="@color/secondaryColorTheme"
-                app:boxStrokeColor="@color/secondaryColorTheme"
-                app:boxBackgroundColor="@color/primaryColorTheme"
-                app:counterEnabled="true"
-                app:counterMaxLength="30"
-                app:counterTextColor="@color/white"
-                app:boxCornerRadiusBottomEnd="16dp"
-                app:boxCornerRadiusBottomStart="16dp"
-                app:boxCornerRadiusTopEnd="16dp"
-                app:boxCornerRadiusTopStart="16dp">
+                android:layout_marginTop="24dp"
+                android:background="@drawable/bg_surface_panel"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/playmixName"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Cómo funciona"
+                    android:textColor="@color/white"
+                    android:textSize="15sp" />
+
+                <include
+                    android:id="@+id/step1"
+                    layout="@layout/view_create_step"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/white"
-                    android:inputType="textCapSentences"
-                    android:imeOptions="actionDone"
-                    android:maxLines="1"
-                    android:fontFamily="@font/unageo_regular" />
+                    android:layout_marginTop="12dp" />
 
-            </com.google.android.material.textfield.TextInputLayout>
+                <include
+                    android:id="@+id/step2"
+                    layout="@layout/view_create_step"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" />
 
-            <!-- Info hint -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Un PlayMix te permite mezclar canciones con transiciones personalizadas entre ellas."
-                android:textColor="#66FFFFFF"
-                android:textSize="13sp"
-                android:fontFamily="@font/unageo_regular" />
+                <include
+                    android:id="@+id/step3"
+                    layout="@layout/view_create_step"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" />
+            </LinearLayout>
 
-            <!-- Create button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/createPlaymixButton"
                 android:layout_width="match_parent"
-                android:layout_height="58dp"
+                android:layout_height="56dp"
                 android:layout_marginTop="28dp"
-                android:text="Crear PlayMix"
                 android:fontFamily="@font/unageo_bold"
-                android:textColor="@color/white"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:stateListAnimator="@null"
+                android:text="Crear PlayMix"
+                android:textAllCaps="false"
+                android:textColor="@android:color/white"
                 android:textSize="16sp"
-                app:cornerRadius="30dp"
-                app:backgroundTint="@color/secondaryColorTheme"
-                android:elevation="4dp"
-                android:stateListAnimator="@null" />
+                app:cornerRadius="28dp" />
 
         </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>
-
-    <!-- Loading overlay -->
-    <FrameLayout
-        android:id="@+id/loadingOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#80000000"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:indeterminateTint="@color/secondaryColorTheme" />
-
-    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

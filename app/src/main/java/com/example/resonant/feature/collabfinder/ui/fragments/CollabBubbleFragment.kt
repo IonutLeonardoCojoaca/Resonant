@@ -1,13 +1,15 @@
 package com.example.resonant.feature.collabfinder.ui.fragments
 
+import android.animation.ValueAnimator
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.res.ResourcesCompat
 import androidx.core.os.bundleOf
-import androidx.core.view.children
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -16,25 +18,35 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.example.resonant.R
 import com.example.resonant.databinding.FragmentCollabBubbleBinding
+import com.example.resonant.feature.collabfinder.domain.model.CollabFinderResult
+import com.example.resonant.feature.collabfinder.ui.CollabStyle
 import com.example.resonant.feature.collabfinder.ui.adapters.CollaboratorListAdapter
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabBubbleUiState
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabFinderViewModel
-import com.example.resonant.utils.AnimationsUtils
-import com.google.android.material.chip.Chip
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.ResonantMotion
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class CollabBubbleFragment : Fragment() {
 
+    private companion object {
+        val SORTS = listOf("count", "recent", "name")
+    }
+
     private var _binding: FragmentCollabBubbleBinding? = null
     private val binding get() = _binding!!
     private val viewModel: CollabFinderViewModel by viewModels()
     private val args: CollabBubbleFragmentArgs by navArgs()
     private lateinit var collaboratorAdapter: CollaboratorListAdapter
-    private var lastCheckedChipId = View.NO_ID
+    private var sawLoadingInThisView = false
+    private var backdropUrl: String? = null
+    private var animateNextList = true
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -49,10 +61,22 @@ class CollabBubbleFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.tvHeaderArtist.text = args.artistName
+        setupStyle()
         setupAdapter()
         setupListeners()
+        setupParallax()
         setupObservers()
-        viewModel.loadCollaborators(args.artistId)
+        // Con el resultado ya en memoria (volver desde el detalle) no se vuelve a pedir.
+        viewModel.loadCollaboratorsIfNeeded(args.artistId)
+    }
+
+    private fun setupStyle() {
+        CollabStyle.backdropGlow(binding.backdropGlow, centerY = 0.45f)
+        binding.bubbleOrbitView.accentColor = CollabStyle.accent
+        binding.ivBackdrop.setRenderEffect(RenderEffect.createBlurEffect(36f, 36f, Shader.TileMode.CLAMP))
+        stat(binding.statCollabs.root, "colaboradores")
+        stat(binding.statSongs.root, "canciones")
+        stat(binding.statYears.root, "periodo")
     }
 
     private fun setupAdapter() {
@@ -62,64 +86,36 @@ class CollabBubbleFragment : Fragment() {
         binding.rvCollaborators.layoutManager = LinearLayoutManager(requireContext())
         binding.rvCollaborators.adapter = collaboratorAdapter
         binding.rvCollaborators.isNestedScrollingEnabled = false
+        binding.rvCollaborators.itemAnimator = null
     }
 
     private fun setupListeners() {
-        binding.btnBack.setOnClickListener {
-            findNavController().navigateUp()
-        }
-
-        binding.btnSearchAnother.setOnClickListener {
-            findNavController().navigateUp()
-        }
-
-        binding.bubbleOrbitView.onCenterTapped = {
-            findNavController().navigateUp()
-        }
-
+        binding.btnBack.setOnClickListener { findNavController().navigateUp() }
+        binding.btnSearchAnother.setOnClickListener { findNavController().navigateUp() }
+        binding.bubbleOrbitView.onCenterTapped = { findNavController().navigateUp() }
         binding.bubbleOrbitView.onBubbleTapped = { collaborator ->
             openCollaboratorDetail(collaborator.id, collaborator.name, collaborator.imageUrl)
         }
 
-        setupFilterChips()
+        ChartPeriodSelector(
+            binding.sortSelector.root,
+            CollabStyle.accent,
+            labels = listOf("Más collabs", "Recientes", "A–Z"),
+            initialIndex = SORTS.indexOf(viewModel.activeSort.value).coerceAtLeast(0)
+        ) { index ->
+            animateNextList = true
+            viewModel.onSortChanged(SORTS[index])
+        }
     }
 
-    private fun setupFilterChips() {
-        val font = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
-
-        if (binding.chipGroupFilters.checkedChipId == View.NO_ID) {
-            binding.chipMoreCollabs.isChecked = true
-        }
-        lastCheckedChipId = binding.chipGroupFilters.checkedChipId
-
-        binding.chipGroupFilters.children.forEach { view ->
-            if (view is Chip) {
-                view.typeface = font
-                AnimationsUtils.animateChipColor(view, view.id == lastCheckedChipId)
-            }
-        }
-
-        binding.chipGroupFilters.setOnCheckedStateChangeListener { group, checkedIds ->
-            val newCheckedId = checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener
-            if (newCheckedId == lastCheckedChipId) return@setOnCheckedStateChangeListener
-
-            group.findViewById<Chip>(lastCheckedChipId)?.let { chip ->
-                AnimationsUtils.animateChip(chip, false)
-                AnimationsUtils.animateChipColor(chip, false)
-            }
-            group.findViewById<Chip>(newCheckedId)?.let { chip ->
-                AnimationsUtils.animateChip(chip, true)
-                AnimationsUtils.animateChipColor(chip, true)
-            }
-
-            lastCheckedChipId = newCheckedId
-            viewModel.onSortChanged(
-                when (newCheckedId) {
-                    R.id.chipRecent -> "recent"
-                    R.id.chipAlpha -> "name"
-                    else -> "count"
-                }
-            )
+    /** Capas: la foto de fondo se queda atrás, la cabecera se desvanece y el mapa reparte profundidad. */
+    private fun setupParallax() {
+        binding.contentScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val y = scrollY.toFloat()
+            binding.heroBackdrop.translationY = y * 0.5f
+            binding.headerBlock.translationY = y * 0.2f
+            binding.headerBlock.alpha = (1f - y / (binding.headerBlock.height.coerceAtLeast(1) * 1.6f)).coerceIn(0f, 1f)
+            binding.bubbleOrbitView.setParallax(y)
         }
     }
 
@@ -129,59 +125,70 @@ class CollabBubbleFragment : Fragment() {
                 viewModel.bubbleState.collect { state ->
                     when (state) {
                         is CollabBubbleUiState.Loading -> {
-                            showLoadingState()
+                            sawLoadingInThisView = true
+                            binding.bubbleOrbitView.setLoading(true)
                         }
-                        is CollabBubbleUiState.Success -> {
-                            showContentState()
-                            binding.bubbleOrbitView.setData(
-                                state.result.centralArtist,
-                                state.result.collaborators
-                            )
-                            collaboratorAdapter.submitList(state.result.collaborators)
-
-                            val summary = state.result.summary
-                            binding.tvCollabValue.text = "${state.result.totalCollaborators}"
-                            binding.tvSongsValue.text = "${summary.totalSharedSongs}"
-                            binding.tvYearsValue.text = if (summary.yearsSpan.isBlank()) "-" else summary.yearsSpan
-                        }
+                        is CollabBubbleUiState.Success -> showResult(state.result)
                         is CollabBubbleUiState.Error -> {
-                            showContentState()
-                            Toast.makeText(
-                                context,
-                                "Error colaboraciones: ${state.message}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        is CollabBubbleUiState.Idle -> {
                             binding.bubbleOrbitView.setLoading(false)
-                            binding.lottieLoader.visibility = View.GONE
-                            binding.lottieLoader.cancelAnimation()
+                            Toast.makeText(context, "No se pudieron cargar las colaboraciones", Toast.LENGTH_LONG).show()
                         }
+                        is CollabBubbleUiState.Idle -> Unit
                     }
                 }
             }
         }
     }
 
-    private fun showLoadingState() {
-        binding.bubbleOrbitView.visibility = View.INVISIBLE
-        binding.statsStrip.visibility = View.INVISIBLE
-        binding.filterScroll.visibility = View.INVISIBLE
-        binding.tvListTitle.visibility = View.INVISIBLE
-        binding.rvCollaborators.visibility = View.INVISIBLE
-        binding.lottieLoader.visibility = View.VISIBLE
-        binding.lottieLoader.playAnimation()
+    private fun showResult(result: CollabFinderResult) {
+        binding.tvHeaderArtist.text = result.centralArtist.name
+        binding.bubbleOrbitView.setData(result.centralArtist, result.collaborators, animate = sawLoadingInThisView)
+        loadBackdrop(result.centralArtist.imageUrl)
+
+        collaboratorAdapter.submitList(result.collaborators) {
+            if (animateNextList && result.collaborators.isNotEmpty()) {
+                animateNextList = false
+                binding.rvCollaborators.scheduleLayoutAnimation()
+            }
+        }
+
+        val summary = result.summary
+        setStatValue(binding.statCollabs.root, "${result.totalCollaborators}")
+        setStatValue(binding.statSongs.root, "${summary.totalSharedSongs}")
+        setStatValue(binding.statYears.root, summary.yearsSpan.ifBlank { "–" })
     }
 
-    private fun showContentState() {
-        binding.lottieLoader.cancelAnimation()
-        binding.lottieLoader.visibility = View.GONE
-        binding.bubbleOrbitView.setLoading(false)
-        binding.bubbleOrbitView.visibility = View.VISIBLE
-        binding.statsStrip.visibility = View.VISIBLE
-        binding.filterScroll.visibility = View.VISIBLE
-        binding.tvListTitle.visibility = View.VISIBLE
-        binding.rvCollaborators.visibility = View.VISIBLE
+    /** Foto del artista central, desenfocada, como capa de fondo (aparece con fundido). */
+    private fun loadBackdrop(url: String?) {
+        if (url.isNullOrBlank() || url == backdropUrl) return
+        backdropUrl = url
+        Glide.with(this)
+            .load(url)
+            .override(400)
+            .centerCrop()
+            .transition(DrawableTransitionOptions.withCrossFade(400))
+            .into(binding.ivBackdrop)
+        binding.ivBackdrop.animate().alpha(0.42f).setDuration(600).setInterpolator(ResonantMotion.expoOut).start()
+    }
+
+    private fun stat(root: View, label: String) {
+        root.findViewById<TextView>(R.id.statLabel).text = label
+    }
+
+    /** Cambia el valor de una estadística con un pequeño fundido (solo si cambia). */
+    private fun setStatValue(root: View, value: String) {
+        val view = root.findViewById<TextView>(R.id.statValue)
+        if (view.text == value) return
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            view.text = value
+            return
+        }
+        view.animate().cancel()
+        view.animate().alpha(0f).setDuration(100).withEndAction {
+            view.text = value
+            view.translationY = 6 * resources.displayMetrics.density
+            view.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(ResonantMotion.expoOut).start()
+        }.start()
     }
 
     private fun openCollaboratorDetail(
@@ -202,7 +209,9 @@ class CollabBubbleFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        binding.lottieLoader.cancelAnimation()
+        sawLoadingInThisView = false
+        backdropUrl = null
+        animateNextList = true
         _binding = null
     }
 }

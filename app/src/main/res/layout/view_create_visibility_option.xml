@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Opción de visibilidad seleccionable (privada / pública) de Crear playlist.
+     Icono, textos y estado seleccionado los pone CreatePlaylistFragment. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:minHeight="112dp"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <ImageView
+        android:id="@+id/visibilityIcon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:importantForAccessibility="no"
+        tools:src="@drawable/ic_private" />
+
+    <TextView
+        android:id="@+id/visibilityTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:fontFamily="@font/unageo_bold"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        tools:text="Privada" />
+
+    <TextView
+        android:id="@+id/visibilitySubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/textTheme"
+        android:textSize="12sp"
+        tools:text="Solo tú puedes verla" />
+</LinearLayout>

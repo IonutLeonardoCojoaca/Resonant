@@ -9,8 +9,11 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
+import com.example.resonant.data.models.ArtistSmartPlaylist
+import com.example.resonant.data.models.StatsPeriod
 import com.example.resonant.data.models.Genre
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.ExploreLoadResult
 import com.example.resonant.data.network.ExploreRepository
 import com.example.resonant.data.network.ExploreSectionResult
@@ -47,6 +50,15 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> get() = _error
+
+    /** Essentials / Radio (smart playlists por artista) de un artista del ranking. */
+    data class ArtistMix(val artist: Artist, val playlist: ArtistSmartPlaylist)
+
+    private val _artistEssentials = MutableLiveData<List<ArtistMix>>()
+    val artistEssentials: LiveData<List<ArtistMix>> get() = _artistEssentials
+    private val _artistRadios = MutableLiveData<List<ArtistMix>>()
+    val artistRadios: LiveData<List<ArtistMix>> get() = _artistRadios
+    private var artistMixesJob: Job? = null
 
     private val _mostListenedArtists = MutableLiveData<List<Artist>>()
     val mostListenedArtists: LiveData<List<Artist>> get() = _mostListenedArtists
@@ -296,6 +308,36 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * Essentials y Radios de los artistas más escuchados de la semana (o de siempre si
+     * la semana aún no tiene datos). No hay endpoint que los devuelva juntos: se pide el
+     * ranking y después las smart playlists de cada artista en paralelo (ArtistManager
+     * las cachea). Ambas listas conservan el orden del ranking.
+     */
+    fun loadArtistMixes() {
+        if (_artistEssentials.value != null || artistMixesJob?.isActive == true) return
+        val app = getApplication<Application>()
+        artistMixesJob = viewModelScope.launch {
+            try {
+                val service = ApiClient.getArtistService(app)
+                val artists = service.getTopArtists(period = StatsPeriod.WEEKLY.value.toString(), limit = ARTIST_MIXES_LIMIT)
+                    .ifEmpty { service.getTopArtists(period = StatsPeriod.ALL_TIME.value.toString(), limit = ARTIST_MIXES_LIMIT) }
+                val mixes = artists.map { artist ->
+                    async { artist to ArtistManager.getArtistSmartPlaylists(app, artist.id) }
+                }.awaitAll()
+                fun pick(type: String) = mixes.mapNotNull { (artist, playlists) ->
+                    playlists.firstOrNull { it.playlistType.equals(type, ignoreCase = true) }?.let { ArtistMix(artist, it) }
+                }
+                _artistEssentials.value = pick("Essentials")
+                _artistRadios.value = pick("Radio")
+            } catch (e: Exception) {
+                Log.w("ExploreVM", "Error cargando essentials/radios de artistas: ${e.message}")
+                _artistEssentials.value = emptyList()
+                _artistRadios.value = emptyList()
+            }
+        }
+    }
+
     fun loadMostListenedArtists() {
         if (_mostListenedArtists.value != null) return
         _mostListenedArtistsLoading.value = true
@@ -334,5 +376,6 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private companion object {
         const val ARIA_LIKED_MESSAGE = "Gracias, Aria lo tendrá en cuenta"
         const val ARIA_FAILED_MESSAGE = "No se ha podido enviar, inténtalo de nuevo"
+        const val ARTIST_MIXES_LIMIT = 10
     }
 }

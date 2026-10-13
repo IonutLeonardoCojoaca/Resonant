@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Biblioteca: cabecera por capas con parallax (color de la pestaña activa), pestañas
+    con píldora deslizante fijas bajo la toolbar y un ViewPager2 con una lista real por
+    pestaña (cada una conserva su scroll y sus datos; se puede deslizar entre ellas).
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -8,378 +12,80 @@
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.SavedFragment">
 
-    <!-- TOOLBAR -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/superiorToolbar"
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="5dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
 
-        <TextView
-            android:id="@+id/textView2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:fontFamily="@font/unageo_bold"
-            android:text="Biblioteca"
-            android:textColor="@color/white"
-            android:textSize="22sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/userProfile"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/userProfile"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_user"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:shapeAppearanceOverlay="@style/CircularUserImage" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- CHIPS FILTER -->
-    <HorizontalScrollView
-        android:id="@+id/chipsScrollView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:paddingBottom="4dp"
-        android:scrollbars="none"
-        android:fillViewport="false"
-        app:layout_constraintTop_toBottomOf="@+id/superiorToolbar"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/chipGroup"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="15dp"
-            app:singleSelection="true"
-            app:selectionRequired="true"
-            app:chipSpacingHorizontal="6dp"
-            app:singleLine="true"
-            android:theme="@style/Theme.MaterialComponents.Light">
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipPlaylists"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:checkable="true"
-                android:checked="true"
-                android:text="Listas"
-                android:textColor="@color/chip_text_color_selector"
-                app:checkedIconVisible="false"
-                app:chipBackgroundColor="@color/chip_background_selector"
-                app:chipCornerRadius="35dp"
-                app:chipStrokeColor="@android:color/transparent"
-                app:fontFamily="@font/unageo_medium"
-                app:rippleColor="@android:color/transparent"
-                app:useMaterialThemeColors="false" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipSongs"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:checkable="true"
-                android:text="Canciones"
-                android:textColor="@color/chip_text_color_selector"
-                android:textSize="14sp"
-                app:checkedIconVisible="false"
-                app:chipBackgroundColor="@color/chip_background_selector"
-                app:chipCornerRadius="35dp"
-                app:chipStrokeColor="@android:color/transparent"
-                app:fontFamily="@font/unageo_medium"
-                app:rippleColor="@android:color/transparent"
-                app:useMaterialThemeColors="false" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipArtists"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:checkable="true"
-                android:text="Artistas"
-                android:textColor="@color/chip_text_color_selector"
-                android:textSize="14sp"
-                app:checkedIconVisible="false"
-                app:chipBackgroundColor="@color/chip_background_selector"
-                app:chipCornerRadius="35dp"
-                app:chipStrokeColor="@android:color/transparent"
-                app:fontFamily="@font/unageo_medium"
-                app:rippleColor="@android:color/transparent"
-                app:useMaterialThemeColors="false" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipAlbums"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:checkable="true"
-                android:text="Álbumes"
-                android:textColor="@color/chip_text_color_selector"
-                android:textSize="14sp"
-                app:checkedIconVisible="false"
-                app:chipBackgroundColor="@color/chip_background_selector"
-                app:chipCornerRadius="35dp"
-                app:chipStrokeColor="@android:color/transparent"
-                app:fontFamily="@font/unageo_medium"
-                app:rippleColor="@android:color/transparent"
-                app:useMaterialThemeColors="false" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipPlaymixes"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:checkable="true"
-                android:text="PlayMixes"
-                android:textColor="@color/chip_text_color_selector"
-                android:textSize="14sp"
-                app:checkedIconVisible="false"
-                app:chipBackgroundColor="@color/chip_background_selector"
-                app:chipCornerRadius="35dp"
-                app:chipStrokeColor="@android:color/transparent"
-                app:fontFamily="@font/unageo_medium"
-                app:rippleColor="@android:color/transparent"
-                app:useMaterialThemeColors="false" />
-
-        </com.google.android.material.chip.ChipGroup>
-
-    </HorizontalScrollView>
-
-    <!-- PLAYLISTS VIEW (Visible by default) — wrapped in NestedScrollView so the
-         downloads row + header scroll together with the playlist list.
-         Playlists are few so wrap_content on the RecyclerView is acceptable. -->
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/playlistsContainerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:visibility="visible"
-        app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <LinearLayout
+        <com.google.android.material.appbar.CollapsingToolbarLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:layout_height="250dp"
+            app:contentScrim="@color/primaryColorTheme"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
+            app:titleEnabled="false">
 
-            <!-- DOWNLOADS ITEM (WhatsApp Style) -->
-            <RelativeLayout
-                android:id="@+id/downloadsItemContainer"
+            <include
+                android:id="@+id/libraryHero"
+                layout="@layout/view_chart_hero" />
+
+            <androidx.appcompat.widget.Toolbar
                 android:layout_width="match_parent"
-                android:layout_height="70dp"
-                android:paddingHorizontal="15dp"
-                android:layout_marginVertical="5dp"
-                android:background="?attr/selectableItemBackground"
-                android:clickable="true"
-                android:focusable="true">
+                android:layout_height="56dp"
+                app:contentInsetStart="0dp"
+                app:layout_collapseMode="pin">
 
                 <FrameLayout
-                    android:id="@+id/iconContainer"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp"
-                    android:layout_centerVertical="true"
-                    android:background="@drawable/bg_circle_secondary_20">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_download"
-                        app:tint="@color/white" />
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_toEndOf="@id/iconContainer"
-                    android:layout_centerVertical="true"
-                    android:layout_marginStart="15dp"
-                    android:text="Descargas"
-                    android:fontFamily="@font/unageo_bold"
-                    android:textSize="17sp"
-                    android:textColor="@color/white" />
-
-            </RelativeLayout>
-
-            <!-- Separator -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginHorizontal="20dp"
-                android:background="@color/dividerOnSurface"/>
-
-            <FrameLayout
-                android:id="@+id/playlistTextContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="15dp">
-
-                <TextView
-                    android:id="@+id/playlistText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_vertical|start"
-                    android:fontFamily="@font/unageo_bold"
-                    android:text="Listas de canciones"
-                    android:textColor="@color/white"
-                    android:textSize="20sp" />
-
-            </FrameLayout>
-
-            <RelativeLayout
-                android:id="@+id/containerPlaylistsUser"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="400dp">
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/playlistList"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    android:clipToPadding="false"
-                    android:paddingHorizontal="10dp"
-                    android:paddingBottom="200dp" />
+                    android:layout_height="match_parent"
+                    android:paddingHorizontal="14dp">
 
-                <androidx.constraintlayout.widget.ConstraintLayout
-                    android:id="@+id/noPlaylistContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="400dp"
-                    android:visibility="visible">
-
-                    <LinearLayout
+                    <TextView
+                        android:id="@+id/tvToolbarTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        app:layout_constraintBottom_toBottomOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintVertical_bias="0.4">
+                        android:layout_gravity="start|center_vertical"
+                        android:alpha="0"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Biblioteca"
+                        android:textColor="@color/white"
+                        android:textSize="20sp" />
 
-                        <FrameLayout
-                            android:layout_width="80dp"
-                            android:layout_height="80dp"
-                            android:background="@drawable/bg_circle_secondary_20">
+                    <com.google.android.material.imageview.ShapeableImageView
+                        android:id="@+id/userProfile"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_gravity="end|center_vertical"
+                        android:contentDescription="Perfil"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/ic_user"
+                        app:shapeAppearanceOverlay="@style/CircularUserImage" />
+                </FrameLayout>
+            </androidx.appcompat.widget.Toolbar>
 
-                            <ImageView
-                                android:layout_width="35dp"
-                                android:layout_height="35dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_menu_add"
-                                app:tint="@color/white" />
-                        </FrameLayout>
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="20dp"
-                            android:fontFamily="@font/unageo_bold"
-                            android:text="Crea tu primera playlist"
-                            android:textColor="@color/white"
-                            android:textSize="20sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:fontFamily="@font/unageo_medium"
-                            android:text="Organiza tu música a tu manera"
-                            android:textColor="@color/textBottomSheet"
-                            android:textSize="15sp" />
-
-                    </LinearLayout>
-
-                </androidx.constraintlayout.widget.ConstraintLayout>
-
-            </RelativeLayout>
-
-        </LinearLayout>
-
-    </androidx.core.widget.NestedScrollView>
-
-    <!-- FAVORITES VIEW (RecyclerView for Songs, Artists, Albums, PlayMixes) -->
-    <!-- Direct child of ConstraintLayout, filling remaining space -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/favoritesRecyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:paddingHorizontal="10dp"
-        android:paddingBottom="200dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
-    <!-- PLAYMIX EMPTY STATE -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/playmixEmptyState"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@+id/chipsScrollView"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <!-- Pestañas: fijas bajo la toolbar al colapsar -->
+        <FrameLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_bias="0.4">
+            android:background="@color/primaryColorTheme"
+            android:paddingTop="2dp"
+            android:paddingBottom="8dp">
 
-            <FrameLayout
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="@drawable/bg_circle_secondary_20">
+            <com.example.resonant.ui.components.SlidingPillTabs
+                android:id="@+id/libraryTabs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </FrameLayout>
 
-                <ImageView
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_playmix"
-                    app:tint="@color/white" />
-            </FrameLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Sin PlayMixes aún"
-                android:textColor="@color/white"
-                android:textSize="20sp" />
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/libraryPager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFamily="@font/unageo_medium"
-                android:gravity="center"
-                android:text="Crea tu primer PlayMix con el botón +"
-                android:textColor="@color/textBottomSheet"
-                android:textSize="15sp" />
-
-        </LinearLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
-
-
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

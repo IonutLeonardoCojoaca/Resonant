@@ -30,14 +30,17 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.data.models.StatsPeriod
 import com.example.resonant.explore.AriaPick
 import com.example.resonant.explore.ExploreMode
+import com.example.resonant.explore.ExploreSectionUi
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.ExploreAlbumAdapter
 import com.example.resonant.ui.adapters.ExploreArtistAdapter
 import com.example.resonant.ui.adapters.ExplorePlaylistAdapter
+import com.example.resonant.ui.adapters.ArtistMixAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
-import com.example.resonant.ui.explore.ExploreCollabCard
 import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.components.ResonantMotion
+import com.example.resonant.ui.explore.ExploreCollabFinderCard
 import com.example.resonant.ui.explore.ExploreQuickCard
 import com.example.resonant.ui.explore.ExploreSectionsRenderer
 import com.example.resonant.ui.viewmodels.ExploreViewModel
@@ -80,10 +83,9 @@ class ExploreFragment : Fragment() {
     private lateinit var recommendedArtistsShimmer: ShimmerFrameLayout
     private lateinit var genresMoreShimmer: ShimmerFrameLayout
 
-    private lateinit var collabCard: View
 
     private lateinit var heroTitle: TextView
-    private lateinit var legacyContainer: View
+    private lateinit var legacyContainer: ViewGroup
     private lateinit var dynamicContainer: LinearLayout
     private var sectionsRenderer: ExploreSectionsRenderer? = null
     private var defaultHeroTitle: CharSequence = ""
@@ -120,6 +122,20 @@ class ExploreFragment : Fragment() {
     private var recommendedArtistsRequested = false
     private var progressiveLoadPending = false
     private var quickCardsAnimated = false
+    private var collabCardAnimated = false
+
+    // Bloques fijos intercalados entre las secciones (En el momento, Esto es…, Descubre,
+    // Radios). En el Explorar fijo viven en el XML; en Explorar v2 los recoloca el renderer.
+    private lateinit var liveNowBlock: View
+    private lateinit var artistEssentialsBlock: View
+    private lateinit var discoverBlock: View
+    private lateinit var artistRadiosBlock: View
+    private lateinit var collabFinderCard: View
+    private var legacyBlockAnchors: List<Pair<View, View>> = emptyList()
+    private lateinit var recyclerViewArtistEssentials: RecyclerView
+    private lateinit var recyclerViewArtistRadios: RecyclerView
+    private lateinit var artistEssentialsAdapter: ArtistMixAdapter
+    private lateinit var artistRadiosAdapter: ArtistMixAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -144,6 +160,7 @@ class ExploreFragment : Fragment() {
         setupProgressiveLoading()
 
         viewModel.loadExplore()
+        viewModel.loadArtistMixes()
     }
 
     override fun onDestroyView() {
@@ -186,7 +203,6 @@ class ExploreFragment : Fragment() {
         recommendedArtistsShimmer = view.findViewById(R.id.recommendedArtistsShimmer)
         genresMoreShimmer = view.findViewById(R.id.genresMoreShimmer)
 
-        collabCard = view.findViewById(R.id.collabFinderSection)
 
         heroTitle = view.findViewById(R.id.exploreHeroTitle)
         defaultHeroTitle = heroTitle.text
@@ -201,12 +217,27 @@ class ExploreFragment : Fragment() {
         recyclerViewRecommendedArtists = view.findViewById(R.id.recyclerViewRecommendedArtists)
         recyclerViewGenresMore = view.findViewById(R.id.recyclerViewGenresMore)
 
+        liveNowBlock = view.findViewById(R.id.liveNowBlock)
+        artistEssentialsBlock = view.findViewById(R.id.artistEssentialsBlock)
+        discoverBlock = view.findViewById(R.id.discoverBlock)
+        artistRadiosBlock = view.findViewById(R.id.artistRadiosBlock)
+        // Cada bloque recuerda la sección que lo precede en el XML para volver a su
+        // sitio si Explorar pasa de v2 al modo fijo.
+        legacyBlockAnchors = listOf(liveNowBlock, artistEssentialsBlock, discoverBlock, artistRadiosBlock).map { block ->
+            block to legacyContainer.getChildAt(legacyContainer.indexOfChild(block) - 1)
+        }
+
+        recyclerViewArtistEssentials = view.findViewById(R.id.recyclerViewArtistEssentials)
+        recyclerViewArtistRadios = view.findViewById(R.id.recyclerViewArtistRadios)
+
+        collabFinderCard = view.findViewById(R.id.btnCollabFinder)
+        ExploreCollabFinderCard.bind(collabFinderCard, ::openCollabFinder)
+
         viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
 
         view.findViewById<View>(R.id.searchButton).setOnClickListener {
             findNavController().navigate(R.id.action_exploreFragment_to_searchFragment)
         }
-        ExploreCollabCard.setOnOpenListener(collabCard, ::openCollabFinder)
     }
 
     /**
@@ -229,7 +260,7 @@ class ExploreFragment : Fragment() {
             Triple(view.findViewById<View>(R.id.btnListas), ExploreQuickCard.Spec(
                 "De la comunidad", "Listas", ResonantAccent.PLAYLISTS
             ), { findNavController().navigate(R.id.action_exploreFragment_to_publicPlaylistsFragment) }),
-            // Sección "En el momento" (debajo de la fila): entra la última.
+            // Sección "En el momento" (intercalada más abajo): entra la última.
             Triple(view.findViewById<View>(R.id.btnTendencias), ExploreQuickCard.Spec(
                 "Lo más viral", "Tendencias", ResonantAccent.TRENDING
             ), { navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231") })
@@ -239,6 +270,16 @@ class ExploreFragment : Fragment() {
             if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
         quickCardsAnimated = true
+    }
+
+    private fun navigateToArtistSmartPlaylist(artist: Artist, playlistType: String) {
+        val bundle = Bundle().apply {
+            putString("artistId", artist.id)
+            putString("playlistType", playlistType)
+            putString("artistName", artist.name)
+            putString("artworkUrl", artist.url)
+        }
+        findNavController().navigate(R.id.artistSmartPlaylistFragment, bundle)
     }
 
     private fun setupSectionHeaders(view: View) {
@@ -292,6 +333,15 @@ class ExploreFragment : Fragment() {
         recyclerViewRecommendedAlbums.setupHorizontalExploreList(recommendedAlbumAdapter)
         recyclerViewRecommendedArtists.setupHorizontalExploreList(recommendedArtistAdapter)
 
+        artistEssentialsAdapter = ArtistMixAdapter(ArtistMixAdapter.Kind.ESSENTIALS) {
+            navigateToArtistSmartPlaylist(it.artist, "Essentials")
+        }
+        artistRadiosAdapter = ArtistMixAdapter(ArtistMixAdapter.Kind.RADIO) {
+            navigateToArtistSmartPlaylist(it.artist, "Radio")
+        }
+        recyclerViewArtistEssentials.setupHorizontalExploreList(artistEssentialsAdapter)
+        recyclerViewArtistRadios.setupHorizontalExploreList(artistRadiosAdapter)
+
         val onGenreClick: (Genre) -> Unit = ::navigateToGenre
         genreAdapter = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
         genreAdapterMore = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
@@ -323,8 +373,13 @@ class ExploreFragment : Fragment() {
             }
         }
 
-        viewModel.mostListenedArtists.observe(viewLifecycleOwner) { artists ->
-            ExploreCollabCard.bind(collabCard, artists)
+        viewModel.artistEssentials.observe(viewLifecycleOwner) { mixes ->
+            artistEssentialsAdapter.submitList(mixes)
+            revealBlock(artistEssentialsBlock, mixes.isNotEmpty())
+        }
+        viewModel.artistRadios.observe(viewLifecycleOwner) { mixes ->
+            artistRadiosAdapter.submitList(mixes)
+            revealBlock(artistRadiosBlock, mixes.isNotEmpty())
         }
 
         viewModel.publicPlaylists.observe(viewLifecycleOwner) { playlists ->
@@ -478,12 +533,12 @@ class ExploreFragment : Fragment() {
             }
             ExploreMode.Legacy -> {
                 sectionsRenderer?.clear()
+                placeBlocksInLegacy()
                 dynamicContainer.isVisible = false
                 legacyContainer.isVisible = true
                 heroTitle.text = defaultHeroTitle
                 if (!legacyStarted) {
                     legacyStarted = true
-                    viewModel.loadMostListenedArtists()
                     scrollView.post { loadVisibleSections() }
                 }
             }
@@ -491,7 +546,8 @@ class ExploreFragment : Fragment() {
                 legacyContainer.isVisible = false
                 dynamicContainer.isVisible = true
                 heroTitle.text = mode.greeting ?: defaultHeroTitle
-                sectionsRenderer?.render(mode.state.visibleSections)
+                val sections = mode.state.visibleSections
+                sectionsRenderer?.render(sections, interleavedBlocks(sections))
                 scrollView.post { loadVisibleSections() }
             }
         }
@@ -518,7 +574,6 @@ class ExploreFragment : Fragment() {
             findNavController().navigate(R.id.action_exploreFragment_to_publicPlaylistsFragment)
         }
 
-        override fun onOpenCollabFinder() = openCollabFinder()
     }
 
     private fun showAriaPickMenu(pick: AriaPick, anchor: View) {
@@ -581,8 +636,59 @@ class ExploreFragment : Fragment() {
         scrollBehavior?.attachToNestedScrollView(scrollView)
     }
 
+    /**
+     * Dónde van los bloques fijos entre las secciones de Explorar v2 (nº de secciones
+     * delante): contenido real primero y las tarjetas mezcladas; "Descubre" justo
+     * debajo de los géneros si el servidor los envía.
+     */
+    private fun interleavedBlocks(sections: List<ExploreSectionUi>): List<Pair<Int, View>> {
+        val genres = sections.indexOfFirst { it is ExploreSectionUi.Genres }
+        val discoverSlot = if (genres >= 0) maxOf(genres + 1, 4) else 5
+        return listOf(
+            1 to liveNowBlock,
+            3 to artistEssentialsBlock,
+            discoverSlot to discoverBlock,
+            discoverSlot + 2 to artistRadiosBlock
+        )
+    }
+
+    private fun placeBlocksInLegacy() {
+        legacyBlockAnchors.forEach { (block, anchor) ->
+            if (block.parent === legacyContainer && legacyContainer.indexOfChild(block) == legacyContainer.indexOfChild(anchor) + 1) {
+                return@forEach
+            }
+            (block.parent as? ViewGroup)?.removeView(block)
+            legacyContainer.addView(block, legacyContainer.indexOfChild(anchor) + 1)
+        }
+    }
+
+    /** Muestra un bloque que depende de datos con un fundido, solo la primera vez. */
+    private fun revealBlock(block: View, show: Boolean) {
+        if (!show) {
+            block.isVisible = false
+            return
+        }
+        if (block.isVisible) return
+        block.alpha = 0f
+        block.isVisible = true
+        block.animate().alpha(1f).setDuration(320).setInterpolator(ResonantMotion.expoOut).start()
+    }
+
+    /** La tarjeta de Collab Finder anima su entrada cuando llega a la pantalla, no al cargar. */
+    private fun revealCollabCardIfVisible() {
+        if (collabCardAnimated || !collabFinderCard.isShown) return
+        val rect = android.graphics.Rect()
+        if (collabFinderCard.getLocalVisibleRect(rect) && rect.height() > collabFinderCard.height / 3) {
+            collabCardAnimated = true
+            ExploreCollabFinderCard.animateIn(collabFinderCard)
+        }
+    }
+
     private fun setupProgressiveLoading() {
-        val listener = ViewTreeObserver.OnScrollChangedListener { loadVisibleSections() }
+        val listener = ViewTreeObserver.OnScrollChangedListener {
+            loadVisibleSections()
+            revealCollabCardIfVisible()
+        }
         scrollChangedListener = listener
         scrollView.viewTreeObserver.addOnScrollChangedListener(listener)
     }

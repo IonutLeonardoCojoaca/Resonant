@@ -28,6 +28,15 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.example.resonant.R
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.animation.ValueAnimator
+import androidx.core.graphics.ColorUtils
+import com.example.resonant.explore.ExploreGreeting
+import com.example.resonant.ui.components.ResonantMotion
+import com.example.resonant.ui.views.AriaConversationMotifView
+import java.util.Calendar
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.SessionIdManager
@@ -68,6 +77,7 @@ import androidx.core.view.WindowInsetsCompat
 class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
     companion object {
+        private val ARIA_PINK = Color.parseColor("#FF2EA8")
         private const val TAG = "AriaFragment"
         private const val MAX_PROMPT_LENGTH = 500
         private const val CHAR_DELAY_MS = 18L
@@ -151,6 +161,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         super.onViewCreated(view, savedInstanceState)
 
         bindViews(view)
+        setupWelcomeHero()
         setupRecyclerView()
         setupSendButton()
         setupOrbitalChips()
@@ -237,6 +248,71 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         chatRecyclerView.itemAnimator = null
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Welcome hero (motivo de conversación de Aria + saludo + sugerencias)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private fun setupWelcomeHero() {
+        val v = view ?: return
+        v.findViewById<View>(R.id.ariaHeroGlow).background = GradientDrawable().apply {
+            gradientType = GradientDrawable.RADIAL_GRADIENT
+            colors = intArrayOf(ColorUtils.setAlphaComponent(ARIA_PINK, 0x40), 0x00000000)
+            setGradientCenter(0.62f, 0.45f)
+            gradientRadius = 220 * resources.displayMetrics.density
+        }
+        // Cada sugerencia toma un tono del degradado de Aria (rojo → rosa → violeta).
+        listOf(
+            Triple(R.id.ariaPromptBadge1, R.id.ariaPromptIcon1, Color.parseColor("#FF3B55")),
+            Triple(R.id.ariaPromptBadge2, R.id.ariaPromptIcon2, Color.parseColor("#FF2E8A")),
+            Triple(R.id.ariaPromptBadge3, R.id.ariaPromptIcon3, Color.parseColor("#F21FD8")),
+            Triple(R.id.ariaPromptBadge4, R.id.ariaPromptIcon4, Color.parseColor("#B65CFF"))
+        ).forEach { (badgeId, iconId, color) ->
+            v.findViewById<View>(badgeId).background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(ColorUtils.setAlphaComponent(color, 0x2E))
+            }
+            v.findViewById<ImageView>(iconId).imageTintList = ColorStateList.valueOf(color)
+        }
+        v.findViewById<TextView>(R.id.ariaGreeting).text = greetingForNow()
+    }
+
+    /** "Buenas tardes, Ana" según la hora local (mismo formato que el saludo de Explorar). */
+    private fun greetingForNow(): String {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val daypart = when (hour) {
+            in 6..12 -> "morning"
+            in 13..20 -> "afternoon"
+            else -> "night"
+        }
+        val name = requireContext().getSharedPreferences("user_data", Context.MODE_PRIVATE).getString("NAME", null)
+        return ExploreGreeting.of(daypart, name) ?: "Hola"
+    }
+
+    /** Entrada de la bienvenida: la conversación se "escribe", luego textos y sugerencias en cascada. */
+    private fun animateWelcomeIn() {
+        val v = view ?: return
+        v.findViewById<AriaConversationMotifView>(R.id.ariaHeroMotif).replay()
+        if (!ValueAnimator.areAnimatorsEnabled()) return
+        val density = resources.displayMetrics.density
+        val hero = v.findViewById<View>(R.id.ariaHeroCard)
+        hero.alpha = 0f
+        hero.scaleX = 0.96f
+        hero.scaleY = 0.96f
+        hero.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(600)
+            .setInterpolator(ResonantMotion.expoOut).start()
+        listOf(
+            R.id.ariaGreeting, R.id.ariaTitleText, R.id.ariaWelcomeSubtitle, R.id.ariaPromptLabel,
+            R.id.ariaPromptRow1, R.id.ariaPromptRow2
+        ).forEachIndexed { i, id ->
+            v.findViewById<View>(id).apply {
+                alpha = 0f
+                translationY = 16 * density
+                animate().alpha(1f).translationY(0f).setStartDelay(420L + i * 70L).setDuration(600)
+                    .setInterpolator(ResonantMotion.expoOut).start()
+            }
+        }
+    }
+
     private fun setupOrbitalChips() {
         // Orbital chips were unified into the centered quick suggestions
     }
@@ -270,6 +346,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         welcomeBg.alpha = 1f
         glowTop.animate().cancel()
         glowTop.alpha = 0.28f
+        animateWelcomeIn()
     }
 
     private fun showChatState() {

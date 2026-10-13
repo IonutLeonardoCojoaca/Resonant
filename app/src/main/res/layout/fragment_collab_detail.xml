@@ -1,300 +1,299 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Collab Finder · detalle de una colaboración (artista A × artista B). Capas:
+    glow de fondo → banner doble (parallax interno) con nombres y "×" encima →
+    título, estadísticas y canciones. La barra superior se vuelve opaca al hacer scroll.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/topBar"
+    <View
+        android:id="@+id/backdropGlow"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="8dp">
-
-        <ImageButton
-            android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:padding="8dp"
-            android:src="@drawable/ic_arrow_back"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:tint="@color/white" />
-
-        <TextView
-            android:id="@+id/tvToolbarTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_bold"
-            android:gravity="center"
-            android:maxLines="1"
-            android:text="Colaboración"
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@id/btnBack"
-            app:layout_constraintTop_toTopOf="parent" />
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_height="520dp"
+        android:importantForAccessibility="no" />
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/contentScroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/topBar"
         android:clipToPadding="false"
         android:fillViewport="true"
-        android:overScrollMode="never">
+        android:overScrollMode="never"
+        android:paddingTop="56dp">
 
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="2dp">
+            android:orientation="vertical"
+            android:paddingBottom="170dp">
+
+            <!-- Banner doble con nombres y "×" superpuestos -->
+            <FrameLayout
+                android:id="@+id/bannerFrame"
+                android:layout_width="match_parent"
+                android:layout_height="270dp"
+                android:layout_marginHorizontal="14dp"
+                android:layout_marginTop="4dp">
+
+                <com.example.resonant.feature.collabfinder.ui.views.CollabDuoBannerView
+                    android:id="@+id/duoBanner"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <TextView
+                    android:id="@+id/tvArtistAName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|start"
+                    android:layout_marginStart="18dp"
+                    android:layout_marginBottom="18dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
+                    android:maxLines="1"
+                    android:maxWidth="140dp"
+                    android:shadowColor="#CC000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="8"
+                    android:textColor="@android:color/white"
+                    android:textSize="16sp"
+                    tools:text="Future" />
+
+                <TextView
+                    android:id="@+id/tvArtistBName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|end"
+                    android:layout_marginEnd="18dp"
+                    android:layout_marginBottom="18dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
+                    android:gravity="end"
+                    android:maxLines="1"
+                    android:maxWidth="140dp"
+                    android:shadowColor="#CC000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="8"
+                    android:textColor="@android:color/white"
+                    android:textSize="16sp"
+                    tools:text="Lil Uzi Vert" />
+
+                <TextView
+                    android:id="@+id/tvCrossBadge"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="12dp"
+                    android:fontFamily="@font/unageo_bold"
+                    android:gravity="center"
+                    android:importantForAccessibility="no"
+                    android:text="×"
+                    android:textColor="@android:color/white"
+                    android:textSize="20sp" />
+            </FrameLayout>
 
             <TextView
                 android:id="@+id/tvCollabEyebrow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:fontFamily="@font/unageo_extra_bold"
-                android:letterSpacing="0.14"
-                android:text="COLLAB FINDER"
-                android:textColor="@color/secondaryColorTheme"
-                android:textSize="12sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="20dp"
+                android:fontFamily="@font/unageo_bold"
+                android:letterSpacing="0.16"
+                android:text="COLABORACIÓN"
+                android:textColor="#8C9DFF"
+                android:textSize="10sp" />
 
             <TextView
                 android:id="@+id/tvCollabTitle"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="24dp"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
                 android:ellipsize="end"
                 android:fontFamily="@font/unageo_bold"
                 android:gravity="center"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.01"
                 android:maxLines="2"
                 android:textColor="@color/white"
                 android:textSize="26sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvCollabEyebrow"
-                tools:text="Future x Lil Uzi Vert" />
+                tools:text="Future × Lil Uzi Vert" />
 
-            <!-- Banner conjunto Pro con corte diagonal y degradado -->
-            <com.example.resonant.feature.collabfinder.ui.views.CollabDuoBannerView
-                android:id="@+id/duoBanner"
-                android:layout_width="0dp"
-                android:layout_height="210dp"
-                android:layout_marginHorizontal="18dp"
-                android:layout_marginTop="16dp"
-                android:elevation="4dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvCollabTitle" />
-
-            <!-- Nombres de los dos artistas de forma balanceada -->
-            <LinearLayout
-                android:id="@+id/artistNamesRow"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="24dp"
-                android:layout_marginTop="12dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/duoBanner">
-
-                <TextView
-                    android:id="@+id/tvArtistAName"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    tools:text="Future" />
-
-                <View
-                    android:layout_width="4dp"
-                    android:layout_height="4dp"
-                    android:background="@drawable/background_circle_transparent"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    android:layout_marginHorizontal="8dp" />
-
-                <TextView
-                    android:id="@+id/tvArtistBName"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textColor="@color/white"
-                    android:textSize="15sp"
-                    tools:text="Lil Uzi Vert" />
-            </LinearLayout>
-
-            <!-- Panel de Estadísticas y afinidad -->
+            <!-- Estadísticas -->
             <LinearLayout
                 android:id="@+id/statsStrip"
-                android:layout_width="0dp"
-                android:layout_height="82dp"
-                android:layout_marginHorizontal="18dp"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_collab_stats_panel"
-                android:gravity="center"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
                 android:orientation="horizontal"
-                android:paddingHorizontal="14dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/artistNamesRow">
+                android:paddingHorizontal="14dp">
 
-                <TextView
-                    android:id="@+id/tvCollabCountDetail"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:lineSpacingExtra="3dp"
-                    android:textColor="@color/white"
-                    android:textSize="13sp"
-                    tools:text="23\ncanciones" />
-
-                <TextView
-                    android:id="@+id/tvYearsDetail"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:lineSpacingExtra="3dp"
-                    android:textColor="@color/white"
-                    android:textSize="13sp"
-                    tools:text="2020\nperiodo" />
-
-                <FrameLayout
+                <include
+                    android:id="@+id/statCount"
+                    layout="@layout/view_collab_stat"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1">
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1" />
+
+                <include
+                    android:id="@+id/statYears"
+                    layout="@layout/view_collab_stat"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_surface_panel"
+                    android:gravity="center"
+                    android:minHeight="76dp"
+                    android:orientation="vertical"
+                    android:padding="8dp">
 
                     <com.example.resonant.feature.collabfinder.ui.views.CollabScoreGaugeView
                         android:id="@+id/scoreGaugeView"
-                        android:layout_width="60dp"
-                        android:layout_height="60dp"
-                        android:layout_gravity="center" />
-                </FrameLayout>
+                        android:layout_width="50dp"
+                        android:layout_height="50dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:includeFontPadding="false"
+                        android:text="afinidad"
+                        android:textColor="@color/textTheme"
+                        android:textSize="11sp" />
+                </LinearLayout>
             </LinearLayout>
 
-            <!-- Botón Reproducir todo -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnPlayAll"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginHorizontal="18dp"
                 android:layout_marginTop="18dp"
                 android:fontFamily="@font/unageo_bold"
-                android:text="Reproducir todo"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:text="Reproducir todas"
+                android:textAllCaps="false"
                 android:textColor="@android:color/white"
                 android:textSize="14sp"
-                app:backgroundTint="@color/secondaryColorTheme"
                 app:cornerRadius="26dp"
                 app:icon="@drawable/ic_play"
                 app:iconGravity="textStart"
                 app:iconPadding="8dp"
-                app:iconTint="@android:color/white"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/statsStrip" />
+                app:iconSize="18dp"
+                app:iconTint="@android:color/white" />
 
-            <!-- Sección de Canciones compartidas -->
             <TextView
                 android:id="@+id/tvSongsHeader"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="18dp"
-                android:layout_marginTop="24dp"
+                android:layout_marginHorizontal="20dp"
+                android:layout_marginTop="28dp"
                 android:fontFamily="@font/unageo_bold"
-                android:text="Canciones compartidas"
+                android:includeFontPadding="false"
+                android:text="Canciones juntos"
                 android:textColor="@color/white"
-                android:textSize="18sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/btnPlayAll" />
+                android:textSize="19sp" />
 
             <TextView
                 android:id="@+id/tvSongsSubtitle"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="18dp"
-                android:layout_marginTop="4dp"
-                android:fontFamily="@font/unageo_regular"
+                android:layout_marginHorizontal="20dp"
+                android:layout_marginTop="5dp"
+                android:fontFamily="@font/unageo_medium"
                 android:textColor="@color/textTheme"
-                android:textSize="12sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvSongsHeader"
-                tools:text="23 canciones encontradas en esta colaboración" />
+                android:textSize="13sp"
+                tools:text="12 canciones encontradas en esta colaboración" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvSharedSongs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
                 android:clipToPadding="false"
+                android:layoutAnimation="@anim/layout_animation_fade_slide"
                 android:nestedScrollingEnabled="false"
-                android:overScrollMode="never"
-                android:paddingHorizontal="10dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="220dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvSongsSubtitle"
-                tools:listitem="@layout/item_song" />
+                android:paddingHorizontal="10dp" />
 
             <TextView
                 android:id="@+id/tvEmptySongs"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="28dp"
-                android:layout_marginTop="28dp"
-                android:fontFamily="@font/unageo_regular"
+                android:layout_marginHorizontal="24dp"
+                android:layout_marginTop="24dp"
+                android:fontFamily="@font/unageo_medium"
                 android:gravity="center"
-                android:text="No hay canciones compartidas disponibles."
+                android:text="No hemos encontrado canciones reproducibles de esta colaboración."
                 android:textColor="@color/textTheme"
-                android:textSize="14sp"
-                android:visibility="gone"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvSongsSubtitle" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
+                android:textSize="13sp"
+                android:visibility="gone" />
+        </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <com.airbnb.lottie.LottieAnimationView
-        android:id="@+id/lottieLoader"
-        android:layout_width="220dp"
-        android:layout_height="220dp"
-        android:layout_centerInParent="true"
-        android:visibility="gone"
-        app:lottie_autoPlay="false"
-        app:lottie_enableMergePathsForKitKatAndAbove="true"
-        app:lottie_fileName="loader.json"
-        app:lottie_loop="true"
-        app:lottie_repeatCount="-1" />
+    <!-- Barra superior: transparente sobre el banner, opaca al hacer scroll -->
+    <FrameLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:paddingHorizontal="12dp">
 
-</RelativeLayout>
+        <View
+            android:id="@+id/topBarBackground"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="-12dp"
+            android:alpha="0"
+            android:background="@color/primaryColorTheme" />
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="start|center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Atrás"
+            android:padding="8dp"
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/tvToolbarTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:alpha="0"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingHorizontal="48dp"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            tools:text="Future × Lil Uzi Vert" />
+    </FrameLayout>
+
+    <!-- Carga: el motivo de órbitas de Collab Finder -->
+    <com.example.resonant.feature.collabfinder.ui.views.CollabOrbitMotifView
+        android:id="@+id/loadingMotif"
+        android:layout_width="150dp"
+        android:layout_height="150dp"
+        android:layout_gravity="center"
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
+
+</FrameLayout>

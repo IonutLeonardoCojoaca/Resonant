@@ -7,13 +7,17 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.transition.ChangeBounds
+import android.transition.TransitionManager
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import com.example.resonant.R
 import com.google.android.material.chip.Chip
 
@@ -119,6 +123,7 @@ object AnimationsUtils {
 
     fun setMiniPlayerVisibility(show: Boolean, miniPlayer: View, context: Context) {
         if (show && miniPlayer.visibility != View.VISIBLE) {
+            animateFloatingBubblesRelayout(miniPlayer)
             miniPlayer.startAnimation(AnimationUtils.loadAnimation(context, R.anim.fade_in_mini_player))
             miniPlayer.visibility = View.VISIBLE
         } else if (!show && miniPlayer.visibility == View.VISIBLE) {
@@ -127,13 +132,33 @@ object AnimationsUtils {
                 override fun onAnimationStart(animation: Animation) {}
 
                 override fun onAnimationEnd(animation: Animation) {
-                    miniPlayer.visibility = View.INVISIBLE
+                    // GONE (no INVISIBLE): las burbujas flotantes están ancladas encima
+                    // del mini player; con INVISIBLE seguía ocupando su hueco y ellas se
+                    // quedaban arriba aunque no hubiera nada debajo.
+                    animateFloatingBubblesRelayout(miniPlayer)
+                    miniPlayer.visibility = View.GONE
                 }
 
                 override fun onAnimationRepeat(animation: Animation) {}
             })
             miniPlayer.startAnimation(anim)
         }
+    }
+
+    /**
+     * Desliza a su nueva posición las vistas flotantes de activity_main que cuelgan
+     * del mini player (burbujas de dispositivos/Aria y tarjeta de descarga) en vez
+     * de que salten de golpe cuando él aparece o desaparece.
+     */
+    private fun animateFloatingBubblesRelayout(miniPlayer: View) {
+        val parent = miniPlayer.parent as? ViewGroup ?: return
+        TransitionManager.beginDelayedTransition(parent, ChangeBounds().apply {
+            duration = 280
+            interpolator = FastOutSlowInInterpolator()
+            addTarget(R.id.playbackDeviceBar)
+            addTarget(R.id.ariaFloatingLauncher)
+            addTarget(R.id.downloadProgressCard)
+        })
     }
 
 

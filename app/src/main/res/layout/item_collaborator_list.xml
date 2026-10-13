@@ -1,49 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Colaborador en la lista de Collab Finder: puesto, avatar con aro de acento,
+     nombre, "N canciones · años" y flecha. Lo rellena CollaboratorListAdapter. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingHorizontal="14dp"
-    android:paddingVertical="10dp">
+    android:layout_height="72dp"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp">
+
+    <TextView
+        android:id="@+id/tvRank"
+        android:layout_width="28dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        android:textColor="#8C9DFF"
+        android:textSize="14sp"
+        tools:text="1" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/ivAvatar"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_marginStart="8dp"
+        android:padding="2dp"
         android:scaleType="centerCrop"
         app:shapeAppearanceOverlay="@style/CircularImageView"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:strokeColor="#998C9DFF"
+        app:strokeWidth="1.5dp" />
 
-    <TextView
-        android:id="@+id/tvName"
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="14dp"
-        android:fontFamily="@font/unageo_bold"
-        android:textSize="15.5sp"
-        android:textColor="@color/white"
-        android:includeFontPadding="false"
-        app:layout_constraintStart_toEndOf="@id/ivAvatar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/ivAvatar"
-        app:layout_constraintBottom_toTopOf="@id/tvCollabCount"
-        app:layout_constraintVertical_chainStyle="packed" />
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/tvCollabCount"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="14dp"
-        android:layout_marginTop="3dp"
-        android:fontFamily="@font/unageo_medium"
-        android:textSize="13sp"
-        android:textColor="@color/textTheme"
-        android:includeFontPadding="false"
-        app:layout_constraintStart_toEndOf="@id/ivAvatar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvName"
-        app:layout_constraintBottom_toBottomOf="@id/ivAvatar" />
+        <TextView
+            android:id="@+id/tvName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            tools:text="Daft Punk" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <TextView
+            android:id="@+id/tvCollabCount"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/textTheme"
+            android:textSize="12.5sp"
+            tools:text="6 canciones · 2016–2022" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_chevron_right_mini"
+        app:tint="@color/textTheme" />
+</LinearLayout>

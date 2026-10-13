@@ -1,39 +1,53 @@
 package com.example.resonant.ui.fragments
 
 import android.content.Intent
-import android.graphics.Color
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airbnb.lottie.LottieAnimationView
 import com.example.resonant.R
+import com.example.resonant.data.models.Song
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.adapters.HeaderViewAdapter
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.ChartHero
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.CollectionActions
+import com.example.resonant.ui.components.CollectionState
+import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.HistoryViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.Utils
+import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.launch
 
 class HistoryFragment : Fragment() {
+
+    private companion object {
+        val LIMITS = listOf(20, 50, 100)
+    }
+
+    private val accent = ResonantAccent.HISTORY
 
     private lateinit var viewModel: HistoryViewModel
     private lateinit var songViewModel: SongViewModel
@@ -41,17 +55,18 @@ class HistoryFragment : Fragment() {
     private lateinit var downloadViewModel: DownloadViewModel
 
     private lateinit var songAdapter: SongAdapter
+    private lateinit var actionsHeader: HeaderViewAdapter
+    private lateinit var actionsView: View
     private lateinit var rvHistory: RecyclerView
     private lateinit var appBarLayout: AppBarLayout
-    private lateinit var tvSongCount: TextView
+    private lateinit var hero: View
     private lateinit var tvToolbarTitle: TextView
-    private lateinit var lottieLoader: LottieAnimationView
-    private lateinit var emptyStateLayout: View
-    private lateinit var chipGroupLimit: ChipGroup
-    private lateinit var chip20: Chip
-    private lateinit var chip50: Chip
-    private lateinit var chip100: Chip
+    private lateinit var shimmerLoading: ShimmerFrameLayout
+    private lateinit var stateView: View
     private lateinit var btnBack: ImageButton
+
+    private var heroAnimated = false // La entrada del hero solo la primera vez, no al volver del back stack
+    private var animateNextList = true // Entrada escalonada de filas en la próxima lista
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -66,8 +81,7 @@ class HistoryFragment : Fragment() {
         setupViewModels()
         initViews(view)
         setupAdapter()
-        setupChipListeners()
-        setupScrollBehavior()
+        setupHero(view)
         setupObservers()
 
         // La carga inicial la dispara onResume() (siempre se llama justo después
@@ -84,44 +98,62 @@ class HistoryFragment : Fragment() {
 
     private fun initViews(view: View) {
         appBarLayout = view.findViewById(R.id.appBarLayout)
+        hero = view.findViewById(R.id.chartHero)
         rvHistory = view.findViewById(R.id.rvHistory)
-        tvSongCount = view.findViewById(R.id.tvSongCount)
         tvToolbarTitle = view.findViewById(R.id.tvToolbarTitle)
-        lottieLoader = view.findViewById(R.id.lottieLoader)
-        emptyStateLayout = view.findViewById(R.id.emptyStateLayout)
-        chipGroupLimit = view.findViewById(R.id.chipGroupLimit)
-        chip20 = view.findViewById(R.id.chip20)
-        chip50 = view.findViewById(R.id.chip50)
-        chip100 = view.findViewById(R.id.chip100)
+        shimmerLoading = view.findViewById(R.id.shimmerLoading)
+        stateView = view.findViewById(R.id.stateView)
         btnBack = view.findViewById(R.id.btnBack)
 
         btnBack.setOnClickListener { findNavController().navigateUp() }
     }
 
+    private fun setupHero(view: View) {
+        ChartHero.bind(hero, accent, "Tu actividad", "Historial", "Lo último que has escuchado")
+        ChartHero.attachParallax(appBarLayout, hero, tvToolbarTitle)
+        if (!heroAnimated) {
+            ChartHero.animateIn(hero)
+            heroAnimated = true
+        }
+
+        val currentLimit = viewModel.currentLimit.value ?: 50
+        ChartPeriodSelector(
+            view.findViewById(R.id.limitSelector),
+            accent.color,
+            labels = LIMITS.map { "Últimas $it" },
+            initialIndex = LIMITS.indexOf(currentLimit).coerceAtLeast(0)
+        ) { index ->
+            animateNextList = true
+            viewModel.loadHistory(LIMITS[index])
+            rvHistory.scrollToPosition(0)
+            appBarLayout.setExpanded(true, true)
+        }
+    }
+
     private fun setupAdapter() {
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        // El LayoutManager tiene que existir antes de inflar la cabecera con rvHistory
+        // como padre: RecyclerView lo necesita para generar los LayoutParams.
         rvHistory.layoutManager = LinearLayoutManager(requireContext())
-        rvHistory.adapter = songAdapter
+
+        // "Reproducir / Aleatorio" van como cabecera de la lista: hacen scroll con ella.
+        actionsView = layoutInflater.inflate(R.layout.view_collection_actions, rvHistory, false).apply {
+            setPadding(paddingLeft, 4.dp, paddingRight, 12.dp)
+        }
+        CollectionActions.bind(
+            actionsView,
+            accent,
+            onPlayAll = { playSongs(songAdapter.currentList, 0) },
+            onShuffle = { playSongs(songAdapter.currentList.shuffled(), 0) }
+        )
+        actionsHeader = HeaderViewAdapter(actionsView).apply { isVisible = false }
+
+        rvHistory.adapter = ConcatAdapter(actionsHeader, songAdapter)
 
         // Reproducción al tocar canción
         songAdapter.onItemClick = { (song, bitmap) ->
             val currentIndex = songAdapter.currentList.indexOfFirst { it.id == song.id }
-            val songList = ArrayList(songAdapter.currentList)
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, song.id) }
-
-                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                    action = MusicPlaybackService.ACTION_PLAY
-                    putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-                    putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
-                    putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                    putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
-                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
-                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "HISTORY")
-                }
-                requireContext().startService(playIntent)
-            }
+            playSongs(songAdapter.currentList, currentIndex, song, bitmap)
         }
 
         // Favorito
@@ -183,62 +215,52 @@ class HistoryFragment : Fragment() {
         }
     }
 
-    private fun setupChipListeners() {
-        chipGroupLimit.setOnCheckedStateChangeListener { _, checkedIds ->
-            val limit = when {
-                checkedIds.contains(R.id.chip20) -> 20
-                checkedIds.contains(R.id.chip50) -> 50
-                checkedIds.contains(R.id.chip100) -> 100
-                else -> 50
-            }
-            if (limit != viewModel.currentLimit.value) {
-                viewModel.loadHistory(limit)
-                // Scroll al inicio cuando cambia el límite
-                rvHistory.scrollToPosition(0)
-                appBarLayout.setExpanded(true, true)
-            }
-        }
-    }
+    /** Reproduce [songs] desde [index]; si no viene la canción concreta (Reproducir/Aleatorio), usa la de [index]. */
+    private fun playSongs(
+        songs: List<Song>,
+        index: Int,
+        song: Song? = null,
+        bitmap: Bitmap? = null
+    ) {
+        if (index !in songs.indices) return
+        val current = song ?: songs[index]
+        val songList = ArrayList(songs)
 
-    private fun setupScrollBehavior() {
-        appBarLayout.addOnOffsetChangedListener { appBar, verticalOffset ->
-            val totalScrollRange = appBar.totalScrollRange
-            val percentage = Math.abs(verticalOffset).toFloat() / totalScrollRange.toFloat()
-            val triggerPoint = 0.75f
-            tvToolbarTitle.alpha = if (percentage > triggerPoint) {
-                (percentage - triggerPoint) / (1f - triggerPoint)
-            } else {
-                0f
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, current.id) }
+
+            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_PLAY
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, current)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, index)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "HISTORY")
             }
+            requireContext().startService(playIntent)
         }
     }
 
     private fun setupObservers() {
         viewModel.songs.observe(viewLifecycleOwner) { songs ->
-            songAdapter.submitList(songs)
+            songAdapter.submitList(songs) {
+                if (animateNextList && songs.isNotEmpty()) {
+                    animateNextList = false
+                    rvHistory.scheduleLayoutAnimation()
+                }
+            }
 
             val count = songs.size
-            tvSongCount.text = "$count ${if (count == 1) "canción" else "canciones"}"
-            emptyStateLayout.visibility = if (songs.isEmpty()) View.VISIBLE else View.GONE
-            rvHistory.visibility = if (songs.isEmpty()) View.GONE else View.VISIBLE
+            ChartHero.setMeta(hero, if (count == 0) null else "$count ${if (count == 1) "canción" else "canciones"}")
+            actionsHeader.isVisible = songs.isNotEmpty()
+            render()
 
             favoritesViewModel.loadFavoriteSongs()
         }
 
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            lottieLoader.visibility = if (isLoading) View.VISIBLE else View.GONE
-            if (isLoading) lottieLoader.playAnimation() else lottieLoader.cancelAnimation()
-            if (!isLoading) rvHistory.visibility = View.VISIBLE
-        }
-
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            if (error != null) {
-                emptyStateLayout.visibility = View.VISIBLE
-                rvHistory.visibility = View.GONE
-                val tvEmptyTitle = view?.findViewById<TextView>(R.id.tvEmptyTitle)
-                tvEmptyTitle?.text = "Error al cargar el historial"
-            }
-        }
+        viewModel.isLoading.observe(viewLifecycleOwner) { render() }
+        viewModel.error.observe(viewLifecycleOwner) { render() }
 
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             currentSong?.let { songAdapter.setCurrentPlayingSong(it.id) }
@@ -257,6 +279,42 @@ class HistoryFragment : Fragment() {
             }
         }
     }
+
+    /** Skeleton mientras carga sin datos; si no hay filas, estado de error (con reintentar) o vacío. */
+    private fun render() {
+        val isLoading = viewModel.isLoading.value == true
+        val songs = viewModel.songs.value
+        val hasRows = !songs.isNullOrEmpty()
+
+        val showSkeleton = isLoading && !hasRows
+        if (showSkeleton != shimmerLoading.isVisible) {
+            shimmerLoading.isVisible = showSkeleton
+            if (showSkeleton) shimmerLoading.startShimmer() else shimmerLoading.stopShimmer()
+        }
+
+        when {
+            isLoading || hasRows || songs == null -> CollectionState.hide(stateView)
+            viewModel.error.value != null -> CollectionState.show(
+                stateView, accent, R.drawable.ic_recent,
+                title = "No se pudo cargar el historial",
+                subtitle = "Revisa tu conexión e inténtalo de nuevo",
+                actionText = "Reintentar",
+                onAction = { viewModel.loadHistory(forceRefresh = true) }
+            )
+            else -> CollectionState.show(
+                stateView, accent, R.drawable.ic_recent,
+                title = "Aún no has escuchado nada",
+                subtitle = "Las canciones que escuches aparecerán aquí",
+                actionText = "Explorar música",
+                onAction = {
+                    requireActivity().findViewById<BottomNavigationView>(R.id.bottom_navigation)
+                        ?.selectedItemId = R.id.exploreFragment
+                }
+            )
+        }
+    }
+
+    private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     override fun onResume() {
         super.onResume()

@@ -42,6 +42,8 @@ class PlaymixListAdapter(
             if (!playmix.coverUrl.isNullOrEmpty()) {
                 Glide.with(cover.context)
                     .load(playmix.coverUrl)
+                    // Miniatura: se decodifica a su tamaño en pantalla, no a la resolución original.
+                    .override(240)
                     .placeholder(R.drawable.ic_playmix)
                     .error(R.drawable.ic_playmix)
                     .centerCrop()

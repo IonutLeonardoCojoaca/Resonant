@@ -23,28 +23,48 @@ class CollaboratorListAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(getItem(position), position + 1)
+    }
+
+    override fun onViewRecycled(holder: ViewHolder) {
+        super.onViewRecycled(holder)
+        Glide.with(holder.itemView).clear(holder.ivAvatar)
     }
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val ivAvatar: ImageView = itemView.findViewById(R.id.ivAvatar)
+        val ivAvatar: ImageView = itemView.findViewById(R.id.ivAvatar)
+        private val tvRank: TextView = itemView.findViewById(R.id.tvRank)
         private val tvName: TextView = itemView.findViewById(R.id.tvName)
         private val tvCollabCount: TextView = itemView.findViewById(R.id.tvCollabCount)
 
-        fun bind(collaborator: CollaboratorNode) {
-            tvName.text = collaborator.name
-            tvCollabCount.text = "${collaborator.collaborationCount} canciones en común"
+        init {
+            itemView.setOnClickListener {
+                val position = bindingAdapterPosition
+                if (position != RecyclerView.NO_POSITION) onItemClicked(getItem(position))
+            }
+        }
 
-            Glide.with(itemView.context)
+        fun bind(collaborator: CollaboratorNode, rank: Int) {
+            tvRank.text = rank.toString()
+            tvName.text = collaborator.name
+
+            val count = collaborator.collaborationCount
+            val songs = if (count == 1) "1 canción" else "$count canciones"
+            val years = when {
+                collaborator.firstCollabYear == null -> null
+                collaborator.lastCollabYear == null || collaborator.lastCollabYear == collaborator.firstCollabYear ->
+                    collaborator.firstCollabYear.toString()
+                else -> "${collaborator.firstCollabYear}–${collaborator.lastCollabYear}"
+            }
+            tvCollabCount.text = listOfNotNull(songs, years).joinToString(" · ")
+
+            Glide.with(itemView)
                 .load(collaborator.imageUrl)
+                .override(150)
                 .placeholder(R.drawable.ic_user)
                 .error(R.drawable.ic_user)
                 .circleCrop()
                 .into(ivAvatar)
-
-            itemView.setOnClickListener {
-                onItemClicked(collaborator)
-            }
         }
     }
 

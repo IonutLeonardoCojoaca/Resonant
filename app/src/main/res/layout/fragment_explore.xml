@@ -153,60 +153,6 @@
                 </LinearLayout>
             </HorizontalScrollView>
 
-            <!-- ── En el momento: cabecera de sección (título + subtítulo) ── -->
-            <LinearLayout
-                android:id="@+id/liveNowHeader"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="vertical"
-                android:paddingHorizontal="18dp"
-                android:paddingBottom="8dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_bold"
-                    android:includeFontPadding="false"
-                    android:text="En el momento"
-                    android:textColor="@color/white"
-                    android:textSize="19sp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:includeFontPadding="false"
-                    android:text="Lo que está pasando ahora mismo"
-                    android:textColor="@color/textTheme"
-                    android:textSize="13sp" />
-            </LinearLayout>
-
-            <!-- Fila preparada para crecer: aquí irá también la tarjeta "Live". -->
-            <HorizontalScrollView
-                android:id="@+id/liveNowScroll"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clipToPadding="false"
-                android:overScrollMode="never"
-                android:paddingBottom="6dp"
-                android:scrollbars="none">
-
-                <LinearLayout
-                    android:id="@+id/liveNowGroup"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="8dp">
-
-                    <include
-                        android:id="@+id/btnTendencias"
-                        layout="@layout/view_explore_quick_card" />
-
-                </LinearLayout>
-            </HorizontalScrollView>
-
             <!-- ── Explorar v2: secciones dinámicas (las pinta ExploreSectionsRenderer) ── -->
             <LinearLayout
                 android:id="@+id/exploreDynamicContainer"
@@ -286,6 +232,65 @@
                     </FrameLayout>
                 </LinearLayout>
 
+                <!-- ── En el momento (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
+                <LinearLayout
+                    android:id="@+id/liveNowBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="18dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_bold"
+                            android:includeFontPadding="false"
+                            android:text="En el momento"
+                            android:textColor="@color/white"
+                            android:textSize="19sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:includeFontPadding="false"
+                            android:text="Lo que está pasando ahora mismo"
+                            android:textColor="@color/textTheme"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:overScrollMode="never"
+                        android:paddingBottom="6dp"
+                        android:scrollbars="none">
+
+                        <!-- Fila preparada para crecer: aquí irá también la tarjeta "Live". -->
+                        <LinearLayout
+                            android:id="@+id/liveNowGroup"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="8dp">
+
+                            <include
+                                android:id="@+id/btnTendencias"
+                                layout="@layout/view_explore_quick_card" />
+
+                        </LinearLayout>
+                    </HorizontalScrollView>
+                </LinearLayout>
+
                 <!-- ── Álbumes nuevos (horizontal) ── -->
                 <LinearLayout
                     android:id="@+id/albumsSection"
@@ -347,6 +352,53 @@
                         </com.facebook.shimmer.ShimmerFrameLayout>
 
                     </FrameLayout>
+                </LinearLayout>
+
+                <!-- ── Esto es… (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
+                <LinearLayout
+                    android:id="@+id/artistEssentialsBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="18dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_bold"
+                            android:includeFontPadding="false"
+                            android:text="Esto es…"
+                            android:textColor="@color/white"
+                            android:textSize="19sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:includeFontPadding="false"
+                            android:text="Lo esencial de los artistas del momento"
+                            android:textColor="@color/textTheme"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewArtistEssentials"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
+                        android:paddingHorizontal="8dp"
+                        android:scrollbars="none" />
                 </LinearLayout>
 
                 <!-- ── Artistas recomendados (horizontal) ── -->
@@ -475,6 +527,46 @@
                     </FrameLayout>
                 </LinearLayout>
 
+                <!-- ── Descubre (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
+                <LinearLayout
+                    android:id="@+id/discoverBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="18dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_bold"
+                            android:includeFontPadding="false"
+                            android:text="Descubre"
+                            android:textColor="@color/white"
+                            android:textSize="19sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:includeFontPadding="false"
+                            android:text="Para cuando quieras ir más allá"
+                            android:textColor="@color/textTheme"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <include
+                        android:id="@+id/btnCollabFinder"
+                        layout="@layout/view_explore_collab_finder_card" />
+                </LinearLayout>
+
                 <!-- ── Playlists (horizontal) ── -->
                 <LinearLayout
                     android:id="@+id/playlistsSection"
@@ -536,6 +628,53 @@
                         </com.facebook.shimmer.ShimmerFrameLayout>
 
                     </FrameLayout>
+                </LinearLayout>
+
+                <!-- ── Radios de artistas (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
+                <LinearLayout
+                    android:id="@+id/artistRadiosBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="18dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/unageo_bold"
+                            android:includeFontPadding="false"
+                            android:text="Radios de artistas"
+                            android:textColor="@color/white"
+                            android:textSize="19sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="@font/unageo_medium"
+                            android:includeFontPadding="false"
+                            android:text="Música sin fin a partir de un artista"
+                            android:textColor="@color/textTheme"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewArtistRadios"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:overScrollMode="never"
+                        android:paddingHorizontal="8dp"
+                        android:scrollbars="none" />
                 </LinearLayout>
 
                 <!-- ── Géneros — tanda 2 (menos escuchados) ── -->
@@ -600,13 +739,6 @@
 
                     </FrameLayout>
                 </LinearLayout>
-
-                <!-- ── Collab Finder (al final: función más nicho, no compite con
-                     el contenido de descubrimiento principal por la parte alta
-                     de la pantalla) ── -->
-                <include
-                    android:id="@+id/collabFinderSection"
-                    layout="@layout/view_explore_collab_card" />
 
             </LinearLayout>
 

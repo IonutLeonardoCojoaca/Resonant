@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Acceso directo de la biblioteca (Descargas, Nueva playlist, Nueva PlayMix):
+     insignia con icono de acento + título y subtítulo. Lo rellena SavedFragment. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_surface_panel"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="68dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="10dp"
+    android:stateListAnimator="@animator/explore_quick_card_press">
+
+    <FrameLayout
+        android:id="@+id/shortcutBadge"
+        android:layout_width="42dp"
+        android:layout_height="42dp">
+
+        <ImageView
+            android:id="@+id/shortcutIcon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            tools:src="@drawable/ic_download" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/shortcutTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            tools:text="Descargas" />
+
+        <TextView
+            android:id="@+id/shortcutSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/textTheme"
+            android:textSize="11.5sp"
+            tools:text="Sin conexión" />
+    </LinearLayout>
+</LinearLayout>

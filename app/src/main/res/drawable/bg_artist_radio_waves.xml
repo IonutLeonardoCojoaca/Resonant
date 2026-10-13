@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ondas de radio concéntricas alrededor de la foto del artista. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <stroke android:width="1dp" android:color="#1FFFD43B" />
+        </shape>
+    </item>
+    <item android:bottom="10dp" android:left="10dp" android:right="10dp" android:top="10dp">
+        <shape android:shape="oval">
+            <stroke android:width="1dp" android:color="#3DFFD43B" />
+        </shape>
+    </item>
+    <item android:bottom="17dp" android:left="17dp" android:right="17dp" android:top="17dp">
+        <shape android:shape="oval">
+            <solid android:color="#14FFD43B" />
+            <stroke android:width="1dp" android:color="#66FFD43B" />
+        </shape>
+    </item>
+</layer-list>

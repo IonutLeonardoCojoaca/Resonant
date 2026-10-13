@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de estadística de Collab Finder (valor grande + etiqueta). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_surface_panel"
+    android:gravity="center"
+    android:minHeight="76dp"
+    android:orientation="vertical"
+    android:padding="10dp">
+
+    <TextView
+        android:id="@+id/statValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="–"
+        android:textColor="#8C9DFF"
+        android:textSize="20sp"
+        tools:text="64" />
+
+    <TextView
+        android:id="@+id/statLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:fontFamily="@font/unageo_medium"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="@color/textTheme"
+        android:textSize="11sp"
+        tools:text="colaboradores" />
+</LinearLayout>

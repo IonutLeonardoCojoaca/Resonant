@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Esto es <artista>": portada editorial con la foto del artista a sangre, marco
+     platino fino y el logo de Resonant en platino. Lo rellena ArtistMixAdapter. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="150dp"
+    android:layout_height="200dp"
+    android:layout_marginHorizontal="5dp"
+    android:background="@drawable/bg_explore_quick_card"
+    android:clickable="true"
+    android:clipToOutline="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:stateListAnimator="@animator/explore_quick_card_press">
+
+    <ImageView
+        android:id="@+id/mixImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        tools:src="@drawable/ic_user" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_artist_mix_scrim"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="7dp"
+        android:background="@drawable/bg_artist_essentials_frame"
+        android:importantForAccessibility="no" />
+
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="15dp"
+        android:layout_margin="16dp"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/ic_resonant_gradient_platinum" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:id="@+id/mixEyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.16"
+            android:text="Esto es"
+            android:textAllCaps="true"
+            android:textColor="#E8E8EE"
+            android:textSize="9sp" />
+
+        <TextView
+            android:id="@+id/mixTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:shadowColor="#99000000"
+            android:shadowDy="1"
+            android:shadowRadius="6"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            tools:text="Rosalía" />
+
+        <TextView
+            android:id="@+id/mixMeta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/unageo_medium"
+            android:includeFontPadding="false"
+            android:textColor="#B3FFFFFF"
+            android:textSize="11sp"
+            tools:text="25 canciones" />
+    </LinearLayout>
+</FrameLayout>

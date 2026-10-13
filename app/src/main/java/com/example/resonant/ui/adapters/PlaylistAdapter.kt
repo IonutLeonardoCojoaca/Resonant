@@ -25,6 +25,7 @@ class PlaylistAdapter(
     companion object {
         const val VIEW_TYPE_GRID = 0
         const val VIEW_TYPE_LIST = 1
+        private const val COVER_SIZE_PX = 240
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -123,6 +124,8 @@ class PlaylistAdapter(
         if (!imageUrl.isNullOrEmpty()) {
             Glide.with(imageView.context)
                 .load(imageUrl)
+                // Miniatura: se decodifica a su tamaño en pantalla, no a la resolución original.
+                .override(COVER_SIZE_PX)
                 .placeholder(R.drawable.ic_playlist_stack)
                 .error(R.drawable.ic_playlist_stack)
                 .centerCrop()

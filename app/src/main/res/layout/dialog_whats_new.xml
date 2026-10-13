@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Novedades de versión (WhatsNewDialog): páginas tipo "stories" con progreso arriba,
+    "Saltar", y botón principal abajo. El glow de fondo y el botón cambian de color
+    de forma continua entre páginas.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/whatsNewRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/primaryColorTheme">
+
+    <View
+        android:id="@+id/whatsNewGlow"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/whatsNewPager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/whatsNewTopBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="6dp">
+
+        <LinearLayout
+            android:id="@+id/whatsNewProgress"
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:layout_weight="1"
+            android:orientation="horizontal" />
+
+        <TextView
+            android:id="@+id/btnWhatsNewSkip"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:paddingHorizontal="12dp"
+            android:text="Saltar"
+            android:textColor="@color/textTheme"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnWhatsNewNext"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom"
+        android:layout_marginHorizontal="22dp"
+        android:layout_marginBottom="20dp"
+        android:fontFamily="@font/unageo_bold"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:stateListAnimator="@null"
+        android:text="Siguiente"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        app:cornerRadius="28dp" />
+
+</FrameLayout>

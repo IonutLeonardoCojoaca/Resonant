@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Página de la biblioteca: lista (con cabecera opcional vía ConcatAdapter), skeleton
+     de carga y estado vacío. SavedFragment crea una por pestaña. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/pageList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:layoutAnimation="@anim/layout_animation_fade_slide"
+        android:overScrollMode="never"
+        android:paddingHorizontal="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="200dp" />
+
+    <com.facebook.shimmer.ShimmerFrameLayout
+        android:id="@+id/pageSkeleton"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="3dp"
+            android:paddingTop="4dp">
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+
+            <include layout="@layout/item_song_shimmer_placeholder" />
+        </LinearLayout>
+    </com.facebook.shimmer.ShimmerFrameLayout>
+
+    <include
+        android:id="@+id/pageState"
+        layout="@layout/view_collection_state" />
+</FrameLayout>

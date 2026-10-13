@@ -1,17 +1,21 @@
 package com.example.resonant.feature.collabfinder.ui.fragments
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.util.Log
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -20,20 +24,33 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.R
 import com.example.resonant.databinding.FragmentCollabSearchBinding
+import com.example.resonant.feature.collabfinder.ui.CollabStyle
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabBubbleUiState
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabFinderViewModel
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabSearchUiState
+import com.example.resonant.ui.components.ResonantMotion
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class CollabSearchFragment : Fragment() {
 
+    private companion object {
+        val SUGGESTIONS = listOf(
+            "The Weeknd", "Bad Bunny", "Drake", "Taylor Swift", "J Balvin",
+            "Rosalía", "Travis Scott", "Dua Lipa", "Billie Eilish", "Quevedo"
+        )
+    }
+
+    private enum class Phase { INTRO, ORBIT }
+
     private var _binding: FragmentCollabSearchBinding? = null
     private val binding get() = _binding!!
     private val viewModel: CollabFinderViewModel by viewModels()
-    private var hasResult = false
-    private var orbitLayoutChangeListener: View.OnLayoutChangeListener? = null
+    private var phase: Phase? = null
+    private var introAnimated = false
+    /** Solo se anima la entrada de los orbes si esta vista ha visto la búsqueda en curso. */
+    private var sawLoadingInThisView = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -49,53 +66,51 @@ class CollabSearchFragment : Fragment() {
 
         requireActivity().window.statusBarColor = Color.BLACK
         requireActivity().window.navigationBarColor = Color.BLACK
+        setupStyle()
         setupListeners()
         setupSuggestionChips()
+        setupParallax()
         setupObservers()
-        setupResponsiveOrbit()
-        showIntroState()
     }
-    
-    private fun setupListeners() {
-        binding.btnBack.setOnClickListener {
-            findNavController().navigateUp()
-        }
-        
-        binding.etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val query = s?.toString() ?: ""
-                binding.btnClearSearch.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-        
-        binding.btnClearSearch.setOnClickListener {
-            binding.etSearch.text?.clear()
-        }
-        
-        binding.btnBuscar.setOnClickListener {
-            val selectedArtist = viewModel.centralArtist.value
-            if (hasResult && selectedArtist != null) {
-                findNavController().navigate(
-                    R.id.action_search_to_bubble,
-                    bundleOf(
-                        "artistId" to selectedArtist.id,
-                        "artistName" to selectedArtist.name
-                    )
-                )
-            } else {
-                val query = binding.etSearch.text.toString().trim()
-                if (query.isNotEmpty()) {
-                    viewModel.forceSearch(query)
-                }
-            }
-        }
 
-        binding.btnSearchAnother.setOnClickListener {
-            resetForAnotherSearch()
+    private fun setupStyle() {
+        CollabStyle.backdropGlow(binding.backdropGlow)
+        CollabStyle.searchField(binding.searchFieldCard, focused = false)
+        CollabStyle.primaryButton(binding.btnSearchGo)
+        CollabStyle.primaryButton(binding.btnBuscar)
+        binding.heroMotif.accentColor = CollabStyle.accent
+        binding.bubbleOrbitView.accentColor = CollabStyle.accent
+    }
+
+    private fun setupListeners() {
+        binding.btnBack.setOnClickListener { findNavController().navigateUp() }
+
+        binding.etSearch.doOnTextChanged { text, _, _, _ ->
+            binding.btnClearSearch.isVisible = !text.isNullOrEmpty()
         }
-        
+        binding.etSearch.setOnFocusChangeListener { _, hasFocus ->
+            CollabStyle.searchField(binding.searchFieldCard, hasFocus)
+        }
+        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                submitSearch()
+                true
+            } else {
+                false
+            }
+        }
+        binding.btnClearSearch.setOnClickListener { binding.etSearch.text?.clear() }
+        binding.btnSearchGo.setOnClickListener { submitSearch() }
+
+        binding.btnBuscar.setOnClickListener {
+            val selectedArtist = viewModel.centralArtist.value ?: return@setOnClickListener
+            findNavController().navigate(
+                R.id.action_search_to_bubble,
+                bundleOf("artistId" to selectedArtist.id, "artistName" to selectedArtist.name)
+            )
+        }
+        binding.btnSearchAnother.setOnClickListener { resetForAnotherSearch() }
+
         binding.bubbleOrbitView.onBubbleTapped = { collaborator ->
             val artist = viewModel.centralArtist.value
             if (artist != null) {
@@ -108,103 +123,112 @@ class CollabSearchFragment : Fragment() {
                 findNavController().navigate(action)
             }
         }
+        binding.bubbleOrbitView.onCenterTapped = { binding.btnBuscar.performClick() }
     }
 
-    /** Pre-fills the search field and triggers a search when an artist chip is tapped. */
+    /** Sugerencias de artistas: rellenan el buscador y lanzan la búsqueda. */
     private fun setupSuggestionChips() {
-        val chips = listOf(
-            binding.chipArtist1 to "The Weeknd",
-            binding.chipArtist2 to "Bad Bunny",
-            binding.chipArtist3 to "Drake",
-            binding.chipArtist4 to "Taylor Swift",
-            binding.chipArtist5 to "J Balvin",
-            binding.chipArtist6 to "Rosalía",
-            binding.chipArtist7 to "Travis Scott",
-            binding.chipArtist8 to "Dua Lipa",
-            binding.chipArtist9 to "Billie Eilish",
-            binding.chipArtist10 to "Quevedo"
-        )
-        chips.forEach { (chip, artistName) ->
-            chip.setOnClickListener {
-                binding.etSearch.setText(artistName)
-                binding.etSearch.setSelection(artistName.length)
-                hideKeyboard()
-                viewModel.forceSearch(artistName)
+        SUGGESTIONS.forEach { name ->
+            val chip = TextView(requireContext()).apply {
+                text = name
+                CollabStyle.suggestionChip(this)
+                val outValue = TypedValue()
+                context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+                foreground = context.getDrawable(outValue.resourceId)
+                setOnClickListener {
+                    binding.etSearch.setText(name)
+                    binding.etSearch.setSelection(name.length)
+                    submitSearch()
+                }
             }
+            binding.chipGroupArtists.addView(chip)
         }
     }
-    
+
+    /** Capas: el glow y el motivo se quedan atrás, el mapa de órbitas reparte profundidad. */
+    private fun setupParallax() {
+        binding.contentScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val y = scrollY.toFloat()
+            binding.backdropGlow.translationY = -y * 0.35f
+            binding.heroMotif.translationY = y * 0.4f
+            binding.heroMotif.alpha = (1f - y / (binding.heroMotif.height.coerceAtLeast(1) * 0.9f)).coerceIn(0f, 1f)
+            binding.bubbleOrbitView.setParallax(y)
+        }
+    }
+
+    private fun submitSearch() {
+        val query = binding.etSearch.text.toString().trim()
+        if (query.isEmpty()) {
+            binding.etSearch.requestFocus()
+            return
+        }
+        // Se cierra el teclado ANTES de mostrar la órbita: así no hay un reajuste
+        // de la ventana justo cuando aparecen los orbes.
+        hideKeyboard()
+        viewModel.forceSearch(query)
+    }
+
     private fun setupObservers() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     viewModel.searchState.collect { state ->
                         when (state) {
-                            is CollabSearchUiState.Loading -> {
-                                showLoadingState(
-                                    title = "Buscando artista",
-                                    subtitle = "Preparando el mapa de colaboraciones."
+                            is CollabSearchUiState.Loading -> showSearching(
+                                eyebrow = "Buscando",
+                                title = binding.etSearch.text.toString().trim(),
+                                subtitle = "Localizando al artista…"
+                            )
+                            is CollabSearchUiState.Suggestions -> if (state.artists.isEmpty()) {
+                                showIntro(
+                                    title = "Sin coincidencias",
+                                    subtitle = "No encontramos a ese artista. Prueba con otro nombre."
                                 )
                             }
-                            is CollabSearchUiState.Suggestions -> {
-                                if (state.artists.isNotEmpty()) {
-                                    val firstArtist = state.artists.first()
-                                    viewModel.onArtistSelected(firstArtist)
-                                    viewModel.loadCollaborators(firstArtist.id)
-                                } else {
-                                    showIntroState(
-                                        title = "Sin coincidencias",
-                                        subtitle = "Prueba con otro artista para iniciar la búsqueda."
-                                    )
-                                    Toast.makeText(context, "No se encontró ningún artista", Toast.LENGTH_SHORT).show()
-                                }
-                            }
                             is CollabSearchUiState.Error -> {
-                                showIntroState()
                                 Log.e("CollabSearch", "Search Error: ${state.message}")
-                                Toast.makeText(context, "Error búsqueda: ${state.message}", Toast.LENGTH_LONG).show()
+                                showIntro(
+                                    title = "Algo ha fallado",
+                                    subtitle = "No se pudo completar la búsqueda. Revisa tu conexión e inténtalo de nuevo."
+                                )
                             }
-                            is CollabSearchUiState.Idle -> {
-                                if (!hasResult) showIntroState()
-                            }
+                            is CollabSearchUiState.Idle -> if (phase == null) showIntro()
                         }
                     }
                 }
-                
+
                 launch {
                     viewModel.bubbleState.collect { state ->
                         when (state) {
-                            is CollabBubbleUiState.Loading -> {
-                                showLoadingState(
-                                    title = "Calculando conexiones",
-                                    subtitle = "Buscando canciones compartidas y artistas relacionados."
-                                )
-                            }
+                            is CollabBubbleUiState.Loading -> showSearching(
+                                eyebrow = "Trazando conexiones",
+                                title = viewModel.centralArtist.value?.name ?: binding.etSearch.text.toString().trim(),
+                                subtitle = "Buscando canciones compartidas y artistas relacionados…"
+                            )
                             is CollabBubbleUiState.Success -> {
-                                binding.bubbleOrbitView.setLoading(false)
+                                val result = state.result
+                                showOrbitPhase()
+                                // Si es el mismo resultado (al volver a la pantalla) la vista no re-anima.
                                 binding.bubbleOrbitView.setData(
-                                    state.result.centralArtist,
-                                    state.result.collaborators
+                                    result.centralArtist,
+                                    result.collaborators,
+                                    animate = sawLoadingInThisView
                                 )
-
-                                hideKeyboard()
-                                showResultState()
-                                binding.tvArtistName.visibility = View.VISIBLE
-                                binding.tvArtistName.text = state.result.centralArtist.name
-
-                                binding.tvCollabSubtext.visibility = View.VISIBLE
-                                binding.tvCollabSubtext.text = "Se han encontrado ${state.result.collaborators.size} colaboraciones con artistas"
+                                setOrbitTexts(
+                                    eyebrow = "${result.totalCollaborators} colaboradores",
+                                    title = result.centralArtist.name,
+                                    subtitle = "Toca un artista para ver vuestras canciones juntos"
+                                )
+                                binding.resultActions.isVisible = true
                             }
                             is CollabBubbleUiState.Error -> {
-                                binding.bubbleOrbitView.setLoading(false)
-                                showIntroState()
                                 Log.e("CollabSearch", "Bubble Error: ${state.message}")
-                                Toast.makeText(context, "Error colaboraciones: ${state.message}", Toast.LENGTH_LONG).show()
+                                showIntro(
+                                    title = "Algo ha fallado",
+                                    subtitle = "No pudimos trazar sus colaboraciones. Inténtalo de nuevo."
+                                )
                             }
-                            is CollabBubbleUiState.Idle -> {
-                                binding.bubbleOrbitView.setLoading(false)
-                                if (!hasResult) showIntroState()
-                            }
+                            is CollabBubbleUiState.Idle -> Unit
                         }
                     }
                 }
@@ -212,95 +236,100 @@ class CollabSearchFragment : Fragment() {
         }
     }
 
-    private fun showIntroState(
-        title: String = "Busca un artista",
-        subtitle: String = "Las colaboraciones aparecerán cuando encontremos conexiones."
+    private fun showIntro(
+        title: String = "¿Con quién ha colaborado?",
+        subtitle: String = "Busca un artista y descubre su mapa de colaboraciones y las canciones que comparten."
     ) {
-        hasResult = false
-        binding.progressBar.visibility = View.GONE
-        // Show intro container with search field and suggestion chips
-        binding.introContainer.visibility = View.VISIBLE
         binding.tvIntroTitle.text = title
         binding.tvIntroSubtitle.text = subtitle
-        // Hide orbit area
-        binding.orbitFrame.visibility = View.GONE
-        binding.bubbleOrbitView.visibility = View.GONE
         binding.bubbleOrbitView.setLoading(false)
-        binding.collabEmptyState.visibility = View.GONE
-        binding.collabLoader.cancelAnimation()
-        binding.collabLoader.visibility = View.GONE
-        // Hide result content
-        binding.cardSuggestions.visibility = View.GONE
-        binding.tvArtistName.visibility = View.GONE
-        binding.tvCollabSubtext.visibility = View.GONE
-        binding.btnSearchAnother.visibility = View.GONE
-        binding.btnBuscar.text = "Buscar"
-        binding.contentScroll.post { binding.contentScroll.scrollTo(0, 0) }
-    }
-
-    private fun showLoadingState(title: String, subtitle: String) {
-        binding.progressBar.visibility = View.GONE
-        // Hide intro container
-        binding.introContainer.visibility = View.GONE
-        // Show orbit frame with loading indicator
-        binding.orbitFrame.visibility = View.VISIBLE
-        binding.bubbleOrbitView.visibility = View.GONE
-        binding.bubbleOrbitView.setLoading(false)
-        binding.collabEmptyState.visibility = View.VISIBLE
-        binding.tvOrbitStateTitle.text = title
-        binding.tvOrbitStateSubtitle.text = subtitle
-        binding.collabLoader.visibility = View.VISIBLE
-        binding.collabLoader.playAnimation()
-        // Hide result content
-        binding.cardSuggestions.visibility = View.GONE
-        binding.tvArtistName.visibility = View.GONE
-        binding.tvCollabSubtext.visibility = View.GONE
-        binding.btnSearchAnother.visibility = View.GONE
-        binding.contentScroll.post { binding.contentScroll.scrollTo(0, 0) }
-    }
-
-    private fun showResultState() {
-        hasResult = true
-        binding.progressBar.visibility = View.GONE
-        binding.collabLoader.cancelAnimation()
-        // Hide intro container
-        binding.introContainer.visibility = View.GONE
-        // Show orbit with results
-        binding.orbitFrame.visibility = View.VISIBLE
-        binding.collabEmptyState.visibility = View.GONE
-        binding.bubbleOrbitView.visibility = View.VISIBLE
-        // Show result actions
-        binding.cardSuggestions.visibility = View.GONE
-        binding.tvArtistName.visibility = View.VISIBLE
-        binding.tvCollabSubtext.visibility = View.VISIBLE
-        binding.btnSearchAnother.visibility = View.VISIBLE
-        binding.btnBuscar.text = "Ver colaboraciones"
-        binding.contentScroll.post { binding.contentScroll.scrollTo(0, 0) }
-    }
-
-    private fun setupResponsiveOrbit() {
-        val listener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateOrbitHeight()
+        if (phase == Phase.INTRO) return
+        val fromOrbit = phase == Phase.ORBIT
+        phase = Phase.INTRO
+        crossfade(show = binding.introContainer, hide = binding.orbitSection, animate = fromOrbit)
+        if (!introAnimated) {
+            introAnimated = true
+            animateIntroIn()
         }
-        orbitLayoutChangeListener = listener
-        binding.contentScroll.addOnLayoutChangeListener(listener)
-        binding.contentScroll.post { updateOrbitHeight() }
+        binding.contentScroll.scrollTo(0, 0)
     }
 
-    private fun updateOrbitHeight() {
-        val availableHeight = binding.contentScroll.height
-        if (availableHeight <= 0) return
+    /** Búsqueda en curso: el mismo mapa de órbitas muestra el radar (sin cambiar de vista). */
+    private fun showSearching(eyebrow: String, title: String, subtitle: String) {
+        sawLoadingInThisView = true
+        showOrbitPhase()
+        binding.bubbleOrbitView.setLoading(true)
+        binding.resultActions.isVisible = false
+        setOrbitTexts(eyebrow, title, subtitle)
+    }
 
-        val targetHeight = (availableHeight - dp(150)).coerceIn(dp(250), dp(360))
-        val params = binding.orbitFrame.layoutParams
-        if (params.height != targetHeight) {
-            params.height = targetHeight
-            binding.orbitFrame.layoutParams = params
+    private fun showOrbitPhase() {
+        if (phase == Phase.ORBIT) return
+        val fromIntro = phase == Phase.INTRO
+        phase = Phase.ORBIT
+        crossfade(show = binding.orbitSection, hide = binding.introContainer, animate = fromIntro)
+        binding.contentScroll.scrollTo(0, 0)
+    }
+
+    private fun setOrbitTexts(eyebrow: String, title: String, subtitle: String) {
+        listOf(
+            binding.tvOrbitEyebrow to eyebrow,
+            binding.tvArtistName to title,
+            binding.tvCollabSubtext to subtitle
+        ).forEachIndexed { index, (view, text) ->
+            if (view.text == text) return@forEachIndexed
+            if (!ValueAnimator.areAnimatorsEnabled() || view.text.isNullOrEmpty()) {
+                view.text = text
+                return@forEachIndexed
+            }
+            view.animate().cancel()
+            view.animate().alpha(0f).setStartDelay(index * 40L).setDuration(120).withEndAction {
+                view.text = text
+                view.animate().alpha(1f).setStartDelay(0).setDuration(260)
+                    .setInterpolator(ResonantMotion.expoOut).start()
+            }.start()
         }
     }
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
+    private fun crossfade(show: View, hide: View, animate: Boolean) {
+        if (!animate || !ValueAnimator.areAnimatorsEnabled()) {
+            hide.isVisible = false
+            show.isVisible = true
+            show.alpha = 1f
+            return
+        }
+        val shift = 24 * resources.displayMetrics.density
+        hide.animate().cancel()
+        hide.animate().alpha(0f).translationY(-shift).setDuration(180).withEndAction {
+            hide.isVisible = false
+            hide.translationY = 0f
+            hide.alpha = 1f
+        }.start()
+        show.alpha = 0f
+        show.translationY = shift
+        show.isVisible = true
+        show.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(520)
+            .setInterpolator(ResonantMotion.expoOut).start()
+    }
+
+    /** Entrada en cascada del intro: motivo, título, texto, buscador y sugerencias. */
+    private fun animateIntroIn() {
+        if (!ValueAnimator.areAnimatorsEnabled()) return
+        val density = resources.displayMetrics.density
+        binding.heroMotif.apply {
+            alpha = 0f
+            scaleX = 0.8f
+            scaleY = 0.8f
+            animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(1000)
+                .setInterpolator(ResonantMotion.expoOut).start()
+        }
+        listOf(binding.tvIntroTitle, binding.tvIntroSubtitle, binding.searchFieldCard, binding.chipGroupArtists)
+            .forEachIndexed { i, view ->
+                view.alpha = 0f
+                view.translationY = 16 * density
+                view.animate().alpha(1f).translationY(0f).setStartDelay(180L + i * 70L).setDuration(650)
+                    .setInterpolator(ResonantMotion.expoOut).start()
+            }
     }
 
     private fun hideKeyboard() {
@@ -311,7 +340,7 @@ class CollabSearchFragment : Fragment() {
 
     private fun resetForAnotherSearch() {
         binding.etSearch.text?.clear()
-        showIntroState()
+        showIntro()
         binding.etSearch.requestFocus()
         val inputManager = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         inputManager.showSoftInput(binding.etSearch, InputMethodManager.SHOW_IMPLICIT)
@@ -319,9 +348,8 @@ class CollabSearchFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        orbitLayoutChangeListener?.let { binding.contentScroll.removeOnLayoutChangeListener(it) }
-        orbitLayoutChangeListener = null
-        binding.collabLoader.cancelAnimation()
+        phase = null
+        sawLoadingInThisView = false
         _binding = null
     }
 }

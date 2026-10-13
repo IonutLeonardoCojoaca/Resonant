@@ -2,11 +2,15 @@ package com.example.resonant.ui.components
 
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.annotation.ColorInt
+import androidx.annotation.DrawableRes
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
@@ -34,24 +38,48 @@ object ChartHero {
     private const val PARALLAX_TEXT = 0.3f
     private const val PARALLAX_FRONT = 0.12f
 
+    /**
+     * @param customIcon icono propio de la pantalla (p. ej. el de la biblioteca) en lugar
+     * del logo de Resonant: se dibuja en ambas capas, girado y tintado con el acento.
+     */
     fun bind(
         hero: View,
         accent: ResonantAccent,
         eyebrow: String,
         title: String,
-        subtitle: String?
+        subtitle: String?,
+        @DrawableRes customIcon: Int? = null
     ) {
         hero.findViewById<TextView>(R.id.heroEyebrow).apply {
             text = eyebrow
             setTextColor(accent.color)
         }
-        hero.findViewById<ImageView>(R.id.heroIconBack).apply {
-            setImageResource(accent.icon)
-            restY(this)
-        }
-        hero.findViewById<ImageView>(R.id.heroIconFront).apply {
-            setImageResource(accent.icon)
-            restY(this)
+        val back = hero.findViewById<ImageView>(R.id.heroIconBack)
+        val front = hero.findViewById<ImageView>(R.id.heroIconFront)
+        if (customIcon != null) {
+            val density = hero.resources.displayMetrics.density
+            back.setImageResource(customIcon)
+            front.setImageResource(customIcon)
+            back.scaleType = ImageView.ScaleType.FIT_CENTER
+            front.scaleType = ImageView.ScaleType.FIT_CENTER
+            back.rotation = -14f
+            front.rotation = 12f
+            // Encuadre propio (el del logo está pensado para su forma de arco): el
+            // icono grande asoma por la derecha y el pequeño queda entero arriba.
+            back.translationX = 70 * density
+            setRest(back, 40 * density)
+            front.translationX = -120 * density
+            setRest(front, 22 * density)
+            // Solo el tinte inicial: después lo controla la pantalla (p. ej. mezclándolo
+            // mientras se arrastra entre pestañas), así un re-bind no lo hace saltar.
+            if (back.imageTintList == null) tintCustomIcon(hero, accent.color)
+        } else {
+            back.setImageResource(accent.icon)
+            front.setImageResource(accent.icon)
+            back.imageTintList = null
+            front.imageTintList = null
+            restY(back)
+            restY(front)
         }
         hero.findViewById<View>(R.id.heroGlow).background = GradientDrawable().apply {
             gradientType = GradientDrawable.RADIAL_GRADIENT
@@ -79,12 +107,29 @@ object ChartHero {
         }
     }
 
+    /** Tinte del icono personalizado: el del fondo, más oscuro y tenue; el de delante, vivo. */
+    fun tintCustomIcon(hero: View, @ColorInt color: Int) {
+        hero.findViewById<ImageView>(R.id.heroIconBack).imageTintList =
+            ColorStateList.valueOf(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(color, Color.BLACK, 0.45f), 0xB3))
+        hero.findViewById<ImageView>(R.id.heroIconFront).imageTintList = ColorStateList.valueOf(color)
+    }
+
     /** Pastilla opcional bajo el subtítulo (p. ej. "48 playlists · 12 creadores"). */
     fun setMeta(hero: View, meta: String?) {
         hero.findViewById<TextView>(R.id.heroMeta).apply {
             text = meta
             isVisible = !meta.isNullOrBlank()
         }
+    }
+
+    /** Deja la cabecera en el estado inicial de [animateIn] (para que no se vea antes de animar). */
+    fun prepareHidden(hero: View) {
+        if (!ValueAnimator.areAnimatorsEnabled()) return
+        hero.findViewById<View>(R.id.heroGlow).alpha = 0f
+        hero.findViewById<View>(R.id.heroIconBack).alpha = 0f
+        hero.findViewById<View>(R.id.heroIconFront).alpha = 0f
+        val textBlock = hero.findViewById<ViewGroup>(R.id.heroTextBlock)
+        for (i in 0 until textBlock.childCount) textBlock.getChildAt(i).alpha = 0f
     }
 
     fun animateIn(hero: View) {
@@ -202,6 +247,11 @@ object ChartHero {
             contentScrolled = scrollY
             apply()
         })
+    }
+
+    private fun setRest(view: View, y: Float) {
+        view.translationY = y
+        view.setTag(view.id, y)
     }
 
     /** Posición de reposo (la del XML), capturada la primera vez que se pide. */

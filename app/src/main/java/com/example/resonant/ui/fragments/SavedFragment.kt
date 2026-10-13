@@ -1,23 +1,29 @@
-﻿package com.example.resonant.ui.fragments
+package com.example.resonant.ui.fragments
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.children
+import android.widget.TextView
+import androidx.annotation.DrawableRes
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.Observer
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
@@ -26,6 +32,7 @@ import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.adapters.HeaderViewAdapter
 import com.example.resonant.ui.adapters.PlaylistAdapter
 import com.example.resonant.ui.adapters.PlaymixListAdapter
 import com.example.resonant.ui.adapters.SearchResult
@@ -36,8 +43,13 @@ import com.example.resonant.ui.bottomsheets.ArtistSelectorBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaylistOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaymixListOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
-import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.ChartHero
+import com.example.resonant.ui.components.CollectionActions
+import com.example.resonant.ui.components.CollectionState
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.components.SlidingPillTabs
+import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.PlaylistsListViewModel
@@ -45,37 +57,59 @@ import com.example.resonant.ui.viewmodels.PlaylistsListViewModelFactory
 import com.example.resonant.ui.viewmodels.PlaymixListViewModel
 import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
 import com.example.resonant.ui.viewmodels.SongViewModel
-import com.example.resonant.utils.AnimationsUtils
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
-import kotlinx.coroutines.Dispatchers
+import com.facebook.shimmer.ShimmerFrameLayout
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.ArrayList
 
+/**
+ * Biblioteca. Una lista real por pestaña dentro de un ViewPager2: cambiar de pestaña
+ * es instantáneo (nada se vacía ni se reconstruye), cada una conserva su scroll y
+ * todas reciclan filas. Los datos se cargan/precargan al entrar y cada observer
+ * actualiza siempre su propia lista, esté visible o no.
+ */
 class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
+    private enum class Tab(val label: String, val accent: ResonantAccent) {
+        PLAYLISTS("Listas", ResonantAccent.PLAYLISTS),
+        SONGS("Canciones", ResonantAccent.SONGS),
+        ARTISTS("Artistas", ResonantAccent.ARTISTS),
+        ALBUMS("Álbumes", ResonantAccent.ALBUMS),
+        PLAYMIXES("PlayMix", ResonantAccent.PLAYMIX)
+    }
+
+    private class Page(val root: View) {
+        val list: RecyclerView = root.findViewById(R.id.pageList)
+        val skeleton: ShimmerFrameLayout = root.findViewById(R.id.pageSkeleton)
+        val state: View = root.findViewById(R.id.pageState)
+        var listAnimated = false
+    }
+
     // Views
-    private lateinit var chipGroup: ChipGroup
-    private lateinit var playlistsContainerView: View
-    private lateinit var favoritesRecyclerView: RecyclerView
-    private lateinit var downloadsItemContainer: View
-    private var lastCheckedId = View.NO_ID
-
-    // Playmixes Section
-    private lateinit var playmixAdapter: PlaymixListAdapter
-    private lateinit var playmixEmptyState: View
-    
-    // Playlists Section
-    private lateinit var playlistRecyclerView: RecyclerView
-    private lateinit var newPlaylistOption: ConstraintLayout
+    private lateinit var appBarLayout: AppBarLayout
+    private lateinit var hero: View
+    private lateinit var tabsView: SlidingPillTabs
+    private lateinit var pager: ViewPager2
     private lateinit var userProfileImage: ImageView
-    private lateinit var playlistAdapter: PlaylistAdapter
+    private val pages = mutableMapOf<Tab, Page>()
 
-    // Favorites Section
-    private lateinit var favoritesAdapter: SearchResultAdapter
+    // Adapters (uno por pestaña: cada lista mantiene su estado)
+    private lateinit var playlistAdapter: PlaylistAdapter
+    private lateinit var songsAdapter: SearchResultAdapter
+    private lateinit var artistsAdapter: SearchResultAdapter
+    private lateinit var albumsAdapter: SearchResultAdapter
+    private lateinit var playmixAdapter: PlaymixListAdapter
+    private lateinit var songsHeader: HeaderViewAdapter
+    private lateinit var songsActions: View
+    private lateinit var downloadsShortcut: View
+
+    // Estado que sobrevive a la recreación de la vista (la instancia del fragment se conserva en el back stack)
+    private var selectedTab = Tab.PLAYLISTS
+    private var heroAnimated = false
+    private val counts = mutableMapOf<Tab, Int>()
 
     // ViewModels
     private val playlistsListViewModel: PlaylistsListViewModel by viewModels {
@@ -83,10 +117,11 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         PlaylistsListViewModelFactory(playlistManager)
     }
 
-    private val favoritesViewModel: FavoritesViewModel by viewModels()
+    // Compartido con el resto de la app: misma caché de favoritos y mismos toggles.
+    private val favoritesViewModel: FavoritesViewModel by activityViewModels()
     private val downloadViewModel: DownloadViewModel by activityViewModels()
     private val songViewModel: SongViewModel by activityViewModels()
-    
+
     private lateinit var playmixListViewModel: PlaymixListViewModel
 
     override fun onCreateView(
@@ -102,68 +137,38 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         initViews(view)
         setupPlaymixViewModel()
         setupAdapters()
-        setupClickListeners()
-        setupChipListener()
-        observePlaymixes()
-
-        // Observe Downloads to update icons (adapter must be initialized first)
-        viewLifecycleOwner.lifecycleScope.launch {
-            downloadViewModel.downloadedSongIds.collect { ids ->
-                if (::favoritesAdapter.isInitialized) {
-                    favoritesAdapter.downloadedSongIds = ids
-                }
-            }
-        }
-        
-        // Observe Playlists
-        playlistsListViewModel.playlists.observe(viewLifecycleOwner, Observer { playlists ->
-            Log.d("SavedFragment", "Playlists recibidas: ${playlists?.size ?: 0}")
-            playlistAdapter.submitList(playlists ?: emptyList())
-            updateEmptyView(playlists)
-        })
-
-        // Observe Favorites (to update list if currently viewing favorites)
-        observeFavorites()
-
-        // Observe Current Song to update playing state icons (Play/Pause/Equalizer)
-        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
-            currentSong?.let {
-                 favoritesAdapter.setCurrentPlayingSong(it.id)
-            }
-        }
+        createPages()
+        setupPagerAndTabs()
+        setupHero()
+        observeData()
 
         // Handle BackStack results (e.g. after editing playlist)
         val navController = findNavController()
         navController.currentBackStackEntry?.savedStateHandle?.getLiveData<String>("PLAYLIST_UPDATED_ID")
             ?.observe(viewLifecycleOwner) { playlistId ->
                 if (playlistId != null) {
-                    Log.d("SavedFragment", "Refrescando playlist ID: $playlistId")
                     playlistAdapter.clearCacheForPlaylist(playlistId)
                     forceReloadPlaylists()
                     navController.currentBackStackEntry?.savedStateHandle?.remove<String>("PLAYLIST_UPDATED_ID")
                 }
             }
 
-        // Initial Loads
+        // Cargas iniciales: todas las pestañas a la vez (respetan sus cachés), así
+        // cambiar de pestaña nunca espera a la red. Las PlayMix también se precargan.
         reloadPlaylistsInitial()
         favoritesViewModel.loadAllFavorites()
+        playmixListViewModel.loadMyPlaymixes()
     }
 
     private fun initViews(view: View) {
-        chipGroup = view.findViewById(R.id.chipGroup)
-        playlistsContainerView = view.findViewById(R.id.playlistsContainerView)
-        favoritesRecyclerView = view.findViewById(R.id.favoritesRecyclerView)
-        downloadsItemContainer = view.findViewById(R.id.downloadsItemContainer)
-        
-        playlistRecyclerView = view.findViewById(R.id.playlistList)
-        newPlaylistOption = view.findViewById(R.id.noPlaylistContainer)
+        appBarLayout = view.findViewById(R.id.appBarLayout)
+        hero = view.findViewById(R.id.libraryHero)
+        tabsView = view.findViewById(R.id.libraryTabs)
+        pager = view.findViewById(R.id.libraryPager)
         userProfileImage = view.findViewById(R.id.userProfile)
-        playmixEmptyState = view.findViewById(R.id.playmixEmptyState)
-        
         viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
-        setupChipStyles()
     }
-    
+
     private fun setupPlaymixViewModel() {
         val playmixManager = PlaymixManager(requireContext())
         playmixListViewModel = ViewModelProvider(
@@ -171,9 +176,210 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             PlaymixListViewModelFactory(playmixManager)
         ).get(PlaymixListViewModel::class.java)
     }
-    
+
+    // ── Cabecera ────────────────────────────────────────────────────────
+
+    private fun setupHero() {
+        updateHero(animate = false)
+        ChartHero.attachParallax(appBarLayout, hero, requireView().findViewById(R.id.tvToolbarTitle))
+        if (!heroAnimated) {
+            heroAnimated = true
+            ChartHero.animateIn(hero)
+        }
+    }
+
+    /**
+     * La cabecera toma el color de la pestaña activa y resume lo que contiene. De fondo
+     * usa el icono de la biblioteca (no el logo de Resonant); su tinte lo lleva
+     * [tintHeroWhileScrolling] de forma continua mientras se cambia de pestaña.
+     */
+    private fun updateHero(animate: Boolean) {
+        ChartHero.bind(
+            hero,
+            selectedTab.accent,
+            "Tu biblioteca",
+            "Biblioteca",
+            heroSubtitle(selectedTab),
+            customIcon = R.drawable.ic_library_glyph
+        )
+        if (animate) ChartHero.pulse(hero)
+    }
+
+    /** Mezcla el tinte del icono de fondo entre la pestaña actual y la siguiente según el arrastre. */
+    private fun tintHeroWhileScrolling(position: Int, offset: Float) {
+        val from = Tab.entries[position].accent.color
+        val to = Tab.entries.getOrNull(position + 1)?.accent?.color ?: from
+        ChartHero.tintCustomIcon(hero, ColorUtils.blendARGB(from, to, offset))
+    }
+
+    private fun heroSubtitle(tab: Tab): String {
+        val n = counts[tab] ?: return when (tab) {
+            Tab.PLAYLISTS -> "Tus listas y las que has guardado"
+            Tab.SONGS -> "Las canciones que te gustan"
+            Tab.ARTISTS -> "Los artistas que sigues"
+            Tab.ALBUMS -> "Los álbumes que has guardado"
+            Tab.PLAYMIXES -> "Tus mezclas con transiciones"
+        }
+        return when (tab) {
+            Tab.PLAYLISTS -> if (n == 1) "1 lista" else "$n listas"
+            Tab.SONGS -> if (n == 1) "1 canción que te gusta" else "$n canciones que te gustan"
+            Tab.ARTISTS -> if (n == 1) "1 artista que sigues" else "$n artistas que sigues"
+            Tab.ALBUMS -> if (n == 1) "1 álbum guardado" else "$n álbumes guardados"
+            Tab.PLAYMIXES -> if (n == 1) "1 PlayMix" else "$n PlayMix"
+        }
+    }
+
+    private fun setCount(tab: Tab, count: Int) {
+        if (counts[tab] == count) return
+        counts[tab] = count
+        if (tab == selectedTab) ChartHero.setText(hero, "Biblioteca", heroSubtitle(tab), animate = true)
+    }
+
+    // ── Pestañas + páginas ──────────────────────────────────────────────
+
+    private fun createPages() {
+        val inflater = LayoutInflater.from(requireContext())
+        Tab.entries.forEach { tab ->
+            val root = inflater.inflate(R.layout.view_library_page, pager, false)
+            val page = Page(root)
+            page.list.layoutManager = LinearLayoutManager(requireContext())
+            page.list.itemAnimator = null
+            page.skeleton.setBackgroundResource(R.color.primaryColorTheme)
+            pages[tab] = page
+        }
+
+        pages.getValue(Tab.PLAYLISTS).list.adapter = ConcatAdapter(
+            HeaderViewAdapter(buildPlaylistsHeader(pages.getValue(Tab.PLAYLISTS).list)),
+            playlistAdapter
+        )
+        val songsPage = pages.getValue(Tab.SONGS)
+        songsActions = layoutInflater.inflate(R.layout.view_collection_actions, songsPage.list, false).apply {
+            setPadding(paddingLeft, (4 * resources.displayMetrics.density).toInt(), paddingRight, (12 * resources.displayMetrics.density).toInt())
+        }
+        CollectionActions.bind(
+            songsActions,
+            Tab.SONGS.accent,
+            onPlayAll = { favoritesViewModel.favoriteSongs.value?.let { playFavorites(it, 0) } },
+            onShuffle = { favoritesViewModel.favoriteSongs.value?.shuffled()?.let { playFavorites(it, 0) } }
+        )
+        songsHeader = HeaderViewAdapter(songsActions).apply { isVisible = false }
+        songsPage.list.adapter = ConcatAdapter(songsHeader, songsAdapter)
+        pages.getValue(Tab.ARTISTS).list.adapter = artistsAdapter
+        pages.getValue(Tab.ALBUMS).list.adapter = albumsAdapter
+        pages.getValue(Tab.PLAYMIXES).list.adapter = ConcatAdapter(
+            HeaderViewAdapter(buildPlaymixHeader(pages.getValue(Tab.PLAYMIXES).list)),
+            playmixAdapter
+        )
+    }
+
+    private fun setupPagerAndTabs() {
+        val views = Tab.entries.map { pages.getValue(it).root }
+        pager.adapter = PagesAdapter(views)
+        // Todas las páginas vivas: son ligeras y así nunca se recrean al cambiar.
+        pager.offscreenPageLimit = Tab.entries.size - 1
+        pager.setCurrentItem(selectedTab.ordinal, false)
+
+        tabsView.followsPager = true
+        tabsView.setTabs(
+            labels = Tab.entries.map { it.label },
+            tabAccents = Tab.entries.map { it.accent.color },
+            initialIndex = selectedTab.ordinal
+        ) { index -> pager.currentItem = index }
+
+        pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
+                tabsView.setScrollProgress(position, positionOffset)
+                tintHeroWhileScrolling(position, positionOffset)
+            }
+
+            override fun onPageSelected(position: Int) {
+                val tab = Tab.entries[position]
+                tabsView.markSelected(position)
+                if (tab == selectedTab) return
+                selectedTab = tab
+                updateHero(animate = true)
+                // Al volver a PlayMix se refresca en segundo plano (la caché ya está pintada).
+                if (tab == Tab.PLAYMIXES) playmixListViewModel.loadMyPlaymixes()
+            }
+        })
+    }
+
+    /** Páginas fijas ya creadas: una vista por tipo, nunca se reciclan entre sí. */
+    private class PagesAdapter(private val views: List<View>) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+        override fun getItemCount() = views.size
+        override fun getItemViewType(position: Int) = position
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            val view = views[viewType]
+            (view.parent as? ViewGroup)?.removeView(view)
+            view.layoutParams = RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            return object : RecyclerView.ViewHolder(view) {}
+        }
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) = Unit
+    }
+
+    // ── Cabeceras de lista ──────────────────────────────────────────────
+
+    private fun buildPlaylistsHeader(parent: RecyclerView): View {
+        val density = resources.displayMetrics.density
+        val row = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding((6 * density).toInt(), (4 * density).toInt(), (6 * density).toInt(), (12 * density).toInt())
+        }
+        downloadsShortcut = layoutInflater.inflate(R.layout.view_library_shortcut, parent, false)
+        val create = layoutInflater.inflate(R.layout.view_library_shortcut, parent, false)
+        bindShortcut(downloadsShortcut, ResonantAccent.DOWNLOADS, R.drawable.ic_download, "Descargas", "Sin conexión") {
+            findNavController().navigate(R.id.action_savedFragment_to_downloadedSongsFragment)
+        }
+        bindShortcut(create, ResonantAccent.PLAYLISTS, R.drawable.ic_add, "Nueva playlist", "Empieza una lista") {
+            findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
+        }
+        row.addView(downloadsShortcut, android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginEnd = (5 * density).toInt()
+        })
+        row.addView(create, android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = (5 * density).toInt()
+        })
+        return row
+    }
+
+    private fun buildPlaymixHeader(parent: RecyclerView): View {
+        val density = resources.displayMetrics.density
+        return android.widget.FrameLayout(requireContext()).apply {
+            setPadding((6 * density).toInt(), (4 * density).toInt(), (6 * density).toInt(), (12 * density).toInt())
+            val create = layoutInflater.inflate(R.layout.view_library_shortcut, parent, false)
+            bindShortcut(create, ResonantAccent.PLAYMIX, R.drawable.ic_add, "Nueva PlayMix", "Mezcla canciones con transiciones") {
+                findNavController().navigate(R.id.action_global_to_createPlaymixFragment)
+            }
+            addView(create)
+        }
+    }
+
+    private fun bindShortcut(
+        view: View,
+        accent: ResonantAccent,
+        @DrawableRes icon: Int,
+        title: String,
+        subtitle: String,
+        onClick: () -> Unit
+    ) {
+        view.findViewById<View>(R.id.shortcutBadge).background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(ColorUtils.setAlphaComponent(accent.color, 0x2E))
+        }
+        view.findViewById<ImageView>(R.id.shortcutIcon).apply {
+            setImageResource(icon)
+            imageTintList = ColorStateList.valueOf(accent.color)
+        }
+        view.findViewById<TextView>(R.id.shortcutTitle).text = title
+        view.findViewById<TextView>(R.id.shortcutSubtitle).text = subtitle
+        view.setOnClickListener { onClick() }
+    }
+
+    // ── Adapters ────────────────────────────────────────────────────────
+
     private fun setupAdapters() {
-        // 1. Playlist Adapter
         playlistAdapter = PlaylistAdapter(
             viewType = PlaylistAdapter.VIEW_TYPE_GRID,
             onClick = { playlist ->
@@ -186,144 +392,11 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             onPlaylistLongClick = { playlist, _ -> openPlaylistOptionsIfEditable(playlist) },
             onSettingsClick = { playlist -> openPlaylistOptionsIfEditable(playlist) }
         )
-        playlistRecyclerView.adapter = playlistAdapter
-        playlistRecyclerView.layoutManager = LinearLayoutManager(context)
 
-        // 2. Favorites Adapter (Reusable SearchResultAdapter)
-        favoritesAdapter = SearchResultAdapter().apply {
-            // Songs
-            onSongClick = { (song, bitmap) ->
-                val songs = favoritesViewModel.favoriteSongs.value ?: emptyList()
-                val currentIndex = songs.indexOfFirst { it.id == song.id }
+        songsAdapter = buildFavoritesAdapter()
+        artistsAdapter = buildFavoritesAdapter()
+        albumsAdapter = buildFavoritesAdapter()
 
-                if (currentIndex != -1) {
-                    val songArrayList = ArrayList(songs)
-
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), bitmap, song.id) }
-
-                        val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                            action = MusicPlaybackService.ACTION_PLAY
-                            putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-                            putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, currentIndex)
-                            putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                            putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songArrayList)
-                            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.FAVORITE_SONGS)
-                            putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "favorites")
-                        }
-                        requireContext().startService(intent)
-                    }
-                }
-            }
-            
-            onSettingsClick = { song ->
-                val bottomSheet = SongOptionsBottomSheet(
-                    song = song,
-                    onSeeSongClick = { selectedSong ->
-                        val bundle = Bundle().apply { putParcelable("song", selectedSong) }
-                        findNavController().navigate(R.id.action_savedFragment_to_detailedSongFragment, bundle)
-                    },
-                    onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(toggledSong)
-                    },
-                    onAddToPlaylistClick = { songToAdd ->
-                         val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
-                            song = songToAdd,
-                            onNoPlaylistsFound = {
-                                findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
-                            }
-                        )
-                        selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
-                    },
-                    onDownloadClick = { songToDownload ->
-                         downloadViewModel.downloadSong(songToDownload)
-                    },
-                    onRemoveDownloadClick = { songToDelete ->
-                         downloadViewModel.deleteSong(songToDelete)
-                    },
-                    onGoToAlbumClick = { albumId ->
-                         val bundle = Bundle().apply { putString("albumId", albumId) }
-                         findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
-                    },
-                    onGoToArtistClick = { artist ->
-                         val bundle = Bundle().apply { putString("artistId", artist.id) }
-                         findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
-                    }
-                )
-                bottomSheet.show(childFragmentManager, bottomSheet.tag)
-            }
-            onFavoriteClick = { song, _ ->
-                favoritesViewModel.toggleFavoriteSong(song)
-            }
-
-            // Albums
-            onAlbumClick = { album ->
-                val bundle = Bundle().apply { putString("albumId", album.id) }
-                findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
-            }
-            onAlbumSettingsClick = { album ->
-                 val bottomSheet = AlbumOptionsBottomSheet(
-                    album = album,
-                    onGoToAlbumClick = {
-                        val bundle = Bundle().apply { putString("albumId", it.id) }
-                        findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
-                    },
-                    onGoToArtistClick = { albumObj ->
-                        val artists = albumObj.artists
-                        if (artists.isNotEmpty()) {
-                            if (artists.size > 1) {
-                                val selector = ArtistSelectorBottomSheet(artists) { selectedArtist ->
-                                    val bundle = Bundle().apply { putString("artistId", selectedArtist.id) }
-                                    findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
-                                }
-                                selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
-                            } else {
-                                val artist = artists[0]
-                                val bundle = Bundle().apply { putString("artistId", artist.id) }
-                                findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
-                            }
-                        }
-                    },
-                    onViewDetailsClick = {
-                         val bundle = Bundle().apply {
-                             putParcelable("album", it)
-                             putString("albumId", it.id)
-                         }
-                         findNavController().navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
-                    }
-                 )
-                 bottomSheet.show(childFragmentManager, bottomSheet.tag)
-            }
-
-            // Artists
-            onArtistClick = { artist, _ ->
-                val bundle = Bundle().apply { putString("artistId", artist.id) }
-                findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
-            }
-            onArtistSettingsClick = { artist ->
-                 val bottomSheet = ArtistOptionsBottomSheet(
-                    artist = artist,
-                    onGoToArtistClick = {
-                        val bundle = Bundle().apply { putString("artistId", it.id) }
-                        findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
-                    },
-                    onViewDetailsClick = {
-                         val bundle = Bundle().apply {
-                             putParcelable("artist", it)
-                             putString("artistId", it.id)
-                         }
-                         findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
-                    }
-                 )
-                 bottomSheet.show(childFragmentManager, bottomSheet.tag)
-            }
-        }
-        
-        favoritesRecyclerView.layoutManager = LinearLayoutManager(context)
-        favoritesRecyclerView.setItemViewCacheSize(20) // Optimización básica
-        // Por defecto no asignamos adapter aquí, se asigna en show...View()
-
-        // 3. Playmix Adapter
         playmixAdapter = PlaymixListAdapter(
             onClick = { playmix ->
                 val bundle = Bundle().apply { putString("playmixId", playmix.id) }
@@ -348,211 +421,258 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             }
         )
     }
-    
-    private fun setupChipListener() {
-        chipGroup.setOnCheckedStateChangeListener { group, checkedIds ->
-            val newCheckedId = checkedIds.firstOrNull() ?: View.NO_ID
-            
-            // Si el nuevo es el mismo que el anterior, no hacemos nada (ya está seleccionado)
-            if (newCheckedId == lastCheckedId) return@setOnCheckedStateChangeListener
 
-            // 1. Animar el chip que se DESELECCIONA
-            if (lastCheckedId != View.NO_ID) {
-                group.findViewById<Chip>(lastCheckedId)?.let { chip ->
-                    AnimationsUtils.animateChip(chip, false) // Escala
-                    AnimationsUtils.animateChipColor(chip, false) // Color
+    /** Adapter de favoritos (canciones, artistas o álbumes) con todas sus acciones. */
+    private fun buildFavoritesAdapter() = SearchResultAdapter().apply {
+        // Songs
+        onSongClick = { (song, bitmap) ->
+            val songs = favoritesViewModel.favoriteSongs.value ?: emptyList()
+            val currentIndex = songs.indexOfFirst { it.id == song.id }
+            if (currentIndex != -1) playFavorites(songs, currentIndex, song, bitmap)
+        }
+
+        onSettingsClick = { song ->
+            val bottomSheet = SongOptionsBottomSheet(
+                song = song,
+                onSeeSongClick = { selectedSong ->
+                    val bundle = Bundle().apply { putParcelable("song", selectedSong) }
+                    findNavController().navigate(R.id.action_savedFragment_to_detailedSongFragment, bundle)
+                },
+                onFavoriteToggled = { toggledSong ->
+                    favoritesViewModel.toggleFavoriteSong(toggledSong)
+                },
+                onAddToPlaylistClick = { songToAdd ->
+                    val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
+                        song = songToAdd,
+                        onNoPlaylistsFound = {
+                            findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
+                        }
+                    )
+                    selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
+                },
+                onDownloadClick = { songToDownload ->
+                    downloadViewModel.downloadSong(songToDownload)
+                },
+                onRemoveDownloadClick = { songToDelete ->
+                    downloadViewModel.deleteSong(songToDelete)
+                },
+                onGoToAlbumClick = { albumId ->
+                    val bundle = Bundle().apply { putString("albumId", albumId) }
+                    findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
+                },
+                onGoToArtistClick = { artist ->
+                    val bundle = Bundle().apply { putString("artistId", artist.id) }
+                    findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
                 }
-            }
+            )
+            bottomSheet.show(childFragmentManager, bottomSheet.tag)
+        }
+        onFavoriteClick = { song, _ ->
+            favoritesViewModel.toggleFavoriteSong(song)
+        }
 
-            // 2. Animar el chip que se SELECCIONA
-            if (newCheckedId != View.NO_ID) {
-                group.findViewById<Chip>(newCheckedId)?.let { chip ->
-                    AnimationsUtils.animateChip(chip, true) // Escala
-                    AnimationsUtils.animateChipColor(chip, true) // Color
+        // Albums
+        onAlbumClick = { album ->
+            val bundle = Bundle().apply { putString("albumId", album.id) }
+            findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
+        }
+        onAlbumSettingsClick = { album ->
+            val bottomSheet = AlbumOptionsBottomSheet(
+                album = album,
+                onGoToAlbumClick = {
+                    val bundle = Bundle().apply { putString("albumId", it.id) }
+                    findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
+                },
+                onGoToArtistClick = { albumObj ->
+                    val artists = albumObj.artists
+                    if (artists.isNotEmpty()) {
+                        if (artists.size > 1) {
+                            val selector = ArtistSelectorBottomSheet(artists) { selectedArtist ->
+                                val bundle = Bundle().apply { putString("artistId", selectedArtist.id) }
+                                findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
+                            }
+                            selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
+                        } else {
+                            val artist = artists[0]
+                            val bundle = Bundle().apply { putString("artistId", artist.id) }
+                            findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
+                        }
+                    }
+                },
+                onViewDetailsClick = {
+                    val bundle = Bundle().apply {
+                        putParcelable("album", it)
+                        putString("albumId", it.id)
+                    }
+                    findNavController().navigate(R.id.action_global_to_detailedAlbumFragment, bundle)
                 }
+            )
+            bottomSheet.show(childFragmentManager, bottomSheet.tag)
+        }
+
+        // Artists
+        onArtistClick = { artist, _ ->
+            val bundle = Bundle().apply { putString("artistId", artist.id) }
+            findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
+        }
+        onArtistSettingsClick = { artist ->
+            val bottomSheet = ArtistOptionsBottomSheet(
+                artist = artist,
+                onGoToArtistClick = {
+                    val bundle = Bundle().apply { putString("artistId", it.id) }
+                    findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
+                },
+                onViewDetailsClick = {
+                    val bundle = Bundle().apply {
+                        putParcelable("artist", it)
+                        putString("artistId", it.id)
+                    }
+                    findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
+                }
+            )
+            bottomSheet.show(childFragmentManager, bottomSheet.tag)
+        }
+    }
+
+    private fun playFavorites(songs: List<Song>, index: Int, song: Song? = null, bitmap: Bitmap? = null) {
+        if (index !in songs.indices) return
+        val current = song ?: songs[index]
+        val songArrayList = ArrayList(songs)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bitmapPath = bitmap?.let { Utils.saveBitmapToCache(requireContext(), it, current.id) }
+            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.ACTION_PLAY
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, current)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, index)
+                putExtra(MusicPlaybackService.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songArrayList)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.FAVORITE_SONGS)
+                putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "favorites")
             }
+            requireContext().startService(intent)
+        }
+    }
 
-            lastCheckedId = newCheckedId
+    // ── Datos → listas ──────────────────────────────────────────────────
 
-            when (newCheckedId) {
-                R.id.chipPlaylists -> showPlaylistsView()
-                R.id.chipSongs -> showSongsView()
-                R.id.chipArtists -> showArtistsView()
-                R.id.chipAlbums -> showAlbumsView()
-                R.id.chipPlaymixes -> showPlaymixesView()
+    private fun observeData() {
+        playlistsListViewModel.playlists.observe(viewLifecycleOwner) { playlists ->
+            playlistAdapter.submitList(playlists ?: emptyList()) {
+                render(Tab.PLAYLISTS, loaded = playlists != null, isEmpty = playlists.isNullOrEmpty())
             }
+            playlists?.let { setCount(Tab.PLAYLISTS, it.size) }
         }
-    }
 
-    private fun setupChipStyles() {
-        val font = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
-        // Set initial state for animations
-        val checkedId = chipGroup.checkedChipId
-        lastCheckedId = checkedId
-        
-        chipGroup.children.forEach { view ->
-             if (view is Chip) {
-                 view.typeface = font
-                 // Ensure visual state matches logical state initially
-                 if (view.id == checkedId) {
-                     AnimationsUtils.animateChipColor(view, true)
-                 } else {
-                     AnimationsUtils.animateChipColor(view, false)
-                 }
-             }
-        }
-    }
-    
-    // --- Visibility Modes ---
-    
-    private fun showPlaylistsView() {
-        favoritesAdapter.submitList(emptyList()) // Ensure adapter is clean
-        playlistsContainerView.visibility = View.VISIBLE
-        favoritesRecyclerView.visibility = View.GONE
-        playmixEmptyState.visibility = View.GONE
-        favoritesRecyclerView.adapter = null // Ensure hidden view is clean
-    }
-
-    private fun showSongsView() {
-        favoritesAdapter.submitList(emptyList()) // Clean adapter state to prevent ghosting
-        // Clear immediate view state
-        favoritesRecyclerView.adapter = null // Detach FIRST to prevent ghosting
-        playlistsContainerView.visibility = View.GONE
-        playmixEmptyState.visibility = View.GONE
-        favoritesRecyclerView.visibility = View.VISIBLE
-        
-        lifecycleScope.launch {
-             val songs = favoritesViewModel.favoriteSongs.value ?: emptyList()
-             
-             val items = withContext(Dispatchers.Default) {
-                 songs.map { SearchResult.SongItem(it) }
-             }
-             
-             // Re-attach and submit
-             favoritesRecyclerView.adapter = favoritesAdapter
-             favoritesAdapter.submitList(items)
-        }
-    }
-
-    private fun showArtistsView() {
-        favoritesAdapter.submitList(emptyList()) // Clean adapter state to prevent ghosting
-        favoritesRecyclerView.adapter = null // Detach FIRST to prevent ghosting
-        playlistsContainerView.visibility = View.GONE
-        playmixEmptyState.visibility = View.GONE
-        favoritesRecyclerView.visibility = View.VISIBLE
-        
-        lifecycleScope.launch {
-            val artists = favoritesViewModel.favoriteArtists.value ?: emptyList()
-            val items = withContext(Dispatchers.Default) {
-                artists.map { SearchResult.ArtistItem(it) }
-            }
-            
-            // Re-attach and submit
-            favoritesRecyclerView.adapter = favoritesAdapter
-            favoritesAdapter.submitList(items)
-        }
-    }
-
-    private fun showAlbumsView() {
-        favoritesAdapter.submitList(emptyList()) // Clean adapter state to prevent ghosting
-        favoritesRecyclerView.adapter = null // Detach FIRST to prevent ghosting
-        playlistsContainerView.visibility = View.GONE
-        playmixEmptyState.visibility = View.GONE
-        favoritesRecyclerView.visibility = View.VISIBLE
-        
-        lifecycleScope.launch {
-            val albums = favoritesViewModel.favoriteAlbums.value ?: emptyList()
-            val items = withContext(Dispatchers.Default) {
-                albums.map { SearchResult.AlbumItem(it) }
-            }
-            
-            // Re-attach and submit
-            favoritesRecyclerView.adapter = favoritesAdapter
-            favoritesAdapter.submitList(items)
-        }
-    }
-
-    private fun showPlaymixesView() {
-        favoritesRecyclerView.adapter = null
-        playlistsContainerView.visibility = View.GONE
-
-        val current = playmixListViewModel.playmixes.value
-        if (!current.isNullOrEmpty()) {
-            playmixAdapter.submitList(current)
-            favoritesRecyclerView.adapter = playmixAdapter
-            favoritesRecyclerView.visibility = View.VISIBLE
-            playmixEmptyState.visibility = View.GONE
-        } else {
-            playmixListViewModel.loadMyPlaymixes()
-        }
-    }
-
-    private fun observePlaymixes() {
-        playmixListViewModel.playmixes.observe(viewLifecycleOwner) { playmixes ->
-            if (chipGroup.checkedChipId != R.id.chipPlaymixes) return@observe
-
-            val empty = playmixes.isNullOrEmpty()
-            playmixAdapter.submitList(playmixes ?: emptyList())
-            if (empty) {
-                favoritesRecyclerView.visibility = View.GONE
-                playmixEmptyState.visibility = View.VISIBLE
-            } else {
-                favoritesRecyclerView.adapter = playmixAdapter
-                favoritesRecyclerView.visibility = View.VISIBLE
-                playmixEmptyState.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun observeFavorites() {
         favoritesViewModel.favoriteSongs.observe(viewLifecycleOwner) { songs ->
-            if (chipGroup.checkedChipId == R.id.chipSongs) {
-                 lifecycleScope.launch {
-                     val items = withContext(Dispatchers.Default) {
-                         songs.map { SearchResult.SongItem(it) }
-                     }
-                     favoritesAdapter.submitList(items)
-                 }
+            songsHeader.isVisible = !songs.isNullOrEmpty()
+            songsAdapter.submitList(songs?.map { SearchResult.SongItem(it) } ?: emptyList()) {
+                render(Tab.SONGS, loaded = songs != null, isEmpty = songs.isNullOrEmpty())
             }
-            favoritesAdapter.favoriteSongIds = favoritesViewModel.favoriteSongIds.value ?: emptySet()
+            songs?.let { setCount(Tab.SONGS, it.size) }
         }
-        
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { ids ->
-             favoritesAdapter.favoriteSongIds = ids
+            songsAdapter.favoriteSongIds = ids
         }
-
         favoritesViewModel.favoriteArtists.observe(viewLifecycleOwner) { artists ->
-            if (chipGroup.checkedChipId == R.id.chipArtists) {
-                 lifecycleScope.launch {
-                    val items = withContext(Dispatchers.Default) {
-                        artists.map { SearchResult.ArtistItem(it) }
-                    }
-                    favoritesAdapter.submitList(items)
-                }
+            artistsAdapter.submitList(artists?.map { SearchResult.ArtistItem(it) } ?: emptyList()) {
+                render(Tab.ARTISTS, loaded = artists != null, isEmpty = artists.isNullOrEmpty())
             }
+            artists?.let { setCount(Tab.ARTISTS, it.size) }
         }
-
         favoritesViewModel.favoriteAlbums.observe(viewLifecycleOwner) { albums ->
-            if (chipGroup.checkedChipId == R.id.chipAlbums) {
-                 lifecycleScope.launch {
-                    val items = withContext(Dispatchers.Default) {
-                        albums.map { SearchResult.AlbumItem(it) }
+            albumsAdapter.submitList(albums?.map { SearchResult.AlbumItem(it) } ?: emptyList()) {
+                render(Tab.ALBUMS, loaded = albums != null, isEmpty = albums.isNullOrEmpty())
+            }
+            albums?.let { setCount(Tab.ALBUMS, it.size) }
+        }
+
+        playmixListViewModel.playmixes.observe(viewLifecycleOwner) { playmixes ->
+            playmixAdapter.submitList(playmixes ?: emptyList()) {
+                render(Tab.PLAYMIXES, loaded = playmixes != null, isEmpty = playmixes.isNullOrEmpty())
+            }
+            playmixes?.let { setCount(Tab.PLAYMIXES, it.size) }
+        }
+
+        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
+            currentSong?.let { songsAdapter.setCurrentPlayingSong(it.id) }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadedSongIds.collect { ids ->
+                    songsAdapter.downloadedSongIds = ids
+                    downloadsShortcut.findViewById<TextView>(R.id.shortcutSubtitle).text = when (ids.size) {
+                        0 -> "Sin conexión"
+                        1 -> "1 canción sin conexión"
+                        else -> "${ids.size} canciones sin conexión"
                     }
-                    favoritesAdapter.submitList(items)
                 }
             }
         }
+
+        // Estado inicial de cada página antes de que llegue nada (skeleton si no hay datos).
+        render(Tab.PLAYLISTS, playlistsListViewModel.playlists.value != null, playlistsListViewModel.playlists.value.isNullOrEmpty())
+        render(Tab.SONGS, favoritesViewModel.favoriteSongs.value != null, favoritesViewModel.favoriteSongs.value.isNullOrEmpty())
+        render(Tab.ARTISTS, favoritesViewModel.favoriteArtists.value != null, favoritesViewModel.favoriteArtists.value.isNullOrEmpty())
+        render(Tab.ALBUMS, favoritesViewModel.favoriteAlbums.value != null, favoritesViewModel.favoriteAlbums.value.isNullOrEmpty())
+        render(Tab.PLAYMIXES, playmixListViewModel.playmixes.value != null, playmixListViewModel.playmixes.value.isNullOrEmpty())
     }
 
-    private fun setupClickListeners() {
-        downloadsItemContainer.setOnClickListener {
-             findNavController().navigate(R.id.action_savedFragment_to_downloadedSongsFragment)
+    /** Skeleton mientras no hay datos, estado vacío con acción si no hay filas y entrada escalonada la 1ª vez. */
+    private fun render(tab: Tab, loaded: Boolean, isEmpty: Boolean) {
+        val page = pages[tab] ?: return
+        val showSkeleton = !loaded
+        if (page.skeleton.isVisible != showSkeleton) {
+            page.skeleton.isVisible = showSkeleton
+            if (showSkeleton) page.skeleton.startShimmer() else page.skeleton.stopShimmer()
         }
 
-        newPlaylistOption.setOnClickListener {
-            findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
+        if (loaded && isEmpty) showEmptyState(tab, page.state) else CollectionState.hide(page.state)
+
+        if (loaded && !isEmpty && !page.listAnimated) {
+            page.listAnimated = true
+            page.list.scheduleLayoutAnimation()
         }
     }
+
+    private fun showEmptyState(tab: Tab, state: View) {
+        val explore = {
+            requireActivity().findViewById<BottomNavigationView>(R.id.bottom_navigation)
+                ?.selectedItemId = R.id.exploreFragment
+        }
+        when (tab) {
+            Tab.PLAYLISTS -> CollectionState.show(
+                state, tab.accent, R.drawable.ic_playlist_stack,
+                title = "Crea tu primera playlist",
+                subtitle = "Organiza tu música a tu manera, o guarda las de la comunidad"
+            )
+            Tab.SONGS -> CollectionState.show(
+                state, tab.accent, R.drawable.ic_add_favorite,
+                title = "Aún no tienes canciones favoritas",
+                subtitle = "Toca el corazón de cualquier canción para guardarla aquí",
+                actionText = "Explorar música", onAction = explore
+            )
+            Tab.ARTISTS -> CollectionState.show(
+                state, tab.accent, R.drawable.ic_user,
+                title = "Aún no sigues a ningún artista",
+                subtitle = "Sigue a tus artistas para tenerlos siempre a mano",
+                actionText = "Descubrir artistas", onAction = explore
+            )
+            Tab.ALBUMS -> CollectionState.show(
+                state, tab.accent, R.drawable.ic_playlist_stack,
+                title = "Aún no has guardado álbumes",
+                subtitle = "Guarda un álbum desde su página para verlo aquí",
+                actionText = "Explorar música", onAction = explore
+            )
+            Tab.PLAYMIXES -> CollectionState.show(
+                state, tab.accent, R.drawable.ic_playmix,
+                title = "Aún no tienes PlayMix",
+                subtitle = "Mezcla canciones con transiciones a tu gusto"
+            )
+        }
+    }
+
+    // ── Playlists: permisos y opciones ──────────────────────────────────
 
     private fun canManagePlaylist(playlist: Playlist): Boolean {
         if (playlist.canEdit == true) return true
@@ -623,16 +743,9 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         playlistsListViewModel.loadLibraryPlaylists()
     }
 
-    private fun updateEmptyView(playlists: List<Playlist>?) {
-        val userManager = UserManager(requireContext())
-        val userId = userManager.getUserId()
-
-        if (userId == null || playlists.isNullOrEmpty()) {
-            newPlaylistOption.visibility = View.VISIBLE
-            playlistRecyclerView.visibility = View.GONE
-        } else {
-            newPlaylistOption.visibility = View.GONE
-            playlistRecyclerView.visibility = View.VISIBLE
-        }
+    override fun onDestroyView() {
+        pages.values.forEach { it.skeleton.stopShimmer() }
+        pages.clear()
+        super.onDestroyView()
     }
 }

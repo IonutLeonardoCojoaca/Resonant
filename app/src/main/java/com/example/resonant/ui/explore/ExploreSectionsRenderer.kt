@@ -45,24 +45,45 @@ class ExploreSectionsRenderer(
         fun onGenreClick(genre: Genre)
         fun onSeeAllGenres()
         fun onSeeAllPlaylists()
-        fun onOpenCollabFinder()
     }
 
     private val holders = mutableMapOf<String, SectionHolder>()
     private val inflater = LayoutInflater.from(container.context)
 
-    fun render(sections: List<ExploreSectionUi>) {
+    /**
+     * Pinta las secciones del servidor. [interleaved] son vistas fijas de la pantalla
+     * (tarjetas, filas propias) que se intercalan entre ellas: cada par es
+     * (nº de secciones que van antes, vista). Si hay menos secciones, van al final.
+     */
+    fun render(allSections: List<ExploreSectionUi>, interleaved: List<Pair<Int, View>> = emptyList()) {
+        // Collab Finder ya tiene su tarjeta fija en la sección "Descubre" de Explorar:
+        // no se repite como sección dinámica.
+        val sections = allSections.filterNot { it is ExploreSectionUi.CollabFinder }
         val ids = sections.mapTo(mutableSetOf()) { it.id }
         holders.keys.filter { it !in ids }.forEach { id -> holders.remove(id)?.let { container.removeView(it.view) } }
 
-        sections.forEachIndexed { index, section ->
+        val sectionViews = sections.map { section ->
             val holder = holders[section.id]?.takeIf { it.accepts(section) } ?: createHolder(section).also { created ->
                 holders.put(section.id, created)?.let { container.removeView(it.view) }
             }
             holder.bind(section)
-            if (container.getChildAt(index) !== holder.view) {
-                (holder.view.parent as? ViewGroup)?.removeView(holder.view)
-                container.addView(holder.view, index)
+            holder.view
+        }
+
+        val ordered = mutableListOf<View>()
+        val pending = interleaved.sortedBy { it.first }.toMutableList()
+        sectionViews.forEachIndexed { index, view ->
+            while (pending.isNotEmpty() && pending.first().first <= index) ordered += pending.removeAt(0).second
+            ordered += view
+        }
+        pending.forEach { ordered += it.second }
+
+        // Fuera lo que ya no toca (vistas intercaladas de un render anterior), y orden final.
+        (0 until container.childCount).map(container::getChildAt).filter { it !in ordered }.forEach(container::removeView)
+        ordered.forEachIndexed { index, view ->
+            if (container.getChildAt(index) !== view) {
+                (view.parent as? ViewGroup)?.removeView(view)
+                container.addView(view, index)
             }
         }
     }
@@ -76,10 +97,7 @@ class ExploreSectionsRenderer(
         container.removeAllViews()
     }
 
-    private fun createHolder(section: ExploreSectionUi): SectionHolder = when (section) {
-        is ExploreSectionUi.CollabFinder -> CollabHolder()
-        else -> ListHolder(section)
-    }
+    private fun createHolder(section: ExploreSectionUi): SectionHolder = ListHolder(section)
 
     private abstract class SectionHolder(val view: View) {
         var isPending: Boolean = false
@@ -87,21 +105,6 @@ class ExploreSectionsRenderer(
 
         abstract fun accepts(section: ExploreSectionUi): Boolean
         abstract fun bind(section: ExploreSectionUi)
-    }
-
-    private inner class CollabHolder : SectionHolder(
-        inflater.inflate(R.layout.view_explore_collab_card, container, false)
-    ) {
-        init {
-            ExploreCollabCard.setOnOpenListener(view, callbacks::onOpenCollabFinder)
-        }
-
-        override fun accepts(section: ExploreSectionUi) = section is ExploreSectionUi.CollabFinder
-
-        override fun bind(section: ExploreSectionUi) {
-            isPending = section.isPending
-            ExploreCollabCard.bind(view, (section as ExploreSectionUi.CollabFinder).items.orEmpty())
-        }
     }
 
     private inner class ListHolder(first: ExploreSectionUi) : SectionHolder(

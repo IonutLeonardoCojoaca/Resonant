@@ -2,10 +2,16 @@ package com.example.resonant.feature.collabfinder.ui.fragments
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
@@ -23,6 +29,7 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.databinding.FragmentCollabDetailBinding
 import com.example.resonant.feature.collabfinder.domain.model.CollabDetail
 import com.example.resonant.feature.collabfinder.domain.model.SharedSong
+import com.example.resonant.feature.collabfinder.ui.CollabStyle
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabDetailUiState
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabFinderViewModel
 import com.example.resonant.playback.QueueSource
@@ -31,6 +38,7 @@ import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.ResonantMotion
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -57,6 +65,8 @@ class CollabDetailFragment : Fragment() {
 
     private var playableSongs: List<Song> = emptyList()
     private var collabTitle: String = "Colaboración"
+    private var bannerAnimated = false
+    private var animateNextList = true
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -73,6 +83,7 @@ class CollabDetailFragment : Fragment() {
         setupViewModels()
         setupRecyclerView()
         setupStaticUi()
+        setupScrollLayers()
         setupListeners()
         setupObservers()
 
@@ -98,17 +109,55 @@ class CollabDetailFragment : Fragment() {
     }
 
     private fun setupStaticUi() {
+        CollabStyle.backdropGlow(binding.backdropGlow, centerY = 0.3f)
+        CollabStyle.primaryButton(binding.btnPlayAll)
+        binding.duoBanner.accentColor = CollabStyle.accent
+        binding.loadingMotif.accentColor = CollabStyle.accent
+        binding.tvCrossBadge.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(CollabStyle.accentDark)
+            setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
+        }
+        binding.statCount.root.findViewById<TextView>(R.id.statLabel).text = "canciones juntos"
+        binding.statYears.root.findViewById<TextView>(R.id.statLabel).text = "periodo"
+
+        // Mientras llega el detalle: el colaborador ya se conoce por los argumentos.
         val centralArtist = viewModel.centralArtist.value
-        val artistAName = centralArtist?.name ?: "Artista"
-        collabTitle = "$artistAName x ${args.collaboratorName}"
-
-        binding.tvToolbarTitle.text = args.collaboratorName
-        binding.tvCollabTitle.text = collabTitle
-        binding.tvArtistAName.text = artistAName
-        binding.tvArtistBName.text = args.collaboratorName
+        setTitles(centralArtist?.name, args.collaboratorName)
         binding.tvSongsSubtitle.text = "Toca una canción para reproducirla o abre sus opciones."
-
         binding.duoBanner.loadArtists(centralArtist?.imageUrl, args.collaboratorImageUrl)
+        if (!bannerAnimated) {
+            bannerAnimated = true
+            binding.duoBanner.animateIn()
+        }
+    }
+
+    /** "A × B" con la × en el color de acento; el nombre de A puede no conocerse aún. */
+    private fun setTitles(artistA: String?, artistB: String) {
+        collabTitle = if (artistA != null) "$artistA × $artistB" else artistB
+        binding.tvToolbarTitle.text = collabTitle
+        binding.tvArtistAName.text = artistA.orEmpty()
+        binding.tvArtistBName.text = artistB
+        binding.tvCollabTitle.text = if (artistA == null) {
+            artistB
+        } else {
+            SpannableString(collabTitle).apply {
+                val cross = artistA.length + 1
+                setSpan(ForegroundColorSpan(CollabStyle.accent), cross, cross + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+    }
+
+    /** Capas al hacer scroll: glow lento, fotos del banner con parallax y barra que se vuelve opaca. */
+    private fun setupScrollLayers() {
+        binding.contentScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val y = scrollY.toFloat()
+            binding.backdropGlow.translationY = -y * 0.4f
+            binding.duoBanner.setParallax(y)
+            val progress = (y / binding.bannerFrame.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+            binding.topBarBackground.alpha = progress
+            binding.tvToolbarTitle.alpha = ((progress - 0.6f) / 0.4f).coerceIn(0f, 1f)
+        }
     }
 
     private fun setupListeners() {
@@ -171,29 +220,26 @@ class CollabDetailFragment : Fragment() {
 
     private fun showLoading() {
         binding.contentScroll.visibility = View.INVISIBLE
-        binding.lottieLoader.visibility = View.VISIBLE
-        binding.lottieLoader.playAnimation()
+        binding.loadingMotif.visibility = View.VISIBLE
     }
 
     private fun showContent() {
-        binding.lottieLoader.cancelAnimation()
-        binding.lottieLoader.visibility = View.GONE
-        binding.contentScroll.visibility = View.VISIBLE
+        binding.loadingMotif.visibility = View.GONE
+        if (binding.contentScroll.visibility != View.VISIBLE) {
+            binding.contentScroll.alpha = 0f
+            binding.contentScroll.visibility = View.VISIBLE
+            binding.contentScroll.animate().alpha(1f).setDuration(300).setInterpolator(ResonantMotion.expoOut).start()
+        }
     }
 
     private fun showDetail(detail: CollabDetail) {
         showContent()
 
-        collabTitle = "${detail.artistA.name} x ${detail.artistB.name}"
-        binding.tvToolbarTitle.text = detail.artistB.name
-        binding.tvCollabTitle.text = collabTitle
-        binding.tvArtistAName.text = detail.artistA.name
-        binding.tvArtistBName.text = detail.artistB.name
-
+        setTitles(detail.artistA.name, detail.artistB.name)
         binding.duoBanner.loadArtists(detail.artistA.imageUrl, detail.artistB.imageUrl)
 
-        binding.tvCollabCountDetail.text = "${detail.collaborationCount}\ncanciones"
-        binding.tvYearsDetail.text = "${detail.yearsSpan}\nperiodo"
+        binding.statCount.root.findViewById<TextView>(R.id.statValue).text = "${detail.collaborationCount}"
+        binding.statYears.root.findViewById<TextView>(R.id.statValue).text = detail.yearsSpan.ifBlank { "–" }
         binding.scoreGaugeView.setScore(detail.collabScore)
         binding.tvSongsSubtitle.text = "${detail.totalSongs} canciones encontradas en esta colaboración"
 
@@ -205,6 +251,10 @@ class CollabDetailFragment : Fragment() {
 
         songAdapter.submitList(playableSongs) {
             songAdapter.setCurrentPlayingSong(songViewModel.currentSongLiveData.value?.id)
+            if (animateNextList && playableSongs.isNotEmpty()) {
+                animateNextList = false
+                binding.rvSharedSongs.scheduleLayoutAnimation()
+            }
         }
     }
 
@@ -306,7 +356,7 @@ class CollabDetailFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        binding.lottieLoader.cancelAnimation()
+        animateNextList = true
         _binding = null
     }
 }

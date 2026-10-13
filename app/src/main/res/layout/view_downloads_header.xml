@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cabecera de la lista de Descargas (va dentro del RecyclerView vía ConcatAdapter):
+     uso de almacenamiento, consejo de modo sin conexión (descartable) y acciones. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="12dp">
+
+    <!-- Almacenamiento -->
+    <LinearLayout
+        android:id="@+id/storageCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="6dp"
+        android:background="@drawable/bg_surface_panel"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Almacenamiento"
+                android:textColor="@color/white"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/storageInfoText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                tools:text="312 MB" />
+        </LinearLayout>
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/storageProgress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:max="1000"
+            app:indicatorTrackGapSize="0dp"
+            app:trackColor="@color/discTheme"
+            app:trackCornerRadius="4dp"
+            app:trackThickness="8dp"
+            tools:progress="120" />
+
+        <TextView
+            android:id="@+id/storageFreeText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
+            tools:text="12,4 GB libres en tu dispositivo" />
+    </LinearLayout>
+
+    <!-- Consejo de modo sin conexión (una vez cerrado no vuelve a salir) -->
+    <LinearLayout
+        android:id="@+id/tipCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="6dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_surface_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="12dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="6dp">
+
+        <FrameLayout
+            android:id="@+id/tipIconBadge"
+            android:layout_width="40dp"
+            android:layout_height="40dp">
+
+            <ImageView
+                android:id="@+id/tipIcon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_cloud_off" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Disponible sin conexión"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/unageo_medium"
+                android:lineSpacingExtra="1dp"
+                android:text="Escúchalas sin internet. Lo que suene offline no cuenta para métricas ni recomendaciones."
+                android:textColor="@color/textTheme"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/closeTipButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="top"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Cerrar consejo"
+            android:padding="10dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_close"
+            app:tint="@color/textTheme" />
+    </LinearLayout>
+
+    <include
+        android:id="@+id/collectionActions"
+        layout="@layout/view_collection_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp" />
+</LinearLayout>

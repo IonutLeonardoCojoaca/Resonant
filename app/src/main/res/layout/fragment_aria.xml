@@ -171,205 +171,259 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="center_horizontal"
-            android:paddingHorizontal="24dp"
-            android:paddingTop="24dp"
+            android:paddingHorizontal="18dp"
+            android:paddingTop="6dp"
             android:paddingBottom="24dp">
 
-            <!-- Glowing Aria Badge / Icon -->
+            <!-- Tarjeta de marca con el motivo de conversación de Aria -->
             <FrameLayout
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:background="@drawable/bg_aria_hero_badge">
+                android:id="@+id/ariaHeroCard"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:background="@drawable/bg_explore_quick_card"
+                android:clipToOutline="true">
 
-                <ImageView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_star_ai"
-                    android:scaleType="fitCenter" />
+                <View
+                    android:id="@+id/ariaHeroGlow"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
 
+                <com.example.resonant.ui.views.AriaConversationMotifView
+                    android:id="@+id/ariaHeroMotif"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no"
+                    android:padding="10dp" />
             </FrameLayout>
 
-            <!-- Main Title -->
+            <TextView
+                android:id="@+id/ariaGreeting"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:fontFamily="@font/unageo_bold"
+                android:letterSpacing="0.14"
+                android:textAllCaps="true"
+                android:textColor="#FF4FB8"
+                android:textSize="10sp"
+                android:text="Hola" />
+
             <TextView
                 android:id="@+id/ariaTitleText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
+                android:layout_marginTop="8dp"
                 android:fontFamily="@font/unageo_bold"
-                android:gravity="center"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.01"
                 android:text="¿Qué te gustaría escuchar?"
                 android:textColor="@color/white"
-                android:textSize="23sp" />
+                android:textSize="26sp" />
 
-            <!-- Subtitle -->
             <TextView
                 android:id="@+id/ariaWelcomeSubtitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:layout_marginHorizontal="8dp"
-                android:fontFamily="@font/unageo_regular"
-                android:gravity="center"
-                android:lineSpacingMultiplier="1.25"
+                android:fontFamily="@font/unageo_medium"
+                android:lineSpacingExtra="2dp"
                 android:text="Pídeme playlists por mood, recomendaciones según tus gustos o mezclas en lenguaje natural."
                 android:textColor="@color/textTheme"
-                android:textSize="13sp" />
+                android:textSize="13.5sp" />
 
-            <!-- Section label: prompt suggestions -->
             <TextView
+                android:id="@+id/ariaPromptLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
+                android:layout_marginTop="24dp"
                 android:fontFamily="@font/unageo_bold"
-                android:letterSpacing="0.12"
-                android:text="SUGERENCIAS RÁPIDAS"
-                android:textAllCaps="true"
+                android:letterSpacing="0.16"
+                android:text="PRUEBA A PEDIRME"
                 android:textColor="@color/textTheme"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
 
-            <!-- Realistic Suggestion Chips List -->
+            <!-- Sugerencias en cuadrícula 2×2 -->
             <LinearLayout
+                android:id="@+id/ariaPromptRow1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="12dp">
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
 
-                <!-- Chip 1: Mood chill -->
-                <LinearLayout
-                    android:id="@+id/ariaPromptChip1"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="9dp"
-                    android:background="@drawable/bg_aria_prompt_chip"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="12dp">
-
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="12dp"
-                        android:src="@drawable/ic_star_ai"
-                        android:scaleType="fitCenter" />
-
-                    <TextView
+                    <LinearLayout
+                        android:id="@+id/ariaPromptChip1"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Música relajante para desconectar"
-                        android:textColor="@color/white"
-                        android:textSize="13sp" />
+                        android:layout_marginEnd="5dp"
+                        android:background="@drawable/bg_surface_panel"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:minHeight="112dp"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:stateListAnimator="@animator/explore_quick_card_press">
 
-                </LinearLayout>
+                        <FrameLayout
+                            android:id="@+id/ariaPromptBadge1"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp">
 
-                <!-- Chip 2: Workout playlist -->
-                <LinearLayout
-                    android:id="@+id/ariaPromptChip2"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="9dp"
-                    android:background="@drawable/bg_aria_prompt_chip"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="12dp">
+                            <ImageView
+                                android:id="@+id/ariaPromptIcon1"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:layout_gravity="center"
+                                android:importantForAccessibility="no"
+                                android:src="@drawable/ic_star_ai" />
+                        </FrameLayout>
 
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="12dp"
-                        android:src="@drawable/ic_playlist_stack"
-                        app:tint="@color/secondaryColorTheme"
-                        android:scaleType="fitCenter" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:lineSpacingExtra="1dp"
+                            android:maxLines="2"
+                            android:text="Música relajante para desconectar"
+                            android:textColor="@color/white"
+                            android:textSize="13.5sp" />
+                    </LinearLayout>
 
-                    <TextView
+                    <LinearLayout
+                        android:id="@+id/ariaPromptChip2"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Playlist para entrenar"
-                        android:textColor="@color/white"
-                        android:textSize="13sp" />
+                        android:layout_marginStart="5dp"
+                        android:background="@drawable/bg_surface_panel"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:minHeight="112dp"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:stateListAnimator="@animator/explore_quick_card_press">
 
-                </LinearLayout>
+                        <FrameLayout
+                            android:id="@+id/ariaPromptBadge2"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp">
 
-                <!-- Chip 3: Stats / Top songs -->
-                <LinearLayout
-                    android:id="@+id/ariaPromptChip3"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="9dp"
-                    android:background="@drawable/bg_aria_prompt_chip"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="12dp">
+                            <ImageView
+                                android:id="@+id/ariaPromptIcon2"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:layout_gravity="center"
+                                android:importantForAccessibility="no"
+                                android:src="@drawable/ic_playlist_stack" />
+                        </FrameLayout>
 
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="12dp"
-                        android:src="@drawable/ic_trending_up"
-                        app:tint="#FA8231"
-                        android:scaleType="fitCenter" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Mis canciones más escuchadas"
-                        android:textColor="@color/white"
-                        android:textSize="13sp" />
-
-                </LinearLayout>
-
-                <!-- Chip 4: Emerging artists -->
-                <LinearLayout
-                    android:id="@+id/ariaPromptChip4"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_aria_prompt_chip"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:paddingVertical="12dp">
-
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="12dp"
-                        android:src="@drawable/ic_artist_person"
-                        app:tint="@color/white"
-                        android:scaleType="fitCenter" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_medium"
-                        android:text="Descubre artistas nuevos"
-                        android:textColor="@color/white"
-                        android:textSize="13sp" />
-
-                </LinearLayout>
-
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:lineSpacingExtra="1dp"
+                            android:maxLines="2"
+                            android:text="Playlist para entrenar"
+                            android:textColor="@color/white"
+                            android:textSize="13.5sp" />
+                    </LinearLayout>
             </LinearLayout>
 
-        </LinearLayout>
+            <LinearLayout
+                android:id="@+id/ariaPromptRow2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
 
+                    <LinearLayout
+                        android:id="@+id/ariaPromptChip3"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="5dp"
+                        android:background="@drawable/bg_surface_panel"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:minHeight="112dp"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:stateListAnimator="@animator/explore_quick_card_press">
+
+                        <FrameLayout
+                            android:id="@+id/ariaPromptBadge3"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp">
+
+                            <ImageView
+                                android:id="@+id/ariaPromptIcon3"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:layout_gravity="center"
+                                android:importantForAccessibility="no"
+                                android:src="@drawable/ic_trending_up" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:lineSpacingExtra="1dp"
+                            android:maxLines="2"
+                            android:text="Mis canciones más escuchadas"
+                            android:textColor="@color/white"
+                            android:textSize="13.5sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/ariaPromptChip4"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="5dp"
+                        android:background="@drawable/bg_surface_panel"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:minHeight="112dp"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:stateListAnimator="@animator/explore_quick_card_press">
+
+                        <FrameLayout
+                            android:id="@+id/ariaPromptBadge4"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp">
+
+                            <ImageView
+                                android:id="@+id/ariaPromptIcon4"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:layout_gravity="center"
+                                android:importantForAccessibility="no"
+                                android:src="@drawable/ic_artist_person" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:fontFamily="@font/unageo_bold"
+                            android:lineSpacingExtra="1dp"
+                            android:maxLines="2"
+                            android:text="Descubre artistas nuevos"
+                            android:textColor="@color/white"
+                            android:textSize="13.5sp" />
+                    </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
     <!-- ─────────────────────────────────────────────────────────────────

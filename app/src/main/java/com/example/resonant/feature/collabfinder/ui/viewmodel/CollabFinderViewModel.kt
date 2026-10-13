@@ -72,6 +72,8 @@ class CollabFinderViewModel @Inject constructor(
     private val searchQuery = MutableStateFlow("")
     private var currentPage = 0
     private var currentCollaboratorId: String? = null
+    private var currentDetailArtistId: String? = null
+    private var loadingCollaboratorsFor: String? = null
 
     init {
         viewModelScope.launch {
@@ -98,8 +100,14 @@ class CollabFinderViewModel @Inject constructor(
     private fun searchArtists(query: String) {
         viewModelScope.launch {
             _searchState.value = CollabSearchUiState.Loading
-            searchArtistUseCase(query).onSuccess {
-                _searchState.value = CollabSearchUiState.Suggestions(it)
+            searchArtistUseCase(query).onSuccess { artists ->
+                _searchState.value = CollabSearchUiState.Suggestions(artists)
+                // El primer resultado se abre directamente. Se hace aquí y no en el
+                // colector del fragment: así no se repite al re-suscribirse la vista.
+                artists.firstOrNull()?.let { first ->
+                    _centralArtist.value = first
+                    loadCollaborators(first.id)
+                }
             }.onFailure {
                 _searchState.value = CollabSearchUiState.Error(it.message ?: "Unknown error")
             }
@@ -110,16 +118,37 @@ class CollabFinderViewModel @Inject constructor(
         _centralArtist.value = artist
     }
 
-    fun loadCollaborators(artistId: String, sortBy: String = "count", minCollabs: Int = 1) {
+    /**
+     * @param showLoading false para refrescos del mismo artista (cambio de orden): se
+     * mantiene el resultado visible hasta que llega el nuevo, sin pasar por Loading.
+     */
+    fun loadCollaborators(
+        artistId: String,
+        sortBy: String = "count",
+        minCollabs: Int = 1,
+        showLoading: Boolean = true
+    ) {
+        loadingCollaboratorsFor = artistId
         viewModelScope.launch {
-            _bubbleState.value = CollabBubbleUiState.Loading
+            if (showLoading || _bubbleState.value !is CollabBubbleUiState.Success) {
+                _bubbleState.value = CollabBubbleUiState.Loading
+            }
             getCollaboratorsUseCase(artistId, sortBy, minCollabs).onSuccess {
                 _bubbleState.value = CollabBubbleUiState.Success(it)
                 _centralArtist.value = it.centralArtist
             }.onFailure {
                 _bubbleState.value = CollabBubbleUiState.Error(it.message ?: "Unknown error")
             }
+            if (loadingCollaboratorsFor == artistId) loadingCollaboratorsFor = null
         }
+    }
+
+    /** Como [loadCollaborators], pero no vuelve a pedir lo que ya se tiene o se está pidiendo. */
+    fun loadCollaboratorsIfNeeded(artistId: String) {
+        val current = _bubbleState.value
+        if (current is CollabBubbleUiState.Success && current.result.centralArtist.id == artistId) return
+        if (loadingCollaboratorsFor == artistId) return
+        loadCollaborators(artistId, _activeSort.value, _activeMinCollabs.value)
     }
 
     fun onCollaboratorTapped(collaborator: CollaboratorNode) {
@@ -127,6 +156,13 @@ class CollabFinderViewModel @Inject constructor(
     }
 
     fun loadSharedSongs(artistId: String, collaboratorId: String) {
+        val current = _detailState.value
+        if (current is CollabDetailUiState.Success &&
+            currentDetailArtistId == artistId && currentCollaboratorId == collaboratorId
+        ) {
+            return // Ya cargado (p. ej. al volver de otra pantalla): sin recargar ni parpadear.
+        }
+        currentDetailArtistId = artistId
         currentCollaboratorId = collaboratorId
         currentPage = 0
         viewModelScope.launch {
@@ -140,7 +176,9 @@ class CollabFinderViewModel @Inject constructor(
     }
 
     fun loadNextSongsPage() {
-        val artistId = _centralArtist.value?.id ?: return
+        // El detalle tiene su propia instancia del ViewModel: el artista sale de la
+        // última carga del detalle, no de centralArtist (que ahí está vacío).
+        val artistId = currentDetailArtistId ?: return
         val collabId = currentCollaboratorId ?: return
         currentPage++
         viewModelScope.launch {
@@ -173,9 +211,10 @@ class CollabFinderViewModel @Inject constructor(
     }
 
     fun onSortChanged(sortBy: String) {
+        if (_activeSort.value == sortBy) return
         _activeSort.value = sortBy
         val artistId = _centralArtist.value?.id ?: return
-        loadCollaborators(artistId, sortBy, _activeMinCollabs.value)
+        loadCollaborators(artistId, sortBy, _activeMinCollabs.value, showLoading = false)
     }
 
     fun onMinCollabsChanged(minCollabs: Int) {
