@@ -20,16 +20,10 @@ import androidx.media3.exoplayer.source.MediaSource
 import com.example.resonant.playback.IntelligentEffectsState
 import com.example.resonant.playback.MixStrategy
 import com.example.resonant.playback.PlaybackUrlResolver
-import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.data.models.AudioAnalysis
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.PlaymixTransitionDTO
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -37,12 +31,33 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
+/**
+ * Motor de transiciones entre canciones (crossfade simple, inteligente, Playmix, hueco y álbum).
+ *
+ * Todas las transiciones pasan por la misma máquina de estados (ver design D2 de
+ * `fix-crossfade-stability`):
+ *
+ * ```
+ * IDLE -> PREPARING -> FADING -> COMPLETED
+ *            |    \       |
+ *            |     \      +--(error B)--> FAILED (audible: A recupera volumen y sigue)
+ *            |      +--(A termina antes de B READY)--> HANDOFF_WAIT --(B READY)--> COMPLETED
+ *            +--(error B / plazo)--> FAILED (silencioso: A sigue intacta)
+ * ```
+ *
+ * Reglas:
+ * - La canción entrante (B) siempre es un player de un único item preparado en su punto de entrada.
+ * - El fundido sigue la posición de la saliente (A), no el reloj de pared.
+ * - La UI cambia a B en el instante en que B empieza a sonar ([onTransitionAudible]).
+ * - Todo se ejecuta en el hilo principal.
+ */
 class TransitionManager(
     private val context: Context,
     private val mediaSourceFactoryProvider: () -> MediaSource.Factory,
     private val mediaItemFactory: (Song) -> MediaItem,
     private val onTransitionComplete: (newPlayer: ExoPlayer, oldPlayer: ExoPlayer) -> Unit,
-    private val onTransitionFailed: (oldPlayer: ExoPlayer) -> Unit,
+    private val onTransitionFailed: (oldPlayer: ExoPlayer, oldSong: Song?, nextSong: Song?, wasAudible: Boolean) -> Unit,
+    private val onTransitionAudible: ((nextSong: Song, nextIndex: Int) -> Unit)? = null,
     private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null
 ) {
 
@@ -52,8 +67,10 @@ class TransitionManager(
         .build()
 
     companion object {
+        private const val TAG = "TransitionManager"
         private const val BEATMATCH_BPM_TOLERANCE = 0.06
         private const val ANIMATION_FRAME_DELAY_MS = 16L
+        private const val GAP_FADE_OUT_MS = 300L
         private const val EQ_MAX_ATTENUATION: Short = -1500
         private const val EQ_MEDIUM_ATTENUATION: Short = -800
         private const val EQ_LIGHT_ATTENUATION: Short = -400
@@ -63,15 +80,23 @@ class TransitionManager(
         return ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactoryProvider())
             .build()
-            .apply { setAudioAttributes(musicAudioAttributes, false) }
+            .apply {
+                setAudioAttributes(musicAudioAttributes, false)
+                setWakeMode(C.WAKE_MODE_NETWORK)
+            }
     }
 
-    private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
     var isTransitioning: Boolean = false
         private set
+
+    /** Player precargado (silencioso) o player de la transición en curso. */
     private var nextPlayer: ExoPlayer? = null
+    private var preloadedSongId: String? = null
+    private var preloadListener: Player.Listener? = null
+
     private var oldPlayerEq: Equalizer? = null
     private var newPlayerEq: Equalizer? = null
 
@@ -80,21 +105,329 @@ class TransitionManager(
         private set
     private var currentPlayer: ExoPlayer? = null // El 'oldPlayer'
     private var currentSong: Song? = null
-    
+
     // Volúmenes normalizados absolutos para la transición
     private var targetOldPlayerVolume: Float = 1.0f
     private var targetNewPlayerVolume: Float = 1.0f
 
-    private fun handleMixCompletion(newPlayer: ExoPlayer, oldPlayer: ExoPlayer, nextSong: Song) {
-        if (!isTransitioning) {
-            Handler(Looper.getMainLooper()).post { newPlayer.release() }
-            return
+    // =================================================================================================
+    // ===                                  MÁQUINA DE ESTADOS                                       ===
+    // =================================================================================================
+
+    private enum class Phase { PREPARING, FADING, HANDOFF_WAIT, GAP_WAIT }
+
+    /**
+     * Estado de la transición en curso. Hay como máximo una instancia viva ([active]).
+     *
+     * @param desiredFadeMs duración deseada del fundido; 0 es un corte.
+     * @param gapMs silencio entre A y B (solo Playmix con hueco); 0 si no hay.
+     * @param onBeforePlayB se ejecuta justo antes de que B empiece a sonar (EQ, tempo).
+     * @param applyFrame aplica volúmenes y EQ para un progreso del fundido en [0, 1].
+     */
+    private inner class ActiveTransition(
+        val oldPlayer: ExoPlayer,
+        val oldSong: Song,
+        val nextSong: Song,
+        val nextIndex: Int,
+        val newPlayer: ExoPlayer,
+        val entryMs: Long,
+        val desiredFadeMs: Long,
+        val gapMs: Long,
+        val label: String,
+        val onBeforePlayB: () -> Unit,
+        val applyFrame: (progress: Float) -> Unit
+    ) {
+        var phase = Phase.PREPARING
+        var aEnded = false
+        var audible = false
+        var fadeStartPositionA = 0L
+        var fadeDurationMs = 0L
+        var deadlineUptime = 0L
+        var gapStartedUptime = -1L
+        var aListener: Player.Listener? = null
+        var bListener: Player.Listener? = null
+        var lastProgressReportUptime = 0L
+    }
+
+    private var active: ActiveTransition? = null
+    private var supervisionRunnable: Runnable? = null
+    private var animationRunnable: Runnable? = null
+
+    /** Audio útil que le queda a A. `Long.MAX_VALUE` si no se puede saber. */
+    private fun remainingAudioA(t: ActiveTransition): Long {
+        val end = TransitionTiming.audioEndMs(
+            exoDurationMs = t.oldPlayer.duration,
+            analysisDurationMs = (t.oldSong.audioAnalysis?.durationMs ?: 0).toLong(),
+            audioEndMs = (t.oldSong.audioAnalysis?.audioEndMs ?: 0).toLong()
+        )
+        if (end <= 0) return Long.MAX_VALUE
+        return end - t.oldPlayer.currentPosition
+    }
+
+    private fun beginTransition(t: ActiveTransition) {
+        active = t
+        isTransitioning = true
+        transitionProgress = 0f
+        currentPlayer = t.oldPlayer
+        currentSong = t.oldSong
+        nextPlayer = t.newPlayer
+
+        val aListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) onOutgoingEnded(t)
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                Log.w(TAG, "A falló durante la transición (${error.errorCodeName}); se trata como final de A.")
+                onOutgoingEnded(t)
+            }
+        }
+        val bListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) supervise(t)
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                failTransition(t, "B falló: ${error.errorCodeName}")
+            }
+        }
+        t.aListener = aListener
+        t.bListener = bListener
+        t.oldPlayer.addListener(aListener)
+        t.newPlayer.addListener(bListener)
+
+        if (t.oldPlayer.playbackState == Player.STATE_ENDED) t.aEnded = true
+        if (t.newPlayer.playbackState == Player.STATE_IDLE) {
+            try { t.newPlayer.prepare() } catch (e: Exception) {
+                failTransition(t, "no se pudo preparar B: ${e.message}")
+                return
+            }
         }
 
-        isTransitioning = false
-        this.nextPlayer = null
+        val remaining = remainingAudioA(t)
+        t.deadlineUptime = SystemClock.uptimeMillis() +
+            TransitionTiming.transitionDeadlineMs(if (remaining == Long.MAX_VALUE) t.desiredFadeMs else remaining)
 
-        // Limpieza de EQs
+        Log.i(TAG, "▶ ${t.label}: ${t.oldSong.title} → ${t.nextSong.title} (entrada=${t.entryMs}ms, fundido=${t.desiredFadeMs}ms, hueco=${t.gapMs}ms, restanteA=${remaining}ms)")
+
+        if (t.gapMs > 0) {
+            startGapFade(t)
+        } else {
+            startSupervision(t)
+        }
+    }
+
+    private fun startSupervision(t: ActiveTransition) {
+        supervisionRunnable?.let { mainHandler.removeCallbacks(it) }
+        val runnable = object : Runnable {
+            override fun run() {
+                if (active !== t) return
+                supervise(t)
+                if (active === t && t.phase != Phase.FADING) {
+                    mainHandler.postDelayed(this, TransitionTiming.SUPERVISION_TICK_MS)
+                }
+            }
+        }
+        supervisionRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    /** Un paso de supervisión. Idempotente: puede llamarse desde el tick o desde el listener de B. */
+    private fun supervise(t: ActiveTransition) {
+        if (active !== t) return
+        val now = SystemClock.uptimeMillis()
+        val bReady = t.newPlayer.playbackState == Player.STATE_READY
+
+        try {
+            when (t.phase) {
+                Phase.PREPARING -> {
+                    // El seekbar sigue a A mientras se aplaza el fundido.
+                    if (now - t.lastProgressReportUptime >= 200) {
+                        t.lastProgressReportUptime = now
+                        val duration = t.oldPlayer.duration
+                        if (duration > 0) onTransitionProgress?.invoke(t.oldPlayer.currentPosition, duration)
+                    }
+                    if (t.aEnded) {
+                        t.phase = Phase.HANDOFF_WAIT
+                        t.deadlineUptime = now + TransitionTiming.HANDOFF_TIMEOUT_MS
+                        Log.w(TAG, "A terminó antes de que B estuviera lista. Esperando relevo.")
+                        if (bReady) handoffNow(t)
+                    } else if (bReady) {
+                        when (val decision = TransitionTiming.decideFadeStart(remainingAudioA(t), t.desiredFadeMs)) {
+                            is TransitionTiming.FadeDecision.Start -> startFade(t, decision.durationMs)
+                            TransitionTiming.FadeDecision.WaitForEnd -> { /* A termina en breve: relevo al final */ }
+                        }
+                    } else if (now > t.deadlineUptime) {
+                        failTransition(t, "B no estuvo lista en el plazo")
+                    }
+                }
+                Phase.HANDOFF_WAIT -> {
+                    if (bReady) handoffNow(t)
+                    else if (now > t.deadlineUptime) failTransition(t, "B no estuvo lista tras el final de A")
+                }
+                Phase.GAP_WAIT -> {
+                    val gapElapsed = now - t.gapStartedUptime >= t.gapMs
+                    if (gapElapsed && bReady) handoffNow(t)
+                    else if (now > t.gapStartedUptime + t.gapMs + TransitionTiming.HANDOFF_TIMEOUT_MS) {
+                        failTransition(t, "B no estuvo lista tras el hueco")
+                    }
+                }
+                Phase.FADING -> { /* lo lleva la animación */ }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error supervisando la transición", e)
+            failTransition(t, "excepción en supervisión: ${e.message}")
+        }
+    }
+
+    private fun onOutgoingEnded(t: ActiveTransition) {
+        if (active !== t) return
+        t.aEnded = true
+        when (t.phase) {
+            Phase.PREPARING, Phase.HANDOFF_WAIT, Phase.GAP_WAIT -> supervise(t)
+            Phase.FADING -> { /* la animación fuerza progreso 1 en el siguiente frame */ }
+        }
+    }
+
+    private fun markAudible(t: ActiveTransition) {
+        if (t.audible) return
+        t.audible = true
+        try {
+            onTransitionAudible?.invoke(t.nextSong, t.nextIndex)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error notificando onTransitionAudible", e)
+        }
+    }
+
+    /** Arranca B y el fundido. Con `durationMs == 0` es un corte: se completa en el primer frame. */
+    private fun startFade(t: ActiveTransition, durationMs: Long) {
+        t.phase = Phase.FADING
+        t.fadeDurationMs = durationMs
+        t.fadeStartPositionA = t.oldPlayer.currentPosition
+        supervisionRunnable?.let { mainHandler.removeCallbacks(it) }
+
+        try {
+            t.onBeforePlayB()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparando efectos de B; se continúa sin ellos", e)
+        }
+        try {
+            t.newPlayer.volume = if (durationMs == 0L) targetNewPlayerVolume else 0f
+            t.newPlayer.play()
+        } catch (e: Exception) {
+            failTransition(t, "no se pudo arrancar B: ${e.message}")
+            return
+        }
+        markAudible(t)
+        Log.i(TAG, "🎬 Fundido iniciado: ${durationMs}ms desde posA=${t.fadeStartPositionA}ms")
+        startAnimation(t)
+    }
+
+    private fun startAnimation(t: ActiveTransition) {
+        animationRunnable?.let { mainHandler.removeCallbacks(it) }
+        val runnable = object : Runnable {
+            override fun run() {
+                if (active !== t || t.phase != Phase.FADING) return
+
+                val progress = if (t.aEnded) 1f else TransitionTiming.fadeProgress(
+                    positionAMs = t.oldPlayer.currentPosition,
+                    fadeStartPositionAMs = t.fadeStartPositionA,
+                    fadeDurationMs = t.fadeDurationMs
+                )
+                transitionProgress = progress
+
+                try {
+                    if (!t.newPlayer.isPlaying && t.newPlayer.playbackState == Player.STATE_READY) {
+                        // play() es asíncrono; si B aún no refleja isPlaying, insistimos sin bloquear.
+                        t.newPlayer.play()
+                    }
+                    t.applyFrame(progress)
+
+                    val now = SystemClock.uptimeMillis()
+                    if (now - t.lastProgressReportUptime >= 500) {
+                        t.lastProgressReportUptime = now
+                        val duration = t.newPlayer.duration
+                        if (duration > 0) onTransitionProgress?.invoke(t.newPlayer.currentPosition, duration)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error aplicando el frame del fundido", e)
+                    failTransition(t, "excepción en animación: ${e.message}")
+                    return
+                }
+
+                if (progress < 1f) {
+                    mainHandler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
+                } else {
+                    completeTransition(t)
+                }
+            }
+        }
+        animationRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    /** Playmix con hueco: A se apaga en [GAP_FADE_OUT_MS] siguiendo su posición, se pausa y se espera. */
+    private fun startGapFade(t: ActiveTransition) {
+        t.phase = Phase.FADING
+        t.fadeDurationMs = GAP_FADE_OUT_MS
+        t.fadeStartPositionA = t.oldPlayer.currentPosition
+        val startVolume = targetOldPlayerVolume
+
+        animationRunnable?.let { mainHandler.removeCallbacks(it) }
+        val runnable = object : Runnable {
+            override fun run() {
+                if (active !== t || t.phase != Phase.FADING) return
+                val progress = if (t.aEnded) 1f else TransitionTiming.fadeProgress(
+                    t.oldPlayer.currentPosition, t.fadeStartPositionA, t.fadeDurationMs
+                )
+                try { t.oldPlayer.volume = startVolume * (1f - progress) } catch (_: Exception) {}
+                if (progress < 1f) {
+                    mainHandler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
+                } else {
+                    try { if (!t.aEnded) t.oldPlayer.pause() } catch (_: Exception) {}
+                    t.phase = Phase.GAP_WAIT
+                    t.gapStartedUptime = SystemClock.uptimeMillis()
+                    Log.i(TAG, "⏸ Hueco de ${t.gapMs}ms iniciado")
+                    startSupervision(t)
+                }
+            }
+        }
+        animationRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    /** Relevo directo (A ya terminó o el hueco acabó): B suena a su volumen objetivo y se completa. */
+    private fun handoffNow(t: ActiveTransition) {
+        try {
+            t.onBeforePlayB()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparando efectos de B en el relevo; se continúa sin ellos", e)
+        }
+        try {
+            t.newPlayer.volume = targetNewPlayerVolume
+            t.newPlayer.play()
+        } catch (e: Exception) {
+            failTransition(t, "no se pudo arrancar B en el relevo: ${e.message}")
+            return
+        }
+        markAudible(t)
+        transitionProgress = 1f
+        completeTransition(t)
+    }
+
+    private fun detachTransition(t: ActiveTransition) {
+        supervisionRunnable?.let { mainHandler.removeCallbacks(it) }
+        animationRunnable?.let { mainHandler.removeCallbacks(it) }
+        supervisionRunnable = null
+        animationRunnable = null
+        t.aListener?.let { runCatching { t.oldPlayer.removeListener(it) } }
+        t.bListener?.let { runCatching { t.newPlayer.removeListener(it) } }
+        t.aListener = null
+        t.bListener = null
+        if (active === t) active = null
+    }
+
+    private fun releaseTransitionEqs() {
         try {
             oldPlayerEq?.enabled = false
             oldPlayerEq?.release()
@@ -105,110 +438,66 @@ class TransitionManager(
         } catch (e: Exception) {}
         oldPlayerEq = null
         newPlayerEq = null
+    }
 
-        this.currentPlayer = null // 🔥
-        this.currentSong = null   // 🔥
-        transitionProgress = 0f // 🔥
+    private fun resetState() {
+        isTransitioning = false
+        nextPlayer = null
+        preloadedSongId = null
+        preloadListener = null
+        transitionProgress = 0f
+        currentPlayer = null
+        currentSong = null
+        targetOldPlayerVolume = 1.0f
+        targetNewPlayerVolume = 1.0f
+    }
+
+    private fun completeTransition(t: ActiveTransition) {
+        if (active !== t) return
+        detachTransition(t)
+        releaseTransitionEqs()
+
+        val newPlayer = t.newPlayer
+        val oldPlayer = t.oldPlayer
+        val targetVolume = targetNewPlayerVolume
+        resetState()
 
         // Restaurar parámetros del nuevo reproductor
         try {
             if (abs(newPlayer.playbackParameters.speed - 1.0f) > 0.01f) {
                 newPlayer.setPlaybackParameters(PlaybackParameters(1.0f))
             }
-            // 🔥 CLAVE: En lugar de forzar volumen a 1.0f, lo dejamos en su nivel normalizado final.
-            newPlayer.volume = this.targetNewPlayerVolume
-        } catch (e: Exception) { Log.e("TransitionManager", "Error restaurando parámetros", e) }
+            newPlayer.volume = targetVolume
+        } catch (e: Exception) { Log.e(TAG, "Error restaurando parámetros", e) }
 
-        this.targetOldPlayerVolume = 1.0f
-        this.targetNewPlayerVolume = 1.0f
-
-        // Notifica al servicio que la transición ha terminado
         onTransitionComplete(newPlayer, oldPlayer)
-
-        Log.d("TransitionManager", "🎉 Transición COMPLETADA: ${nextSong.title}")
+        Log.d(TAG, "🎉 Transición COMPLETADA: ${t.nextSong.title}")
     }
 
-    private fun handleMixFailure(oldPlayer: ExoPlayer, newPlayer: ExoPlayer?) {
-        Log.e("TransitionManager", "❌ Fallo crítico en transición, recuperando estado...")
-        newPlayer?.release()
-        isTransitioning = false
-        nextPlayer = null
-        transitionProgress = 0f
-        this.currentPlayer = null
-        this.currentSong = null
-        this.targetOldPlayerVolume = 1.0f
-        this.targetNewPlayerVolume = 1.0f
-        onTransitionFailed(oldPlayer)
+    private fun failTransition(t: ActiveTransition, reason: String) {
+        if (active !== t) return
+        Log.e(TAG, "❌ Transición fallida (${t.label}): $reason. A recupera su estado.")
+        detachTransition(t)
+        releaseTransitionEqs()
+
+        val oldPlayer = t.oldPlayer
+        val wasAudible = t.audible
+        try {
+            oldPlayer.volume = targetOldPlayerVolume
+            if (t.gapMs > 0 && !t.aEnded && !oldPlayer.isPlaying) oldPlayer.play()
+        } catch (e: Exception) { Log.w(TAG, "No se pudo restaurar A", e) }
+        try {
+            t.newPlayer.stop()
+            t.newPlayer.release()
+        } catch (e: Exception) { Log.w(TAG, "No se pudo liberar B", e) }
+
+        resetState()
+        onTransitionFailed(oldPlayer, t.oldSong, t.nextSong, wasAudible)
     }
 
-    /**
-     * Called when the transition player fails with a Source error (typically expired stream URL).
-     * Releases the failed player, fetches a fresh URL via SongManager, updates the queue,
-     * and retries the intelligent mix. Falls back to handleMixFailure if the retry also fails.
-     */
-    private fun retryWithFreshUrl(
-        nextSong: Song,
-        oldPlayer: ExoPlayer,
-        failedPlayer: ExoPlayer,
-        durationMs: Long,
-        strategy: MixStrategy,
-        optimalOutPoint: Int,
-        optimalInPoint: Int,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit
-    ) {
-        failedPlayer.release()
-        if (failedPlayer === this.nextPlayer) {
-            this.nextPlayer = null
-        }
-
-        Log.d("TransitionManager", "🔄 Fetching fresh URL for '${nextSong.title}'...")
-        managerScope.launch {
-            try {
-                val songManager = SongManager(context)
-                songManager.invalidateCache(nextSong.id)
-                val fresh = songManager.getSongById(nextSong.id)
-
-                if (fresh != null && !fresh.url.isNullOrEmpty()) {
-                    // Update the song in the queue so future accesses use the fresh URL.
-                    val queue = PlaybackStateRepository.activeQueue
-                    if (queue != null) {
-                        val idx = queue.songs.indexOfFirst { it.id == nextSong.id }
-                        if (idx >= 0) {
-                            val mutableSongs = queue.songs.toMutableList()
-                            mutableSongs[idx] = fresh
-                            queue.songs = mutableSongs.toList()
-                        }
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        Log.d("TransitionManager", "✅ Got fresh URL for '${fresh.title}'. Retrying transition.")
-                        val nextIndex = queue?.songs?.indexOf(fresh) ?: -1
-                        if (nextIndex >= 0) {
-                            prepareAndExecuteFullyIntelligentMix(
-                                oldPlayer, currentSong ?: fresh, fresh,
-                                nextIndex, durationMs, strategy,
-                                optimalOutPoint, optimalInPoint, onMixComplete
-                            )
-                        } else {
-                            handleMixFailure(oldPlayer, null)
-                        }
-                    }
-                } else {
-                    Log.e("TransitionManager", "Retry failed — no URL returned for ${nextSong.id}")
-                    withContext(Dispatchers.Main) {
-                        handleMixFailure(oldPlayer, null)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("TransitionManager", "Retry failed with exception", e)
-                withContext(Dispatchers.Main) {
-                    handleMixFailure(oldPlayer, null)
-                }
-            }
-        }
-    }
-
-
+    // =================================================================================================
+    // ===                                  API PÚBLICA                                              ===
+    // =================================================================================================
 
     fun startTransition(oldPlayer: ExoPlayer,
                         oldSong: Song,
@@ -223,77 +512,41 @@ class TransitionManager(
                         nextSongStartPositionMs: Long = 0L,
                         playmixTransition: PlaymixTransitionDTO? = null
     ) {
-        Log.d("TransitionManager", "🎯 transitionToNextSong INICIADA - nextSong: ${nextSong.title}")
+        Log.d(TAG, "🎯 startTransition - nextSong: ${nextSong.title}")
 
-        // Check for Playmix transition first
         if (playmixTransition != null) {
             startPlaymixTransition(oldPlayer, oldSong, nextSong, nextSongIndex, playmixTransition, oldSongTargetVolume, nextSongTargetVolume)
             return
         }
 
-        // ✅ LÓGICA CORREGIDA: Verificar si debe hacer transición
         val shouldTransition = when {
-            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> {
-                // El modo inteligente SIEMPRE hace transición (dura 0ms pero usa el motor inteligente)
-                Log.d("TransitionManager", "🧠 Modo Inteligente - Usando motor de transiciones inteligentes")
-                true
-            }
-            isAlbumMode -> {
-                // En modo álbum, depende de automixEnabled
-                val should = automixEnabled
-                Log.d("TransitionManager", "📀 Modo Álbum - Automix: $automixEnabled -> Transición: $should")
-                should
-            }
-            else -> {
-                // En modos normales, depende de la duración
-                val should = crossfadeDurationMs > 0
-                Log.d("TransitionManager", "🎵 Modo Normal - Duración: ${crossfadeDurationMs}ms -> Transición: $should")
-                should
-            }
+            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> true
+            isAlbumMode -> automixEnabled
+            else -> crossfadeDurationMs > 0
         }
         if (!shouldTransition) {
-            Log.d("TransitionManager", "❌ Transición desactivada. Saltando directamente.")
-            onTransitionFailed(oldPlayer)
+            Log.d(TAG, "❌ Transición desactivada. A termina de forma natural.")
+            onTransitionFailed(oldPlayer, oldSong, nextSong, false)
             return
         }
 
-        synchronized(this) {
-            if (isTransitioning) {
-                Log.w("TransitionManager", "Ignorando trigger, ya hay una transición en curso.")
-                return
-            }
-            isTransitioning = true
-            transitionProgress = 0f // 🔥 AÑADE ESTA LÍNEA
-            this.currentPlayer = oldPlayer // 🔥 AÑADE ESTA LÍNEA
-            this.currentSong = oldSong   // 🔥 AÑADE ESTA LÍNEA
-            this.targetOldPlayerVolume = oldSongTargetVolume
-            this.targetNewPlayerVolume = nextSongTargetVolume
+        if (isTransitioning) {
+            Log.w(TAG, "Ignorando trigger, ya hay una transición en curso.")
+            return
         }
+        targetOldPlayerVolume = oldSongTargetVolume
+        targetNewPlayerVolume = nextSongTargetVolume
 
-        val onComplete: (newPlayer: ExoPlayer) -> Unit = { newPlayer ->
-            handleMixCompletion(newPlayer, oldPlayer, nextSong)
-        }
-
-        // ✅ LÓGICA DE SELECCIÓN DE TRANSICIÓN MEJORADA
-        if (isAlbumMode) {
-            performBasicAlbumMix(oldPlayer, oldSong, nextSong, nextSongIndex, onComplete)
-        } else {
-            when (crossfadeMode) {
-                CrossfadeMode.INTELLIGENT_EQ -> {
-                    // 🔥 CLAVE: El modo inteligente usa su propia duración calculada, NO crossfadeDurationMs
-                    performFullyIntelligentMix(oldPlayer, oldSong, nextSong, nextSongIndex, onComplete)
-                }
-                else -> {
-                    // Modos normales usan la duración del slider
-                    performSimpleCrossfade(oldPlayer, oldSong, nextSong, nextSongIndex, onComplete, crossfadeMode, crossfadeDurationMs, nextSongStartPositionMs)
-                }
-            }
+        when {
+            isAlbumMode -> beginAlbumCut(oldPlayer, oldSong, nextSong, nextSongIndex)
+            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> beginIntelligentMix(oldPlayer, oldSong, nextSong, nextSongIndex)
+            else -> beginSimpleCrossfade(oldPlayer, oldSong, nextSong, nextSongIndex, crossfadeMode, crossfadeDurationMs, nextSongStartPositionMs)
         }
     }
 
     /**
-     * Spotify-style PlayMix transition: fully respects mixMode, fadeCurveType, bandFadeTypes and gapMs
-     * configured in the CrossfadeEditor. Called by MusicPlaybackService when sourceType == PLAYMIX.
+     * Transición de Playmix: respeta mixMode, fadeCurveType, bandFadeTypes, gapMs y entryPointMs
+     * configurados en el editor. La llama MusicPlaybackService cuando sourceType == PLAYMIX.
      */
     fun startPlaymixTransition(
         oldPlayer: ExoPlayer,
@@ -304,112 +557,225 @@ class TransitionManager(
         oldSongTargetVolume: Float = 1.0f,
         nextSongTargetVolume: Float = 1.0f
     ) {
-        Log.d("TransitionManager", "🎹 PlayMix transition INICIADA: ${oldSong.title} → ${nextSong.title}")
-        Log.d("TransitionManager", "   mixMode=${transition.mixMode}, curve=${transition.fadeCurveType}, crossfade=${transition.crossfadeDurationMs}ms, gap=${transition.gapMs}ms")
-        Log.d("TransitionManager", "   bass=${transition.bandFadeTypes?.bass}, mid=${transition.bandFadeTypes?.mid}, treble=${transition.bandFadeTypes?.treble}")
+        Log.d(TAG, "🎹 PlayMix: ${oldSong.title} → ${nextSong.title} mixMode=${transition.mixMode}, curve=${transition.fadeCurveType}, crossfade=${transition.crossfadeDurationMs}ms, gap=${transition.gapMs}ms, entry=${transition.entryPointMs}ms")
 
-        // hard_edit: instant cut (no crossfade engine needed)
-        if (transition.mixMode == "hard_edit" || transition.crossfadeDurationMs == 0) {
-            if (transition.gapMs > 0) {
-                // Gap before next song: fade out old, wait gapMs, then start new
-                performGapTransition(oldPlayer, nextSong, nextSongIndex, transition, oldSongTargetVolume, nextSongTargetVolume)
-            } else {
-                Log.d("TransitionManager", "✂️ hard_edit / 0ms → jumping directly")
-                onTransitionFailed(oldPlayer) // triggers seekToNextMediaItem in service
-            }
+        if (isTransitioning) {
+            Log.w(TAG, "Ignorando trigger, ya hay una transición en curso.")
+            return
+        }
+        targetOldPlayerVolume = oldSongTargetVolume
+        targetNewPlayerVolume = nextSongTargetVolume
+
+        val entryMs = TransitionTiming.resolveEntryPointMs(
+            TransitionTiming.EntryMode.PLAYMIX, transition.entryPointMs, null, null
+        )
+        val newPlayer = acquireTransitionPlayer(nextSong, entryMs)
+        val isCut = transition.mixMode == "hard_edit" || transition.crossfadeDurationMs <= 0
+
+        if (isCut) {
+            beginTransition(
+                ActiveTransition(
+                    oldPlayer, oldSong, nextSong, nextSongIndex, newPlayer, entryMs,
+                    desiredFadeMs = 0L,
+                    gapMs = transition.gapMs.toLong().coerceAtLeast(0L),
+                    label = if (transition.gapMs > 0) "playmix-gap" else "playmix-cut",
+                    onBeforePlayB = {},
+                    applyFrame = { progress ->
+                        oldPlayer.volume = (1f - progress) * targetOldPlayerVolume
+                    }
+                )
+            )
             return
         }
 
-        synchronized(this) {
-            if (isTransitioning) {
-                Log.w("TransitionManager", "Ignorando trigger, ya hay una transición en curso.")
-                return
-            }
-            isTransitioning = true
-            transitionProgress = 0f
-            this.currentPlayer = oldPlayer
-            this.currentSong = oldSong
-            this.targetOldPlayerVolume = oldSongTargetVolume
-            this.targetNewPlayerVolume = nextSongTargetVolume
-        }
-
-        val onComplete: (newPlayer: ExoPlayer) -> Unit = { newPlayer ->
-            handleMixCompletion(newPlayer, oldPlayer, nextSong)
-        }
-
-        performPlaymixTransition(oldPlayer, oldSong, nextSong, nextSongIndex, transition, onComplete)
+        val mixMode = transition.mixMode ?: "crossfade"
+        val bandFade = transition.bandFadeTypes
+        beginTransition(
+            ActiveTransition(
+                oldPlayer, oldSong, nextSong, nextSongIndex, newPlayer, entryMs,
+                desiredFadeMs = transition.crossfadeDurationMs.toLong().coerceAtLeast(100L),
+                gapMs = 0L,
+                label = "playmix-$mixMode",
+                onBeforePlayB = {
+                    if (mixMode == "freq_split" || mixMode == "club_drop" || mixMode == "crossfade" || bandFade != null) {
+                        initializeIntelligentEQ(oldPlayer, newPlayer)
+                    }
+                },
+                applyFrame = { rawProgress ->
+                    when (mixMode) {
+                        "overlap" -> {
+                            oldPlayer.volume = targetOldPlayerVolume
+                            newPlayer.volume = targetNewPlayerVolume
+                        }
+                        "freq_split" -> {
+                            val p = applyFadeCurve(rawProgress, transition.fadeCurveType)
+                            oldPlayer.volume = sqrt(1f - p) * targetOldPlayerVolume
+                            newPlayer.volume = sqrt(p) * targetNewPlayerVolume
+                            applyFreqSplitEq(oldPlayerEq, newPlayerEq, p)
+                        }
+                        "club_drop" -> {
+                            val p = applyFadeCurve(rawProgress, transition.fadeCurveType)
+                            oldPlayer.volume = (1f - p.pow(1.5f)).coerceIn(0f, 1f) * targetOldPlayerVolume
+                            newPlayer.volume = p.pow(0.7f).coerceIn(0f, 1f) * targetNewPlayerVolume
+                            applyClubDropEq(oldPlayerEq, newPlayerEq, p)
+                        }
+                        else -> {
+                            val (oldVol, newVol) = computePlaymixVolumes(rawProgress, transition)
+                            oldPlayer.volume = oldVol * targetOldPlayerVolume
+                            newPlayer.volume = newVol * targetNewPlayerVolume
+                            applyCrossfadeBandEq(oldPlayerEq, newPlayerEq, rawProgress, transition)
+                        }
+                    }
+                }
+            )
+        )
     }
+
+    private fun beginAlbumCut(oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextSongIndex: Int) {
+        Log.i(TAG, "🤖 Automix de álbum (corte sobre la precarga)")
+        val newPlayer = acquireTransitionPlayer(nextSong, 0L)
+        beginTransition(
+            ActiveTransition(
+                oldPlayer, oldSong, nextSong, nextSongIndex, newPlayer, 0L,
+                desiredFadeMs = 0L, gapMs = 0L, label = "album-cut",
+                onBeforePlayB = {},
+                applyFrame = { progress -> oldPlayer.volume = (1f - progress) * targetOldPlayerVolume }
+            )
+        )
+    }
+
+    private fun beginSimpleCrossfade(
+        oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextSongIndex: Int,
+        crossfadeMode: CrossfadeMode, crossfadeDurationMs: Long, nextSongStartPositionMs: Long
+    ) {
+        val entryMs = if (nextSongStartPositionMs > 0L) nextSongStartPositionMs else TransitionTiming.resolveEntryPointMs(
+            TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
+        )
+        val newPlayer = acquireTransitionPlayer(nextSong, entryMs)
+        beginTransition(
+            ActiveTransition(
+                oldPlayer, oldSong, nextSong, nextSongIndex, newPlayer, entryMs,
+                desiredFadeMs = crossfadeDurationMs, gapMs = 0L, label = "simple-${crossfadeMode.name}",
+                onBeforePlayB = {},
+                applyFrame = { progress ->
+                    val (oldVol, newVol) = when (crossfadeMode) {
+                        CrossfadeMode.DIRECT_CUT -> {
+                            val smooth = 0.5f * (1 - cos(progress * Math.PI.toFloat()))
+                            Pair(1 - smooth, smooth)
+                        }
+                        else -> Pair(sqrt(1 - progress), sqrt(progress)) // SOFT_MIX y fallback
+                    }
+                    oldPlayer.volume = oldVol * targetOldPlayerVolume
+                    newPlayer.volume = newVol * targetNewPlayerVolume
+                }
+            )
+        )
+    }
+
+    private fun beginIntelligentMix(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextSongIndex: Int) {
+        val strategy = calculateAutomixStrategy(oldSong, newSong)
+        val mixDuration = calculateFullyIntelligentDuration(oldSong, newSong, strategy)
+        val optimalOutPoint = findOptimalOutPoint(oldSong.audioAnalysis)
+        val entryMs = intelligentEntryPointMs(newSong).toLong()
+
+        Log.i("IntelligentCrossfade", "🧠 Estrategia ${strategy.name}, duración ${mixDuration}ms, salida=${optimalOutPoint}ms, entrada=${entryMs}ms")
+
+        val newPlayer = acquireTransitionPlayer(newSong, entryMs)
+        val effectsState = IntelligentEffectsState()
+        beginTransition(
+            ActiveTransition(
+                oldPlayer, oldSong, newSong, nextSongIndex, newPlayer, entryMs,
+                desiredFadeMs = mixDuration, gapMs = 0L, label = "intelligent-${strategy.name}",
+                onBeforePlayB = {
+                    if (strategy == MixStrategy.BEATMATCH_MIX) {
+                        oldSong.audioAnalysis?.let { oldA ->
+                            newSong.audioAnalysis?.let { newA -> syncTempo(oldPlayer, oldA, newA, newPlayer) }
+                        }
+                    }
+                    initializeIntelligentEQ(oldPlayer, newPlayer)
+                },
+                applyFrame = { progress ->
+                    val (oldVol, newVol) = getEnhancedIntelligentVolumeCurve(progress, strategy)
+                    applyVolumeSmoothly(oldPlayer, newPlayer, oldVol, newVol)
+                    applyEnhancedIntelligentEq(oldPlayerEq, newPlayerEq, progress, strategy, oldSong, newSong)
+                    applyIntelligentEffects(progress, strategy, effectsState)
+                }
+            )
+        )
+    }
+
+    /** Punto de entrada del modo inteligente, ya acotado (design D9). */
+    fun intelligentEntryPointMs(song: Song): Int =
+        TransitionTiming.clampIntelligentEntry(findOptimalInPoint(song.audioAnalysis))
 
     fun cancelCurrentTransition() {
-        if (!isTransitioning) {
-            try {
-                nextPlayer?.stop()
-                nextPlayer?.release()
-            } catch (error: Exception) {
-                Log.e("TransitionManager", "Error al liberar la precarga", error)
-            } finally {
-                nextPlayer = null
-            }
+        val t = active
+        if (t == null) {
+            releasePreload()
             return
         }
-        Log.w("TransitionManager", "🛑 CANCELANDO TRANSICIÓN EN CURSO...")
-        isTransitioning = false
-        transitionProgress = 0f // 🔥
-
-        try { nextPlayer?.stop(); nextPlayer?.release() } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar nextExoPlayer", e) }
-        nextPlayer = null
-        try { 
-            oldPlayerEq?.enabled = false
-            oldPlayerEq?.release()
-            newPlayerEq?.enabled = false
-            newPlayerEq?.release() 
-        } catch (e: Exception) { Log.e("TransitionManager", "Error al liberar EQs", e) }
-        oldPlayerEq = null
-        newPlayerEq = null
-
-        this.currentPlayer = null // 🔥
-        this.currentSong = null   // 🔥
-        this.targetOldPlayerVolume = 1.0f
-        this.targetNewPlayerVolume = 1.0f
-        Log.d("TransitionManager", "✅ Transición cancelada.")
+        Log.w(TAG, "🛑 Cancelando transición en curso (${t.label})")
+        detachTransition(t)
+        releaseTransitionEqs()
+        try { t.newPlayer.stop(); t.newPlayer.release() } catch (e: Exception) { Log.e(TAG, "Error al liberar B", e) }
+        resetState()
+        Log.d(TAG, "✅ Transición cancelada.")
     }
 
+    /** Completa la transición ya, con B sonando a su volumen objetivo. */
     fun forceCompleteTransition() {
-        Log.w("TransitionManager", "🚀 FORZANDO COMPLETADO DE TRANSICIÓN...")
-        if (!isTransitioning || this.nextPlayer == null || this.currentPlayer == null || this.currentSong == null) {
-            Log.e("TransitionManager", "No se puede forzar, estado inválido.")
-            if (isTransitioning) {
-                cancelCurrentTransition()
-            }
+        val t = active
+        if (t == null) {
+            if (isTransitioning) cancelCurrentTransition()
             return
         }
-        handleMixCompletion(this.nextPlayer!!, this.currentPlayer!!, this.currentSong!!)
+        Log.w(TAG, "🚀 Forzando completado de la transición (${t.label})")
+        try {
+            t.newPlayer.volume = targetNewPlayerVolume
+            if (!t.newPlayer.isPlaying) t.newPlayer.play()
+        } catch (e: Exception) { Log.w(TAG, "No se pudo arrancar B al forzar", e) }
+        markAudible(t)
+        completeTransition(t)
     }
 
-    fun preloadNextSong(nextSong: Song?) {
-        // Si ya hay un reproductor precargado, lo liberamos antes de crear uno nuevo.
-        nextPlayer?.release()
-        nextPlayer = null
+    private fun releasePreload() {
+        preloadListener?.let { l -> nextPlayer?.let { runCatching { it.removeListener(l) } } }
+        try {
+            nextPlayer?.stop()
+            nextPlayer?.release()
+        } catch (error: Exception) {
+            Log.e(TAG, "Error al liberar la precarga", error)
+        } finally {
+            nextPlayer = null
+            preloadedSongId = null
+            preloadListener = null
+        }
+    }
+
+    /**
+     * Precarga la siguiente canción en un player de un único item, en silencio y en su punto
+     * de entrada, para que la transición pueda usarlo tal cual.
+     */
+    fun preloadNextSong(nextSong: Song?, entryMs: Long = 0L) {
+        if (isTransitioning) {
+            Log.d(TAG, "No se precarga durante una transición.")
+            return
+        }
+        releasePreload()
 
         if (nextSong == null) {
-            Log.d("TransitionManager", "No hay siguiente canción para precargar.")
+            Log.d(TAG, "No hay siguiente canción para precargar.")
             return
         }
 
-        Log.i("TransitionManager", "⚡️ PRE-CARGANDO siguiente canción: ${nextSong.title}")
+        Log.i(TAG, "⚡️ Precargando: ${nextSong.title} en ${entryMs}ms")
 
         try {
             val newPlayer = createTransitionPlayer()
             val mediaItem = mediaItemFactory(nextSong)
             var progressiveFallbackAttempted = false
 
-            val preloadListener = object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        newPlayer.removeListener(this)
-                    }
-                }
-
+            val listener = object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     val isRecoverable = error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
                         error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
@@ -423,12 +789,8 @@ class TransitionManager(
 
                     if (isRecoverable && !progressiveFallbackAttempted) {
                         progressiveFallbackAttempted = true
-                        Log.w(
-                            "TransitionManager",
-                            "Precarga falló para ${nextSong.title}; reintentando en progressive"
-                        )
-                        newPlayer.replaceMediaItem(
-                            0,
+                        Log.w(TAG, "Precarga falló para ${nextSong.title}; reintentando en progressive")
+                        newPlayer.setMediaItem(
                             mediaItemFactory(
                                 nextSong.copy(
                                     url = null,
@@ -436,50 +798,72 @@ class TransitionManager(
                                     playbackExpiresAtUtc = null,
                                     playbackDeliveryMode = PlaybackUrlResolver.DELIVERY_MODE_PROGRESSIVE
                                 )
-                            )
+                            ),
+                            entryMs
                         )
                         newPlayer.prepare()
                         return
                     }
 
-                    Log.w(
-                        "TransitionManager",
-                        "Descartando precarga fallida de ${nextSong.title}: ${error.errorCodeName}"
-                    )
+                    Log.w(TAG, "Descartando precarga fallida de ${nextSong.title}: ${error.errorCodeName}")
                     newPlayer.removeListener(this)
                     newPlayer.release()
                     if (this@TransitionManager.nextPlayer === newPlayer) {
                         this@TransitionManager.nextPlayer = null
+                        preloadedSongId = null
+                        preloadListener = null
                     }
                 }
             }
-            newPlayer.addListener(preloadListener)
+            newPlayer.addListener(listener)
+            newPlayer.setMediaItem(mediaItem, entryMs)
+            newPlayer.volume = 0f
+            newPlayer.prepare()
 
-            // NO le damos la cola completa, solo la canción que necesita para prepararse.
-            newPlayer.setMediaItem(mediaItem)
-            newPlayer.volume = 0f // Lo dejamos en silencio
-            if (newPlayer.playbackState == Player.STATE_READY) {
-                preloadListener.onPlaybackStateChanged(Player.STATE_READY)
-            } else {
-                newPlayer.prepare() // Iniciamos la preparación en segundo plano
-            }
-
-            // Guardamos la referencia para usarla más tarde.
             this.nextPlayer = newPlayer
+            this.preloadedSongId = nextSong.id
+            this.preloadListener = listener
         } catch (e: Exception) {
-            Log.e("TransitionManager", "Error durante la pre-carga de ${nextSong.title}", e)
-            nextPlayer?.release()
-            nextPlayer = null
+            Log.e(TAG, "Error durante la precarga de ${nextSong.title}", e)
+            releasePreload()
         }
     }
 
     /**
-     * Builds a filtered list of MediaItems for ExoPlayer, excluding songs without valid URLs.
-     * Each MediaItem has the song's ID set as its mediaId so callers can look up the correct
-     * song after playback events, even when indices shift due to filtered-out items.
-     *
-     * Returns a list of (originalQueueIndex, MediaItem) pairs so callers can map the adjusted
-     * ExoPlayer index back to the original queue index when needed.
+     * Devuelve el player con el que se hará la transición: la precarga si es de esta canción
+     * (con `seekTo` si está lejos del punto de entrada) o uno nuevo de un único item.
+     * Nunca se llama a `setMediaItems` con la cola completa sobre un player de transición.
+     */
+    private fun acquireTransitionPlayer(nextSong: Song, entryMs: Long): ExoPlayer {
+        val preloaded = nextPlayer
+        if (preloaded != null && preloadedSongId == nextSong.id) {
+            preloadListener?.let { runCatching { preloaded.removeListener(it) } }
+            preloadListener = null
+            try {
+                if (preloaded.playbackState == Player.STATE_IDLE) preloaded.prepare()
+                if (TransitionTiming.needsSeek(preloaded.currentPosition, entryMs)) {
+                    Log.d(TAG, "Precarga en ${preloaded.currentPosition}ms; seek a ${entryMs}ms")
+                    preloaded.seekTo(entryMs)
+                }
+                preloaded.volume = 0f
+                Log.d(TAG, "✅ Usando player precargado para ${nextSong.title}")
+                return preloaded
+            } catch (e: Exception) {
+                Log.w(TAG, "La precarga no es utilizable; se crea un player nuevo", e)
+            }
+        }
+        releasePreload()
+        Log.d(TAG, "⚠️ Sin precarga válida para ${nextSong.title}; creando player de un item")
+        return createTransitionPlayer().apply {
+            setMediaItem(mediaItemFactory(nextSong), entryMs)
+            volume = 0f
+            prepare()
+        }
+    }
+
+    /**
+     * Builds a filtered list of MediaItems for ExoPlayer. Each MediaItem has the song's ID set
+     * as its mediaId so callers can look up the correct song after playback events.
      */
     fun buildValidMediaItems(songs: List<Song>): List<Pair<Int, MediaItem>> {
         return songs.mapIndexed { index, song ->
@@ -487,284 +871,9 @@ class TransitionManager(
         }
     }
 
-
     // =================================================================================================
-    // ===                         MOTOR DE TRANSICIÓN PLAYMIX (ESTILO SPOTIFY)                    ===
+    // ===                         CURVAS Y EQ DE PLAYMIX (ESTILO SPOTIFY)                           ===
     // =================================================================================================
-
-    /**
-     * Handles hard_edit/0ms transitions that have a gap (silence) before the next song.
-     * Fades out the current player over ~300ms, waits gapMs, then starts the next song.
-     */
-    private fun performGapTransition(
-        oldPlayer: ExoPlayer,
-        nextSong: Song,
-        nextSongIndex: Int,
-        transition: PlaymixTransitionDTO,
-        oldSongTargetVolume: Float,
-        nextSongTargetVolume: Float
-    ) {
-        synchronized(this) {
-            if (isTransitioning) {
-                Log.w("TransitionManager", "Gap: ya hay transición en curso. Ignorando.")
-                return
-            }
-            isTransitioning = true
-            this.currentPlayer = oldPlayer
-            this.targetOldPlayerVolume = oldSongTargetVolume
-            this.targetNewPlayerVolume = nextSongTargetVolume
-        }
-
-        val handler = Handler(Looper.getMainLooper())
-        val fadeDurationMs = 300L
-        val startTime = SystemClock.uptimeMillis()
-        val startVol = oldPlayer.volume
-
-        val fadeRunnable = object : Runnable {
-            override fun run() {
-                val elapsed = SystemClock.uptimeMillis() - startTime
-                val progress = (elapsed.toFloat() / fadeDurationMs).coerceIn(0f, 1f)
-                try {
-                    oldPlayer.volume = startVol * (1f - progress)
-                } catch (_: Exception) {}
-                if (progress < 1f) {
-                    handler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
-                } else {
-                    oldPlayer.pause()
-                    // Wait gapMs then start next
-                    handler.postDelayed({
-                        val newPlayer = createTransitionPlayer()
-                        this@TransitionManager.nextPlayer = newPlayer
-                        try {
-                            val queue = PlaybackStateRepository.activeQueue ?: run {
-                                handleMixFailure(oldPlayer, null); return@postDelayed
-                            }
-                            val validPairs = buildValidMediaItems(queue.songs)
-                            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }.takeIf { it >= 0 } ?: run {
-                                handleMixFailure(oldPlayer, newPlayer); return@postDelayed
-                            }
-                            val entryMs = transition.entryPointMs.toLong()
-                            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, entryMs)
-                            newPlayer.volume = nextSongTargetVolume
-                            val listener = object : Player.Listener {
-                                override fun onPlaybackStateChanged(playbackState: Int) {
-                                    if (playbackState == Player.STATE_READY) {
-                                        newPlayer.removeListener(this)
-                                        newPlayer.play()
-                                        handleMixCompletion(newPlayer, oldPlayer, nextSong)
-                                    }
-                                }
-                                override fun onPlayerError(error: PlaybackException) {
-                                    newPlayer.removeListener(this)
-                                    handleMixFailure(oldPlayer, newPlayer)
-                                }
-                            }
-                            newPlayer.addListener(listener)
-                            if (newPlayer.playbackState == Player.STATE_READY) {
-                                listener.onPlaybackStateChanged(Player.STATE_READY)
-                            } else {
-                                newPlayer.prepare()
-                            }
-                        } catch (e: Exception) {
-                            handleMixFailure(oldPlayer, newPlayer)
-                        }
-                    }, transition.gapMs.toLong().coerceAtLeast(0))
-                }
-            }
-        }
-        handler.post(fadeRunnable)
-    }
-
-    /**
-     * Spotify-style PlayMix crossfade engine. Supports all mixModes:
-     *  - crossfade: equal-power or per-band fade based on fadeCurveType/bandFadeTypes
-     *  - overlap: both songs at full volume simultaneously
-     *  - freq_split: bass from A fades while treble from B fades in (via EQ)
-     *  - club_drop: dramatic bass drop of A while B enters progressively
-     *  - hard_edit: handled before this method is called
-     */
-    private fun performPlaymixTransition(
-        oldPlayer: ExoPlayer,
-        oldSong: Song,
-        nextSong: Song,
-        nextSongIndex: Int,
-        transition: PlaymixTransitionDTO,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit
-    ) {
-        Log.i("PlaymixEngine", "🎛️ Iniciando motor PlayMix. mixMode=${transition.mixMode}")
-
-        // Use preloaded player if available (filled by preloadNextSong), else create fresh
-        val newPlayer = this.nextPlayer?.also {
-            Log.d("PlaymixEngine", "✅ Usando player precargado")
-        } ?: createTransitionPlayer().also {
-            Log.d("PlaymixEngine", "⚠️ No había player precargado, creando nuevo")
-        }
-        this.nextPlayer = newPlayer
-
-        try {
-            val queue = PlaybackStateRepository.activeQueue
-            if (queue == null || queue.songs.isEmpty()) {
-                handleMixFailure(oldPlayer, newPlayer); return
-            }
-
-            val validPairs = buildValidMediaItems(queue.songs)
-            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }.takeIf { it >= 0 } ?: run {
-                Log.e("PlaymixEngine", "❌ Next song at $nextSongIndex has no valid URL")
-                handleMixFailure(oldPlayer, newPlayer); return
-            }
-
-            val entryMs = transition.entryPointMs.toLong()
-            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, entryMs)
-            newPlayer.volume = 0f
-
-            val listener = object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        newPlayer.removeListener(this)
-                        Log.d("PlaymixEngine", "▶️ NewPlayer listo. Iniciando animación PlayMix.")
-                        try {
-                            newPlayer.play()
-                            animatePlaymixCrossfade(oldPlayer, newPlayer, transition, onMixComplete)
-                        } catch (e: Exception) {
-                            handleMixFailure(oldPlayer, newPlayer)
-                        }
-                    }
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    newPlayer.removeListener(this)
-                    val isSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-                    if (isSourceError) {
-                        Log.w("PlaymixEngine", "⚠️ Source error on newPlayer — retrying with fresh URL")
-                        managerScope.launch {
-                            try {
-                                val songManager = SongManager(context)
-                                songManager.invalidateCache(nextSong.id)
-                                val fresh = songManager.getSongById(nextSong.id)
-                                if (fresh != null && !fresh.url.isNullOrEmpty()) {
-                                    withContext(Dispatchers.Main) {
-                                        val q = PlaybackStateRepository.activeQueue
-                                        if (q != null) {
-                                            val idx = q.songs.indexOfFirst { it.id == nextSong.id }
-                                            if (idx >= 0) {
-                                                val m = q.songs.toMutableList(); m[idx] = fresh; q.songs = m.toList()
-                                            }
-                                        }
-                                        newPlayer.release()
-                                        if (newPlayer === this@TransitionManager.nextPlayer) this@TransitionManager.nextPlayer = null
-                                        performPlaymixTransition(oldPlayer, oldSong, fresh, nextSongIndex, transition, onMixComplete)
-                                    }
-                                } else { withContext(Dispatchers.Main) { handleMixFailure(oldPlayer, newPlayer) } }
-                            } catch (e: Exception) { withContext(Dispatchers.Main) { handleMixFailure(oldPlayer, newPlayer) } }
-                        }
-                    } else {
-                        handleMixFailure(oldPlayer, newPlayer)
-                    }
-                }
-            }
-            newPlayer.addListener(listener)
-            if (newPlayer.playbackState == Player.STATE_READY) {
-                listener.onPlaybackStateChanged(Player.STATE_READY)
-            } else {
-                newPlayer.prepare()
-            }
-
-        } catch (e: Exception) {
-            Log.e("PlaymixEngine", "❌ Error preparando PlayMix transition", e)
-            handleMixFailure(oldPlayer, newPlayer)
-        }
-    }
-
-    /**
-     * Per-frame animation loop for PlayMix crossfades.
-     * Applies volume curves and EQ based on mixMode, fadeCurveType, and bandFadeTypes.
-     */
-    private fun animatePlaymixCrossfade(
-        oldPlayer: ExoPlayer,
-        newPlayer: ExoPlayer,
-        transition: PlaymixTransitionDTO,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit
-    ) {
-        val durationMs = transition.crossfadeDurationMs.toLong().coerceAtLeast(100L)
-        val mixMode = transition.mixMode ?: "crossfade"
-        val bandFade = transition.bandFadeTypes
-
-        // Initialize EQ for frequency-aware modes and per-band crossfades.
-        if (mixMode == "freq_split" || mixMode == "club_drop" || mixMode == "crossfade" || bandFade != null) {
-            initializeIntelligentEQ(oldPlayer, newPlayer)
-        }
-
-        val handler = Handler(Looper.getMainLooper())
-        val startTime = SystemClock.uptimeMillis()
-
-        Log.i("PlaymixEngine", "🎬 ANIMACIÓN PlayMix - duración=${durationMs}ms, mixMode=$mixMode, curve=${transition.fadeCurveType}")
-
-        val animRunnable = object : Runnable {
-            override fun run() {
-                if (!isTransitioning) {
-                    handler.removeCallbacks(this); return
-                }
-
-                val elapsed = SystemClock.uptimeMillis() - startTime
-                val rawProgress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
-                transitionProgress = rawProgress
-
-                try {
-                    when (mixMode) {
-                        "overlap" -> {
-                            // Both at full volume — Spotify's "overlap" mode
-                            oldPlayer.volume = targetOldPlayerVolume
-                            newPlayer.volume = targetNewPlayerVolume
-                        }
-                        "freq_split" -> {
-                            // Freq split: bass of A fades, treble of B fades in via EQ
-                            val p = applyFadeCurve(rawProgress, transition.fadeCurveType)
-                            oldPlayer.volume = sqrt(1f - p) * targetOldPlayerVolume
-                            newPlayer.volume = sqrt(p) * targetNewPlayerVolume
-                            applyFreqSplitEq(oldPlayerEq, newPlayerEq, p)
-                        }
-                        "club_drop" -> {
-                            // Club drop: dramatic bass drop of A, B enters from treble first
-                            val p = applyFadeCurve(rawProgress, transition.fadeCurveType)
-                            oldPlayer.volume = (1f - p.pow(1.5f)).coerceIn(0f, 1f) * targetOldPlayerVolume
-                            newPlayer.volume = p.pow(0.7f).coerceIn(0f, 1f) * targetNewPlayerVolume
-                            applyClubDropEq(oldPlayerEq, newPlayerEq, p)
-                        }
-                        else -> {
-                            // crossfade (default): per-band fade curves or global fadeCurveType
-                            val (oldVol, newVol) = computePlaymixVolumes(rawProgress, transition)
-                            oldPlayer.volume = oldVol * targetOldPlayerVolume
-                            newPlayer.volume = newVol * targetNewPlayerVolume
-                            applyCrossfadeBandEq(oldPlayerEq, newPlayerEq, rawProgress, transition)
-                        }
-                    }
-
-                    // Update seekbar every ~500ms
-                    if (elapsed % 500 < ANIMATION_FRAME_DELAY_MS) {
-                        val pos = newPlayer.currentPosition
-                        val dur = newPlayer.duration
-                        if (dur > 0) onTransitionProgress?.invoke(pos, dur)
-                    }
-                } catch (e: Exception) {
-                    Log.e("PlaymixEngine", "❌ Error en animación PlayMix", e)
-                    handler.removeCallbacks(this)
-                    handleMixFailure(oldPlayer, newPlayer)
-                    return
-                }
-
-                if (rawProgress < 1f) {
-                    handler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
-                } else {
-                    Log.i("PlaymixEngine", "✅ Animación PlayMix COMPLETADA")
-                    onMixComplete(newPlayer)
-                }
-            }
-        }
-        handler.post(animRunnable)
-    }
 
     /**
      * Computes (oldVol, newVol) for crossfade mixMode using fadeCurveType/bandFadeTypes.
@@ -853,16 +962,16 @@ class TransitionManager(
         val bassProgress = (progress / 0.5f).coerceIn(0f, 1f)
         val trebleProgress = ((progress - 0.3f) / 0.7f).coerceIn(0f, 1f)
         // Bass of old fades out
-        oldEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * bassProgress).toInt().toShort())
-        oldEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * bassProgress * 0.7f).toInt().toShort())
+        setSafeBandLevel(oldEq, (bands[0]).toInt(), (EQ_MAX_ATTENUATION * bassProgress))
+        setSafeBandLevel(oldEq, (bands[1]).toInt(), (EQ_MAX_ATTENUATION * bassProgress * 0.7f))
         // Treble of old stays longer
-        oldEq.setBandLevel(bands[3], (EQ_MAX_ATTENUATION * trebleProgress).toInt().toShort())
-        oldEq.setBandLevel(bands[4], (EQ_MAX_ATTENUATION * trebleProgress).toInt().toShort())
+        setSafeBandLevel(oldEq, (bands[3]).toInt(), (EQ_MAX_ATTENUATION * trebleProgress))
+        setSafeBandLevel(oldEq, (bands[4]).toInt(), (EQ_MAX_ATTENUATION * trebleProgress))
         // New song: start with only treble, bass fades in later
-        newEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * (1f - bassProgress)).toInt().toShort())
-        newEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * (1f - bassProgress) * 0.5f).toInt().toShort())
-        newEq.setBandLevel(bands[3], (EQ_MAX_ATTENUATION * (1f - trebleProgress)).toInt().toShort())
-        newEq.setBandLevel(bands[4], (EQ_MAX_ATTENUATION * (1f - trebleProgress)).toInt().toShort())
+        setSafeBandLevel(newEq, (bands[0]).toInt(), (EQ_MAX_ATTENUATION * (1f - bassProgress)))
+        setSafeBandLevel(newEq, (bands[1]).toInt(), (EQ_MAX_ATTENUATION * (1f - bassProgress) * 0.5f))
+        setSafeBandLevel(newEq, (bands[3]).toInt(), (EQ_MAX_ATTENUATION * (1f - trebleProgress)))
+        setSafeBandLevel(newEq, (bands[4]).toInt(), (EQ_MAX_ATTENUATION * (1f - trebleProgress)))
     }
 
     /** Club Drop: bass of old drops hard at midpoint, new enters from top frequencies down */
@@ -871,462 +980,23 @@ class TransitionManager(
         val bands = shortArrayOf(0, 1, 2, 3, 4)
         // Old: bass drops very fast (like a DJ "low cut" filter closing)
         val oldBassProgress = (progress / 0.4f).coerceIn(0f, 1f)
-        oldEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * oldBassProgress).toInt().toShort())
-        oldEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * oldBassProgress * 0.8f).toInt().toShort())
-        oldEq.setBandLevel(bands[2], (EQ_MAX_ATTENUATION * (progress / 0.7f).coerceIn(0f, 1f) * 0.5f).toInt().toShort())
+        setSafeBandLevel(oldEq, (bands[0]).toInt(), (EQ_MAX_ATTENUATION * oldBassProgress))
+        setSafeBandLevel(oldEq, (bands[1]).toInt(), (EQ_MAX_ATTENUATION * oldBassProgress * 0.8f))
+        setSafeBandLevel(oldEq, (bands[2]).toInt(), (EQ_MAX_ATTENUATION * (progress / 0.7f).coerceIn(0f, 1f) * 0.5f))
         // New: enters top-first (treble → mid → bass)
         val newTrebleProgress = progress.pow(0.5f)
         val newMidProgress = (progress / 0.6f).coerceIn(0f, 1f).pow(1.5f)
         val newBassProgress = (progress / 0.8f - 0.25f).coerceIn(0f, 1f)
-        newEq.setBandLevel(bands[4], (EQ_MAX_ATTENUATION * (1f - newTrebleProgress)).toInt().toShort())
-        newEq.setBandLevel(bands[3], (EQ_MAX_ATTENUATION * (1f - newTrebleProgress * 0.9f)).toInt().toShort())
-        newEq.setBandLevel(bands[2], (EQ_MAX_ATTENUATION * (1f - newMidProgress)).toInt().toShort())
-        newEq.setBandLevel(bands[1], (EQ_MAX_ATTENUATION * (1f - newBassProgress)).toInt().toShort())
-        newEq.setBandLevel(bands[0], (EQ_MAX_ATTENUATION * (1f - newBassProgress)).toInt().toShort())
-    }
-
-    // =================================================================================================
-    // ===                                  AUTOMIX BÁSICO (PARA ÁLBUMES)                            ===
-    // =================================================================================================
-
-    private fun performBasicAlbumMix(
-        oldPlayer: ExoPlayer, oldSong: Song, newSong: Song,
-        nextSongIndex: Int,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit
-    ) {
-        Log.i("ResonantAutomix", "🤖 Iniciando Automix de Álbum (usando pre-carga)...")
-
-        // 1. OBTENEMOS EL REPRODUCTOR YA PREPARADO
-        val newPlayer = this.nextPlayer
-
-        // 2. COMPROBACIÓN DE SEGURIDAD: ¿Y si no se pudo pre-cargar?
-        if (newPlayer == null) {
-            Log.e("ResonantAutomix", "ERROR FATAL: El reproductor para '${newSong.title}' no fue pre-cargado. Saltando.")
-            // Si falla, notificamos al servicio que simplemente salte a la siguiente canción
-            // sin una transición suave para evitar un error mayor.
-            onTransitionFailed(oldPlayer)
-            return
-        }
-
-        // 3. COMO EL REPRODUCTOR YA ESTÁ LISTO, LA LÓGICA ES INMEDIATA.
-        try {
-            // Le damos la cola completa AHORA, justo antes de empezar.
-            // Only include songs with valid URLs to avoid ExoPlayer errors on empty URIs.
-            val queue = PlaybackStateRepository.activeQueue!!
-            val validPairs = buildValidMediaItems(queue.songs)
-            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }
-                .takeIf { it >= 0 } ?: 0
-            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, 0L)
-
-            newPlayer.volume = this.targetNewPlayerVolume
-            newPlayer.play()
-            onMixComplete(newPlayer)
-
-            // IMPORTANTE: Reseteamos la referencia para que no se reutilice por error.
-            this.nextPlayer = null
-
-        } catch (e: Exception) {
-            Log.e("ResonantAutomix", "Error ejecutando el corte con el reproductor pre-cargado.", e)
-            handleMixFailure(oldPlayer, newPlayer)
-        }
-    }
-
-    // =================================================================================================
-    // ===                                  MOTOR DE CROSSFADE SIMPLE                              ===
-    // =================================================================================================
-
-    private fun performSimpleCrossfade(
-        oldPlayer: ExoPlayer, oldSong: Song, newSong: Song,
-        nextSongIndex: Int,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit,
-        crossfadeMode: CrossfadeMode,
-        crossfadeDurationMs: Long,
-        nextSongStartPositionMs: Long = 0L
-    ) {
-        Log.i("Crossfade", "🔄 Iniciando Crossfade Simple. Índice siguiente: $nextSongIndex")
-        val newPlayer = this.nextPlayer ?: createTransitionPlayer()
-        this.nextPlayer = newPlayer
-
-        try {
-            val queue = PlaybackStateRepository.activeQueue
-
-            if (queue == null || queue.songs.isEmpty()) {
-                Log.e("Crossfade", "Error: No se encontró una cola activa para la transición.")
-                handleMixFailure(oldPlayer, newPlayer)
-                return
-            }
-
-            // Filter out songs without valid URLs; track the adjusted start index.
-            val validPairs = buildValidMediaItems(queue.songs)
-            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }
-                .takeIf { it >= 0 } ?: run {
-                    Log.e("Crossfade", "Next song at index $nextSongIndex has no valid URL. Aborting crossfade.")
-                    handleMixFailure(oldPlayer, newPlayer)
-                    return
-                }
-
-            val startPositionMs = if (nextSongStartPositionMs > 0L) nextSongStartPositionMs
-                                   else newSong.audioAnalysis?.audioStartMs?.toLong() ?: 0L
-            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, startPositionMs)
-
-            val listener = object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        newPlayer.removeListener(this)
-                        Log.d("Crossfade", "🎵 NewPlayer listo con la cola completa. Iniciando crossfade.")
-
-                        try {
-                            newPlayer.volume = 0.0f
-                            newPlayer.play()
-                            animateSimpleCrossfade(oldPlayer, newPlayer, oldSong, newSong, onMixComplete, crossfadeMode, crossfadeDurationMs)
-                        } catch (e: Exception) {
-                            Log.e("Crossfade", "Error al iniciar newPlayer listo.", e)
-                            handleMixFailure(oldPlayer, newPlayer)
-                        }
-                    }
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    newPlayer.removeListener(this)
-                    val isSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-
-                    if (isSourceError) {
-                        Log.w("Crossfade", "⚠️ Source error — refreshing URL for ${newSong.title}")
-                        newPlayer.release()
-                        if (newPlayer === nextPlayer) nextPlayer = null
-                        managerScope.launch {
-                            try {
-                                val songManager = SongManager(context)
-                                songManager.invalidateCache(newSong.id)
-                                val fresh = songManager.getSongById(newSong.id)
-                                if (fresh != null && !fresh.url.isNullOrEmpty()) {
-                                    val queue = PlaybackStateRepository.activeQueue
-                                    if (queue != null) {
-                                        val idx = queue.songs.indexOfFirst { it.id == newSong.id }
-                                        if (idx >= 0) {
-                                            val mutable = queue.songs.toMutableList()
-                                            mutable[idx] = fresh
-                                            queue.songs = mutable.toList()
-                                        }
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        val ni = queue?.songs?.indexOf(fresh) ?: -1
-                                        if (ni >= 0) {
-                                            performSimpleCrossfade(oldPlayer, oldSong, fresh, ni, onMixComplete, crossfadeMode, crossfadeDurationMs, nextSongStartPositionMs)
-                                        } else {
-                                            handleMixFailure(oldPlayer, null)
-                                        }
-                                    }
-                                } else {
-                                    withContext(Dispatchers.Main) { handleMixFailure(oldPlayer, null) }
-                                }
-                            } catch (e: Exception) {
-                                Log.e("Crossfade", "Retry failed", e)
-                                withContext(Dispatchers.Main) { handleMixFailure(oldPlayer, null) }
-                            }
-                        }
-                    } else {
-                        Log.e("Crossfade", "Non-recoverable error in newPlayer.", error)
-                        handleMixFailure(oldPlayer, newPlayer)
-                    }
-                }
-            }
-            newPlayer.addListener(listener)
-            
-            if (newPlayer.playbackState == Player.STATE_READY) {
-                listener.onPlaybackStateChanged(Player.STATE_READY)
-            } else {
-                newPlayer.prepare()
-            }
-
-        } catch (e: Exception) {
-            Log.e("MusicService", "Error crítico preparando newPlayer para crossfade.", e)
-            handleMixFailure(oldPlayer, newPlayer)
-        }
-    }
-
-    private fun animateSimpleCrossfade(
-        oldPlayer: ExoPlayer,
-        newPlayer: ExoPlayer,
-        oldSong: Song,
-        newSong: Song,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit,
-        crossfadeMode: CrossfadeMode,
-        duration: Long) {
-
-        val handler = Handler(Looper.getMainLooper())
-        val startTime = SystemClock.uptimeMillis()
-
-        val animationRunnable = object : Runnable {
-            override fun run() {
-                if (!isTransitioning) {
-                    Log.w("Crossfade", "🛑 Animación simple detenida porque la transición fue cancelada.")
-                    handler.removeCallbacks(this)
-                    return
-                }
-
-                val elapsed = SystemClock.uptimeMillis() - startTime
-                val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-                transitionProgress = progress // 🔥 AÑADE ESTA LÍNEA
-
-                val (oldVol, newVol) = when (crossfadeMode) {
-                    CrossfadeMode.SOFT_MIX -> Pair(sqrt(1 - progress), sqrt(progress))
-                    CrossfadeMode.DIRECT_CUT -> {
-                        val smooth = 0.5f * (1 - cos(progress * Math.PI.toFloat()))
-                        Pair(1 - smooth, smooth)
-                    }
-                    else -> Pair(sqrt(1 - progress), sqrt(progress)) // Fallback
-                }
-
-                try {
-                    // Animación del volumen usando los volúmenes absolutos reales como base máxima
-                    oldPlayer.volume = oldVol * targetOldPlayerVolume
-                    newPlayer.volume = newVol * targetNewPlayerVolume
-
-                    if (elapsed % 500 < ANIMATION_FRAME_DELAY_MS) {
-                        val position = newPlayer.currentPosition
-                        val newDuration = newPlayer.duration
-                        if (newDuration > 0) {
-                            // Llama al callback si alguien nos lo proporcionó
-                            onTransitionProgress?.invoke(position, newDuration)
-                        }
-                    }
-
-                } catch (e: Exception) {
-                    Log.e("Crossfade", "❌ Error durante la animación simple. Deteniendo bucle.", e)
-                    handler.removeCallbacks(this)
-                    handleMixFailure(oldPlayer, newPlayer)
-                    return
-                }
-
-                if (progress < 1f) {
-                    handler.postDelayed(this,
-                        ANIMATION_FRAME_DELAY_MS
-                    )
-                } else {
-                    Log.i("Crossfade", "✅ Animación completada.")
-                    // SIN oldPlayer.stop(), SIN liberar EQs, SIN restaurar volumen.
-                    onMixComplete(newPlayer)
-                }
-            }
-        }
-        handler.post(animationRunnable)
+        setSafeBandLevel(newEq, (bands[4]).toInt(), (EQ_MAX_ATTENUATION * (1f - newTrebleProgress)))
+        setSafeBandLevel(newEq, (bands[3]).toInt(), (EQ_MAX_ATTENUATION * (1f - newTrebleProgress * 0.9f)))
+        setSafeBandLevel(newEq, (bands[2]).toInt(), (EQ_MAX_ATTENUATION * (1f - newMidProgress)))
+        setSafeBandLevel(newEq, (bands[1]).toInt(), (EQ_MAX_ATTENUATION * (1f - newBassProgress)))
+        setSafeBandLevel(newEq, (bands[0]).toInt(), (EQ_MAX_ATTENUATION * (1f - newBassProgress)))
     }
 
     // =================================================================================================
     // ===                           CROSSFADE INTELIGENTE (MOTOR DE DJ)                             ===
     // =================================================================================================
-
-    private fun performFullyIntelligentMix(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextSongIndex: Int, onMixComplete: (newPlayer: ExoPlayer) -> Unit) {
-        val strategy = calculateAutomixStrategy(oldSong, newSong)
-        val mixDuration = calculateFullyIntelligentDuration(oldSong, newSong, strategy)
-        val optimalOutPoint = findOptimalOutPoint(oldSong.audioAnalysis)
-        val optimalInPoint = findOptimalInPoint(newSong.audioAnalysis)
-
-        Log.i("IntelligentCrossfade", "🧠 MEZCLA INTELIGENTE COMPLETA - IGNORANDO DURACIÓN DEL SLIDER")
-        Log.i("IntelligentCrossfade", "🎯 Estrategia: ${strategy.name}")
-        Log.i("IntelligentCrossfade", "⏱️ Duración calculada: ${mixDuration}ms")
-        Log.i("IntelligentCrossfade", "📍 Índice Siguiente: $nextSongIndex")
-
-        prepareAndExecuteFullyIntelligentMix(
-            oldPlayer, oldSong, newSong,
-            nextSongIndex, // <-- PÁSALE EL ÍNDICE
-            mixDuration, strategy,
-            optimalOutPoint, optimalInPoint,
-            onMixComplete
-        )
-    }
-
-    private fun prepareAndExecuteFullyIntelligentMix(
-        oldPlayer: ExoPlayer,
-        oldSong: Song,
-        newSong: Song,
-        nextSongIndex: Int,
-        durationMs: Long,
-        strategy: MixStrategy,
-        optimalOutPoint: Int,
-        optimalInPoint: Int,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit
-    ) {
-        Log.i("IntelligentCrossfade", "🚀 Preparando mezcla inteligente. Índice Siguiente: $nextSongIndex")
-        Log.i("IntelligentCrossfade", "📍 Puntos: Salida=${optimalOutPoint}ms, Entrada=${optimalInPoint}ms")
-
-        val newPlayer = createTransitionPlayer()
-        // Release any previously preloaded player before replacing it.
-        // (It was prepared silently; releasing it prevents resource leaks.)
-        val existingPreloaded = this.nextPlayer
-        if (existingPreloaded != null && existingPreloaded !== newPlayer) {
-            existingPreloaded.release()
-        }
-        this.nextPlayer = newPlayer
-
-        try {
-
-            val queue = PlaybackStateRepository.activeQueue
-            if (queue == null || queue.songs.isEmpty()) {
-                Log.e("IntelligentCrossfade", "Error: No se encontró una cola activa para la transición.")
-                handleMixFailure(oldPlayer, newPlayer)
-                return
-            }
-
-            // Filter out songs without valid URLs; track the adjusted start index.
-            val validPairs = buildValidMediaItems(queue.songs)
-            val adjustedIndex = validPairs.indexOfFirst { it.first == nextSongIndex }
-                .takeIf { it >= 0 } ?: run {
-                    Log.e("IntelligentCrossfade", "Next song at index $nextSongIndex has no valid URL. Aborting intelligent mix.")
-                    handleMixFailure(oldPlayer, newPlayer)
-                    return
-                }
-
-            newPlayer.setMediaItems(validPairs.map { it.second }, adjustedIndex, optimalInPoint.toLong())
-
-            val listener = object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        newPlayer.removeListener(this)
-                        Log.d("IntelligentCrossfade", "✅ NewPlayer listo con la cola completa. Iniciando mezcla.")
-
-                        try {
-                            if (strategy == MixStrategy.BEATMATCH_MIX) {
-                                oldSong.audioAnalysis?.let { oldA ->
-                                    newSong.audioAnalysis?.let { newA ->
-                                        syncTempo(oldPlayer, oldA, newA, newPlayer)
-                                    }
-                                }
-                            }
-
-                            newPlayer.volume = 0f
-                            newPlayer.play()
-
-                            Log.d("IntelligentCrossfade", "🎵 NewPlayer iniciado en la posición correcta.")
-
-                            // 7. INICIAR ANIMACIÓN (se mantiene igual)
-                            animateFullyIntelligentMix(
-                                oldPlayer, newPlayer, oldSong, newSong,
-                                durationMs, strategy,
-                                optimalOutPoint, optimalInPoint,
-                                onMixComplete
-                            )
-                        } catch (e: Exception) {
-                            Log.e("IntelligentCrossfade", "Error al iniciar newPlayer listo.", e)
-                            handleMixFailure(oldPlayer, newPlayer)
-                        }
-                    }
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    newPlayer.removeListener(this)
-                    val isSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
-                        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-
-                    if (isSourceError) {
-                        // The stream URL for the next song has likely expired. Fetch a fresh one
-                        // and retry the transition instead of failing loudly.
-                        Log.w("IntelligentCrossfade", "⚠️ Source error on transition player — refreshing URL for ${newSong.title}")
-                        Handler(Looper.getMainLooper()).post {
-                            retryWithFreshUrl(newSong, oldPlayer, newPlayer, durationMs, strategy, optimalOutPoint, optimalInPoint, onMixComplete)
-                        }
-                    } else {
-                        Log.e("IntelligentCrossfade", "Non-recoverable error in newPlayer during preparation.", error)
-                        handleMixFailure(oldPlayer, newPlayer)
-                    }
-                }
-            }
-            newPlayer.addListener(listener)
-            
-            if (newPlayer.playbackState == Player.STATE_READY) {
-                listener.onPlaybackStateChanged(Player.STATE_READY)
-            } else {
-                newPlayer.prepare()
-            }
-
-        } catch (e: Exception) {
-            Log.e("IntelligentCrossfade", "❌ Error crítico al preparar mezcla inteligente", e)
-            handleMixFailure(oldPlayer, newPlayer)
-        }
-    }
-
-    private fun animateFullyIntelligentMix(
-        oldPlayer: ExoPlayer,
-        newPlayer: ExoPlayer,
-        oldSong: Song,
-        newSong: Song,
-        durationMs: Long,
-        strategy: MixStrategy,
-        optimalOutPoint: Int,
-        optimalInPoint: Int,
-        onMixComplete: (newPlayer: ExoPlayer) -> Unit
-    ) {
-        Log.i("Crossfade", "🎬 ANIMACIÓN INICIADA - Duración: ${durationMs}ms, Estrategia: ${strategy.name}")
-
-        initializeIntelligentEQ(oldPlayer, newPlayer)
-        val handler = Handler(Looper.getMainLooper())
-        val startTime = SystemClock.uptimeMillis()
-        var effectsState = IntelligentEffectsState()
-
-        val animationRunnable = object : Runnable {
-            override fun run() {
-                if (!isTransitioning) {
-                    Log.w("Crossfade", "🛑 Animación detenida porque la transición fue cancelada.")
-                    handler.removeCallbacks(this)
-                    return
-                }
-
-                val elapsed = SystemClock.uptimeMillis() - startTime
-                val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
-                transitionProgress = progress // 🔥 AÑADE ESTA LÍNEA
-
-                // ✅ LOG DE PROGRESO CADA 500ms
-                if (elapsed % 500 < 20) {
-                    Log.d("Crossfade", "📊 Progreso: ${(progress * 100).toInt()}% (${elapsed}ms/${durationMs}ms)")
-                }
-
-                try {
-                    if (!verifyPlayersState(oldPlayer, newPlayer)) {
-                        Log.e("Crossfade", "❌ Estado de players inválido")
-                        handler.removeCallbacks(this)
-                        handleMixFailure(oldPlayer, newPlayer)
-                        return
-                    }
-
-                    val (oldVol, newVol) = getEnhancedIntelligentVolumeCurve(progress, strategy)
-                    applyVolumeSmoothly(oldPlayer, newPlayer, oldVol, newVol)
-                    applyEnhancedIntelligentEq(oldPlayerEq, newPlayerEq, progress, strategy, oldSong, newSong)
-                    applyIntelligentEffects(progress, strategy, effectsState)
-
-                    if (elapsed % 500 < ANIMATION_FRAME_DELAY_MS) {
-                        val position = newPlayer.currentPosition
-                        val newDuration = newPlayer.duration
-                        if (newDuration > 0) {
-                            // Llama al callback si alguien nos lo proporcionó
-                            onTransitionProgress?.invoke(position, newDuration)
-                        }
-                    }
-
-                } catch (e: Exception) {
-                    Log.e("Crossfade", "❌ Error durante la animación inteligente", e)
-                    handler.removeCallbacks(this)
-                    handleMixFailure(oldPlayer, newPlayer)
-                    return
-                }
-
-                if (progress < 1f) {
-                    handler.postDelayed(this,
-                        ANIMATION_FRAME_DELAY_MS
-                    )
-                } else {
-                    Log.i("Crossfade", "✅ ANIMACIÓN COMPLETADA - Llamando onMixComplete")
-                    onMixComplete(newPlayer)
-                }
-            }
-        }
-        handler.post(animationRunnable)
-    }
 
     private fun applyIntelligentEffects(progress: Float, strategy: MixStrategy, effectsState: IntelligentEffectsState) {
         when (strategy) {
@@ -1350,7 +1020,7 @@ class TransitionManager(
                 oldPlayerEq = Equalizer(0, sessionId).apply {
                     enabled = true // ✅ ¡CORRECTO!
                     for (i in 0 until numberOfBands) {
-                        setBandLevel(i.toShort(), 0)
+                        setSafeBandLevel(this, (i.toShort()).toInt(), (0).toFloat())
                     }
                     Log.d("IntelligentCrossfade", "✅ OldPlayer EQ (ExoPlayer) inicializado en sesión $sessionId - Bandas: $numberOfBands")
                 }
@@ -1361,7 +1031,7 @@ class TransitionManager(
                 newPlayerEq = Equalizer(0, sessionId).apply {
                     enabled = true
                     for (i in 0 until numberOfBands) {
-                        setBandLevel(i.toShort(), 0)
+                        setSafeBandLevel(this, (i.toShort()).toInt(), (0).toFloat())
                     }
                     Log.d("IntelligentCrossfade", "✅ NewPlayer EQ (ExoPlayer) inicializado en sesión $sessionId - Bandas: $numberOfBands")
                 }
@@ -1389,7 +1059,7 @@ class TransitionManager(
                     val boostedLevel = (currentLevel * 1.2f).toInt().toShort().coerceAtMost(
                         EQ_MAX_ATTENUATION
                     )
-                    eq.setBandLevel(band, boostedLevel)
+                    setSafeBandLevel(eq, (band).toInt(), (boostedLevel).toFloat())
                 }
             }
         }
@@ -1541,18 +1211,18 @@ class TransitionManager(
 
         // Aplica el EQ a cada banda individualmente
         // BASS (Banda 0)
-        oldEq.setBandLevel(bands[0], (maxAttenuation * bassProgress).toInt().toShort())
-        newEq.setBandLevel(bands[0], (maxAttenuation * (1 - bassProgress)).toInt().toShort())
+        setSafeBandLevel(oldEq, (bands[0]).toInt(), (maxAttenuation * bassProgress))
+        setSafeBandLevel(newEq, (bands[0]).toInt(), (maxAttenuation * (1 - bassProgress)))
 
         // MIDS (Bandas 1, 2, 3)
         for (i in 1..3) {
-            oldEq.setBandLevel(bands[i], (maxAttenuation * midProgress).toInt().toShort())
-            newEq.setBandLevel(bands[i], (maxAttenuation * (1 - midProgress)).toInt().toShort())
+            setSafeBandLevel(oldEq, (bands[i]).toInt(), (maxAttenuation * midProgress))
+            setSafeBandLevel(newEq, (bands[i]).toInt(), (maxAttenuation * (1 - midProgress)))
         }
 
         // HIGHS (Banda 4)
-        oldEq.setBandLevel(bands[4], (maxAttenuation * highProgress).toInt().toShort())
-        newEq.setBandLevel(bands[4], (maxAttenuation * (1 - highProgress)).toInt().toShort())
+        setSafeBandLevel(oldEq, (bands[4]).toInt(), (maxAttenuation * highProgress))
+        setSafeBandLevel(newEq, (bands[4]).toInt(), (maxAttenuation * (1 - highProgress)))
     }
 
     private fun applyEnhancedHarmonicEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray, oldSong: Song?, newSong: Song?) {
@@ -1568,22 +1238,22 @@ class TransitionManager(
         val highReduction = (maxAttenuation * curve * 0.4f).toInt().toShort() // Reducción ligera de agudos para quitar "brillo"
 
         // Bajos casi intactos para mantener el "cuerpo" de la canción que se va.
-        oldEq.setBandLevel(bands[0], (maxAttenuation * curve * 0.1f).toInt().toShort())
-        oldEq.setBandLevel(bands[1], midScoop)
-        oldEq.setBandLevel(bands[2], midScoop)
-        oldEq.setBandLevel(bands[3], highReduction)
-        oldEq.setBandLevel(bands[4], highReduction)
+        setSafeBandLevel(oldEq, (bands[0]).toInt(), (maxAttenuation * curve * 0.1f))
+        setSafeBandLevel(oldEq, (bands[1]).toInt(), (midScoop).toFloat())
+        setSafeBandLevel(oldEq, (bands[2]).toInt(), (midScoop).toFloat())
+        setSafeBandLevel(oldEq, (bands[3]).toInt(), (highReduction).toFloat())
+        setSafeBandLevel(oldEq, (bands[4]).toInt(), (highReduction).toFloat())
 
         // --- Lógica para la canción que ENTRA (newEq) ---
         // Empieza con un sonido "filtrado" y termina en plano (natural).
         val initialMidScoop = (maxAttenuation * (1 - curve) * 0.8f).toInt().toShort()
         val initialHighReduction = (maxAttenuation * (1 - curve) * 0.4f).toInt().toShort()
 
-        newEq.setBandLevel(bands[0], (maxAttenuation * (1 - curve) * 0.1f).toInt().toShort())
-        newEq.setBandLevel(bands[1], initialMidScoop)
-        newEq.setBandLevel(bands[2], initialMidScoop)
-        newEq.setBandLevel(bands[3], initialHighReduction)
-        newEq.setBandLevel(bands[4], initialHighReduction)
+        setSafeBandLevel(newEq, (bands[0]).toInt(), (maxAttenuation * (1 - curve) * 0.1f))
+        setSafeBandLevel(newEq, (bands[1]).toInt(), (initialMidScoop).toFloat())
+        setSafeBandLevel(newEq, (bands[2]).toInt(), (initialMidScoop).toFloat())
+        setSafeBandLevel(newEq, (bands[3]).toInt(), (initialHighReduction).toFloat())
+        setSafeBandLevel(newEq, (bands[4]).toInt(), (initialHighReduction).toFloat())
     }
 
     private fun applyEnhancedRhythmicEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray, oldSong: Song?, newSong: Song?) {
@@ -1599,15 +1269,15 @@ class TransitionManager(
 
             // Canción que SALE (oldEq):
             // Mantenemos su bajo intacto (plano) y empezamos a cortar suavemente los medios y agudos.
-            oldEq.setBandLevel(bassBand, 0)
-            midBands.forEach { band -> oldEq.setBandLevel(band, (EQ_MEDIUM_ATTENUATION * stageProgress * 0.5f).toInt().toShort()) }
-            highBands.forEach { band -> oldEq.setBandLevel(band, (EQ_MEDIUM_ATTENUATION * stageProgress).toInt().toShort()) }
+            setSafeBandLevel(oldEq, (bassBand).toInt(), (0).toFloat())
+            midBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), (EQ_MEDIUM_ATTENUATION * stageProgress * 0.5f)) }
+            highBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), (EQ_MEDIUM_ATTENUATION * stageProgress)) }
 
             // Canción que ENTRA (newEq):
             // Mantenemos su bajo COMPLETAMENTE CORTADO e introducimos sus medios y agudos.
-            newEq.setBandLevel(bassBand, EQ_MAX_ATTENUATION)
-            midBands.forEach { band -> newEq.setBandLevel(band, (EQ_MAX_ATTENUATION * (1 - stageProgress)).toInt().toShort()) }
-            highBands.forEach { band -> newEq.setBandLevel(band, (EQ_MAX_ATTENUATION * (1 - stageProgress)).toInt().toShort()) }
+            setSafeBandLevel(newEq, (bassBand).toInt(), (EQ_MAX_ATTENUATION).toFloat())
+            midBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (EQ_MAX_ATTENUATION * (1 - stageProgress))) }
+            highBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (EQ_MAX_ATTENUATION * (1 - stageProgress))) }
 
             // FASE 2: Intercambiar los bajos (Bass Swap) (progreso 50% -> 100%)
         } else {
@@ -1616,15 +1286,15 @@ class TransitionManager(
 
             // Canción que SALE (oldEq):
             // Ahora sí, cortamos su bajo y terminamos de eliminar los medios/agudos.
-            oldEq.setBandLevel(bassBand, (EQ_MAX_ATTENUATION * stageProgress).toInt().toShort())
-            midBands.forEach { band -> oldEq.setBandLevel(band, ((EQ_MEDIUM_ATTENUATION * 0.5f) + (EQ_MEDIUM_ATTENUATION * 0.5f * stageProgress)).toInt().toShort()) }
-            highBands.forEach { band -> oldEq.setBandLevel(band, EQ_MEDIUM_ATTENUATION) } // Ya cortados
+            setSafeBandLevel(oldEq, (bassBand).toInt(), (EQ_MAX_ATTENUATION * stageProgress))
+            midBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), ((EQ_MEDIUM_ATTENUATION * 0.5f) + (EQ_MEDIUM_ATTENUATION * 0.5f * stageProgress))) }
+            highBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), (EQ_MEDIUM_ATTENUATION).toFloat()) } // Ya cortados
 
             // Canción que ENTRA (newEq):
             // Sus medios y agudos ya están presentes (planos). AHORA introducimos su bajo.
-            newEq.setBandLevel(bassBand, (EQ_MAX_ATTENUATION * (1 - stageProgress)).toInt().toShort())
-            midBands.forEach { band -> newEq.setBandLevel(band, 0) }
-            highBands.forEach { band -> newEq.setBandLevel(band, 0) }
+            setSafeBandLevel(newEq, (bassBand).toInt(), (EQ_MAX_ATTENUATION * (1 - stageProgress)))
+            midBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (0).toFloat()) }
+            highBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (0).toFloat()) }
         }
     }
 
@@ -1634,8 +1304,8 @@ class TransitionManager(
 
         bands.forEach { band ->
             // ✅ CORRECCIÓN APLICADA
-            oldEq.setBandLevel(band, (EQ_MAX_ATTENUATION * superSmoothCurve).toInt().toShort())
-            newEq.setBandLevel(band, (EQ_MAX_ATTENUATION * (1 - superSmoothCurve)).toInt().toShort())
+            setSafeBandLevel(oldEq, (band).toInt(), (EQ_MAX_ATTENUATION * superSmoothCurve))
+            setSafeBandLevel(newEq, (band).toInt(), (EQ_MAX_ATTENUATION * (1 - superSmoothCurve)))
         }
     }
 
@@ -1652,15 +1322,15 @@ class TransitionManager(
             val stageProgress = (progress / 0.25f)
 
             // oldEq: Sigue sonando normal
-            bassBands.forEach { oldEq.setBandLevel(it, FLAT) }
-            midBands.forEach { oldEq.setBandLevel(it, FLAT) }
-            highBands.forEach { oldEq.setBandLevel(it, FLAT) }
+            bassBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
+            midBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
+            highBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
 
             // newEq: Entra solo con agudos (Graves y Medios cortados)
-            bassBands.forEach { newEq.setBandLevel(it, MAX_ATT) }
-            midBands.forEach { newEq.setBandLevel(it, MAX_ATT) }
+            bassBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (MAX_ATT).toFloat()) }
+            midBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (MAX_ATT).toFloat()) }
             highBands.forEach { band ->
-                newEq.setBandLevel(band, (MAX_ATT * (1 - stageProgress)).toInt().toShort())
+                setSafeBandLevel(newEq, (band).toInt(), (MAX_ATT * (1 - stageProgress)))
             }
         }
         // Fase 2 (25% -> 50%): Intercambiar los bajos (Bass Swap)
@@ -1669,51 +1339,51 @@ class TransitionManager(
 
             // oldEq: Empieza a perder sus bajos
             bassBands.forEach { band ->
-                oldEq.setBandLevel(band, (MAX_ATT * stageProgress).toInt().toShort())
+                setSafeBandLevel(oldEq, (band).toInt(), (MAX_ATT * stageProgress))
             }
-            midBands.forEach { oldEq.setBandLevel(it, FLAT) }
-            highBands.forEach { oldEq.setBandLevel(it, FLAT) }
+            midBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
+            highBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
 
             // newEq: Introduce sus bajos, mantiene agudos, medios siguen cortados
             bassBands.forEach { band ->
-                newEq.setBandLevel(band, (MAX_ATT * (1 - stageProgress)).toInt().toShort())
+                setSafeBandLevel(newEq, (band).toInt(), (MAX_ATT * (1 - stageProgress)))
             }
-            midBands.forEach { newEq.setBandLevel(it, MAX_ATT) }
-            highBands.forEach { newEq.setBandLevel(it, FLAT) } // Agudos ya entraron
+            midBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (MAX_ATT).toFloat()) }
+            highBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) } // Agudos ya entraron
         }
         // Fase 3 (50% -> 75%): Intercambiar los medios (Mid Swap)
         else if (progress < 0.75f) {
             val stageProgress = ((progress - 0.5f) / 0.25f)
 
             // oldEq: Bajos cortados, empieza a perder medios
-            bassBands.forEach { oldEq.setBandLevel(it, MAX_ATT) }
+            bassBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (MAX_ATT).toFloat()) }
             midBands.forEach { band ->
-                oldEq.setBandLevel(band, (MAX_ATT * stageProgress).toInt().toShort())
+                setSafeBandLevel(oldEq, (band).toInt(), (MAX_ATT * stageProgress))
             }
-            highBands.forEach { oldEq.setBandLevel(it, FLAT) }
+            highBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
 
             // newEq: Bajos y agudos presentes, introduce medios
-            bassBands.forEach { newEq.setBandLevel(it, FLAT) }
+            bassBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
             midBands.forEach { band ->
-                newEq.setBandLevel(band, (MAX_ATT * (1 - stageProgress)).toInt().toShort())
+                setSafeBandLevel(newEq, (band).toInt(), (MAX_ATT * (1 - stageProgress)))
             }
-            highBands.forEach { newEq.setBandLevel(it, FLAT) }
+            highBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
         }
         // Fase 4 (75% -> 100%): Limpiar agudos de la canción antigua
         else {
             val stageProgress = ((progress - 0.75f) / 0.25f)
 
             // oldEq: Bajos y medios cortados, pierde agudos
-            bassBands.forEach { oldEq.setBandLevel(it, MAX_ATT) }
-            midBands.forEach { oldEq.setBandLevel(it, MAX_ATT) }
+            bassBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (MAX_ATT).toFloat()) }
+            midBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (MAX_ATT).toFloat()) }
             highBands.forEach { band ->
-                oldEq.setBandLevel(band, (MAX_ATT * stageProgress).toInt().toShort())
+                setSafeBandLevel(oldEq, (band).toInt(), (MAX_ATT * stageProgress))
             }
 
             // newEq: Todo presente (plano)
-            bassBands.forEach { newEq.setBandLevel(it, FLAT) }
-            midBands.forEach { newEq.setBandLevel(it, FLAT) }
-            highBands.forEach { newEq.setBandLevel(it, FLAT) }
+            bassBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
+            midBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
+            highBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
         }
     }
 
@@ -1954,44 +1624,6 @@ class TransitionManager(
         return calculatedDuration.coerceIn(4000L, 12000L)
     }
 
-    private fun verifyPlayersState(oldPlayer: ExoPlayer, newPlayer: ExoPlayer): Boolean {
-        return try {
-            // [CAMBIO] Usamos la propiedad .isPlaying de ExoPlayer. La lógica es idéntica.
-            val oldPlayerOk = oldPlayer.isPlaying || (!oldPlayer.isPlaying && isTransitioning)
-            val newPlayerOk = newPlayer.isPlaying
-
-            if (!newPlayerOk) {
-                Log.w("IntelligentCrossfade", "⚠️ NewPlayer (ExoPlayer) no está reproduciendo, intentando recuperar")
-                try {
-                    // [CAMBIO] El equivalente a .start() en ExoPlayer es .play()
-                    newPlayer.play()
-                    // play() es async: ExoPlayer necesita un instante para
-                    // reflejar isPlaying=true. En vez de bloquear Main con
-                    // Thread.sleep(10) esperando ese instante, dejamos que
-                    // el propio loop de animación reintente: este método se
-                    // vuelve a invocar en el próximo tick, ya programado por
-                    // animateFullyIntelligentMix() cada ANIMATION_FRAME_DELAY_MS
-                    // (16ms), así que la "espera" ocurre igual, sin bloquear.
-                } catch (e: Exception) {
-                    Log.e("IntelligentCrossfade", "❌ No se pudo recuperar newPlayer (ExoPlayer)", e)
-                    return false
-                }
-            }
-
-            if (!oldPlayerOk && isTransitioning) {
-                Log.w("IntelligentCrossfade", "⚠️ OldPlayer (ExoPlayer) dejó de reproducir durante transición")
-                // [MANTENIDO] Tu comentario sobre que esto puede ser normal es correcto.
-            }
-
-            true
-        } catch (e: Exception) {
-            // [SIMPLIFICADO] Un único bloque catch es suficiente, ya que IllegalStateException es muy raro
-            // al simplemente consultar el estado de ExoPlayer.
-            Log.e("IntelligentCrossfade", "❌ Error inesperado verificando estado de ExoPlayers", e)
-            false
-        }
-    }
-
     private fun calculateBeatmatchDurationAdvanced(oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis): Long {
         val bpm1 = oldAnalysis.bpmNormalized
         val bpm2 = newAnalysis.bpmNormalized
@@ -2222,13 +1854,13 @@ class TransitionManager(
 
     private fun resetEqToFlat(eq: Equalizer, bands: ShortArray) {
         bands.forEach { band ->
-            eq.setBandLevel(band, 0) // Nivel plano
+            setSafeBandLevel(eq, (band).toInt(), (0).toFloat()) // Nivel plano
         }
     }
 
     private fun resetEqToCut(eq: Equalizer, bands: ShortArray) {
         bands.forEach { band ->
-            eq.setBandLevel(band, EQ_MAX_ATTENUATION) // Nivel cortado
+            setSafeBandLevel(eq, (band).toInt(), (EQ_MAX_ATTENUATION).toFloat()) // Nivel cortado
         }
     }
 
@@ -2311,17 +1943,20 @@ class TransitionManager(
      * [cancelCurrentTransition], this is safe to call during service teardown.
      */
     fun release() {
+        active?.let { detachTransition(it) }
+        mainHandler.removeCallbacksAndMessages(null)
         isTransitioning = false
         transitionProgress = 0f
-        managerScope.cancel()
 
         runCatching {
             nextPlayer?.stop()
             nextPlayer?.release()
         }.onFailure {
-            Log.w("TransitionManager", "No se pudo liberar el player de transición", it)
+            Log.w(TAG, "No se pudo liberar el player de transición", it)
         }
         nextPlayer = null
+        preloadedSongId = null
+        preloadListener = null
 
         runCatching {
             oldPlayerEq?.enabled = false
@@ -2329,7 +1964,7 @@ class TransitionManager(
             newPlayerEq?.enabled = false
             newPlayerEq?.release()
         }.onFailure {
-            Log.w("TransitionManager", "No se pudieron liberar los ecualizadores", it)
+            Log.w(TAG, "No se pudieron liberar los ecualizadores", it)
         }
         oldPlayerEq = null
         newPlayerEq = null

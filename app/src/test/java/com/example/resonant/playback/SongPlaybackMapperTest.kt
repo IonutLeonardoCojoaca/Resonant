@@ -1,5 +1,6 @@
 package com.example.resonant.playback
 
+import com.example.resonant.data.models.AudioAnalysis
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.PlaybackResolveItemDTO
 import com.example.resonant.data.network.SongPlaybackDTO
@@ -32,10 +33,48 @@ class SongPlaybackMapperTest {
         assertEquals("Artist", enriched.artistName)
         assertEquals(playback.streamUrl, enriched.url)
         assertEquals(200_000, enriched.audioAnalysis?.durationMs)
-        assertEquals(1_500, enriched.audioAnalysis?.audioStartMs)
-        assertEquals(190_000, enriched.audioAnalysis?.audioEndMs)
+        // Los puntos de mezcla del backend van a los campos óptimos, no al silencio.
+        assertEquals(1_500, enriched.audioAnalysis?.optimalStartPointMs)
+        assertEquals(190_000, enriched.audioAnalysis?.optimalExitPointMs)
+        assertEquals(0, enriched.audioAnalysis?.audioStartMs)
+        assertEquals(200_000, enriched.audioAnalysis?.audioEndMs)
         assertEquals(120.0, enriched.audioAnalysis?.bpm ?: 0.0, 0.0)
         assertEquals(-12.5f, enriched.audioAnalysis?.loudnessLufs ?: 0f, 0f)
+    }
+
+    @Test
+    fun `mix points never overwrite the detected silence of an existing analysis`() {
+        val song = Song(
+            id = "song-1",
+            title = "Title",
+            artistName = "Artist",
+            audioAnalysis = AudioAnalysis(
+                id = "a-1",
+                songId = "song-1",
+                durationMs = 200_000,
+                audioStartMs = 800,
+                audioEndMs = 198_500,
+                bpm = 120.0,
+                bpmNormalized = 120.0
+            )
+        )
+        val playback = SongPlaybackDTO(
+            id = "song-1",
+            streamUrl = "https://cdn.example/song.mp3",
+            durationMs = 200_000,
+            bpm = 120.0,
+            musicalKey = "Am",
+            introStartMs = 35_900,
+            outroStartMs = 170_000,
+            loudness = -12.5
+        )
+
+        val enriched = song.withPlaybackInfo(playback)
+
+        assertEquals(800, enriched.audioAnalysis?.audioStartMs)
+        assertEquals(198_500, enriched.audioAnalysis?.audioEndMs)
+        assertEquals(35_900, enriched.audioAnalysis?.optimalStartPointMs)
+        assertEquals(170_000, enriched.audioAnalysis?.optimalExitPointMs)
     }
 
     @Test

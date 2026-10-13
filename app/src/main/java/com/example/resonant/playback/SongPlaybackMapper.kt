@@ -7,13 +7,16 @@ import com.example.resonant.data.network.PlaybackResolveItemDTO
 
 fun Song.withPlaybackInfo(playback: SongPlaybackDTO): Song {
     val effectiveBpm = playback.bpm ?: audioAnalysis?.bpm ?: 0.0
+    // introStartMs/outroStartMs del backend son los puntos óptimos de mezcla
+    // (OptimalStartPointMs/OptimalExitPointMs), no el silencio inicial/final.
+    // audioStartMs/audioEndMs conservan el análisis previo o, en su defecto, 0 y la duración.
+    val effectiveDurationMs = playback.durationMs.takeIf { it > 0 } ?: audioAnalysis?.durationMs ?: 0
     val analysis = audioAnalysis?.copy(
-        durationMs = playback.durationMs.takeIf { it > 0 } ?: audioAnalysis?.durationMs ?: 0,
-        audioStartMs = playback.introStartMs ?: audioAnalysis?.audioStartMs ?: 0,
-        audioEndMs = playback.outroStartMs
-            ?: playback.durationMs.takeIf { it > 0 }
-            ?: audioAnalysis?.audioEndMs
-            ?: 0,
+        durationMs = effectiveDurationMs,
+        audioStartMs = audioAnalysis?.audioStartMs ?: 0,
+        audioEndMs = audioAnalysis?.audioEndMs?.takeIf { it > 0 } ?: effectiveDurationMs,
+        optimalStartPointMs = playback.introStartMs ?: audioAnalysis?.optimalStartPointMs,
+        optimalExitPointMs = playback.outroStartMs ?: audioAnalysis?.optimalExitPointMs,
         bpm = effectiveBpm,
         bpmNormalized = effectiveBpm.takeIf { it > 0.0 }
             ?: audioAnalysis?.bpmNormalized
@@ -26,12 +29,14 @@ fun Song.withPlaybackInfo(playback: SongPlaybackDTO): Song {
         id = id,
         songId = id,
         durationMs = playback.durationMs,
-        audioStartMs = playback.introStartMs ?: 0,
-        audioEndMs = playback.outroStartMs ?: playback.durationMs,
+        audioStartMs = 0,
+        audioEndMs = playback.durationMs,
         loudnessLufs = playback.loudness?.toFloat() ?: 0f,
         bpm = effectiveBpm,
         bpmNormalized = effectiveBpm,
-        musicalKey = playback.musicalKey
+        musicalKey = playback.musicalKey,
+        optimalStartPointMs = playback.introStartMs,
+        optimalExitPointMs = playback.outroStartMs
     )
 
     return copy(

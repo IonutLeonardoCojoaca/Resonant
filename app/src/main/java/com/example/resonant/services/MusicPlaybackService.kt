@@ -47,6 +47,7 @@ import com.example.resonant.playback.PlaybackMediaSourceFactory
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlaybackStateStore
 import com.example.resonant.playback.PlaybackUrlResolver
+import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.playback.PlaybackQoeTracker
 import com.example.resonant.playback.FirebasePlaybackQoeSink
 import com.example.resonant.playback.BackendPlaybackQoeSink
@@ -256,6 +257,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     @Volatile
     private var predictedIntelligentDuration: Long = -1L
 
+    /**
+     * Canción cuya transición automática ya falló en esta reproducción. Evita que el
+     * seekbar vuelva a disparar la misma transición en bucle; se limpia al cambiar de canción.
+     */
+    private var transitionSuppressedForSongId: String? = null
+
     // Loudness normalization
     private var loudnessNormalizationEnabled: Boolean = true
     private var streamingQuality: AudioQuality = AudioQuality.AUTO
@@ -386,7 +393,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
             val triggerPosition = calculateTriggerPosition()
 
-            if (triggerPosition > 0 && position >= triggerPosition) {
+            val transitionSuppressed = transitionSuppressedForSongId != null &&
+                transitionSuppressedForSongId == PlaybackStateRepository.currentSong?.id
+            if (triggerPosition > 0 && position >= triggerPosition && !transitionSuppressed) {
                 Log.i("MusicService", "🏁 TRIGGER by SeekBar: Pos(${position}ms) >= Trigger(${triggerPosition}ms).")
                 handleTransitionTrigger()
                 return
@@ -618,6 +627,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         progressiveFallbackSongId = null
         retryCount = 0
         expectedSeekPositionMs = -1L
+        transitionSuppressedForSongId = null
         PlaybackStateRepository.setCurrentSong(targetSong)
         PlaybackStateRepository.publishQueue()
         PlaybackStateRepository.updatePlaybackPosition(
@@ -858,6 +868,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             mediaItemFactory = playbackMediaItemFactory::create,
             onTransitionComplete = ::handleTransitionComplete,
             onTransitionFailed = ::handleTransitionFailed,
+            onTransitionAudible = ::handleTransitionAudible,
             onTransitionProgress = { position, duration ->
                 PlaybackStateRepository.updatePlaybackPosition(position, duration.toInt())
             }
@@ -1109,6 +1120,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                         expectedSeekPositionMs = -1L
                         progressiveFallbackSongId = null
                         retryCount = 0
+                        transitionSuppressedForSongId = null
 
                         PlaybackStateRepository.setCurrentSong(newSong)
                         activeQueue.currentIndex = newQueueIndex
@@ -1131,6 +1143,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
                         // Proactively preload the song after next to maintain seamless native gapless
                         prepareNextTransitionPlayer(newQueueIndex)
+                        // La duración inteligente cacheada era de otro par de canciones.
+                        updatePredictedDurationAsync()
                     } else {
                         Log.d("PlayerListener", "Transición de ExoPlayer a la misma canción (${newSong?.title}). Se ignora para evitar parpadeo.")
                     }
@@ -1494,14 +1508,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         val player = exoPlayer
         val exoDurationMs = if (player != null && player.duration > 0) player.duration else -1L
-
-        // Resolve song duration: prefer audioAnalysis (most accurate), fall back to ExoPlayer.
         val analysis = song.audioAnalysis
-        val songDurationMs: Long = when {
-            (analysis?.durationMs ?: 0) > 0 -> analysis!!.durationMs.toLong()
-            exoDurationMs > 0               -> exoDurationMs
-            else -> return -1L
-        }
+        val analysisDurationMs = (analysis?.durationMs ?: 0).toLong()
+        if (TransitionTiming.effectiveDurationMs(exoDurationMs, analysisDurationMs) <= 0) return -1L
 
         if (isAlbumMode) return -1L  // album non-automix: handled elsewhere
 
@@ -1523,16 +1532,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             crossfadeDurationMs
         }
 
-        if (actualMixDuration <= 0) {
-            return -1L
-        }
-
-        val triggerPos = songDurationMs - actualMixDuration
-        if (triggerPos <= 0) {
-            return -1L
-        }
-
-        return triggerPos
+        // Duración efectiva = la menor entre la real y la del análisis; se respeta el silencio final.
+        return TransitionTiming.computeTriggerPositionMs(
+            exoDurationMs = exoDurationMs,
+            analysisDurationMs = analysisDurationMs,
+            audioEndMs = (analysis?.audioEndMs ?: 0).toLong(),
+            mixDurationMs = actualMixDuration
+        )
     }
 
 
@@ -2129,10 +2135,28 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 crossfadeDurationMs > 0L
             )
 
-        if (needsSecondPlayer) {
-            transitionManager.preloadNextSong(nextSong)
+        if (needsSecondPlayer && nextSong != null) {
+            transitionManager.preloadNextSong(nextSong, resolveNextEntryPointMs(queue, currentQueueIndex, nextSong))
         } else {
             cancelCurrentTransitionAndRestoreEffects()
+        }
+    }
+
+    /** Punto de entrada con el que se precarga la siguiente canción (design D3). */
+    private fun resolveNextEntryPointMs(queue: PlaybackQueue, currentQueueIndex: Int, nextSong: Song): Long {
+        val currentSong = queue.songs.getOrNull(currentQueueIndex)
+        return when {
+            queue.sourceType == QueueSource.PLAYMIX -> {
+                val transition = currentSong?.let { playmixTransitions["${it.id}:${nextSong.id}"] }
+                TransitionTiming.resolveEntryPointMs(TransitionTiming.EntryMode.PLAYMIX, transition?.entryPointMs, null, null)
+            }
+            queue.sourceType == QueueSource.ALBUM -> 0L
+            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> TransitionTiming.resolveEntryPointMs(
+                TransitionTiming.EntryMode.INTELLIGENT, null, transitionManager.intelligentEntryPointMs(nextSong), null
+            )
+            else -> TransitionTiming.resolveEntryPointMs(
+                TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
+            )
         }
     }
 
@@ -3435,8 +3459,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             return
         }
 
-        reportCurrentSongFinished(wasSkipped = false)
-
         val queue = PlaybackStateRepository.activeQueue
         if (queue == null) {
             Log.e("TransitionTrigger", "❌ activeQueue is null — aborting")
@@ -3478,15 +3500,19 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val isPlaymixMode = queue.sourceType == QueueSource.PLAYMIX
         val playmixTransition = if (isPlaymixMode) playmixTransitions["${oldSong.id}:${nextSong.id}"] else null
 
-        // Update UI immediately to the next song
-        PlaybackStateRepository.setCurrentSong(nextSong)
-        loadArtworkForSong(nextSong)
-        PlaybackStateRepository.activeQueue?.currentIndex = nextIndex
-        PlaybackStateRepository.publishQueue()
+        // D1: aislar al player saliente. Solo puede terminar, nunca avanzar a B por su cuenta.
+        // La cola completa se reconstruye en el player promocionado tras el relevo.
+        try {
+            val currentIdx = player.currentMediaItemIndex
+            if (currentIdx + 1 < player.mediaItemCount) {
+                player.removeMediaItems(currentIdx + 1, player.mediaItemCount)
+            }
+            player.repeatMode = Player.REPEAT_MODE_OFF
+        } catch (e: Exception) {
+            Log.w("TransitionTrigger", "No se pudo aislar al player saliente", e)
+        }
 
-        val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
-        PlaybackStateRepository.updatePlaybackPosition(0, newDuration)
-
+        // La UI y la cola cambian a B cuando B empieza a sonar (handleTransitionAudible, D6).
         audioEqualizerController.suspendForTransition()
         if (playmixTransition != null) {
             Log.d("MusicService", "🎹 PlayMix — using dedicated engine: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, mixMode=${playmixTransition.mixMode}, curve=${playmixTransition.fadeCurveType}, gap=${playmixTransition.gapMs}ms")
@@ -3562,6 +3588,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         newPlayer.addAnalyticsListener(playbackQoeTracker)
         applyStreamingQualityToPlayer(newPlayer)
         audioEqualizerController.resumeAfterTransition(newPlayer.audioSessionId)
+        transitionSuppressedForSongId = null
+
+        // D7: el player promocionado hereda el modo de repetición del usuario antes de recibir la cola.
+        newPlayer.repeatMode = when (PlaybackStateRepository.repeatModeLiveData.value) {
+            PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+            PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+            else -> Player.REPEAT_MODE_OFF
+        }
 
         // After a crossfade the new player only holds the transition window, not the full
         // queue. Sync it immediately so that Media3 / Bluetooth / AVRCP see the complete
@@ -3609,10 +3643,64 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         transitionManager.preloadNextSong(nextSong)
     }
 
-    private fun handleTransitionFailed(oldPlayer: ExoPlayer) {
-        // La transición no se hizo o falló, así que simplemente saltamos.
+    /**
+     * D6: B ha empezado a sonar. Ahora sí la UI, la cola, la notificación y Connect pasan a B.
+     * Hasta este instante la canción actual seguía siendo A.
+     */
+    private fun handleTransitionAudible(nextSong: Song, nextIndex: Int) {
+        val queue = PlaybackStateRepository.activeQueue
+        val resolvedIndex = nextIndex.takeIf { queue?.songs?.getOrNull(it)?.id == nextSong.id }
+            ?: queue?.songs?.indexOfFirst { it.id == nextSong.id }
+            ?: -1
+
+        // A ha terminado de sonar a efectos de historial (se reporta mientras aún es la actual).
+        reportCurrentSongFinished(wasSkipped = false)
+
+        PlaybackStateRepository.setCurrentSong(nextSong)
+        loadArtworkForSong(nextSong)
+        if (resolvedIndex >= 0) queue?.currentIndex = resolvedIndex
+        PlaybackStateRepository.publishQueue()
+
+        val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
+        PlaybackStateRepository.updatePlaybackPosition(0, newDuration)
+        currentSongStartTimeMs = System.currentTimeMillis()
+        PlaybackStateRepository.streamReported = false
+        updateUiAndSystem()
+    }
+
+    /**
+     * D5: la transición no se hizo o falló. A sigue sonando hasta su final natural; como ya
+     * no tiene items posteriores (D1), llegará a STATE_ENDED y `playNext()` avanzará exactamente
+     * una posición. Si A ya había terminado, se avanza ahora.
+     */
+    private fun handleTransitionFailed(oldPlayer: ExoPlayer, oldSong: Song?, nextSong: Song?, wasAudible: Boolean) {
+        Log.w("MusicService", "Transición fallida (audible=$wasAudible). A continúa; B=${nextSong?.title}")
+
         audioEqualizerController.resumeAfterTransition(oldPlayer.audioSessionId)
-        oldPlayer.seekToNextMediaItem()
+
+        if (wasAudible && oldSong != null) {
+            // La UI ya mostraba B: volver a A, que es lo que suena.
+            val queue = PlaybackStateRepository.activeQueue
+            val oldIndex = queue?.songs?.indexOfFirst { it.id == oldSong.id } ?: -1
+            PlaybackStateRepository.setCurrentSong(oldSong)
+            if (oldIndex >= 0) queue?.currentIndex = oldIndex
+            PlaybackStateRepository.publishQueue()
+            loadArtworkForSong(oldSong)
+            updateUiAndSystem()
+        }
+
+        applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+        nextSong?.let { playbackUrlResolver.invalidate(it.id) }
+        transitionSuppressedForSongId = PlaybackStateRepository.currentSong?.id
+
+        if (oldPlayer.playbackState == Player.STATE_ENDED) {
+            Log.i("MusicService", "A ya había terminado: avanzando a la siguiente canción.")
+            playNext()
+            return
+        }
+
+        // A sigue sonando: el seekbar vuelve a correr (sin volver a disparar la transición).
+        if (oldPlayer.isPlaying) startSeekBarUpdates()
     }
 
     private fun logPlayerState(context: String) {

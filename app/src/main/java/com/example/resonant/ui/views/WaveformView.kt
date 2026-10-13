@@ -1,5 +1,6 @@
 package com.example.resonant.ui.views
 
+import com.example.resonant.playback.BeatMagnet
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -20,7 +21,8 @@ import kotlin.math.roundToInt
  * - Top half  = Song A (exiting). Drag left/right to move the exit point.
  * - Bottom half= Song B (entering). Drag left/right to move the entry point.
  * - A fixed center line acts as the scrub head; dragging scrolls the waveform under it.
- * - On finger-up the view snaps to the nearest BPM beat in the grid.
+ * - While dragging, the marker is pulled to the nearest beat when within a fraction of the
+ *   local beat interval (BeatMagnet); on finger-up the same rule applies.
  * - The crossfade zone is highlighted and both waveforms are drawn overlapping there.
  * - A thin white playback cursor is updated via [setPlaybackPositionMs].
  */
@@ -565,13 +567,16 @@ class WaveformView @JvmOverloads constructor(
                         }
                     } else {
                         // ── Main area drag: move the exit/entry point ──
+                        // Imán a beats durante el arrastre: la posición real del dedo vive en
+                        // exitPointMsF/entryPointMsF; lo que se muestra y se guarda es el beat
+                        // capturado cuando el dedo está dentro del umbral local (BeatMagnet).
                         val dx = event.x - lastTouchX
                         if (touchingTopHalf) {
                             exitPointMsF -= dx / pixelsPerMs
-                            exitPointMs = exitPointMsF.roundToInt()
+                            exitPointMs = magnetize(exitPointMsF.roundToInt(), beatGridA)
                         } else {
                             entryPointMsF -= dx / pixelsPerMs
-                            entryPointMs = entryPointMsF.roundToInt()
+                            entryPointMs = magnetize(entryPointMsF.roundToInt(), beatGridB)
                         }
                         lastTouchX = event.x
                         onScrubbing?.invoke(exitPointMs, entryPointMs)
@@ -609,14 +614,11 @@ class WaveformView @JvmOverloads constructor(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun snapToNearestBeat(ms: Int, beatGrid: List<Int>): Int {
-        if (beatGrid.isEmpty()) return ms
-        val nearest = beatGrid.minByOrNull { abs(it - ms) } ?: return ms
-        // Only snap if the nearest beat is within 1 beat interval (~500ms) to avoid
-        // yanking the marker back from positions beyond the last detected beat
-        val snapThresholdMs = 500
-        return if (abs(nearest - ms) <= snapThresholdMs) nearest else ms
-    }
+    /** Beat capturado por el imán si está dentro del umbral local; si no, el propio instante. */
+    private fun magnetize(ms: Int, beatGrid: List<Int>): Int =
+        if (snapToBeatEnabled) BeatMagnet.snap(ms, beatGrid).ms else ms
+
+    private fun snapToNearestBeat(ms: Int, beatGrid: List<Int>): Int = magnetize(ms, beatGrid)
 
     private fun nextBeat(ms: Int, beatGrid: List<Int>): Int =
         beatGrid.filter { it > ms }.minOrNull() ?: ms
