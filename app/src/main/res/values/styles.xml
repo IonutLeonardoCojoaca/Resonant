@@ -253,4 +253,18 @@
         <item name="android:scaleType">fitCenter</item>
         <item name="tint">@color/textTheme</item>
     </style>
+
+    <!-- Opción del selector de periodo de los rankings (view_chart_period_selector). -->
+    <style name="ChartPeriodOption">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:fontFamily">@font/unageo_semi_bold</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">13sp</item>
+    </style>
 </resources>

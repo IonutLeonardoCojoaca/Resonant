@@ -14,6 +14,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.network.UnisoundQueueItemDTO
+import com.example.resonant.unisound.UnisoundItemLabels
+import com.example.resonant.unisound.UnisoundRoomState
 
 /** Row of the room queue: author label, and the controls this member is allowed to use. */
 data class UnisoundQueueRow(
@@ -22,7 +24,19 @@ data class UnisoundQueueRow(
     val automatic: Boolean = false,
     val canRemove: Boolean = false,
     val canReorder: Boolean = false
-)
+) {
+    companion object {
+        fun rowsOf(state: UnisoundRoomState): List<UnisoundQueueRow> = state.queue.map { item ->
+            UnisoundQueueRow(
+                item = item,
+                addedByLabel = UnisoundItemLabels.labelFor(item, state.members.size, state.myUserId),
+                automatic = UnisoundItemLabels.isAutomatic(item),
+                canRemove = state.canRemove(item),
+                canReorder = state.canControl && state.queue.size > 1
+            )
+        }
+    }
+}
 
 class UnisoundQueueAdapter(
     private val onRemove: (UnisoundQueueItemDTO) -> Unit = {},

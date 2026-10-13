@@ -79,6 +79,7 @@ import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.SessionManager
 import com.example.resonant.playback.UnisoundPlaybackBridge
 import com.example.resonant.ui.bottomsheets.UnisoundJoinBottomSheet
+import com.example.resonant.ui.bottomsheets.UnisoundQueueBottomSheet
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.fragments.UnisoundRoomFragment
 import com.example.resonant.ui.fragments.UnisoundSummaryFragment
@@ -456,7 +457,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         miniPlayerQueueButton.setOnClickListener {
             if (isInUnisoundRoom()) {
-                openUnisoundRoom()
+                if (supportFragmentManager.findFragmentByTag(UnisoundQueueBottomSheet.TAG) == null) {
+                    UnisoundQueueBottomSheet().show(supportFragmentManager, UnisoundQueueBottomSheet.TAG)
+                }
             } else if (supportFragmentManager.findFragmentByTag(QUEUE_SHEET_TAG) == null) {
                 PlaybackQueueBottomSheet().show(supportFragmentManager, QUEUE_SHEET_TAG)
             }

@@ -1735,8 +1735,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val player = exoPlayer ?: return
         val queue = PlaybackStateRepository.activeQueue?.takeIf { isUnisoundMode }
         val songs = UnisoundMirrorPlan.songsOf(state)
-        val currentId = songs.firstOrNull()?.id
-        if (queue == null || currentId == null || !playerIsOnOrEnteringSong(player, currentId)) {
+        val currentId = songs.firstOrNull()?.id ?: return
+        if (queue == null || !playerIsOnOrEnteringSong(player, currentId)) {
             unisoundAdapter.forceRebuild()
             return
         }

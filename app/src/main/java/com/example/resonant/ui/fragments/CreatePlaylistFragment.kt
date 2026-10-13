@@ -3,11 +3,10 @@ package com.example.resonant.ui.fragments
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import android.widget.ImageView
+import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.ui.viewmodels.PlaylistsListViewModel
@@ -15,10 +14,8 @@ import com.example.resonant.ui.viewmodels.PlaylistsListViewModelFactory
 import com.example.resonant.R
 import com.example.resonant.ui.viewmodels.UserViewModel
 import com.example.resonant.data.models.Playlist
-import com.example.resonant.utils.Utils
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.launch
 
 class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
@@ -31,7 +28,7 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
     private lateinit var playlistsViewModel: PlaylistsListViewModel
     private lateinit var userViewModel: UserViewModel
-    private lateinit var userProfileImage: ImageView
+    private lateinit var arrowGoBackButton: FrameLayout
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -49,8 +46,8 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
         tvVisibilityDesc = view.findViewById(R.id.tvVisibilityDescription)
         tvVisibilityTitle = view.findViewById(R.id.tvVisibilityTitle)
         createButton = view.findViewById(R.id.createPlaylistButton)
-        userProfileImage = view.findViewById(R.id.userProfile)
-        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
+        arrowGoBackButton.setOnClickListener { findNavController().popBackStack() }
 
         // Update visibility label and description when switch changes
         switchPublic.setOnCheckedChangeListener { _, isChecked ->

@@ -30,6 +30,9 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.ChartHero
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -53,26 +56,22 @@ class TopChartsFragment : Fragment() {
     private lateinit var rvSongs: RecyclerView
     private lateinit var rootLayout: androidx.coordinatorlayout.widget.CoordinatorLayout
     private lateinit var appBarLayout: com.google.android.material.appbar.AppBarLayout
-    private lateinit var tvTitle: TextView
-    private lateinit var tvSubtitle: TextView
     private lateinit var tvToolbarTitle: TextView // Nuevo
     private lateinit var progressBar: LottieAnimationView
     private lateinit var btnBack: ImageButton
 
     // Argumentos
     private var chartTitle: String = ""
-    private var startColor: String = "#000000"
-    private var endColor: String = "#000000"
     private var period: Int = 0
     private var isTrending: Boolean = false
     private var shouldResetScroll: Boolean = false // Flag para resetear scroll
+    private var heroAnimated = false // La entrada del hero solo la primera vez, no al volver del back stack
+    private var animateNextList = true // Entrada escalonada de filas en la próxima lista
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
             chartTitle = it.getString("TITLE", "Top Chart")
-            startColor = it.getString("START_COLOR", "#333333")
-            endColor = it.getString("END_COLOR", "#000000")
             period = it.getInt("PERIOD", 0)
             isTrending = it.getBoolean("IS_TRENDING", false)
         }
@@ -104,267 +103,52 @@ class TopChartsFragment : Fragment() {
     }
 
     private fun setupUI(view: View) {
-        // Buscamos las vistas
         rootLayout = view.findViewById(R.id.rootLayout)
-        appBarLayout = view.findViewById<com.google.android.material.appbar.AppBarLayout>(R.id.appBarLayout)
-        val headerBackground = view.findViewById<View>(R.id.viewHeaderBackground)
-        tvTitle = view.findViewById(R.id.tvChartTitle)
-        tvSubtitle = view.findViewById(R.id.tvChartSubtitle)
-        tvToolbarTitle = view.findViewById(R.id.tvToolbarTitle) // Nuevo
+        appBarLayout = view.findViewById(R.id.appBarLayout)
+        tvToolbarTitle = view.findViewById(R.id.tvToolbarTitle)
         btnBack = view.findViewById(R.id.btnBack)
         rvSongs = view.findViewById(R.id.rvSongs)
         progressBar = view.findViewById(R.id.lottieLoader)
 
-        // --- MAGIA VISUAL: MOSTRAR TÍTULO EN TOOLBAR AL HACER SCROLL ---
-        appBarLayout.addOnOffsetChangedListener { appBar, verticalOffset ->
-            val totalScrollRange = appBar.totalScrollRange
-            val percentage = Math.abs(verticalOffset).toFloat() / totalScrollRange.toFloat()
-
-            // Solo mostrar cuando está colapsado más del 75%
-            // De 0% a 75% -> alpha = 0
-            // De 75% a 100% -> alpha transiciona de 0 a 1
-            val triggerPoint = 0.75f
-            if (percentage > triggerPoint) {
-                // Normalizar el rango restante (0.25) a 0.0-1.0
-                val alpha = (percentage - triggerPoint) / (1f - triggerPoint)
-                tvToolbarTitle.alpha = alpha
-            } else {
-                tvToolbarTitle.alpha = 0f
-            }
-        }
-
-        // Botones de tipo de chart y descripción de trending
-        val chartTypeButtonsContainer = view.findViewById<View>(R.id.chartTypeButtonsContainer)
-        val trendingDescriptionCard = view.findViewById<View>(R.id.trendingDescriptionCard)
-        
-        val btnDaily = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnDaily)
-        val btnWeekly = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnWeekly)
-        val btnMonthly = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnMonthly)
-        val btnGlobal = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnGlobal)
-
-        // 3. Configurar RecyclerView y Adapter
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_TOP_SONG)
         rvSongs.layoutManager = LinearLayoutManager(context)
         rvSongs.adapter = songAdapter
 
-        // Función auxiliar
-        fun dpToPx(dp: Int): Int {
-            return (dp * resources.displayMetrics.density).toInt()
-        }
-        
-        // --- FUNCIÓN PARA ALTERNAR ENTRE MODO CHARTS Y TRENDING ---
-        fun updateUIMode(showTrending: Boolean) {
-            if (showTrending) {
-                // Modo Tendencias: Ocultar botones, mostrar descripción
-                chartTypeButtonsContainer.visibility = View.GONE
-                trendingDescriptionCard.visibility = View.VISIBLE
-            } else {
-                // Modo Charts: Mostrar botones, ocultar descripción
-                chartTypeButtonsContainer.visibility = View.VISIBLE
-                trendingDescriptionCard.visibility = View.GONE
-            }
-        }
-
-        // --- CONFIGURAR BOTONES DE TIPO DE CHART ---
-        // Función para actualizar estado de botones
-        fun updateButtonStates(selectedPeriod: Int, showingTrending: Boolean) {
-            val buttons = listOf(btnDaily, btnWeekly, btnMonthly, btnGlobal)
-            val periods = listOf(0, 1, 2, 3)
-
-            buttons.forEachIndexed { index, button ->
-                // Solo marcamos si NO es trending y coincide el periodo
-                if (!showingTrending && periods[index] == selectedPeriod) {
-                    // Botón seleccionado
-                    button.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                        androidx.core.content.ContextCompat.getColor(requireContext(), R.color.secondaryColorTheme)
-                    )
-                    button.strokeWidth = 0
-                    button.setTextColor(Color.WHITE)
-                } else {
-                    // Botón no seleccionado: fondo translúcido y texto blanco nítido sobre el degradado
-                    button.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                        Color.parseColor("#33FFFFFF")
-                    )
-                    button.strokeColor = android.content.res.ColorStateList.valueOf(
-                        Color.parseColor("#66FFFFFF")
-                    )
-                    button.strokeWidth = dpToPx(1)
-                    button.setTextColor(Color.parseColor("#F0FFFFFF"))
-                }
-            }
+        // --- HERO POR CAPAS: verde para los rankings de canciones, azul para Tendencias ---
+        val hero = view.findViewById<View>(R.id.chartHero)
+        val accent = if (isTrending) ResonantAccent.TRENDING else ResonantAccent.SONGS
+        val (title, subtitle) = chartTexts(period, isTrending)
+        ChartHero.bind(
+            hero,
+            accent,
+            eyebrow = if (isTrending) "Lo más viral" else "Ranking de canciones",
+            title = title,
+            subtitle = subtitle
+        )
+        tvToolbarTitle.text = title
+        ChartHero.attachParallax(appBarLayout, hero, tvToolbarTitle)
+        if (!heroAnimated) {
+            ChartHero.animateIn(hero)
+            heroAnimated = true
         }
 
-        // Función para actualizar título y fondo
-        // Función para actualizar título, subtítulo y fondo con animación
-        fun updateChartTheme(period: Int, isTrending: Boolean) {
-            val titleText: String
-            val subtitleText: String // Quitamos el var, usamos val
-            val colorStart: String
-            val colorEnd: String
-
-            if (isTrending) {
-                titleText = "Tendencias"
-                subtitleText = "" // Texto vacío para tendencias
-                colorStart = "#eb3b5a"
-                colorEnd = "#fa8231"
-            } else {
-                when (period) {
-                    0 -> { // Diario
-                        titleText = "Top Diario"
-                        subtitleText = "Lo más escuchado hoy"
-                        colorStart = "#FF9F40"
-                        colorEnd = "#F53B57"
-                    }
-                    1 -> { // Semanal
-                        titleText = "Top Semanal"
-                        subtitleText = "Lo más escuchado esta semana"
-                        colorStart = "#22A6B3"
-                        colorEnd = "#006266"
-                    }
-                    2 -> { // Mensual
-                        titleText = "Top Mensual"
-                        subtitleText = "Lo más escuchado este mes"
-                        colorStart = "#FFEAA7"
-                        colorEnd = "#FAB1A0"
-                    }
-                    3 -> { // Global
-                        titleText = "Top Global"
-                        subtitleText = "Siempre escuchado"
-                        colorStart = "#a55eea"
-                        colorEnd = "#4b7bec"
-                    }
-                    else -> {
-                        titleText = "Éxitos"
-                        subtitleText = "Lo más escuchado siempre"
-                        colorStart = "#333333"
-                        colorEnd = "#000000"
-                    }
-                }
-            }
-
-            // 1. ANIMACIÓN DEL TÍTULO
-            tvTitle.animate()
-                .alpha(0f)
-                .setDuration(150)
-                .withEndAction {
-                    tvTitle.text = titleText
-                    tvTitle.animate().alpha(1f).setDuration(150).start()
-                }
-                .start()
-
-            // 2. ANIMACIÓN DEL SUBTÍTULO (CORREGIDA)
-            tvSubtitle.animate()
-                .alpha(0f)
-                .setDuration(150)
-                .withEndAction {
-                    tvSubtitle.text = subtitleText
-
-                    // Lógica de visibilidad dentro de la animación
-                    if (isTrending) {
-                        tvSubtitle.visibility = View.GONE
-                    } else {
-                        tvSubtitle.visibility = View.VISIBLE
-                        // Aquí estaba el error antes: animabas tvTitle en lugar de tvSubtitle
-                        tvSubtitle.animate().alpha(1f).setDuration(150).start()
-                    }
-                }
-                .start()
-
-            // El título de la toolbar cambia directo (o puedes animarlo igual si quieres)
-            tvToolbarTitle.text = titleText
-
-            // 3. ANIMACIÓN DEL FONDO (Igual que antes)
-            try {
-                val targetColor1 = Color.parseColor(colorStart)
-                val targetColor2 = Color.parseColor(colorEnd)
-
-                val currentDrawable = headerBackground.background as? GradientDrawable
-                val currentColors = if (currentDrawable != null) {
-                    intArrayOf(
-                        Color.parseColor(startColor),
-                        Color.parseColor(endColor)
-                    )
-                } else {
-                    intArrayOf(targetColor1, targetColor2)
-                }
-
-                val colorAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 400
-                    interpolator = android.view.animation.DecelerateInterpolator()
-
-                    addUpdateListener { animator ->
-                        val fraction = animator.animatedValue as Float
-                        val evaluator = android.animation.ArgbEvaluator()
-                        val interpolatedColor1 = evaluator.evaluate(fraction, currentColors[0], targetColor1) as Int
-                        val interpolatedColor2 = evaluator.evaluate(fraction, currentColors[1], targetColor2) as Int
-
-                        val gradient = GradientDrawable(
-                            GradientDrawable.Orientation.TOP_BOTTOM,
-                            intArrayOf(interpolatedColor1, interpolatedColor2)
-                        )
-                        headerBackground.background = gradient
-                    }
-                }
-                colorAnimator.start()
-
-                startColor = colorStart
-                endColor = colorEnd
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        updateButtonStates(period, isTrending)
-        updateUIMode(isTrending)
-        updateChartTheme(period, isTrending)
-
-        btnDaily.setOnClickListener {
-            if (isTrending || period != 0) {
-                period = 0
-                isTrending = false
-                shouldResetScroll = true
-                updateButtonStates(0, false)
-                updateChartTheme(0, false)
-                updateUIMode(false)
-                viewModel.loadChartData(false, period)
-            }
-        }
-
-        btnWeekly.setOnClickListener {
-            if (isTrending || period != 1) {
-                period = 1
-                isTrending = false
-                shouldResetScroll = true
-                updateButtonStates(1, false)
-                updateChartTheme(1, false)
-                updateUIMode(false)
-                viewModel.loadChartData(false, period)
-            }
-        }
-
-        btnMonthly.setOnClickListener {
-            if (isTrending || period != 2) {
-                period = 2
-                isTrending = false
-                shouldResetScroll = true
-                updateButtonStates(2, false)
-                updateChartTheme(2, false)
-                updateUIMode(false)
-                viewModel.loadChartData(false, period)
-            }
-        }
-
-        btnGlobal.setOnClickListener {
-            if (isTrending || period != 3) {
-                period = 3
-                isTrending = false
-                shouldResetScroll = true
-                updateButtonStates(3, false)
-                updateChartTheme(3, false)
-                updateUIMode(false)
-                viewModel.loadChartData(false, period)
-            }
+        // --- SELECTOR DE PERIODO (no aplica a Tendencias) ---
+        view.findViewById<View>(R.id.periodSelectorContainer).visibility =
+            if (isTrending) View.GONE else View.VISIBLE
+        ChartPeriodSelector(
+            view.findViewById(R.id.periodSelector),
+            accent.color,
+            labels = listOf("Hoy", "Semana", "Mes", "Global"),
+            initialIndex = period.coerceIn(0, 3)
+        ) { newPeriod ->
+            period = newPeriod
+            shouldResetScroll = true
+            animateNextList = true
+            val (newTitle, newSubtitle) = chartTexts(newPeriod, false)
+            ChartHero.setText(hero, newTitle, newSubtitle, animate = true)
+            ChartHero.pulse(hero)
+            tvToolbarTitle.text = newTitle
+            viewModel.loadChartData(false, period)
         }
 
         // --- INTERACTIVIDAD DE CANCIONES ---
@@ -375,6 +159,16 @@ class TopChartsFragment : Fragment() {
         btnBack.setOnClickListener {
             findNavController().navigateUp()
         }
+    }
+
+    /** Título y subtítulo del hero para cada periodo (o para Tendencias). */
+    private fun chartTexts(period: Int, isTrending: Boolean): Pair<String, String> = when {
+        isTrending -> "Tendencias" to "Canciones con crecimiento explosivo en las últimas 24 horas"
+        period == 0 -> "Top Diario" to "Lo más escuchado hoy"
+        period == 1 -> "Top Semanal" to "Lo más escuchado esta semana"
+        period == 2 -> "Top Mensual" to "Lo más escuchado este mes"
+        period == 3 -> "Top Global" to "Lo que siempre suena"
+        else -> "Éxitos" to "Lo más escuchado siempre"
     }
 
     private fun setupAdapterListeners(adapter: SongAdapter, queueId: String) {
@@ -472,6 +266,10 @@ class TopChartsFragment : Fragment() {
                     rvSongs.scrollToPosition(0)
                     appBarLayout.setExpanded(true, true)
                     shouldResetScroll = false
+                }
+                if (animateNextList && songs.isNotEmpty()) {
+                    animateNextList = false
+                    rvSongs.scheduleLayoutAnimation()
                 }
             }
             // Aseguramos que se actualicen los favoritos/descargas sobre la nueva lista

@@ -4,19 +4,25 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.widget.Toolbar
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.chip.ChipGroup
 import com.example.resonant.R
+import com.example.resonant.ui.components.ChartHero
+import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.adapters.PublicPlaylistAdapter
 import com.example.resonant.ui.viewmodels.PublicPlaylistsViewModel
-import kotlin.math.abs
+import com.example.resonant.ui.viewmodels.PublicPlaylistsViewModel.Filter
 
 class PublicPlaylistsFragment : Fragment() {
 
@@ -25,10 +31,24 @@ class PublicPlaylistsFragment : Fragment() {
 
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var rvPlaylists: RecyclerView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var tvError: View
+    private lateinit var shimmerLoading: ShimmerFrameLayout
+    private lateinit var stateContainer: View
+    private lateinit var tvStateTitle: TextView
+    private lateinit var tvStateSubtitle: TextView
+    private lateinit var btnStateAction: View
+    private lateinit var hero: View
+    private lateinit var chipGroupFilter: ChipGroup
     private lateinit var toolbar: Toolbar
     private lateinit var appBarLayout: AppBarLayout
+
+    /** true solo mientras dura un pull-to-refresh lanzado por el usuario. */
+    private var userRefreshing = false
+
+    /** La entrada del hero solo la primera vez, no al volver del back stack. */
+    private var heroAnimated = false
+
+    /** Reproduce la entrada escalonada de filas en la próxima lista no vacía. */
+    private var animateNextList = true
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -41,8 +61,9 @@ class PublicPlaylistsFragment : Fragment() {
         initViews(view)
         setupViewModel()
         setupRecyclerView()
+        setupFilters()
         setupObservers()
-        setupParallaxEffect()
+        setupHero()
 
         viewModel.loadPublicPlaylists()
     }
@@ -52,13 +73,23 @@ class PublicPlaylistsFragment : Fragment() {
         appBarLayout = view.findViewById(R.id.appBarLayout)
         swipeRefreshLayout = view.findViewById(R.id.swipeRefreshLayout)
         rvPlaylists = view.findViewById(R.id.rvPublicPlaylists)
-        progressBar = view.findViewById(R.id.progressBar)
-        tvError = view.findViewById(R.id.tvError)
+        shimmerLoading = view.findViewById(R.id.shimmerLoading)
+        stateContainer = view.findViewById(R.id.stateContainer)
+        tvStateTitle = view.findViewById(R.id.tvStateTitle)
+        tvStateSubtitle = view.findViewById(R.id.tvStateSubtitle)
+        btnStateAction = view.findViewById(R.id.btnStateAction)
+        hero = view.findViewById(R.id.chartHero)
+        chipGroupFilter = view.findViewById(R.id.chipGroupFilter)
 
         swipeRefreshLayout.setProgressBackgroundColorSchemeResource(R.color.primaryColorTheme)
         swipeRefreshLayout.setColorSchemeResources(R.color.secondaryColorTheme)
 
         swipeRefreshLayout.setOnRefreshListener {
+            userRefreshing = true
+            viewModel.loadPublicPlaylists(forceRefresh = true)
+        }
+
+        btnStateAction.setOnClickListener {
             viewModel.loadPublicPlaylists(forceRefresh = true)
         }
 
@@ -68,23 +99,20 @@ class PublicPlaylistsFragment : Fragment() {
         }
     }
 
-    private fun setupParallaxEffect() {
-        val headerText = view?.findViewById<View>(R.id.headerTextContainer) ?: return
-
-        appBarLayout.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBar, verticalOffset ->
-            val totalScrollRange = appBar.totalScrollRange
-            if (totalScrollRange == 0) return@OnOffsetChangedListener
-
-            val progress = abs(verticalOffset).toFloat() / totalScrollRange
-
-            // Fade the header text out faster than the collapse for a premium feel
-            headerText.alpha = 1f - (progress * 1.8f).coerceAtMost(1f)
-
-            // Scale down slightly for depth effect
-            val scale = 1f - (progress * 0.08f)
-            headerText.scaleX = scale
-            headerText.scaleY = scale
-        })
+    /** Hero por capas con el acento rosa de "Listas" (el mismo que su tarjeta en Explorar). */
+    private fun setupHero() {
+        ChartHero.bind(
+            hero,
+            ResonantAccent.PLAYLISTS,
+            eyebrow = "Playlists públicas",
+            title = "Comunidad",
+            subtitle = "Colecciones reales, listas para descubrir música nueva."
+        )
+        ChartHero.attachParallax(appBarLayout, hero)
+        if (!heroAnimated) {
+            ChartHero.animateIn(hero)
+            heroAnimated = true
+        }
     }
 
     private fun setupViewModel() {
@@ -94,6 +122,9 @@ class PublicPlaylistsFragment : Fragment() {
     private fun setupRecyclerView() {
         rvPlaylists.layoutManager = LinearLayoutManager(context)
         rvPlaylists.overScrollMode = View.OVER_SCROLL_NEVER
+        // La entrada/cambio de filtro ya la anima el layoutAnimation; el item
+        // animator por defecto se solaparía con él.
+        rvPlaylists.itemAnimator = null
 
         playlistAdapter = PublicPlaylistAdapter { selectedPlaylist ->
             val bundle = Bundle().apply {
@@ -109,23 +140,103 @@ class PublicPlaylistsFragment : Fragment() {
         rvPlaylists.adapter = playlistAdapter
     }
 
+    private fun setupFilters() {
+        chipGroupFilter.check(chipIdFor(viewModel.filter.value ?: Filter.ALL))
+        chipGroupFilter.setOnCheckedStateChangeListener { _, checkedIds ->
+            val filter = when (checkedIds.firstOrNull()) {
+                R.id.chipFilterOfficial -> Filter.OFFICIAL
+                R.id.chipFilterCommunity -> Filter.COMMUNITY
+                else -> Filter.ALL
+            }
+            if (filter != viewModel.filter.value) {
+                animateNextList = true
+                viewModel.setFilter(filter)
+            }
+        }
+    }
+
+    private fun chipIdFor(filter: Filter): Int = when (filter) {
+        Filter.ALL -> R.id.chipFilterAll
+        Filter.OFFICIAL -> R.id.chipFilterOfficial
+        Filter.COMMUNITY -> R.id.chipFilterCommunity
+    }
+
     private fun setupObservers() {
         viewModel.publicPlaylists.observe(viewLifecycleOwner) { playlists ->
-            playlistAdapter.submitList(playlists)
-            tvError.visibility = if (playlists.isEmpty() && viewModel.isLoading.value == false) {
-                View.VISIBLE
-            } else {
-                View.GONE
+            playlistAdapter.submitList(playlists) {
+                if (animateNextList && playlists.isNotEmpty()) {
+                    animateNextList = false
+                    rvPlaylists.scrollToPosition(0)
+                    rvPlaylists.scheduleLayoutAnimation()
+                }
             }
+            render()
+        }
+
+        viewModel.stats.observe(viewLifecycleOwner) { stats ->
+            val playlists = if (stats.playlists == 1) "1 playlist" else "${stats.playlists} playlists"
+            val creators = if (stats.creators == 1) "1 creador" else "${stats.creators} creadores"
+            ChartHero.setMeta(hero, "$playlists · $creators")
         }
 
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            swipeRefreshLayout.isRefreshing = isLoading
-            progressBar.visibility = if (isLoading && playlistAdapter.itemCount == 0) View.VISIBLE else View.GONE
+            if (!isLoading) {
+                if (userRefreshing && viewModel.error.value != null &&
+                    !viewModel.publicPlaylists.value.isNullOrEmpty()
+                ) {
+                    Toast.makeText(requireContext(), "No se pudo actualizar la lista", Toast.LENGTH_SHORT).show()
+                }
+                userRefreshing = false
+            }
+            render()
         }
 
-        viewModel.error.observe(viewLifecycleOwner) { errorMsg ->
-            if (errorMsg != null) tvError.visibility = View.VISIBLE
+        viewModel.error.observe(viewLifecycleOwner) { render() }
+    }
+
+    /**
+     * Un único punto decide qué se ve: skeleton en la primera carga, spinner
+     * solo en pull-to-refresh, y estado vacío o de error (con reintentar)
+     * cuando no hay filas que enseñar.
+     */
+    private fun render() {
+        val playlists = viewModel.publicPlaylists.value
+        val isLoading = viewModel.isLoading.value == true
+        val hasRows = !playlists.isNullOrEmpty()
+
+        swipeRefreshLayout.isRefreshing = isLoading && userRefreshing
+
+        val showSkeleton = isLoading && !userRefreshing && !hasRows
+        if (showSkeleton != shimmerLoading.isVisible) {
+            shimmerLoading.isVisible = showSkeleton
+            if (showSkeleton) shimmerLoading.startShimmer() else shimmerLoading.stopShimmer()
+        }
+
+        val hasError = viewModel.error.value != null
+        val showState = !isLoading && !hasRows && (playlists != null || hasError)
+        stateContainer.isVisible = showState
+        if (!showState) return
+
+        if (hasError) {
+            tvStateTitle.text = "No se pudieron cargar las playlists"
+            tvStateSubtitle.text = "Revisa tu conexión e inténtalo de nuevo"
+            btnStateAction.isVisible = true
+            return
+        }
+        btnStateAction.isVisible = false
+        when (viewModel.filter.value) {
+            Filter.OFFICIAL -> {
+                tvStateTitle.text = "Resonant aún no tiene playlists públicas"
+                tvStateSubtitle.text = "Vuelve pronto, estamos preparando nuevas selecciones"
+            }
+            Filter.COMMUNITY -> {
+                tvStateTitle.text = "Nadie ha compartido playlists todavía"
+                tvStateSubtitle.text = "Sé el primero en compartir la tuya"
+            }
+            else -> {
+                tvStateTitle.text = "No hay playlists públicas"
+                tvStateSubtitle.text = "Sé el primero en compartir la tuya"
+            }
         }
     }
 }

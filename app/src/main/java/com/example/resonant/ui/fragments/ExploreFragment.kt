@@ -1,6 +1,7 @@
 package com.example.resonant.ui.fragments
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -11,8 +12,6 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
@@ -38,13 +37,13 @@ import com.example.resonant.ui.adapters.ExploreArtistAdapter
 import com.example.resonant.ui.adapters.ExplorePlaylistAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.explore.ExploreCollabCard
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.explore.ExploreQuickCard
 import com.example.resonant.ui.explore.ExploreSectionsRenderer
 import com.example.resonant.ui.viewmodels.ExploreViewModel
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
 import kotlinx.coroutines.launch
 
 class ExploreFragment : Fragment() {
@@ -120,6 +119,7 @@ class ExploreFragment : Fragment() {
     private var recommendedAlbumsRequested = false
     private var recommendedArtistsRequested = false
     private var progressiveLoadPending = false
+    private var quickCardsAnimated = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -130,7 +130,7 @@ class ExploreFragment : Fragment() {
         viewModel = ViewModelProvider(this)[ExploreViewModel::class.java]
 
         initViews(view)
-        setupQuickActionChipStyles(view)
+        setupQuickActionCards(view)
         setupSectionHeaders(view)
         setupRecyclerViews()
         setupObservers()
@@ -207,34 +207,38 @@ class ExploreFragment : Fragment() {
             findNavController().navigate(R.id.action_exploreFragment_to_searchFragment)
         }
         ExploreCollabCard.setOnOpenListener(collabCard, ::openCollabFinder)
-        view.findViewById<View>(R.id.btnPopulares).setOnClickListener {
-            navigateToChart("Top Diario", StatsPeriod.DAILY.value, false, "#FF9F40", "#F53B57")
-        }
-        view.findViewById<View>(R.id.btnTrending).setOnClickListener {
-            navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231")
-        }
-        view.findViewById<View>(R.id.btnArtistas).setOnClickListener {
-            findNavController().navigate(R.id.topArtistsFragment)
-        }
-        view.findViewById<View>(R.id.btnAlbumes).setOnClickListener {
-            findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment)
-        }
     }
 
     /**
-     * Los chips ya no son un filtro seleccionable (nunca filtraban nada en la
-     * propia pantalla: cada uno navega de inmediato a otra pantalla), así que
-     * se quita el estado "checked"/animación de color asociada — ahora son
-     * simples pills de acción con su ripple normal.
+     * Tarjetas 1x1 de acceso rápido (sustituyen a los antiguos chips) más la
+     * de Tendencias en la sección "En el momento". Cada una
+     * navega de inmediato a su pantalla. La animación de entrada solo se reproduce
+     * la primera vez, no al volver a Explorar desde el back stack.
      */
-    private fun setupQuickActionChipStyles(view: View) {
-        val quickActionsGroup = view.findViewById<ChipGroup>(R.id.quickActionsGroup)
-        val font = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
-        quickActionsGroup.children.forEach { chipView ->
-            if (chipView is Chip) {
-                chipView.typeface = font
-            }
+    private fun setupQuickActionCards(view: View) {
+        val cards = listOf(
+            Triple(view.findViewById<View>(R.id.btnArtistas), ExploreQuickCard.Spec(
+                "Los más famosos", "Artistas", ResonantAccent.ARTISTS
+            ), { findNavController().navigate(R.id.topArtistsFragment) }),
+            Triple(view.findViewById<View>(R.id.btnAlbumes), ExploreQuickCard.Spec(
+                "Lo más escuchado", "Álbumes", ResonantAccent.ALBUMS
+            ), { findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment) }),
+            Triple(view.findViewById<View>(R.id.btnCanciones), ExploreQuickCard.Spec(
+                "Top del día", "Canciones", ResonantAccent.SONGS
+            ), { navigateToChart("Top Diario", StatsPeriod.DAILY.value, false, "#FF9F40", "#F53B57") }),
+            Triple(view.findViewById<View>(R.id.btnListas), ExploreQuickCard.Spec(
+                "De la comunidad", "Listas", ResonantAccent.PLAYLISTS
+            ), { findNavController().navigate(R.id.action_exploreFragment_to_publicPlaylistsFragment) }),
+            // Sección "En el momento" (debajo de la fila): entra la última.
+            Triple(view.findViewById<View>(R.id.btnTendencias), ExploreQuickCard.Spec(
+                "Lo más viral", "Tendencias", ResonantAccent.TRENDING
+            ), { navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231") })
+        )
+        cards.forEachIndexed { index, (card, spec, onClick) ->
+            ExploreQuickCard.bind(card, spec, onClick)
+            if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
+        quickCardsAnimated = true
     }
 
     private fun setupSectionHeaders(view: View) {

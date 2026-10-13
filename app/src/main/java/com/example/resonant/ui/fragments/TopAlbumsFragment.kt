@@ -6,10 +6,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -20,7 +18,12 @@ import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import androidx.core.graphics.ColorUtils
+import com.google.android.material.appbar.AppBarLayout
 import com.example.resonant.R
+import com.example.resonant.ui.components.ChartHero
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.StatsPeriod
 import com.example.resonant.ui.adapters.TopAlbumAdapter
@@ -31,20 +34,20 @@ class TopAlbumsFragment : Fragment() {
 
     private lateinit var viewModel: TopAlbumsViewModel
 
-    private lateinit var btnDaily: MaterialButton
-    private lateinit var btnWeekly: MaterialButton
-    private lateinit var btnMonthly: MaterialButton
-    private lateinit var btnGlobal: MaterialButton
     private lateinit var featuredName: TextView
     private lateinit var featuredArtist: TextView
     private lateinit var featuredImage: ImageView
     private lateinit var recyclerView: RecyclerView
     private lateinit var btnViewFeatured: MaterialButton
     private lateinit var featuredContainer: View
-    private lateinit var btnBack: FrameLayout
+    private lateinit var btnBack: View
+    private lateinit var appBarLayout: AppBarLayout
+    private lateinit var hero: View
     private lateinit var loader: LottieAnimationView
 
     private var currentPeriod: Int = 0
+    private var heroAnimated = false // La entrada del hero solo la primera vez, no al volver del back stack
+    private var animateNextList = true // Entrada escalonada de filas en la próxima lista
     private var lastFeaturedAlbumId: String? = null
 
     private lateinit var topAlbumAdapter: TopAlbumAdapter
@@ -65,7 +68,7 @@ class TopAlbumsFragment : Fragment() {
         initViews(view)
         setupListeners()
         setupObservers()
-        setupChips()
+        setupHeroAndPeriods(view)
     }
 
     private fun initAdapters() {
@@ -76,10 +79,8 @@ class TopAlbumsFragment : Fragment() {
 
     private fun initViews(view: View) {
         btnBack = view.findViewById(R.id.btnBack)
-        btnDaily = view.findViewById(R.id.btnDaily)
-        btnWeekly = view.findViewById(R.id.btnWeekly)
-        btnMonthly = view.findViewById(R.id.btnMonthly)
-        btnGlobal = view.findViewById(R.id.btnGlobal)
+        appBarLayout = view.findViewById(R.id.appBarLayout)
+        hero = view.findViewById(R.id.chartHero)
         featuredName = view.findViewById(R.id.featuredAlbumName)
         featuredArtist = view.findViewById(R.id.featuredAlbumArtist)
         featuredImage = view.findViewById(R.id.featuredAlbumImage)
@@ -107,67 +108,61 @@ class TopAlbumsFragment : Fragment() {
         }
     }
 
-    private fun dpToPx(dp: Int): Int =
-        (dp * resources.displayMetrics.density).toInt()
+    /**
+     * Hero por capas con el acento de la sección (el mismo que su tarjeta en
+     * Explorar), parallax al colapsar y selector de periodo segmentado.
+     */
+    private fun setupHeroAndPeriods(view: View) {
+        val accent = ResonantAccent.ALBUMS
+        ChartHero.bind(hero, accent, "Ranking de álbumes", "Top Álbumes", periodSubtitle(currentPeriod))
+        ChartHero.attachParallax(appBarLayout, hero, view.findViewById(R.id.tvToolbarTitle))
+        ChartHero.attachMediaParallax(appBarLayout, view.findViewById(R.id.contentScroll), featuredImage)
+        if (!heroAnimated) {
+            ChartHero.animateIn(hero)
+            heroAnimated = true
+        }
 
-    private fun updateButtonStates(selectedPeriod: Int) {
-        val buttons = listOf(btnDaily, btnWeekly, btnMonthly, btnGlobal)
-        val periods = listOf(0, 1, 2, 3)
-        buttons.forEachIndexed { index, button ->
-            if (periods[index] == selectedPeriod) {
-                button.backgroundTintList = ColorStateList.valueOf(
-                    ContextCompat.getColor(requireContext(), R.color.secondaryColorTheme)
-                )
-                button.strokeWidth = 0
-                button.setTextColor(Color.WHITE)
-            } else {
-                button.backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
-                button.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.discTheme))
-                button.strokeWidth = dpToPx(1)
-                button.setTextColor(ContextCompat.getColor(requireContext(), R.color.textTheme))
-            }
-        }
-    }
+        btnViewFeatured.backgroundTintList =
+            ColorStateList.valueOf(ColorUtils.blendARGB(accent.color, Color.BLACK, 0.25f))
 
-    private fun setupChips() {
-        updateButtonStates(0)
-
-        btnDaily.setOnClickListener {
-            if (currentPeriod != 0) {
-                currentPeriod = 0
-                updateButtonStates(0)
-                viewModel.loadTopAlbums(StatsPeriod.DAILY.value)
-            }
-        }
-        btnWeekly.setOnClickListener {
-            if (currentPeriod != 1) {
-                currentPeriod = 1
-                updateButtonStates(1)
-                viewModel.loadTopAlbums(StatsPeriod.WEEKLY.value)
-            }
-        }
-        btnMonthly.setOnClickListener {
-            if (currentPeriod != 2) {
-                currentPeriod = 2
-                updateButtonStates(2)
-                viewModel.loadTopAlbums(StatsPeriod.MONTHLY.value)
-            }
-        }
-        btnGlobal.setOnClickListener {
-            if (currentPeriod != 3) {
-                currentPeriod = 3
-                updateButtonStates(3)
-                viewModel.loadTopAlbums(StatsPeriod.ALL_TIME.value)
-            }
+        ChartPeriodSelector(
+            view.findViewById(R.id.periodSelector),
+            accent.color,
+            labels = listOf("Hoy", "Semana", "Mes", "Global"),
+            initialIndex = currentPeriod
+        ) { index ->
+            currentPeriod = index
+            animateNextList = true
+            ChartHero.setText(hero, "Top Álbumes", periodSubtitle(index), animate = true)
+            ChartHero.pulse(hero)
+            viewModel.loadTopAlbums(statsPeriodFor(index))
         }
 
         // Carga inicial
-        viewModel.loadTopAlbums(StatsPeriod.DAILY.value)
+        viewModel.loadTopAlbums(statsPeriodFor(currentPeriod))
+    }
+
+    private fun statsPeriodFor(index: Int): Int = when (index) {
+        1 -> StatsPeriod.WEEKLY.value
+        2 -> StatsPeriod.MONTHLY.value
+        3 -> StatsPeriod.ALL_TIME.value
+        else -> StatsPeriod.DAILY.value
+    }
+
+    private fun periodSubtitle(index: Int): String = when (index) {
+        1 -> "Los álbumes más escuchados esta semana"
+        2 -> "Los álbumes más escuchados este mes"
+        3 -> "Los álbumes más escuchados de siempre"
+        else -> "Los álbumes más escuchados hoy"
     }
 
     private fun setupObservers() {
         viewModel.topAlbums.observe(viewLifecycleOwner) { list ->
             topAlbumAdapter.updateList(list)
+            if (animateNextList && list.isNotEmpty()) {
+                animateNextList = false
+                recyclerView.scheduleLayoutAnimation()
+            }
         }
 
         viewModel.featuredAlbum.observe(viewLifecycleOwner) { rankItem ->

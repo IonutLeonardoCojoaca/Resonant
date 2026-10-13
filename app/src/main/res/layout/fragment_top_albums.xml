@@ -1,141 +1,95 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme">
 
-    <!-- FIXED TOP BAR -->
-    <RelativeLayout
-        android:id="@+id/topBarContainer"
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:layout_alignParentTop="true"
-        android:paddingHorizontal="12dp"
-        android:background="@color/primaryColorTheme">
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
 
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:layout_width="match_parent"
+            android:layout_height="270dp"
+            app:contentScrim="@color/primaryColorTheme"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
+            app:titleEnabled="false">
+
+            <!-- Hero por capas con parallax (ChartHero) -->
+            <include
+                android:id="@+id/chartHero"
+                layout="@layout/view_chart_hero" />
+
+            <androidx.appcompat.widget.Toolbar
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                app:contentInsetStart="0dp"
+                app:layout_collapseMode="pin">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <ImageButton
+                        android:id="@+id/btnBack"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="start|center_vertical"
+                        android:layout_marginStart="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Atrás"
+                        android:scaleX="0.8"
+                        android:scaleY="0.8"
+                        android:src="@drawable/ic_arrow_back"
+                        app:tint="@color/white" />
+
+                    <TextView
+                        android:id="@+id/tvToolbarTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:alpha="0"
+                        android:fontFamily="@font/unageo_bold"
+                        android:text="Top Álbumes"
+                        android:textColor="@color/white"
+                        android:textSize="18sp" />
+                </FrameLayout>
+            </androidx.appcompat.widget.Toolbar>
+
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+
+        <!-- Selector de periodo fijo bajo la toolbar -->
         <FrameLayout
-            android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_centerVertical="true"
-            android:layout_alignParentStart="true">
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/primaryColorTheme"
+            android:paddingTop="4dp"
+            android:paddingBottom="12dp">
 
-            <ImageView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:scaleX="0.8"
-                android:scaleY="0.8"
-                android:src="@drawable/ic_arrow_back"
-                android:clickable="false"
-                android:focusable="false" />
+            <include
+                android:id="@+id/periodSelector"
+                layout="@layout/view_chart_period_selector" />
         </FrameLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="Top Álbumes"
-            android:textColor="@color/white"
-            android:textSize="18sp"
-            android:fontFamily="@font/unageo_bold" />
+    </com.google.android.material.appbar.AppBarLayout>
 
-    </RelativeLayout>
-
-    <!-- SCROLLABLE CONTENT -->
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/contentScroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/topBarContainer"
-        android:overScrollMode="never">
+        android:overScrollMode="never"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingBottom="120dp">
-
-            <!-- BOTONES DE PERIODO (mismo estilo que éxitos de canciones) -->
-            <LinearLayout
-                android:id="@+id/periodButtonsContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:paddingHorizontal="10dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="20dp">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnDaily"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:text="Hoy"
-                    android:padding="0dp"
-                    android:textSize="12sp"
-                    android:textColor="@color/white"
-                    android:fontFamily="@font/unageo_medium"
-                    app:cornerRadius="20dp"
-                    app:backgroundTint="@color/secondaryColorTheme"
-                    app:strokeWidth="0dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnWeekly"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:padding="0dp"
-                    android:text="Semana"
-                    android:textSize="12sp"
-                    android:textColor="@color/white"
-                    android:fontFamily="@font/unageo_medium"
-                    app:cornerRadius="20dp"
-                    app:backgroundTint="@android:color/transparent"
-                    app:strokeColor="@color/discTheme"
-                    app:strokeWidth="1dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnMonthly"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:text="Mes"
-                    android:padding="0dp"
-                    android:textSize="12sp"
-                    android:textColor="@color/white"
-                    android:fontFamily="@font/unageo_medium"
-                    app:cornerRadius="20dp"
-                    app:backgroundTint="@android:color/transparent"
-                    app:strokeColor="@color/discTheme"
-                    app:strokeWidth="1dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnGlobal"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:text="Global"
-                    android:padding="0dp"
-                    android:textSize="12sp"
-                    android:textColor="@color/white"
-                    android:fontFamily="@font/unageo_medium"
-                    app:cornerRadius="20dp"
-                    app:backgroundTint="@android:color/transparent"
-                    app:strokeColor="@color/discTheme"
-                    app:strokeWidth="1dp" />
-
-            </LinearLayout>
+            android:paddingTop="4dp"
+            android:paddingBottom="100dp">
 
             <!-- FEATURED ALBUM SECTION (TOP 1) -->
             <androidx.cardview.widget.CardView
@@ -143,93 +97,91 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="16dp"
-                android:layout_marginBottom="28dp"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="@color/cardsTheme">
+                android:layout_marginBottom="26dp"
+                app:cardBackgroundColor="@color/cardsTheme"
+                app:cardCornerRadius="22dp"
+                app:cardElevation="0dp">
 
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <!-- Album Cover -->
+                    <!-- Portada (capa de fondo con parallax suave al hacer scroll) -->
                     <ImageView
                         android:id="@+id/featuredAlbumImage"
                         android:layout_width="match_parent"
                         android:layout_height="320dp"
+                        android:importantForAccessibility="no"
                         android:scaleType="centerCrop"
                         android:src="@drawable/ic_playlist_stack"
-                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent" />
+                        app:layout_constraintTop_toTopOf="parent" />
 
-                    <!-- Gradient Overlay -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:background="@drawable/gradient_bottom_overlay"
-                        app:layout_constraintTop_toTopOf="@id/featuredAlbumImage"
-                        app:layout_constraintBottom_toBottomOf="@id/featuredAlbumImage" />
+                        app:layout_constraintBottom_toBottomOf="@id/featuredAlbumImage"
+                        app:layout_constraintTop_toTopOf="@id/featuredAlbumImage" />
 
-                    <!-- Rank Badge -->
                     <TextView
+                        android:id="@+id/featuredRankBadge"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="#1"
-                        android:textSize="13sp"
-                        android:textColor="@color/white"
-                        android:fontFamily="@font/unageo_bold"
+                        android:layout_margin="14dp"
                         android:background="@drawable/bg_rank_badge_gold"
+                        android:fontFamily="@font/unageo_bold"
                         android:paddingHorizontal="12dp"
                         android:paddingVertical="5dp"
-                        android:layout_margin="14dp"
-                        app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintStart_toStartOf="parent" />
+                        android:text="#1"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
 
-                    <!-- Album Details -->
                     <TextView
                         android:id="@+id/featuredAlbumName"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:text="Cargando..."
-                        android:textSize="24sp"
-                        android:textColor="@color/white"
-                        android:fontFamily="@font/unageo_bold"
-                        android:ellipsize="end"
-                        android:maxLines="2"
                         android:layout_marginHorizontal="16dp"
                         android:layout_marginBottom="2dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_bold"
+                        android:maxLines="2"
+                        android:text="Cargando..."
+                        android:textColor="@color/white"
+                        android:textSize="24sp"
                         app:layout_constraintBottom_toTopOf="@+id/featuredAlbumArtist"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent" />
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent" />
 
                     <TextView
                         android:id="@+id/featuredAlbumArtist"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:text="Artista"
-                        android:textSize="14sp"
-                        android:textColor="@color/textSecondaryAlpha"
-                        android:fontFamily="@font/unageo_medium"
                         android:layout_marginHorizontal="16dp"
                         android:layout_marginBottom="20dp"
+                        android:fontFamily="@font/unageo_medium"
+                        android:text="Artista"
+                        android:textColor="@color/textSecondaryAlpha"
+                        android:textSize="14sp"
                         app:layout_constraintBottom_toTopOf="@+id/btnViewFeatured"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent" />
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnViewFeatured"
                         android:layout_width="wrap_content"
                         android:layout_height="40dp"
-                        android:text="Ver Álbum"
-                        android:textColor="@color/white"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textSize="13sp"
-                        android:backgroundTint="@color/secondaryColorTheme"
-                        android:layout_marginBottom="20dp"
                         android:layout_marginEnd="16dp"
+                        android:layout_marginBottom="20dp"
+                        android:fontFamily="@font/unageo_bold"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
+                        android:text="Ver Álbum"
+                        android:textColor="@android:color/white"
+                        android:textSize="13sp"
                         app:cornerRadius="20dp"
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toEndOf="parent" />
@@ -238,27 +190,40 @@
 
             </androidx.cardview.widget.CardView>
 
-            <!-- SECTION LABEL -->
+            <!-- SECTION HEADER -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:fontFamily="@font/unageo_bold"
+                android:includeFontPadding="false"
                 android:text="En el ranking"
                 android:textColor="@color/white"
-                android:textSize="18sp"
-                android:fontFamily="@font/unageo_bold"
+                android:textSize="19sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="20dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="@font/unageo_medium"
+                android:includeFontPadding="false"
+                android:text="Del puesto #2 en adelante"
+                android:textColor="@color/textTheme"
+                android:textSize="13sp" />
 
             <!-- LIST OF OTHER ALBUMS -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recyclerViewTopAlbums"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"
                 android:clipToPadding="false"
+                android:layoutAnimation="@anim/layout_animation_fade_slide"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never"
                 android:paddingHorizontal="12dp"
-                android:paddingBottom="120dp"
-                android:overScrollMode="never" />
+                android:paddingBottom="120dp" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
@@ -268,10 +233,10 @@
         android:id="@+id/lottieLoader"
         android:layout_width="120dp"
         android:layout_height="120dp"
-        android:layout_centerInParent="true"
-        app:lottie_fileName="loader.json"
+        android:layout_gravity="center"
+        android:visibility="gone"
         app:lottie_autoPlay="true"
-        app:lottie_loop="true"
-        android:visibility="gone" />
+        app:lottie_fileName="loader.json"
+        app:lottie_loop="true" />
 
-</RelativeLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

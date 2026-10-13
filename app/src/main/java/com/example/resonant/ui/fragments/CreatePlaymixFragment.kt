@@ -3,24 +3,21 @@ package com.example.resonant.ui.fragments
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import android.widget.ImageView
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.resonant.R
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.ui.viewmodels.PlaymixListViewModel
 import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
-import com.example.resonant.utils.Utils
 import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.launch
 
 class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
 
     private lateinit var playmixName: TextInputEditText
     private lateinit var createButton: Button
-    private lateinit var userProfileImage: ImageView
+    private lateinit var arrowGoBackButton: FrameLayout
 
     private lateinit var playmixViewModel: PlaymixListViewModel
 
@@ -36,8 +33,8 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
     private fun bindViews(view: View) {
         playmixName = view.findViewById(R.id.playmixName)
         createButton = view.findViewById(R.id.createPlaymixButton)
-        userProfileImage = view.findViewById(R.id.userProfile)
-        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
+        arrowGoBackButton.setOnClickListener { findNavController().popBackStack() }
     }
 
     private fun initializeViewModels() {

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tarjeta 1x1 de acceso rápido de Explorar (Artistas / Álbumes / Canciones / Listas).
+    Geometría fija para 140dp: logo pequeño asomando por arriba y logo grande
+    recortado abajo a la derecha. Las translationX/Y del XML son la posición de
+    reposo; ExploreQuickCard anima la entrada hacia ellas y pone textos/colores.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="140dp"
+    android:layout_height="140dp"
+    android:layout_margin="5dp"
+    android:background="@drawable/bg_explore_quick_card"
+    android:clickable="true"
+    android:clipChildren="true"
+    android:clipToOutline="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:stateListAnimator="@animator/explore_quick_card_press">
+
+    <!-- Glow radial del color de acento detrás del logo grande (fondo puesto en código). -->
+    <View
+        android:id="@+id/quickCardGlow"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <ImageView
+        android:id="@+id/quickCardIconTop"
+        android:layout_width="82dp"
+        android:layout_height="90dp"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:translationX="-24dp"
+        android:translationY="-62dp"
+        android:visibility="invisible"
+        tools:src="@drawable/ic_resonant_gradient_orange" />
+
+    <ImageView
+        android:id="@+id/quickCardIconBottom"
+        android:layout_width="171dp"
+        android:layout_height="188dp"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:translationX="15dp"
+        android:translationY="51dp"
+        tools:src="@drawable/ic_resonant_gradient_orange" />
+
+    <ImageView
+        android:id="@+id/quickCardBadge"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="10dp"
+        android:background="@drawable/bg_explore_quick_card_badge"
+        android:importantForAccessibility="no"
+        android:padding="6dp"
+        android:src="@drawable/ic_arrow_up_right_mini" />
+
+    <LinearLayout
+        android:id="@+id/quickCardTextBlock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="36dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/quickCardEyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.14"
+            android:maxLines="1"
+            android:textAllCaps="true"
+            android:textSize="9sp"
+            tools:text="Los más famosos"
+            tools:textColor="#F29A2E" />
+
+        <TextView
+            android:id="@+id/quickCardTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="-0.01"
+            android:maxLines="1"
+            android:shadowColor="#99000000"
+            android:shadowDy="1"
+            android:shadowRadius="6"
+            android:textColor="@android:color/white"
+            android:textSize="19sp"
+            tools:text="Artistas" />
+    </LinearLayout>
+</FrameLayout>

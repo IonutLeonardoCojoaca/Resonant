@@ -2,7 +2,14 @@ package com.example.resonant.ui.fragments
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
@@ -15,6 +22,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
+import androidx.palette.graphics.Palette
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.core.widget.doAfterTextChanged
@@ -37,6 +48,7 @@ import com.example.resonant.data.network.UnisoundSettingsUpdateDTO
 import com.example.resonant.ui.adapters.UnisoundQueueAdapter
 import com.example.resonant.ui.adapters.UnisoundQueueRow
 import com.example.resonant.ui.adapters.UnisoundSearchAdapter
+import com.example.resonant.ui.adapters.UnisoundSearchRow
 import com.example.resonant.ui.bottomsheets.UnisoundShareBottomSheet
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.dialogs.UnisoundSavePlaylistDialog
@@ -95,6 +107,8 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         val addTab: View = root.findViewById(R.id.unisoundAddTab)
         val membersTab: View = root.findViewById(R.id.unisoundMembersTab)
         val cover: ImageView = root.findViewById(R.id.unisoundCover)
+        val heroBackdrop: ImageView = root.findViewById(R.id.unisoundHeroBackdrop)
+        val heroTint: View = root.findViewById(R.id.unisoundHeroTint)
         val eyebrow: TextView = root.findViewById(R.id.unisoundEyebrow)
         val songTitle: TextView = root.findViewById(R.id.unisoundSongTitle)
         val songArtist: TextView = root.findViewById(R.id.unisoundSongArtist)
@@ -108,7 +122,6 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         val next: ImageButton = root.findViewById(R.id.unisoundNextButton)
         val lockedNote: View = root.findViewById(R.id.unisoundLockedNote)
         val reengage: View = root.findViewById(R.id.unisoundReengageButton)
-        val emptyHint: View = root.findViewById(R.id.unisoundEmptyHint)
         val reactionLayer: FrameLayout = root.findViewById(R.id.unisoundReactionLayer)
         val reactionBar: LinearLayout = root.findViewById(R.id.unisoundReactionBar)
         val queueCount: TextView = root.findViewById(R.id.unisoundQueueCount)
@@ -127,6 +140,7 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         super.onViewCreated(view, savedInstanceState)
         viewModel = ViewModelProvider(requireActivity())[UnisoundViewModel::class.java]
         views = Views(view)
+        lastCoverSongId = null
 
         view.findViewById<View>(R.id.unisoundBackButton).setOnClickListener { findNavController().popBackStack() }
         setupHeader(view)
@@ -187,7 +201,7 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         val connected = state.connectedMembers
         val role = if (state.isHost) "Eres anfitrión" else "Eres invitado"
         views.roleText.text = "$role · ${if (connected == 1) "1 conectado" else "$connected conectados"}"
-        views.codeText.text = state.code.orEmpty()
+        views.codeText.text = "Sala · ${state.code.orEmpty()}"
         views.actionEnd.isVisible = state.isHost
 
         val (text, colorRes) = when {
@@ -249,7 +263,53 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         views.next.setOnClickListener { viewModel.control(UnisoundControl.NEXT) }
         views.reengage.setOnClickListener { viewModel.control(UnisoundControl.PLAY) }
         views.playPause.setOnClickListener { togglePlayback() }
-        views.emptyHint.setOnClickListener { selectTab(Tab.ADD) }
+        views.heroBackdrop.setRenderEffect(RenderEffect.createBlurEffect(HERO_BLUR_PX, HERO_BLUR_PX, Shader.TileMode.CLAMP))
+        // Parallax: the blurred backdrop trails the page and the cover drifts a little, giving depth.
+        views.roomTab.setOnScrollChangeListener { _: NestedScrollView, _, scrollY, _, _ ->
+            views.heroBackdrop.translationY = scrollY * BACKDROP_PARALLAX
+            views.cover.translationY = scrollY * COVER_PARALLAX
+        }
+    }
+
+    private fun loadHeroCover(url: String?) {
+        if (url.isNullOrBlank()) {
+            views.cover.setImageResource(R.drawable.ic_disc)
+            views.heroBackdrop.setImageDrawable(null)
+            tintHero(HERO_FALLBACK_TINT)
+            return
+        }
+        Glide.with(this).asBitmap().load(url).into(object : CustomTarget<Bitmap>() {
+            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                if (view == null) return
+                views.cover.setImageBitmap(resource)
+                views.heroBackdrop.setImageBitmap(resource)
+                Palette.from(resource).generate { palette ->
+                    if (view == null) return@generate
+                    val swatch = palette?.vibrantSwatch ?: palette?.dominantSwatch ?: palette?.mutedSwatch
+                    tintHero(swatch?.rgb ?: HERO_FALLBACK_TINT)
+                }
+            }
+
+            override fun onLoadCleared(placeholder: Drawable?) = Unit
+
+            override fun onLoadFailed(errorDrawable: Drawable?) {
+                if (view == null) return
+                views.cover.setImageResource(R.drawable.ic_disc)
+                views.heroBackdrop.setImageDrawable(null)
+                tintHero(HERO_FALLBACK_TINT)
+            }
+        })
+    }
+
+    /** Cross-fades the hero's tone layer to a darkened version of the cover's colour. */
+    private fun tintHero(color: Int) {
+        val target = ColorUtils.setAlphaComponent(ColorUtils.blendARGB(color, Color.BLACK, HERO_TINT_DARKEN), HERO_TINT_ALPHA)
+        val from = (views.heroTint.background as? ColorDrawable)?.color ?: Color.TRANSPARENT
+        ValueAnimator.ofArgb(from, target).apply {
+            duration = HERO_TINT_FADE_MS
+            addUpdateListener { views.heroTint.setBackgroundColor(it.animatedValue as Int) }
+            start()
+        }
     }
 
     private fun renderNowPlaying(state: UnisoundRoomState) {
@@ -267,11 +327,9 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         views.eyebrow.text = current?.let { UnisoundItemLabels.labelFor(it, state.members.size, state.myUserId) }.orEmpty()
         views.eyebrow.isVisible = hasSong && views.eyebrow.text.isNotBlank()
         views.progressRow.isVisible = hasSong
-        views.emptyHint.isVisible = !hasSong && state.canAdd
         if (song?.id != lastCoverSongId || !hasSong) {
             lastCoverSongId = song?.id
-            Glide.with(views.cover).load(song?.coverUrl ?: song?.imageFileName)
-                .placeholder(R.drawable.ic_disc).error(R.drawable.ic_disc).into(views.cover)
+            loadHeroCover(song?.coverUrl ?: song?.imageFileName)
         }
 
         val connected = state.connection == UnisoundConnection.CONNECTED
@@ -409,15 +467,7 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
 
     private fun renderQueue(state: UnisoundRoomState) {
         if (dragging) return
-        val rows = state.queue.map { item ->
-            UnisoundQueueRow(
-                item = item,
-                addedByLabel = UnisoundItemLabels.labelFor(item, state.members.size, state.myUserId),
-                automatic = UnisoundItemLabels.isAutomatic(item),
-                canRemove = state.canRemove(item),
-                canReorder = state.canControl && state.queue.size > 1
-            )
-        }
+        val rows = UnisoundQueueRow.rowsOf(state)
         // After a drag the rows were only moved on screen: rebind them from the real order.
         if (rebindQueue) {
             rebindQueue = false
@@ -444,7 +494,7 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
     // region Search ("Añadir")
 
     private fun setupSearch() {
-        searchAdapter = UnisoundSearchAdapter(onAdd = ::addSong)
+        searchAdapter = UnisoundSearchAdapter(onAdd = ::addToRoom)
         views.searchResults.layoutManager = LinearLayoutManager(requireContext())
         views.searchResults.adapter = searchAdapter
         views.searchInput.doAfterTextChanged { text ->
@@ -458,7 +508,7 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
             }
             searchJob = viewLifecycleOwner.lifecycleScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
-                val results = viewModel.searchSongs(query)
+                val results = viewModel.search(query)
                 searchAdapter.submitList(results)
                 views.searchHint.text = "Sin resultados para «$query»"
                 views.searchHint.isVisible = results.isEmpty()
@@ -466,10 +516,17 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         }
     }
 
-    private fun addSong(song: Song) {
+    private fun addToRoom(row: UnisoundSearchRow) {
         viewLifecycleOwner.lifecycleScope.launch {
-            if (viewModel.addSong(song.id) is UnisoundResult.Success) {
-                showResonantSnackbar("Añadida a la sala", R.color.successColor, R.drawable.ic_success)
+            val result = if (row.type == "song") viewModel.addSong(row.id) else viewModel.addSource(row.type, row.id)
+            if (result is UnisoundResult.Success) {
+                val count = result.value.size
+                val text = when {
+                    row.type == "song" -> "Añadida a la sala"
+                    count == 1 -> "1 canción añadida a la sala"
+                    else -> "$count canciones añadidas a la sala"
+                }
+                showResonantSnackbar(text, R.color.successColor, R.drawable.ic_success)
             }
         }
     }
@@ -673,10 +730,17 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
         private const val MAX_FLOATING_REACTIONS = 6
         private const val REACTION_DURATION_MS = 2_600L
         private const val REACTION_RISE = 0.7f
+        private const val HERO_BLUR_PX = 28f
+        private const val BACKDROP_PARALLAX = 0.45f
+        private const val COVER_PARALLAX = 0.18f
+        private const val HERO_FALLBACK_TINT = 0xFF3A3A44.toInt()
+        private const val HERO_TINT_DARKEN = 0.35f
+        private const val HERO_TINT_ALPHA = 0x99
+        private const val HERO_TINT_FADE_MS = 450L
         private const val MIN_QUERY_LENGTH = 2
         private const val SEARCH_DEBOUNCE_MS = 350L
         private const val SEARCH_HINT =
-            "Escribe para buscar. También puedes añadir álbumes y playlists desde sus opciones."
+            "Escribe para buscar canciones, álbumes o playlists."
         private const val KEY_GUESTS_ADD = "guestsCanAdd"
         private const val KEY_GUESTS_CONTROL = "guestsCanControl"
         private const val KEY_JOIN_OPEN = "joinOpen"

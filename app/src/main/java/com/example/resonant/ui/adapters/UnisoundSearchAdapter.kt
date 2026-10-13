@@ -10,12 +10,20 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
-import com.example.resonant.data.models.Song
+
+/** A song, album or playlist found by the room's "Añadir" tab. [type] is the hub source type. */
+data class UnisoundSearchRow(
+    val type: String,
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val imageUrl: String?
+)
 
 /** Search results of the room's "Añadir" tab, each with a "+" to add it to the queue. */
 class UnisoundSearchAdapter(
-    private val onAdd: (Song) -> Unit
-) : ListAdapter<Song, UnisoundSearchAdapter.ViewHolder>(DIFF) {
+    private val onAdd: (UnisoundSearchRow) -> Unit
+) : ListAdapter<UnisoundSearchRow, UnisoundSearchAdapter.ViewHolder>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder =
         ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_unisound_search_result, parent, false))
@@ -34,11 +42,11 @@ class UnisoundSearchAdapter(
             }
         }
 
-        fun bind(song: Song) {
-            title.text = song.title
-            artist.text = song.artistName ?: song.artists.joinToString(", ") { it.name }
+        fun bind(row: UnisoundSearchRow) {
+            title.text = row.title
+            artist.text = row.subtitle
             Glide.with(cover)
-                .load(song.coverUrl ?: song.imageFileName)
+                .load(row.imageUrl)
                 .placeholder(R.drawable.ic_disc)
                 .error(R.drawable.ic_disc)
                 .into(cover)
@@ -46,9 +54,10 @@ class UnisoundSearchAdapter(
     }
 
     private companion object {
-        val DIFF = object : DiffUtil.ItemCallback<Song>() {
-            override fun areItemsTheSame(oldItem: Song, newItem: Song) = oldItem.id == newItem.id
-            override fun areContentsTheSame(oldItem: Song, newItem: Song) = oldItem == newItem
+        val DIFF = object : DiffUtil.ItemCallback<UnisoundSearchRow>() {
+            override fun areItemsTheSame(oldItem: UnisoundSearchRow, newItem: UnisoundSearchRow) =
+                oldItem.type == newItem.type && oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: UnisoundSearchRow, newItem: UnisoundSearchRow) = oldItem == newItem
         }
     }
 }

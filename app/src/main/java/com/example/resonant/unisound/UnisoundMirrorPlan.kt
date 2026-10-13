@@ -43,12 +43,18 @@ object UnisoundMirrorPlan {
         else -> UnisoundMirrorChange.STATE
     }
 
-    /** Current song followed by the pending queue, as the player's song list. */
+    /**
+     * Current song followed by the pending queue, as the player's song list. Empty while the room
+     * has no current song: a queue without one must not start playing its first item on its own.
+     */
     fun songsOf(state: UnisoundRoomState): List<Song> =
-        (listOfNotNull(state.current) + state.queue).map(::songOf)
+        itemsOf(state).map(::songOf)
 
     fun entryIdsOf(state: UnisoundRoomState): List<String> =
-        (listOfNotNull(state.current) + state.queue).map(UnisoundQueueItemDTO::itemId)
+        itemsOf(state).map(UnisoundQueueItemDTO::itemId)
+
+    private fun itemsOf(state: UnisoundRoomState): List<UnisoundQueueItemDTO> =
+        state.current?.let { listOf(it) + state.queue }.orEmpty()
 
     /**
      * True while the player and the room are a few hundred ms apart around a song change:

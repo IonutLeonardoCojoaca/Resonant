@@ -1,5 +1,7 @@
 package com.example.resonant.ui.adapters
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,7 +31,7 @@ class PublicPlaylistAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaylistViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_public_playlist, parent, false)
-        return PlaylistViewHolder(view, onPlaylistClick)
+        return PlaylistViewHolder(view) { position -> onPlaylistClick(getItem(position)) }
     }
 
     override fun onBindViewHolder(holder: PlaylistViewHolder, position: Int) {
@@ -43,7 +45,7 @@ class PublicPlaylistAdapter(
 
     class PlaylistViewHolder(
         itemView: View,
-        private val onClick: (Playlist) -> Unit
+        onClick: (Int) -> Unit
     ) : RecyclerView.ViewHolder(itemView) {
 
         val ivCover: ImageView = itemView.findViewById(R.id.ivPlaylistCover)
@@ -53,6 +55,15 @@ class PublicPlaylistAdapter(
         private val initialsContainer: FrameLayout = itemView.findViewById(R.id.ownerInitialsContainer)
         private val tvOwnerInitial: TextView = itemView.findViewById(R.id.tvOwnerInitial)
         private val ivOwnerResonantAvatar: ImageView = itemView.findViewById(R.id.ivOwnerResonantAvatar)
+        private val initialsBackground = GradientDrawable().apply { shape = GradientDrawable.OVAL }
+
+        init {
+            initialsContainer.background = initialsBackground
+            itemView.setOnClickListener {
+                val position = bindingAdapterPosition
+                if (position != RecyclerView.NO_POSITION) onClick(position)
+            }
+        }
 
         fun bind(playlist: Playlist) {
             tvName.text = playlist.name
@@ -60,7 +71,7 @@ class PublicPlaylistAdapter(
             val trackCount = playlist.numberOfTracks
             tvTracks.text = when {
                 trackCount == 0 -> "Sin canciones"
-                trackCount == 1 -> "1 cancion"
+                trackCount == 1 -> "1 canción"
                 else -> "$trackCount canciones"
             }
 
@@ -72,6 +83,8 @@ class PublicPlaylistAdapter(
                 val owner = playlist.ownerName?.takeIf { it.isNotBlank() } ?: "Usuario"
                 tvOwner.text = owner
                 tvOwnerInitial.text = owner.firstOrNull()?.uppercase() ?: "U"
+                // Color estable por dueño: cada creador se reconoce de un vistazo.
+                initialsBackground.setColor(AVATAR_COLORS[Math.floorMod(owner.hashCode(), AVATAR_COLORS.size)])
                 initialsContainer.visibility = View.VISIBLE
                 ivOwnerResonantAvatar.visibility = View.GONE
             }
@@ -88,11 +101,19 @@ class PublicPlaylistAdapter(
                 .centerCrop()
                 .dontAnimate()
                 .into(ivCover)
-
-            itemView.setOnClickListener {
-                onClick(playlist)
-            }
         }
+    }
+
+    private companion object {
+        val AVATAR_COLORS = intArrayOf(
+            Color.parseColor("#6A4FD8"),
+            Color.parseColor("#C47A1E"),
+            Color.parseColor("#1E9C78"),
+            Color.parseColor("#C23B6E"),
+            Color.parseColor("#2F7FC8"),
+            Color.parseColor("#9B4FC4"),
+            Color.parseColor("#A8902E")
+        )
     }
 
     class PlaylistDiffCallback : DiffUtil.ItemCallback<Playlist>() {

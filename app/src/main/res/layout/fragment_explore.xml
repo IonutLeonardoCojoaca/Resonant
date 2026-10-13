@@ -88,6 +88,36 @@
 
             </LinearLayout>
 
+            <!-- ── Lo más top: cabecera de sección (título + subtítulo) ── -->
+            <LinearLayout
+                android:id="@+id/quickActionsHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:text="Lo más top"
+                    android:textColor="@color/white"
+                    android:textSize="19sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:includeFontPadding="false"
+                    android:text="Los rankings de Resonant, a un toque"
+                    android:textColor="@color/textTheme"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
             <HorizontalScrollView
                 android:id="@+id/quickActionsScroll"
                 android:layout_width="match_parent"
@@ -97,76 +127,84 @@
                 android:paddingBottom="6dp"
                 android:scrollbars="none">
 
-                <com.google.android.material.chip.ChipGroup
+                <LinearLayout
                     android:id="@+id/quickActionsGroup"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingHorizontal="15dp"
-                    android:theme="@style/Theme.MaterialComponents.Light"
-                    app:chipSpacingHorizontal="6dp"
-                    app:singleLine="true">
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="8dp">
 
-                    <com.google.android.material.chip.Chip
+                    <include
                         android:id="@+id/btnArtistas"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:text="Artistas"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@color/ripple_white"
-                        app:useMaterialThemeColors="false" />
+                        layout="@layout/view_explore_quick_card" />
 
-                    <com.google.android.material.chip.Chip
+                    <include
                         android:id="@+id/btnAlbumes"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:text="Albumes"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@color/ripple_white"
-                        app:useMaterialThemeColors="false" />
+                        layout="@layout/view_explore_quick_card" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/btnPopulares"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:text="Top diario"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@color/ripple_white"
-                        app:useMaterialThemeColors="false" />
+                    <include
+                        android:id="@+id/btnCanciones"
+                        layout="@layout/view_explore_quick_card" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/btnTrending"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:text="Tendencias"
-                        android:textColor="@color/chip_text_color_selector"
-                        android:textSize="14sp"
-                        app:checkedIconVisible="false"
-                        app:chipBackgroundColor="@color/chip_background_selector"
-                        app:chipCornerRadius="35dp"
-                        app:chipStrokeColor="@android:color/transparent"
-                        app:fontFamily="@font/unageo_medium"
-                        app:rippleColor="@color/ripple_white"
-                        app:useMaterialThemeColors="false" />
+                    <include
+                        android:id="@+id/btnListas"
+                        layout="@layout/view_explore_quick_card" />
 
-                </com.google.android.material.chip.ChipGroup>
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <!-- ── En el momento: cabecera de sección (título + subtítulo) ── -->
+            <LinearLayout
+                android:id="@+id/liveNowHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:text="En el momento"
+                    android:textColor="@color/white"
+                    android:textSize="19sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:includeFontPadding="false"
+                    android:text="Lo que está pasando ahora mismo"
+                    android:textColor="@color/textTheme"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Fila preparada para crecer: aquí irá también la tarjeta "Live". -->
+            <HorizontalScrollView
+                android:id="@+id/liveNowScroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:paddingBottom="6dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/liveNowGroup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="8dp">
+
+                    <include
+                        android:id="@+id/btnTendencias"
+                        layout="@layout/view_explore_quick_card" />
+
+                </LinearLayout>
             </HorizontalScrollView>
 
             <!-- ── Explorar v2: secciones dinámicas (las pinta ExploreSectionsRenderer) ── -->

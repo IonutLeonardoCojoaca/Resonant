@@ -13,14 +13,25 @@ import kotlinx.coroutines.launch
 
 class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(application) {
 
+    enum class Filter { ALL, OFFICIAL, COMMUNITY }
+
+    data class Stats(val playlists: Int, val creators: Int)
+
     private val playlistManager = PlaylistManager(application)
 
     // Único listado plano, ya entremezclado (oficiales de Resonant + de
-    // usuarios) — ya no se agrupa por dueño en secciones separadas.
+    // usuarios) — ya no se agrupa por dueño en secciones separadas. Lo que se
+    // publica aquí es ese listado con el filtro actual aplicado.
     private val _publicPlaylists = MutableLiveData<List<Playlist>>()
     val publicPlaylists: LiveData<List<Playlist>> = _publicPlaylists
 
-    private val _isLoading = MutableLiveData<Boolean>()
+    private val _filter = MutableLiveData(Filter.ALL)
+    val filter: LiveData<Filter> = _filter
+
+    private val _stats = MutableLiveData<Stats>()
+    val stats: LiveData<Stats> = _stats
+
+    private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
     private val _error = MutableLiveData<String?>()
@@ -30,7 +41,7 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
 
     fun loadPublicPlaylists(forceRefresh: Boolean = false) {
         if (!forceRefresh && cachedPlaylists != null) {
-            _publicPlaylists.value = cachedPlaylists!!
+            publish()
             return
         }
 
@@ -40,34 +51,66 @@ class PublicPlaylistsViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch {
             try {
                 val playlists = playlistManager.getAllPublicPlaylists()
-
-                // Enriquecer en paralelo con el nombre del owner
-                val enriched = playlists.map { playlist ->
-                    async {
-                        if (playlist.isSystemPlaylist) {
-                            playlist.ownerName = "Resonant"
-                        } else if (!playlist.userId.isNullOrEmpty()) {
-                            try {
-                                val user = playlistManager.getUserById(playlist.userId)
-                                playlist.ownerName = user.name ?: "Usuario"
-                            } catch (_: Exception) {
-                                playlist.ownerName = "Usuario"
-                            }
-                        } else {
-                            playlist.ownerName = "Usuario"
-                        }
-                        playlist
+                val ownerNames = fetchOwnerNames(playlists)
+                playlists.forEach { playlist ->
+                    playlist.ownerName = if (playlist.isSystemPlaylist) {
+                        "Resonant"
+                    } else {
+                        ownerNames[playlist.userId] ?: "Usuario"
                     }
-                }.awaitAll()
+                }
 
-                val interleaved = interleaveByOwnerType(enriched)
-                cachedPlaylists = interleaved
-                _publicPlaylists.value = interleaved
+                cachedPlaylists = interleaveByOwnerType(playlists)
+                publish()
             } catch (e: Exception) {
+                // Si ya había datos se siguen mostrando; el error solo ocupa la
+                // pantalla cuando no hay nada que enseñar.
                 _error.value = "Error al cargar playlists públicas: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    fun setFilter(filter: Filter) {
+        if (_filter.value == filter) return
+        _filter.value = filter
+        publish()
+    }
+
+    /**
+     * Un dueño suele tener varias playlists públicas: se pide cada usuario una
+     * sola vez (en paralelo) en vez de una petición por playlist.
+     */
+    private suspend fun fetchOwnerNames(playlists: List<Playlist>): Map<String, String> {
+        val ownerIds = playlists
+            .filterNot { it.isSystemPlaylist }
+            .mapNotNull { it.userId?.takeIf(String::isNotEmpty) }
+            .distinct()
+
+        return ownerIds.map { userId ->
+            viewModelScope.async {
+                val name = try {
+                    playlistManager.getUserById(userId).name
+                } catch (_: Exception) {
+                    null
+                }
+                userId to (name?.takeIf { it.isNotBlank() } ?: "Usuario")
+            }
+        }.awaitAll().toMap()
+    }
+
+    private fun publish() {
+        val all = cachedPlaylists ?: return
+        val community = all.filterNot { it.isSystemPlaylist }
+        val creators = community.mapNotNull { it.userId }.distinct().size +
+            if (community.size < all.size) 1 else 0
+        _stats.value = Stats(playlists = all.size, creators = creators)
+
+        _publicPlaylists.value = when (_filter.value) {
+            Filter.OFFICIAL -> all.filter { it.isSystemPlaylist }
+            Filter.COMMUNITY -> community
+            else -> all
         }
     }
 

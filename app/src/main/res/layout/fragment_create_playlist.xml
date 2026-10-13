@@ -28,18 +28,29 @@
             android:textSize="22sp"
             android:layout_marginStart="14dp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/userProfile"
+            app:layout_constraintStart_toEndOf="@+id/arrowGoBackBackground"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/userProfile"
+        <FrameLayout
+            android:id="@+id/arrowGoBackBackground"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@drawable/ic_user"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:shapeAppearanceOverlay="@style/CircularUserImage" />
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/arrowGoBackButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:scaleX="0.8"
+                android:scaleY="0.8"
+                android:background="@drawable/ic_arrow_back"
+                android:clickable="false"
+                android:focusable="false" />
+
+        </FrameLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

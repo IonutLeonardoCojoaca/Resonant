@@ -2,10 +2,10 @@ package com.example.resonant.ui.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.ApiClient
+import com.example.resonant.ui.adapters.UnisoundSearchRow
 import com.example.resonant.data.network.UnisoundCodeDTO
 import com.example.resonant.data.network.UnisoundReactionDTO
-import com.example.resonant.managers.SongManager
 import com.example.resonant.unisound.UnisoundSavedPlaylist
 import com.example.resonant.data.network.UnisoundQueueItemDTO
 import com.example.resonant.data.network.UnisoundSessionSummaryDTO
@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** Activity-scoped access to the Unisound room for the room, share, settings and join screens. */
 class UnisoundViewModel(application: Application) : AndroidViewModel(application) {
     private val manager = UnisoundManager.get(application)
-    private val songManager = SongManager(application)
+    private val universalSearch = ApiClient.getUniversalSearchService(application)
 
     val state: StateFlow<UnisoundRoomState?> = manager.state
     val events: SharedFlow<UnisoundManagerEvent> = manager.events
@@ -65,11 +65,39 @@ class UnisoundViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun getSummary(sessionId: String): UnisoundSessionSummaryDTO? = manager.getSummary(sessionId)
 
-    /** Song search for the room's "Añadir" tab (same endpoint as the app search). */
-    suspend fun searchSongs(query: String): List<Song> =
-        runCatching { songManager.searchSongs(query, SEARCH_LIMIT).results }.getOrDefault(emptyList())
+    suspend fun addSource(type: String, id: String): UnisoundResult<List<UnisoundQueueItemDTO>> =
+        manager.addSource(type, id)
+
+    /** Songs, albums and playlists for the room's "Añadir" tab (same endpoint as the app search). */
+    suspend fun search(query: String): List<UnisoundSearchRow> = runCatching {
+        universalSearch.search(query).results.mapNotNull { hit ->
+            when (hit.type) {
+                SOURCE_SONG -> hit.song?.let { song ->
+                    UnisoundSearchRow(
+                        SOURCE_SONG, song.id, song.title,
+                        song.artistName ?: song.artists.joinToString(", ") { it.name },
+                        song.coverUrl ?: song.imageFileName
+                    )
+                }
+                SOURCE_ALBUM -> UnisoundSearchRow(
+                    SOURCE_ALBUM, hit.id, hit.title,
+                    "Álbum · ${hit.subtitle ?: hit.album?.artists?.joinToString(", ") { it.name }.orEmpty()}",
+                    hit.imageUrl
+                )
+                SOURCE_PLAYLIST -> UnisoundSearchRow(
+                    SOURCE_PLAYLIST, hit.id, hit.title,
+                    hit.trackCount?.let { "Playlist · $it canciones" } ?: "Playlist",
+                    hit.imageUrl
+                )
+                else -> null
+            }
+        }.take(SEARCH_LIMIT)
+    }.getOrDefault(emptyList())
 
     private companion object {
-        const val SEARCH_LIMIT = 25
+        const val SEARCH_LIMIT = 30
+        const val SOURCE_SONG = "song"
+        const val SOURCE_ALBUM = "album"
+        const val SOURCE_PLAYLIST = "playlist"
     }
 }
