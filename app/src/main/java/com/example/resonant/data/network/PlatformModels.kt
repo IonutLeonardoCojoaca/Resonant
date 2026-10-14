@@ -17,5 +17,7 @@ data class PlatformFeaturesDTO(
     val exploreV2: Boolean = false,
     val ariaPicks: Boolean = false,
     /** Flow v2: nivel de descubrimiento, motivos, feedback y guardar sesión. */
-    val flowV2: Boolean = false
+    val flowV2: Boolean = false,
+    /** Resonant Live: canales en emisión y especiales. */
+    val live: Boolean = false
 )

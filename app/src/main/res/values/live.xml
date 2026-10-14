@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos y color de Resonant Live (tarjetas de Explorar, pantalla de emisión y reproductor). -->
+<resources>
+    <color name="live_red">#E21616</color>
+
+    <string name="live_badge">EN DIRECTO</string>
+    <string name="live_listen">Escuchar</string>
+    <string name="live_leave">Salir</string>
+    <string name="live_up_next">A continuación</string>
+    <string name="live_schedule">Programación</string>
+    <string name="live_song_unavailable">No disponible</string>
+    <string name="live_starts_in">Empieza en %1$s</string>
+    <string name="live_leave_room_title">Saldrás de la sala</string>
+    <string name="live_leave_room_message">Para escuchar esta emisión saldrás de la sala de Unisound.</string>
+    <string name="live_leave_room_confirm">Salir y escuchar</string>
+    <string name="live_card_description">%1$s. %2$s</string>
+</resources>

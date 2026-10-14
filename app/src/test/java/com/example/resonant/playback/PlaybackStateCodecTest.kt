@@ -118,6 +118,11 @@ class PlaybackStateCodecTest {
     }
 
     @Test
+    fun `live queues are never persistable`() {
+        assertEquals(false, PlaybackStateCodec.isPersistable(QueueSource.LIVE))
+    }
+
+    @Test
     fun `persisted unisound snapshot is not restored`() {
         val json = gson.toJson(
             PersistedPlaybackState(

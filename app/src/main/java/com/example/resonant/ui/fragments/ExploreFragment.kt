@@ -31,6 +31,7 @@ import com.example.resonant.data.models.StatsPeriod
 import com.example.resonant.explore.AriaPick
 import com.example.resonant.explore.ExploreMode
 import com.example.resonant.explore.ExploreSectionUi
+import com.example.resonant.live.LiveCardUi
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.ExploreAlbumAdapter
@@ -44,6 +45,8 @@ import com.example.resonant.ui.explore.ExploreCollabFinderCard
 import com.example.resonant.ui.explore.ExploreQuickCard
 import com.example.resonant.ui.explore.ExploreSectionsRenderer
 import com.example.resonant.ui.viewmodels.ExploreViewModel
+import com.example.resonant.ui.activities.MainActivity
+import com.bumptech.glide.Glide
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
@@ -56,6 +59,7 @@ class ExploreFragment : Fragment() {
         private const val DEFERRED_SECTION_MARGIN_DP = 200
         private const val MENU_ARIA_LIKE = 1
         private const val MENU_ARIA_DISMISS = 2
+        private const val LIVE_CARD_TAG = "live_card"
     }
 
     private lateinit var viewModel: ExploreViewModel
@@ -161,6 +165,11 @@ class ExploreFragment : Fragment() {
 
         viewModel.loadExplore()
         viewModel.loadArtistMixes()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.loadLiveChannels()
     }
 
     override fun onDestroyView() {
@@ -272,6 +281,32 @@ class ExploreFragment : Fragment() {
         quickCardsAnimated = true
     }
 
+    /** Live channel cards go first in "En el momento", before Tendencias. */
+    private fun renderLiveCards(cards: List<LiveCardUi>) {
+        val group = view?.findViewById<LinearLayout>(R.id.liveNowGroup) ?: return
+        (group.childCount - 1 downTo 0)
+            .map(group::getChildAt)
+            .filter { it.tag == LIVE_CARD_TAG }
+            .forEach(group::removeView)
+        val inflater = LayoutInflater.from(group.context)
+        cards.forEachIndexed { index, card ->
+            val itemView = inflater.inflate(R.layout.view_live_channel_card, group, false)
+            itemView.tag = LIVE_CARD_TAG
+            bindLiveCard(itemView, card)
+            group.addView(itemView, index)
+        }
+    }
+
+    private fun bindLiveCard(itemView: View, card: LiveCardUi) {
+        itemView.findViewById<TextView>(R.id.liveCardName).text = card.name
+        itemView.findViewById<TextView>(R.id.liveCardSubtitle).text = card.subtitle
+        itemView.findViewById<TextView>(R.id.liveCardBadge).isVisible = card.badge != null
+        val cover = itemView.findViewById<ImageView>(R.id.liveCardCover)
+        if (card.imageUrl != null) Glide.with(this).load(card.imageUrl).centerCrop().into(cover)
+        itemView.contentDescription = getString(R.string.live_card_description, card.name, card.subtitle)
+        itemView.setOnClickListener { (activity as? MainActivity)?.openLiveChannel(card.slug) }
+    }
+
     private fun navigateToArtistSmartPlaylist(artist: Artist, playlistType: String) {
         val bundle = Bundle().apply {
             putString("artistId", artist.id)
@@ -365,6 +400,7 @@ class ExploreFragment : Fragment() {
 
     private fun setupObservers() {
         viewModel.mode.observe(viewLifecycleOwner, ::applyMode)
+        viewModel.liveChannels.observe(viewLifecycleOwner, ::renderLiveCards)
 
         viewModel.ariaMessage.observe(viewLifecycleOwner) { message ->
             if (message != null) {

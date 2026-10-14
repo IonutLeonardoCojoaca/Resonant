@@ -18,6 +18,7 @@ import com.example.resonant.data.network.UnisoundSettingsUpdateDTO
 import com.example.resonant.data.network.UnisoundSourceDTO
 import com.example.resonant.data.network.UnisoundTransferHostRequestDTO
 import com.example.resonant.data.network.services.UnisoundService
+import com.example.resonant.live.LiveManager
 import com.example.resonant.managers.CapabilitiesManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,9 @@ class UnisoundManager internal constructor(
     private val scope: CoroutineScope,
     private val deviceNowMs: () -> Long = System::currentTimeMillis,
     private val newKey: () -> String = { "and-" + UUID.randomUUID().toString().replace("-", "") },
-    private val log: (String) -> Unit = {}
+    private val log: (String) -> Unit = {},
+    /** Called once when this device enters a different room (not on reconnects): leaves Live. */
+    private val onEnterRoom: () -> Unit = {}
 ) : UnisoundHubListener {
 
     val clock = ServerClock(deviceNowMs)
@@ -374,6 +377,7 @@ class UnisoundManager internal constructor(
     private suspend fun enter(snapshot: UnisoundSessionSnapshotDTO, localHold: Boolean): UnisoundRoomState {
         val previous = _state.value
         if (previous != null && previous.sessionId != snapshot.sessionId) close(UnisoundCloseReason.LEFT)
+        if (previous?.sessionId != snapshot.sessionId) onEnterRoom()
         clock.seedFromServerTime(snapshot.serverTimeUtcMs)
         val next = stateMutex.withLock {
             UnisoundRoomState.fromSnapshot(snapshot, myUserId())
@@ -581,7 +585,8 @@ class UnisoundManager internal constructor(
                 CapabilitiesManager.isUnisoundEnabled()
             },
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-            log = { Log.d(TAG, it) }
+            log = { Log.d(TAG, it) },
+            onEnterRoom = { LiveManager.get(context).leave() }
         )
     }
 }

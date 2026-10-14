@@ -24,6 +24,9 @@ import com.example.resonant.explore.ExploreLayoutState
 import com.example.resonant.explore.ExploreMode
 import com.example.resonant.explore.ExploreModeResolver
 import com.example.resonant.explore.ExploreModeResolver.Action
+import com.example.resonant.live.LiveCardMapper
+import com.example.resonant.live.LiveCardUi
+import com.example.resonant.live.LiveManager
 import com.example.resonant.managers.AriaPickFeedbackResult
 import com.example.resonant.managers.AriaPicksManager
 import com.example.resonant.managers.AlbumManager
@@ -100,6 +103,11 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private val _ariaMessage = MutableLiveData<String?>()
     val ariaMessage: LiveData<String?> get() = _ariaMessage
 
+    /** Resonant Live cards for "En el momento"; empty with Live off or on any failure. */
+    private val _liveChannels = MutableLiveData<List<LiveCardUi>>(emptyList())
+    val liveChannels: LiveData<List<LiveCardUi>> get() = _liveChannels
+    private var liveJob: Job? = null
+
     private var layout: ExploreLayoutState? = null
     private var layoutTz: String = ZoneId.systemDefault().id
     private var exploreJob: Job? = null
@@ -134,6 +142,17 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
             Log.i("ExploreVM", "explore mode: ${_mode.value?.javaClass?.simpleName}")
+        }
+    }
+
+    /** On every visit; the manager keeps the listing 15 s, so quick returns do not ask again. */
+    fun loadLiveChannels() {
+        if (liveJob?.isActive == true) return
+        liveJob = viewModelScope.launch {
+            val response = LiveManager.get(getApplication()).loadChannels()
+            _liveChannels.value = response?.channels
+                ?.let { LiveCardMapper.map(it, System.currentTimeMillis(), ZoneId.systemDefault()) }
+                .orEmpty()
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.resonant.managers
 
 import com.example.resonant.data.network.PlatformFeaturesDTO
+import com.google.gson.Gson
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,6 +30,24 @@ class CapabilitiesCacheTest {
     fun `flow v2 flag is exposed and defaults to off`() = runTest {
         assertTrue(cache { PlatformFeaturesDTO(flowV2 = true) }.refresh().flowV2)
         assertFalse(cache { PlatformFeaturesDTO() }.refresh().flowV2)
+    }
+
+    @Test
+    fun `live flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(live = true) }.refresh().live)
+        assertFalse(cache { PlatformFeaturesDTO() }.refresh().live)
+    }
+
+    @Test
+    fun `live flag missing from the server json is off`() = runTest {
+        val features = Gson().fromJson("{\"unisound\": true}", PlatformFeaturesDTO::class.java)
+
+        assertFalse(cache { features }.refresh().live)
+    }
+
+    @Test
+    fun `failure turns live off`() = runTest {
+        assertFalse(cache { throw IOException("offline") }.refresh().live)
     }
 
     @Test

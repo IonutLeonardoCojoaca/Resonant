@@ -425,6 +425,21 @@
         app:destination="@id/unisoundRoomFragment"
         app:launchSingleTop="true" />
 
+    <fragment
+        android:id="@+id/liveChannelFragment"
+        android:name="com.example.resonant.ui.fragments.LiveChannelFragment"
+        android:label="Resonant Live"
+        tools:layout="@layout/fragment_live_channel">
+        <argument
+            android:name="slug"
+            app:argType="string" />
+    </fragment>
+
+    <action
+        android:id="@+id/action_global_to_liveChannel"
+        app:destination="@id/liveChannelFragment"
+        app:launchSingleTop="true" />
+
     <action
         android:id="@+id/action_global_to_unisoundSummary"
         app:destination="@id/unisoundSummaryFragment"

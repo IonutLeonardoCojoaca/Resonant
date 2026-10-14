@@ -24,6 +24,7 @@ class UnisoundManagerTest {
     private val gateway = FakeUnisoundHubGateway()
     private var featureEnabled = true
     private var keyCounter = 0
+    private var roomsEntered = 0
 
     private fun TestScope.manager(): Pair<UnisoundManager, MutableList<UnisoundManagerEvent>> {
         val manager = UnisoundManager(
@@ -33,7 +34,8 @@ class UnisoundManagerTest {
             isFeatureEnabled = { featureEnabled },
             scope = backgroundScope,
             deviceNowMs = { testScheduler.currentTime },
-            newKey = { "key-${++keyCounter}" }
+            newKey = { "key-${++keyCounter}" },
+            onEnterRoom = { roomsEntered++ }
         )
         val events = mutableListOf<UnisoundManagerEvent>()
         backgroundScope.launch { manager.events.collect { events += it } }
@@ -111,6 +113,18 @@ class UnisoundManagerTest {
 
         assertEquals(2, gateway.connectCalls)
         assertEquals(11L, gateway.joinRevisions.last())
+    }
+
+    @Test
+    fun `entering a room leaves live once and reconnecting does not`() = runTest {
+        joinedManager()
+        assertEquals(1, roomsEntered)
+
+        gateway.isConnected = false
+        gateway.listener?.onClosed(IOException("network"))
+        runCurrent()
+
+        assertEquals(1, roomsEntered)
     }
 
     @Test

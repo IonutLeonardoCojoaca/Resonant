@@ -3,6 +3,7 @@ package com.example.resonant.playback
 import androidx.media3.common.Player
 import com.example.resonant.unisound.UnisoundControl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.lang.reflect.Proxy
@@ -17,7 +18,8 @@ class UnisoundAwarePlayerTest {
     ) { _, method, _ ->
         calls += method.name
         when (method.returnType) {
-            java.lang.Boolean.TYPE -> false
+            // Every command is available on the real player.
+            java.lang.Boolean.TYPE -> method.name == "isCommandAvailable"
             Integer.TYPE -> 0
             java.lang.Long.TYPE -> 0L
             java.lang.Float.TYPE -> 0f
@@ -74,5 +76,43 @@ class UnisoundAwarePlayerTest {
             ),
             intercepted
         )
+    }
+
+    private fun livePlayer(listening: Boolean) = UnisoundAwarePlayer(fakePlayer, restrictControls = { listening }) { control, position ->
+        if (listening) intercepted += control to position
+        listening
+    }
+
+    @Test
+    fun `in live skips and seeks never reach the real player`() {
+        val player = livePlayer(listening = true)
+
+        player.seekToNext()
+        player.seekToPrevious()
+        player.seekTo(10_000L)
+        player.pause()
+        player.play()
+
+        assertTrue(calls.isEmpty())
+        assertEquals(
+            listOf(UnisoundControl.NEXT, UnisoundControl.PREVIOUS, UnisoundControl.SEEK, UnisoundControl.PAUSE, UnisoundControl.PLAY),
+            intercepted.map { it.first }
+        )
+    }
+
+    @Test
+    fun `in live the session does not offer seek, skip, shuffle or repeat`() {
+        val player = livePlayer(listening = true)
+
+        UnisoundAwarePlayer.RESTRICTED_COMMANDS.forEach { assertFalse("command $it", player.isCommandAvailable(it)) }
+        assertTrue(player.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
+    }
+
+    @Test
+    fun `outside live every command stays available`() {
+        val player = livePlayer(listening = false)
+
+        assertTrue(player.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+        assertTrue(player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
     }
 }

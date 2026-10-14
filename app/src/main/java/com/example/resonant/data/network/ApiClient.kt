@@ -11,6 +11,7 @@ import com.example.resonant.data.network.services.AuthService
 import com.example.resonant.data.network.services.ExploreService
 import com.example.resonant.data.network.services.GenreService
 import com.example.resonant.data.network.services.HomeService
+import com.example.resonant.data.network.services.LiveService
 import com.example.resonant.data.network.services.LyricsService
 import com.example.resonant.data.network.services.PlaybackAnalyticsService
 import com.example.resonant.data.network.services.PlaybackConnectService
@@ -139,6 +140,10 @@ object ApiClient {
 
     fun getAriaPicksService(context: Context): AriaPicksService {
         return getRetrofitInstance(context).create(AriaPicksService::class.java)
+    }
+
+    fun getLiveService(context: Context): LiveService {
+        return getRetrofitInstance(context).create(LiveService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

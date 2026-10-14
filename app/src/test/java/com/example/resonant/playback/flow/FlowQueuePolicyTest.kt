@@ -16,6 +16,7 @@ class FlowQueuePolicyTest {
     @Test
     fun `non personal queues and repeat all are not eligible`() {
         assertFalse(FlowQueuePolicy.isEligible(QueueSource.UNISOUND, off, enabled = true))
+        assertFalse(FlowQueuePolicy.isEligible(QueueSource.LIVE, off, enabled = true))
         assertFalse(FlowQueuePolicy.isEligible(QueueSource.PLAYMIX, off, enabled = true))
         assertFalse(FlowQueuePolicy.isEligible(QueueSource.DOWNLOADED_SONGS, off, enabled = true))
         assertFalse(

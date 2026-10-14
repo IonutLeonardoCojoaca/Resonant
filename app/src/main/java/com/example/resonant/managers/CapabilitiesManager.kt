@@ -68,6 +68,9 @@ object CapabilitiesManager {
     /** Last known value; false until the first successful [refresh]. */
     fun isFlowV2Enabled(): Boolean = cache?.features?.flowV2 == true
 
+    /** Last known value; false until the first successful [refresh]. */
+    fun isLiveEnabled(): Boolean = cache?.features?.live == true
+
     suspend fun refresh(context: Context, force: Boolean = false): PlatformFeaturesDTO =
         withContext(Dispatchers.IO) { cache(context).refresh(force) }
 }

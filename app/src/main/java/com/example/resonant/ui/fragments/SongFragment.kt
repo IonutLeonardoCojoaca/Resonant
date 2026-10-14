@@ -37,6 +37,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.DialogFragment
@@ -60,6 +61,8 @@ import com.example.resonant.managers.LyricsManager
 import com.example.resonant.managers.SongManager
 import com.example.resonant.ui.activities.MainActivity
 import com.example.resonant.unisound.UnisoundManager
+import com.example.resonant.live.LiveManager
+import com.example.resonant.live.LiveSessionState
 import com.example.resonant.ui.adapters.LyricsAdapter
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.PlaybackQueueController
@@ -143,6 +146,7 @@ class SongFragment : DialogFragment() {
     private lateinit var albumService: AlbumService
     private lateinit var albumTypeView: TextView
     private lateinit var albumNameView: TextView
+    private lateinit var liveBadge: TextView
 
     private var lastDirection = 1
     private var lastSongId: String? = null
@@ -254,6 +258,18 @@ class SongFragment : DialogFragment() {
         stopLyricsSync()
     }
 
+    /** In Live the listener can only enter and leave: no skips, seek, shuffle, repeat, queue or Connect. */
+    private fun renderLiveMode(live: LiveSessionState?) {
+        val inLive = live != null
+        listOf(previousSongButton, nextSongButton, replayButton, shuffleButton).forEach { it.isInvisible = inLive }
+        seekBar.isEnabled = !inLive
+        if (inLive) playbackDeviceContainer.isVisible = false
+        liveBadge.isVisible = inLive
+        liveBadge.text = live?.let { "${getString(R.string.live_badge)} · ${it.channel.name}" }
+        songTabLayout.getTabAt(0)?.view?.isVisible = !inLive
+        if (inLive && songTabLayout.selectedTabPosition == 0) songTabLayout.getTabAt(1)?.select()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         playmixRingAnimator?.cancel()
@@ -282,9 +298,10 @@ class SongFragment : DialogFragment() {
                             active.deviceId != state.localDeviceId
                     val visible = state.supported &&
                         (remoteIsActive || state.hasAlternativeDevice)
-                    // Connect transfers are off while in a Unisound room.
+                    // Connect transfers are off while in a Unisound room or a Live broadcast.
                     playbackDeviceContainer.isVisible = visible &&
-                        UnisoundManager.get(requireContext()).state.value == null
+                        UnisoundManager.get(requireContext()).state.value == null &&
+                        LiveManager.activeSlugOrNull() == null
                     playbackDeviceText.text = when {
                         remoteIsActive ->
                             "Reproduciendo en ${active?.name}"
@@ -304,6 +321,12 @@ class SongFragment : DialogFragment() {
                     listenTogetherText.text = room?.let { "En sala · ${it.connectedMembers}" } ?: "Escuchar juntos"
                     if (room != null) playbackDeviceContainer.isVisible = false
                 }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                LiveManager.get(requireContext()).state.collect(::renderLiveMode)
             }
         }
     }
@@ -341,6 +364,7 @@ class SongFragment : DialogFragment() {
         albumTypeView = view.findViewById(R.id.songAlbumType)
         albumTypeView = view.findViewById(R.id.songAlbumType)
         albumNameView = view.findViewById(R.id.songAlbumName)
+        liveBadge = view.findViewById(R.id.songLiveBadge)
         nextSongContainer = view.findViewById(R.id.nextSongContainer)
         nextSongInfo = view.findViewById(R.id.nextSongInfo)
         playbackDeviceContainer =

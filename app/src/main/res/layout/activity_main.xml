@@ -105,6 +105,28 @@
                         app:layout_constraintEnd_toEndOf="@id/songImage"
                         app:tint="@color/successColor" />
 
+                    <!-- Resonant Live: docked on the cover while listening to a broadcast. -->
+                    <TextView
+                        android:id="@+id/miniPlayerLiveBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="2dp"
+                        android:background="@drawable/bg_live_badge"
+                        android:clickable="true"
+                        android:contentDescription="Estás escuchando Resonant Live. Ir a la emisión"
+                        android:focusable="true"
+                        android:fontFamily="@font/unageo_bold"
+                        android:includeFontPadding="false"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="2dp"
+                        android:text="@string/live_badge"
+                        android:textColor="@android:color/white"
+                        android:textSize="7sp"
+                        android:visibility="gone"
+                        app:layout_constraintBottom_toBottomOf="@id/songImage"
+                        app:layout_constraintEnd_toEndOf="@id/songImage"
+                        app:layout_constraintStart_toStartOf="@id/songImage" />
+
                     <LinearLayout
                         android:id="@+id/songDataPlayer"
                         android:layout_width="0dp"

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tarjeta de un canal de Resonant Live en la fila "En el momento" de Explorar.
+    Mismo tamaño que view_explore_quick_card; la portada es la de la canción que suena.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="140dp"
+    android:layout_height="140dp"
+    android:layout_margin="5dp"
+    android:background="@drawable/bg_explore_quick_card"
+    android:clickable="true"
+    android:clipChildren="true"
+    android:clipToOutline="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:stateListAnimator="@animator/explore_quick_card_press">
+
+    <ImageView
+        android:id="@+id/liveCardCover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_live_card_scrim"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/liveCardBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="10dp"
+        android:background="@drawable/bg_live_badge"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:letterSpacing="0.1"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="3dp"
+        android:text="@string/live_badge"
+        android:textColor="@android:color/white"
+        android:textSize="9sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/liveCardName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            tools:text="Resonant Rock" />
+
+        <TextView
+            android:id="@+id/liveCardSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:textColor="#CCFFFFFF"
+            android:textSize="11sp"
+            tools:text="Mr. Brightside · The Killers" />
+    </LinearLayout>
+</FrameLayout>

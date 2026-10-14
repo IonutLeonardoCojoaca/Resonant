@@ -22,6 +22,7 @@ object FlowQueuePolicy {
     /** Colas que no son personales o tienen un final propio: nunca se continúan con Flow. */
     private val NON_PERSONAL_SOURCES = setOf(
         QueueSource.UNISOUND,
+        QueueSource.LIVE,
         QueueSource.PLAYMIX,
         QueueSource.DOWNLOADED_SONGS
     )

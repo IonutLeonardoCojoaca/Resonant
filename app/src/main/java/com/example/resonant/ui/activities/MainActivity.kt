@@ -93,6 +93,9 @@ import com.example.resonant.unisound.UnisoundJoinCode
 import com.example.resonant.unisound.UnisoundLinkAction
 import com.example.resonant.unisound.UnisoundLinkDecision
 import com.example.resonant.unisound.UnisoundManager
+import com.example.resonant.live.LiveManager
+import com.example.resonant.live.LiveManagerEvent
+import com.example.resonant.ui.fragments.LiveChannelFragment
 import com.example.resonant.unisound.UnisoundManagerEvent
 import com.example.resonant.ui.whatsnew.WhatsNewDialog
 import com.example.resonant.unisound.UnisoundPendingLink
@@ -153,6 +156,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     private lateinit var playbackDeviceText: TextView
     private lateinit var unisoundViewModel: UnisoundViewModel
     private lateinit var unisoundBadge: ImageView
+    private lateinit var liveBadge: View
     private var lastStoppedAtMs = 0L
     private var shouldShowMiniPlayer = true
     private var latestConnectState: PlaybackConnectUiState? = null
@@ -287,6 +291,9 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         unisoundBadge = miniPlayer.findViewById(R.id.miniPlayerUnisoundBadge)
         unisoundBadge.setOnClickListener { openUnisoundRoom() }
         setupUnisound()
+        liveBadge = miniPlayer.findViewById(R.id.miniPlayerLiveBadge)
+        liveBadge.setOnClickListener { openCurrentLiveChannel() }
+        setupLive()
         playbackDeviceText = playbackDeviceBar.findViewById(R.id.playbackDeviceText)
         dimOverlay = findViewById(R.id.dim_overlay)
         drawerLayout = findViewById(R.id.drawerLayout)
@@ -457,6 +464,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
 
         miniPlayerQueueButton.setOnClickListener {
+            if (openCurrentLiveChannel()) return@setOnClickListener
             if (isInUnisoundRoom()) {
                 if (supportFragmentManager.findFragmentByTag(UnisoundQueueBottomSheet.TAG) == null) {
                     UnisoundQueueBottomSheet().show(supportFragmentManager, UnisoundQueueBottomSheet.TAG)
@@ -470,6 +478,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val miniPlayerContainer = findViewById<MaterialCardView>(R.id.miniPlayerContainer)
 
         miniPlayerContainer.setOnClickListener {
+            if (openCurrentLiveChannel()) return@setOnClickListener
             val currentSong = songViewModel.currentSongLiveData.value
             if (currentSong != null) {
                 SongFragment().show(supportFragmentManager, "SongFragment")
@@ -499,7 +508,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             },
             onClick = {
                 val currentSong = songViewModel.currentSongLiveData.value
-                if (currentSong != null) {
+                if (!openCurrentLiveChannel() && currentSong != null) {
                     SongFragment().show(supportFragmentManager, "SongFragment")
                 }
             }
@@ -1262,6 +1271,40 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private fun showUnisoundMessage(text: String) {
         showResonantSnackbar(text = text, colorRes = R.color.errorColor, iconRes = R.drawable.ic_warning)
+    }
+
+    // endregion
+
+    // region Live
+
+    private fun setupLive() {
+        val manager = LiveManager.get(this)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { manager.state.collect { liveBadge.visibility = if (it != null) View.VISIBLE else View.GONE } }
+                launch { manager.events.collect(::handleLiveEvent) }
+            }
+        }
+    }
+
+    /** Messages from the playback service ("En directo no se puede saltar") and why a broadcast ended. */
+    private fun handleLiveEvent(event: LiveManagerEvent) {
+        when (event) {
+            is LiveManagerEvent.Message -> showUnisoundMessage(event.text)
+            is LiveManagerEvent.Closed -> event.message?.let(::showUnisoundMessage)
+        }
+    }
+
+    fun openLiveChannel(slug: String) {
+        if (!::navController.isInitialized) return
+        navController.navigate(R.id.action_global_to_liveChannel, bundleOf(LiveChannelFragment.ARG_SLUG to slug))
+    }
+
+    /** While listening to Live the mini-player opens the broadcast screen instead of the player. */
+    private fun openCurrentLiveChannel(): Boolean {
+        val slug = LiveManager.activeSlugOrNull() ?: return false
+        openLiveChannel(slug)
+        return true
     }
 
     // endregion

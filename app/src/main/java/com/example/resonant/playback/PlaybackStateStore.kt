@@ -227,8 +227,9 @@ internal class PlaybackStateCodec(
     companion object {
         private const val CURRENT_SCHEMA_VERSION = 2
 
-        /** A Unisound room is recovered from the server, never from local storage. */
-        fun isPersistable(source: QueueSource): Boolean = source != QueueSource.UNISOUND
+        /** Unisound rooms and Live broadcasts follow the server, never local storage. */
+        fun isPersistable(source: QueueSource): Boolean =
+            source != QueueSource.UNISOUND && source != QueueSource.LIVE
     }
 }
 

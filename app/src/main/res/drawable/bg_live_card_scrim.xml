@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Oscurece la portada de la tarjeta de Live por abajo para que se lean los textos. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <gradient
+        android:angle="270"
+        android:centerColor="#33000000"
+        android:endColor="#E6000000"
+        android:startColor="#00000000" />
+</shape>
