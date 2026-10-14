@@ -123,8 +123,12 @@ class SongManager(private val context: Context) {
                         bpmNormalized = effectiveBpm, // fallback: same as bpm
                         musicalKey = playbackInfo.musicalKey,
                         loudnessLufs = playbackInfo.loudness?.toFloat() ?: 0f,
-                        audioStartMs = playbackInfo.introStartMs ?: 0,
-                        audioEndMs = playbackInfo.outroStartMs ?: playbackInfo.durationMs
+                        // introStartMs/outroStartMs son puntos óptimos de mezcla, no el silencio
+                        // inicial/final (mismo criterio que SongPlaybackMapper).
+                        audioStartMs = 0,
+                        audioEndMs = playbackInfo.durationMs,
+                        optimalStartPointMs = playbackInfo.introStartMs,
+                        optimalExitPointMs = playbackInfo.outroStartMs
                     )
                     song.audioAnalysis = analysis
                 }
