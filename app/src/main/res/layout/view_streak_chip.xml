@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chip "🔥 N" de la cabecera de Explorar. El fondo y el color del texto los fija
+     ExploreFragment según hoy cuente o no (bg_streak_chip_qualified / _pending). -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/streakChip"
+    android:layout_width="wrap_content"
+    android:layout_height="32dp"
+    android:layout_marginStart="12dp"
+    android:background="@drawable/bg_streak_chip_pending"
+    android:clickable="true"
+    android:focusable="true"
+    android:fontFamily="@font/unageo_bold"
+    android:gravity="center"
+    android:includeFontPadding="false"
+    android:minWidth="56dp"
+    android:paddingHorizontal="12dp"
+    android:textColor="@color/secondaryColorTheme"
+    android:textSize="14sp"
+    android:visibility="gone" />

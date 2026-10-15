@@ -71,6 +71,9 @@ object CapabilitiesManager {
     /** Last known value; false until the first successful [refresh]. */
     fun isLiveEnabled(): Boolean = cache?.features?.live == true
 
+    /** Last known value; false until the first successful [refresh]. */
+    fun isStreaksEnabled(): Boolean = cache?.features?.streaks == true
+
     suspend fun refresh(context: Context, force: Boolean = false): PlatformFeaturesDTO =
         withContext(Dispatchers.IO) { cache(context).refresh(force) }
 }

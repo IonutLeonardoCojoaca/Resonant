@@ -77,6 +77,7 @@ import com.example.resonant.playback.PlaybackConnectRepository
 import com.example.resonant.playback.ConnectConflictEvent
 import com.example.resonant.playback.anchoredPositionMs
 import com.example.resonant.data.network.V2EndpointAvailability
+import com.example.resonant.streak.StreakEventBus
 import com.example.resonant.ui.activities.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -2847,7 +2848,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 Log.i("StreamAPI", "Reportando stream: $streamData")
 
                 val songManager = SongManager(applicationContext)
-                songManager.addStream(streamData)
+                songManager.addStream(streamData)?.let { StreakEventBus.publish(it) }
 
                 Log.d("StreamAPI", "✅ Stream reportado para $songId")
 

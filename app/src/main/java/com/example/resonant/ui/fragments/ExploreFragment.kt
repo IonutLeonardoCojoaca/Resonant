@@ -12,11 +12,14 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -47,9 +50,16 @@ import com.example.resonant.ui.explore.ExploreSectionsRenderer
 import com.example.resonant.ui.viewmodels.ExploreViewModel
 import com.example.resonant.ui.activities.MainActivity
 import com.bumptech.glide.Glide
+import com.example.resonant.data.network.StreakStatusDTO
+import com.example.resonant.streak.SongOfDayUi
+import com.example.resonant.streak.StreakEventBus
+import com.example.resonant.streak.StreakTexts
+import com.example.resonant.ui.bottomsheets.StreakDetailsBottomSheet
+import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 class ExploreFragment : Fragment() {
@@ -60,6 +70,7 @@ class ExploreFragment : Fragment() {
         private const val MENU_ARIA_LIKE = 1
         private const val MENU_ARIA_DISMISS = 2
         private const val LIVE_CARD_TAG = "live_card"
+        private const val SONG_OF_DAY_SECTION_ID = "song_of_day"
     }
 
     private lateinit var viewModel: ExploreViewModel
@@ -93,6 +104,16 @@ class ExploreFragment : Fragment() {
     private lateinit var dynamicContainer: LinearLayout
     private var sectionsRenderer: ExploreSectionsRenderer? = null
     private var defaultHeroTitle: CharSequence = ""
+
+    private lateinit var streakChip: TextView
+    private lateinit var songOfDayCard: View
+    private lateinit var songOfDayContent: View
+    private lateinit var songOfDayShimmer: ShimmerFrameLayout
+    private lateinit var songOfDayImage: ImageView
+    private lateinit var songOfDayTitle: TextView
+    private lateinit var songOfDayArtist: TextView
+    private lateinit var songOfDayReason: TextView
+    private lateinit var songOfDayAriaBadge: View
     private var legacyStarted = false
 
     private lateinit var recyclerViewPlaylists: RecyclerView
@@ -165,11 +186,24 @@ class ExploreFragment : Fragment() {
 
         viewModel.loadExplore()
         viewModel.loadArtistMixes()
+        viewModel.resetSongOfDay()
+        observeStreakEvents()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.startSongOfDay()
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.loadLiveChannels()
+        viewModel.loadStreak()
+    }
+
+    override fun onStop() {
+        viewModel.stopSongOfDay()
+        super.onStop()
     }
 
     override fun onDestroyView() {
@@ -215,6 +249,7 @@ class ExploreFragment : Fragment() {
 
         heroTitle = view.findViewById(R.id.exploreHeroTitle)
         defaultHeroTitle = heroTitle.text
+        initStreakViews(view)
         legacyContainer = view.findViewById(R.id.exploreLegacyContainer)
         dynamicContainer = view.findViewById(R.id.exploreDynamicContainer)
         sectionsRenderer = ExploreSectionsRenderer(dynamicContainer, sectionCallbacks)
@@ -400,6 +435,8 @@ class ExploreFragment : Fragment() {
 
     private fun setupObservers() {
         viewModel.mode.observe(viewLifecycleOwner, ::applyMode)
+        viewModel.streak.observe(viewLifecycleOwner, ::renderStreakChip)
+        viewModel.songOfDay.observe(viewLifecycleOwner, ::renderSongOfDay)
         viewModel.liveChannels.observe(viewLifecycleOwner, ::renderLiveCards)
 
         viewModel.ariaMessage.observe(viewLifecycleOwner) { message ->
@@ -636,6 +673,79 @@ class ExploreFragment : Fragment() {
         }
         requireContext().startService(playIntent)
     }
+
+    // region Racha y canción del día
+
+    private fun initStreakViews(view: View) {
+        streakChip = view.findViewById(R.id.streakChip)
+        songOfDayCard = view.findViewById(R.id.songOfDayCard)
+        songOfDayContent = view.findViewById(R.id.songOfDayContent)
+        songOfDayShimmer = view.findViewById(R.id.songOfDayShimmer)
+        songOfDayImage = view.findViewById(R.id.songOfDayImage)
+        songOfDayTitle = view.findViewById(R.id.songOfDayTitle)
+        songOfDayArtist = view.findViewById(R.id.songOfDayArtist)
+        songOfDayReason = view.findViewById(R.id.songOfDayReason)
+        songOfDayAriaBadge = view.findViewById(R.id.songOfDayAriaBadge)
+
+        streakChip.setOnClickListener {
+            val status = viewModel.streak.value ?: return@setOnClickListener
+            if (childFragmentManager.findFragmentByTag(StreakDetailsBottomSheet.TAG) != null) return@setOnClickListener
+            StreakDetailsBottomSheet.newInstance(status).show(childFragmentManager, StreakDetailsBottomSheet.TAG)
+        }
+        songOfDayContent.setOnClickListener { playSongOfDay() }
+        view.findViewById<View>(R.id.songOfDayPlay).setOnClickListener { playSongOfDay() }
+    }
+
+    /** A streak event refreshes the chip at once; MainActivity is the one that consumes it. */
+    private fun observeStreakEvents() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                StreakEventBus.pending.filterNotNull().collect { viewModel.loadStreak(force = true) }
+            }
+        }
+    }
+
+    private fun renderStreakChip(status: StreakStatusDTO?) {
+        streakChip.isVisible = status != null
+        if (status == null) return
+        streakChip.text = StreakTexts.chip(status)
+        streakChip.contentDescription = StreakTexts.chipDescription(status)
+        if (status.todayQualified) {
+            streakChip.setBackgroundResource(R.drawable.bg_streak_chip_qualified)
+            streakChip.setTextColor(Color.WHITE)
+        } else {
+            streakChip.setBackgroundResource(R.drawable.bg_streak_chip_pending)
+            streakChip.setTextColor(ContextCompat.getColor(requireContext(), R.color.secondaryColorTheme))
+        }
+    }
+
+    private fun renderSongOfDay(ui: SongOfDayUi) {
+        songOfDayCard.isVisible = ui != SongOfDayUi.Hidden
+        val loading = ui == SongOfDayUi.Loading
+        songOfDayShimmer.isVisible = loading
+        if (loading) songOfDayShimmer.startShimmer() else songOfDayShimmer.stopShimmer()
+        songOfDayContent.isVisible = ui is SongOfDayUi.Ready
+        if (ui !is SongOfDayUi.Ready) return
+
+        songOfDayTitle.text = ui.song.title
+        songOfDayArtist.text = ui.song.artistName.orEmpty()
+        songOfDayReason.text = ui.reason
+        songOfDayReason.isVisible = ui.reason.isNotBlank()
+        songOfDayAriaBadge.isVisible = ui.isAria
+        val cover = (ui.song.coverUrl ?: ui.song.album?.url)?.takeIf { it.isNotBlank() }
+        Glide.with(this)
+            .load(cover?.let { ImageRequestHelper.buildGlideModel(requireContext(), it) })
+            .placeholder(R.drawable.ic_disc)
+            .error(R.drawable.ic_disc)
+            .into(songOfDayImage)
+    }
+
+    private fun playSongOfDay() {
+        val ready = viewModel.songOfDay.value as? SongOfDayUi.Ready ?: return
+        playFromExplore(listOf(ready.song), 0, QueueSource.SONG_OF_DAY, SONG_OF_DAY_SECTION_ID)
+    }
+
+    // endregion
 
     private fun openCollabFinder() {
         findNavController().navigate(R.id.action_exploreFragment_to_collab_finder_nav)

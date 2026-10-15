@@ -82,6 +82,7 @@ class SettingsManager(private val context: Context) {
         val FLOW_PREFERENCES_PENDING_SYNC_KEY = booleanPreferencesKey("flow_preferences_pending_sync")
         val ARIA_FLOATING_ASSISTANT_ENABLED_KEY = booleanPreferencesKey("aria_floating_assistant_enabled")
         val ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY = booleanPreferencesKey("aria_foreground_wake_word_enabled")
+        val STREAK_REMINDER_ENABLED_KEY = booleanPreferencesKey("streak_reminder_enabled")
         val EQUALIZER_ENABLED_KEY = booleanPreferencesKey("equalizer_enabled")
         val EQUALIZER_PRESET_KEY = stringPreferencesKey("equalizer_preset")
         private val EQUALIZER_BAND_KEYS = listOf(
@@ -212,6 +213,14 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setAriaForegroundWakeWordEnabled(isEnabled: Boolean) {
         context.dataStore.edit { it[ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY] = isEnabled }
+    }
+
+    val streakReminderEnabledFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[STREAK_REMINDER_ENABLED_KEY] ?: true // Activado por defecto
+    }
+
+    suspend fun setStreakReminderEnabled(isEnabled: Boolean) {
+        context.dataStore.edit { it[STREAK_REMINDER_ENABLED_KEY] = isEnabled }
     }
 
 

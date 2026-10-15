@@ -12,6 +12,9 @@ import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.SongService
 import com.example.resonant.data.models.AudioAnalysis
+import com.example.resonant.streak.StreakEvent
+import com.example.resonant.streak.StreamResultParser
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -57,12 +60,21 @@ class SongManager(private val context: Context) {
         }
     }
 
-    suspend fun addStream(streamData: AddStreamDTO) {
+    /** Reports a listen; returns the streak event it caused, if any. Never throws except on cancel. */
+    suspend fun addStream(streamData: AddStreamDTO): StreakEvent? {
         try {
-            songService.addStream(streamData)
+            val response = songService.addStream(streamData)
+            if (!response.isSuccessful) {
+                Log.w("SongManager", "Error al añadir stream: HTTP ${response.code()}")
+                return null
+            }
             Log.d("SongManager", "Stream añadido correctamente para: ${streamData.songId}")
+            return StreamResultParser.parse(response.body()?.string())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("SongManager", "Error al añadir stream", e)
+            return null
         }
     }
 

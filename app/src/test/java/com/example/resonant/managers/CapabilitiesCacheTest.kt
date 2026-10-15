@@ -51,6 +51,24 @@ class CapabilitiesCacheTest {
     }
 
     @Test
+    fun `streaks flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(streaks = true) }.refresh().streaks)
+        assertFalse(cache { PlatformFeaturesDTO() }.refresh().streaks)
+    }
+
+    @Test
+    fun `streaks flag missing from the server json is off`() = runTest {
+        val features = Gson().fromJson("{\"live\": true}", PlatformFeaturesDTO::class.java)
+
+        assertFalse(cache { features }.refresh().streaks)
+    }
+
+    @Test
+    fun `failure turns streaks off`() = runTest {
+        assertFalse(cache { throw IOException("offline") }.refresh().streaks)
+    }
+
+    @Test
     fun `disabled flag is exposed`() = runTest {
         val cache = cache { PlatformFeaturesDTO(unisound = false) }
 

@@ -25,7 +25,9 @@ import com.example.resonant.managers.ThemeMode
 import com.example.resonant.managers.toNightMode
 import com.example.resonant.R
 import com.example.resonant.managers.FlowPreferencesManager
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.SettingsManager
+import com.example.resonant.streak.StreakReminderScheduler
 import com.example.resonant.aria.ForegroundAriaWakeWordController
 import com.example.resonant.databinding.FragmentSettingsBinding
 import com.example.resonant.services.MusicPlaybackService
@@ -95,6 +97,7 @@ class SettingsFragment : Fragment() {
         setupAutoplayRadioSwitch()
         setupAriaFloatingAssistantSwitch()
         setupAriaWakeWordSwitch()
+        setupStreakReminderSwitch()
         setupThemeToggle()
         setupAudioQuality()
         setupEqualizer()
@@ -124,6 +127,28 @@ class SettingsFragment : Fragment() {
         binding.automixSwitch.setOnCheckedChangeListener { _, isChecked ->
             viewLifecycleOwner.lifecycleScope.launch {
                 settingsManager.setAutomixEnabled(isChecked)
+            }
+        }
+    }
+
+    private fun setupStreakReminderSwitch() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.streakReminderEnabledFlow.collect { isEnabled ->
+                if (binding.streakReminderSwitch.isChecked != isEnabled) {
+                    binding.streakReminderSwitch.isChecked = isEnabled
+                }
+            }
+        }
+
+        binding.streakReminderSwitch.setOnCheckedChangeListener { _, isChecked ->
+            val appContext = requireContext().applicationContext
+            viewLifecycleOwner.lifecycleScope.launch {
+                settingsManager.setStreakReminderEnabled(isChecked)
+                if (isChecked && CapabilitiesManager.refresh(appContext).streaks) {
+                    StreakReminderScheduler.schedule(appContext)
+                } else if (!isChecked) {
+                    StreakReminderScheduler.cancel(appContext)
+                }
             }
         }
     }

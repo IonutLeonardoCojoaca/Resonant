@@ -404,6 +404,55 @@
         app:trackTint="@color/switch_track_selector" />
 
     <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/title_notifications"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_bold"
+        android:text="Notificaciones"
+        android:layout_marginTop="20dp"
+        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+        android:textColor="@color/secondaryColorTheme"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/subtitle_aria_wake_word" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/label_streak_reminder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:fontFamily="@font/unageo_medium"
+        android:text="@string/streak_reminder_setting_label"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        app:layout_constraintEnd_toStartOf="@+id/streak_reminder_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/title_notifications" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/subtitle_streak_reminder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_medium"
+        android:text="@string/streak_reminder_setting_subtitle"
+        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toStartOf="@+id/streak_reminder_switch"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/label_streak_reminder" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/streak_reminder_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="@id/subtitle_streak_reminder"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/label_streak_reminder"
+        app:thumbTint="@color/switch_thumb_selector"
+        app:trackTint="@color/switch_track_selector" />
+
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/title_appearance"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -414,7 +463,7 @@
         android:textColor="@color/secondaryColorTheme"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/subtitle_aria_wake_word" />
+        app:layout_constraintTop_toBottomOf="@+id/subtitle_streak_reminder" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/label_theme_mode"

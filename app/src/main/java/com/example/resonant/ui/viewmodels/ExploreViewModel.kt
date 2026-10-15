@@ -34,9 +34,16 @@ import com.example.resonant.managers.ArtistManager
 import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.GenreManager
 import com.example.resonant.managers.PlaylistManager
+import com.example.resonant.managers.StreakManager
+import com.example.resonant.data.network.StreakStatusDTO
+import com.example.resonant.streak.SongOfDayResult
+import com.example.resonant.streak.SongOfDayRetryPolicy
+import com.example.resonant.streak.SongOfDayUi
+import com.example.resonant.streak.StreakResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 
@@ -222,6 +229,75 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private fun showLegacy() {
         layout = null
         if (_mode.value != ExploreMode.Legacy) _mode.value = ExploreMode.Legacy
+    }
+
+    // endregion
+
+    // region Racha y canción del día (solo con features.streaks)
+
+    private val streakManager = StreakManager.get(application)
+
+    /** Null hides the chip: streaks off, disabled on the server or the request failed. */
+    private val _streak = MutableLiveData<StreakStatusDTO?>(null)
+    val streak: LiveData<StreakStatusDTO?> get() = _streak
+    private var streakJob: Job? = null
+
+    private val _songOfDay = MutableLiveData<SongOfDayUi>(SongOfDayUi.Hidden)
+    val songOfDay: LiveData<SongOfDayUi> get() = _songOfDay
+    private var songOfDayJob: Job? = null
+    private var songOfDayRetries = 0
+    private var songOfDayExhausted = false
+
+    /** [force] after a streak event; otherwise the manager's 30 s cache applies. */
+    fun loadStreak(force: Boolean = false) {
+        if (!force && streakJob?.isActive == true) return
+        streakJob?.cancel()
+        streakJob = viewModelScope.launch {
+            if (!CapabilitiesManager.refresh(getApplication()).streaks) {
+                _streak.value = null
+                return@launch
+            }
+            _streak.value = when (val result = streakManager.getStatus(force)) {
+                is StreakResult.Ok -> result.status
+                StreakResult.Disabled -> {
+                    CapabilitiesManager.refresh(getApplication(), force = true)
+                    null
+                }
+                StreakResult.Failed -> null
+            }
+        }
+    }
+
+    /** New opening of Explorar: the song of the day gets its retries back. */
+    fun resetSongOfDay() {
+        songOfDayRetries = 0
+        songOfDayExhausted = false
+    }
+
+    /** Asks for the song of the day while Explorar is visible, retrying a bounded number of times on 202. */
+    fun startSongOfDay() {
+        if (songOfDayJob?.isActive == true || songOfDayExhausted) return
+        songOfDayJob = viewModelScope.launch {
+            if (!CapabilitiesManager.refresh(getApplication()).streaks) {
+                _songOfDay.value = SongOfDayUi.Hidden
+                return@launch
+            }
+            while (true) {
+                val result = streakManager.getSongOfDay()
+                if (result == SongOfDayResult.Disabled) CapabilitiesManager.refresh(getApplication(), force = true)
+                val step = SongOfDayUi.from(result, songOfDayRetries)
+                _songOfDay.value = step.ui
+                val waitSeconds = step.retryAfterSeconds ?: break
+                delay(waitSeconds * 1000L)
+                songOfDayRetries++
+            }
+            songOfDayExhausted = _songOfDay.value == SongOfDayUi.Hidden && songOfDayRetries >= SongOfDayRetryPolicy.MAX_RETRIES
+        }
+    }
+
+    fun stopSongOfDay() {
+        songOfDayJob?.cancel()
+        songOfDayJob = null
     }
 
     // endregion

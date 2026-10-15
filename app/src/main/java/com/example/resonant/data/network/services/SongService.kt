@@ -9,6 +9,8 @@ import com.example.resonant.data.network.SearchResponse
 import com.example.resonant.data.network.SongAudioAnalysisDTO
 import com.example.resonant.data.network.SongMetadataDTO
 import com.example.resonant.data.network.SongPlaybackDTO
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -19,8 +21,9 @@ import retrofit2.http.Query
 
 interface SongService {
 
+    /** Body is `{}` or `{ "streakEvent": … }` with streaks on, and empty with streaks off. */
     @POST("api/analytics/stream")
-    suspend fun addStream(@Body streamData: AddStreamDTO)
+    suspend fun addStream(@Body streamData: AddStreamDTO): Response<ResponseBody>
 
     @GET("api/songs/{id}")
     suspend fun getSongById(@Path("id") songId: String): Song

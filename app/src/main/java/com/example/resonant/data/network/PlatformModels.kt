@@ -19,5 +19,7 @@ data class PlatformFeaturesDTO(
     /** Flow v2: nivel de descubrimiento, motivos, feedback y guardar sesión. */
     val flowV2: Boolean = false,
     /** Resonant Live: canales en emisión y especiales. */
-    val live: Boolean = false
+    val live: Boolean = false,
+    /** Racha de escucha, recordatorio y canción del día. */
+    val streaks: Boolean = false
 )

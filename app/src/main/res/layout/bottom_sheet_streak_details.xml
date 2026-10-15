@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingBottom="24dp">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_bottom_sheet_handle" />
+
+    <TextView
+        android:id="@+id/streakDetailsDays"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:fontFamily="@font/unageo_bold"
+        android:includeFontPadding="false"
+        android:textColor="@color/white"
+        android:textSize="28sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="@font/unageo_bold"
+        android:text="@string/streak_details_title"
+        android:textColor="@color/white"
+        android:textSize="19sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:fontFamily="@font/unageo_regular"
+        android:text="@string/streak_details_subtitle"
+        android:textColor="@color/textTheme"
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/streakDetailsToday"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+
+    <ProgressBar
+        android:id="@+id/streakDetailsProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:progressTint="@color/secondaryColorTheme"
+        android:progressBackgroundTint="@color/discTheme" />
+
+    <TextView
+        android:id="@+id/streakDetailsLongest"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/streakDetailsFreeze"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/streakDetailsMilestone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+</LinearLayout>

@@ -71,22 +71,32 @@
                 android:id="@+id/exploreIntro"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
                 android:paddingHorizontal="18dp"
                 android:paddingTop="8dp"
                 android:paddingBottom="12dp">
 
                 <TextView
                     android:id="@+id/exploreHeroTitle"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
                     android:fontFamily="@font/unageo_bold"
                     android:includeFontPadding="false"
+                    android:maxLines="2"
                     android:text="Descubre sin ruido"
                     android:textColor="@color/white"
                     android:textSize="28sp" />
 
+                <!-- Racha: solo visible con features.streaks -->
+                <include layout="@layout/view_streak_chip" />
+
             </LinearLayout>
+
+            <!-- ── Canción del día: solo visible con features.streaks ── -->
+            <include layout="@layout/view_song_of_day_card" />
 
             <!-- ── Lo más top: cabecera de sección (título + subtítulo) ── -->
             <LinearLayout

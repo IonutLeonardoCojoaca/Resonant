@@ -66,6 +66,8 @@ import com.google.android.material.imageview.ShapeableImageView
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -76,6 +78,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.os.bundleOf
 import com.example.resonant.managers.CapabilitiesManager
+import com.example.resonant.managers.StreakManager
+import com.example.resonant.streak.StreakEvent
+import com.example.resonant.streak.StreakEventBus
+import com.example.resonant.streak.StreakReminderScheduler
+import com.example.resonant.streak.StreakTexts
 import com.example.resonant.managers.SessionManager
 import com.example.resonant.playback.UnisoundPlaybackBridge
 import com.example.resonant.ui.bottomsheets.UnisoundJoinBottomSheet
@@ -294,6 +301,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         liveBadge = miniPlayer.findViewById(R.id.miniPlayerLiveBadge)
         liveBadge.setOnClickListener { openCurrentLiveChannel() }
         setupLive()
+        setupStreaks()
         playbackDeviceText = playbackDeviceBar.findViewById(R.id.playbackDeviceText)
         dimOverlay = findViewById(R.id.dim_overlay)
         drawerLayout = findViewById(R.id.drawerLayout)
@@ -1309,6 +1317,43 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     // endregion
 
+    // region Racha
+
+    /** Celebrates milestones reached while listening (also those reached with the screen off). */
+    private fun setupStreaks() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                StreakEventBus.pending.filterNotNull().collect { event ->
+                    StreakManager.get(this@MainActivity).invalidateStatus()
+                    if (event is StreakEvent.Milestone) {
+                        showResonantSnackbar(
+                            text = StreakTexts.celebration(event.days),
+                            colorRes = R.color.successColor,
+                            iconRes = R.drawable.ic_success
+                        )
+                    }
+                    StreakEventBus.consume(event)
+                }
+            }
+        }
+    }
+
+    /** Sends the device time zone if it changed and (re)schedules the 21:00 reminder. */
+    private fun refreshStreaksOnStart() {
+        lifecycleScope.launch {
+            val enabled = CapabilitiesManager.refresh(this@MainActivity).streaks
+            if (enabled) StreakManager.get(this@MainActivity).syncTimeZoneIfNeeded()
+            val reminderOn = SettingsManager(this@MainActivity).streakReminderEnabledFlow.first()
+            if (enabled && reminderOn) {
+                StreakReminderScheduler.schedule(this@MainActivity)
+            } else {
+                StreakReminderScheduler.cancel(this@MainActivity)
+            }
+        }
+    }
+
+    // endregion
+
     private fun isConnectAllowedForCurrentDestination(destinationId: Int? = null): Boolean {
         if (!::navController.isInitialized) return true
         val destId = destinationId ?: navController.currentDestination?.id ?: return true
@@ -1564,6 +1609,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         playbackConnectRepository.announcePresenceAsync()
         playbackConnectRepository.refreshAsync()
         refreshUnisoundOnStart()
+        refreshStreaksOnStart()
     }
 
     override fun onStop() {

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Tu canción del día" arriba en Explorar (modo dinámico y modo fijo). La insignia de Aria
+     solo se ve si origin == "aria"; el shimmer cubre la espera mientras Aria genera (202). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/songOfDayCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="13dp"
+    android:layout_marginBottom="12dp"
+    android:visibility="gone">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/songOfDayContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_explore_badge"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/songOfDayLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:text="@string/song_of_day_title"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/songOfDayImage"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_marginTop="10dp"
+            android:scaleType="centerCrop"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/songOfDayLabel"
+            app:shapeAppearanceOverlay="@style/RoundedCornersExploreGrid"
+            tools:src="@drawable/ic_disc" />
+
+        <TextView
+            android:id="@+id/songOfDayTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="17sp"
+            app:layout_constraintEnd_toStartOf="@id/songOfDayPlay"
+            app:layout_constraintStart_toEndOf="@id/songOfDayImage"
+            app:layout_constraintTop_toTopOf="@id/songOfDayImage"
+            tools:text="Like A Villain" />
+
+        <TextView
+            android:id="@+id/songOfDayArtist"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/textTheme"
+            android:textSize="13sp"
+            app:layout_constraintEnd_toEndOf="@id/songOfDayTitle"
+            app:layout_constraintStart_toStartOf="@id/songOfDayTitle"
+            app:layout_constraintTop_toBottomOf="@id/songOfDayTitle"
+            tools:text="Bad Omens" />
+
+        <com.example.resonant.ui.views.AriaBadgeView
+            android:id="@+id/songOfDayAriaBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:visibility="gone"
+            app:layout_constraintStart_toStartOf="@id/songOfDayTitle"
+            app:layout_constraintTop_toBottomOf="@id/songOfDayArtist" />
+
+        <ImageView
+            android:id="@+id/songOfDayPlay"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_play_button_pill_accent"
+            android:clickable="true"
+            android:contentDescription="@string/song_of_day_play"
+            android:focusable="true"
+            android:padding="11dp"
+            android:src="@drawable/ic_play"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/songOfDayImage"
+            app:tint="@android:color/white" />
+
+        <TextView
+            android:id="@+id/songOfDayReason"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_regular"
+            android:maxLines="3"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/songOfDayImage"
+            tools:text="Bad Omens en su lado más oscuro, para cerrar el día." />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <com.facebook.shimmer.ShimmerFrameLayout
+        android:id="@+id/songOfDayShimmer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:background="@drawable/bg_shimmer" />
+    </com.facebook.shimmer.ShimmerFrameLayout>
+</FrameLayout>

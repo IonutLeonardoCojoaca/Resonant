@@ -20,4 +20,6 @@ enum class QueueSource {
     ARIA_PICK,
     /** A Resonant Live broadcast: schedule owned by the server, reported as `"LIVE"`, never persisted. */
     LIVE,
+    /** "Tu canción del día" card in Explore; reported as `playSource = "SONG_OF_DAY"`. */
+    SONG_OF_DAY,
     UNKNOWN }

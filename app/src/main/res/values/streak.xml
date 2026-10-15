@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos fijos de la racha, la canción del día y su recordatorio. Los textos con datos
+     se construyen en streak/StreakTexts.kt para poder testearlos sin Context. -->
+<resources>
+    <string name="streak_details_title">Tu racha</string>
+    <string name="streak_details_subtitle">Escucha un poco cada día para mantenerla viva</string>
+    <string name="song_of_day_title">Tu canción del día</string>
+    <string name="song_of_day_play">Reproducir la canción del día</string>
+    <string name="streak_reminder_channel_name">Recordatorio de racha</string>
+    <string name="streak_reminder_title">Mantén tu racha</string>
+    <string name="streak_reminder_setting_label">Recordatorio de racha</string>
+    <string name="streak_reminder_setting_subtitle">Aviso a las 21:00 si tu racha está en riesgo</string>
+</resources>
