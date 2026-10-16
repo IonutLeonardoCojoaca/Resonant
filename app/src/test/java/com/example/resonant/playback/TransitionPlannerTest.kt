@@ -89,7 +89,7 @@ class TransitionPlannerTest {
     // ── Inteligente ──
 
     @Test
-    fun `smart beatmatches over A's outro with a bass swap and tempo sync`() {
+    fun `smart beatmatches A's outro over B's intro with a bass swap and tempo sync`() {
         val gridA = PhaseAlignment.Grid(bpm = 128.0, firstDownbeatMs = 100, beatsPerBar = 4)  // compás 1 875 ms
         val gridB = PhaseAlignment.Grid(bpm = 126.0, firstDownbeatMs = 300, beatsPerBar = 4)
         val plan = TransitionPlanner.plan(
@@ -98,10 +98,11 @@ class TransitionPlannerTest {
             track(durationMs = 200_000, audioEndMs = 199_000, mixInMs = 30_776, grid = gridB),
             0
         )!!
+        // Outro de A = 27,9 s: 16 compases (30 s) no caben, 8 sí. Termina en el último compás de A.
         assertEquals("smart-beatmatch-8bars", plan.label)
-        assertEquals(210_100, plan.doc.a.startMs)
+        assertEquals(221_350, plan.doc.a.startMs)
         assertEquals(15_000, plan.doc.durationMs)
-        assertEquals(13_633, plan.doc.b.startMs)
+        assertEquals(300, plan.doc.b.startMs) // primer downbeat de B: no se salta su intro
         assertTrue(plan.beatSync)
         assertEquals(128.0 / 126.0, plan.bpmRatio, 1e-9)
         assertTrue(plan.hasEq)
@@ -117,7 +118,7 @@ class TransitionPlannerTest {
     }
 
     @Test
-    fun `smart without compatible tempo blends over A's outro`() {
+    fun `smart without compatible tempo blends over A's outro from B's start`() {
         val plan = TransitionPlanner.plan(
             Mode.SMART,
             track(mixOutMs = 189_000),
@@ -127,13 +128,13 @@ class TransitionPlannerTest {
         assertEquals("smart-blend", plan.label)
         assertEquals(189_000, plan.doc.a.startMs)
         assertEquals(9_000, plan.doc.durationMs)
-        assertEquals(8_000, plan.doc.b.startMs)
+        assertEquals(300, plan.doc.b.startMs)
         assertFalse(plan.beatSync)
         assertConstantPower(plan)
     }
 
     @Test
-    fun `smart blend uses the default length and ignores a late entry point`() {
+    fun `smart blend uses the default length and never skips B's intro`() {
         val plan = TransitionPlanner.plan(Mode.SMART, track(), track(audioStartMs = 300, mixInMs = 40_000), 0)!!
         assertEquals(198_000 - 8_000, plan.doc.a.startMs)
         assertEquals(8_000, plan.doc.durationMs)
@@ -164,5 +165,17 @@ class TransitionPlannerTest {
         assertEquals(180_000L, t.mixOutMs)
         assertNotNull(t.grid)
         assertNull(TransitionPlanner.trackOf(null, exoDurationMs = -1))
+    }
+
+    @Test
+    fun `trackOf falls back to v1 optimal points without cue points`() {
+        val analysis = AudioAnalysis(
+            durationMs = 200_000, audioStartMs = 400, audioEndMs = 198_000,
+            optimalStartPointMs = 6_000, optimalExitPointMs = 170_000
+        )
+        val t = TransitionPlanner.trackOf(analysis, exoDurationMs = -1)!!
+        assertEquals(6_000L, t.mixInMs)
+        assertEquals(170_000L, t.mixOutMs)
+        assertNull(t.grid)
     }
 }

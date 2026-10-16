@@ -21,9 +21,13 @@ import kotlin.math.roundToInt
  *   donde empieza su audio. Con rejilla, el fundido empieza en un compás de A.
  * - Corte: corte casi instantáneo (empalme de [CUT_SPLICE_MS]) al final de A. Con rejilla en las
  *   dos, el primer downbeat de B cae justo en el compás siguiente de A.
- * - Inteligente: con rejilla en las dos y BPM compatibles, mezcla de DJ en compases enteros
- *   sobre el outro de A, con intercambio de graves y sincronía de tempo; si no, fundido de
- *   [SMART_BLEND_MS] con un traspaso suave de graves. Una receta del servidor tiene prioridad.
+ * - Inteligente: con rejilla en las dos y BPM compatibles, mezcla en compases enteros con
+ *   intercambio de graves y sincronía de tempo; si no, fundido de [SMART_BLEND_MS] con un traspaso
+ *   suave de graves. Una receta del servidor tiene prioridad.
+ *
+ * Regla común ("outro sobre intro"): la mezcla termina donde acaba el audio de A y B empieza en su
+ * inicio (primer downbeat), así que no se salta nada de ninguna canción. Los cue points solo limitan
+ * cuánto dura la mezcla: el outro de A (desde `mixOut`) y la intro de B (hasta `mixIn`).
  */
 object TransitionPlanner {
 
@@ -73,8 +77,9 @@ object TransitionPlanner {
             durationMs = duration,
             audioStartMs = start,
             audioEndMs = end,
-            mixInMs = inside(analysis?.mixInMs),
-            mixOutMs = inside(analysis?.mixOutMs),
+            // Cue points v2; sin ellos (canciones aún sin análisis v2), los puntos óptimos v1.
+            mixInMs = inside(analysis?.mixInMs) ?: inside(analysis?.optimalStartPointMs),
+            mixOutMs = inside(analysis?.mixOutMs) ?: inside(analysis?.optimalExitPointMs),
             grid = PhaseAlignment.gridOf(analysis?.bpmPrecise, analysis?.firstDownbeatMs, analysis?.beatsPerBar)
         )
     }
@@ -148,20 +153,21 @@ object TransitionPlanner {
         val gridA = a.grid!!
         val gridB = b.grid!!
         val barA = PhaseAlignment.barMs(gridA)
-        val outro = a.mixOutMs?.takeIf { a.audioEndMs - it >= 8 * barA }
-        var bars = if (outro != null && a.audioEndMs - outro >= 16 * barA) 16 else 8
-        while (bars > 4 && bars * barA > MAX_BEATMATCH_MS) bars /= 2
+        val bStart = downbeatAtOrAfter(gridB, b.audioStartMs.toDouble())
+
+        // Cuánto cabe: el outro de A y la intro de B (B suena `ratio` veces más rápida durante la mezcla).
+        var room: Double? = null
+        a.mixOutMs?.let { room = (a.audioEndMs - it).toDouble() }
+        b.mixInMs?.takeIf { it > bStart }?.let { introMs ->
+            val intro = (introMs - bStart) / ratio
+            room = room?.let { minOf(it, intro) } ?: intro
+        }
+        var bars = if (room != null) 16 else 8
+        while (bars > 4 && (bars * barA > (room ?: Double.MAX_VALUE) || bars * barA > MAX_BEATMATCH_MS)) bars /= 2
         val blend = bars * barA
 
-        val aStart = outro?.toDouble() ?: downbeatAtOrBefore(gridA, a.audioEndMs - blend)
+        val aStart = downbeatAtOrBefore(gridA, a.audioEndMs - blend)
         if (aStart < a.audioStartMs || aStart + blend > a.durationMs) return null
-
-        // B avanza `blend * ratio` de su propio audio durante la mezcla: su entrada (mixIn) llega al final.
-        val firstB = downbeatAtOrAfter(gridB, b.audioStartMs.toDouble())
-        val bStart = b.mixInMs
-            ?.let { downbeatAtOrBefore(gridB, it - blend * ratio) }
-            ?.takeIf { it >= firstB }
-            ?: firstB
 
         val duration = blend.roundToInt().toLong()
         val half = (blend / 2).roundToInt()
@@ -192,7 +198,7 @@ object TransitionPlanner {
             if (bar >= a.audioStartMs && start - bar <= duration / 4) start = bar
         }
         val length = end - start
-        val bStart = b.mixInMs?.takeIf { it <= TransitionTiming.MAX_INTELLIGENT_ENTRY_MS } ?: b.audioStartMs
+        val bStart = b.audioStartMs
         val bassIn = (length * 0.6).roundToInt()
         val lanes = crossfadeLanes(length) + mapOf(
             "a.eq.low" to listOf(point(0, 0.0, "smooth"), point(length.toInt(), BASS_SOFT_DB)),
