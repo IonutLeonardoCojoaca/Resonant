@@ -67,7 +67,7 @@
             android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingHorizontal="24dp"
-            android:paddingBottom="50dp">
+            android:paddingBottom="@dimen/screen_bottom_inset">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"

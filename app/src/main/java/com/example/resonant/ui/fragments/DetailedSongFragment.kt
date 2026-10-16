@@ -1,234 +1,451 @@
 package com.example.resonant.ui.fragments
 
-import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.LinearInterpolator
+import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.navigation.fragment.findNavController
-import androidx.palette.graphics.Palette
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.request.RequestListener
-import com.bumptech.glide.request.target.Target
-import com.example.resonant.data.network.ApiClient
-import com.example.resonant.services.MusicPlaybackService
-import com.example.resonant.playback.QueueSource
-import com.example.resonant.playback.PlaySourceMapper
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.R
 import com.example.resonant.aria.AriaScreenContextHolder
-import com.example.resonant.ui.viewmodels.SongViewModel
-import com.example.resonant.ui.adapters.SongAdapter
-import com.example.resonant.utils.Utils
 import com.example.resonant.data.models.Song
+import com.example.resonant.databinding.FragmentDetailedSongBinding
+import com.example.resonant.managers.SongInsightsManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.playback.PlaySourceMapper
+import com.example.resonant.playback.QueueSource
+import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.ArtistAdapter
-// Importamos los servicios específicos
-import com.example.resonant.data.network.services.AlbumService
-import com.example.resonant.data.network.services.ArtistService
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.imageview.ShapeableImageView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.components.DetailHero
+import com.example.resonant.ui.components.InsightTile
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.components.ResonantMotion
+import com.example.resonant.ui.detail.DetailFormat
+import com.example.resonant.ui.detail.SongInsights
+import com.example.resonant.ui.detail.SongInsightsFormatter
+import com.example.resonant.ui.viewmodels.SongViewModel
+import com.example.resonant.utils.Utils
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlin.coroutines.CoroutineContext
 
-class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), CoroutineScope {
+/**
+ * Ficha de canción: cabecera por capas con parallax y los colores de la portada, y el "ADN
+ * sonoro" (tempo, tono con rueda de Camelot, sonoridad, curva de energía con los puntos del
+ * tema), estilo, álbum, artistas y relacionadas.
+ */
+class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
+
+    private var _binding: FragmentDetailedSongBinding? = null
+    private val binding get() = _binding!!
 
     private var song: Song? = null
+    private var isPlaying = false
+    private var artworkBitmap: Bitmap? = null
+    private var accentColor: Int? = null
+    private var lastInsights: SongInsights? = null
 
-    private lateinit var songImage: ShapeableImageView
-    private lateinit var songTitle: TextView
-    private lateinit var artistList: RecyclerView
-    private lateinit var songDuration: TextView
-    private lateinit var songStreams: TextView
-    private lateinit var songAlbum: TextView
-
-    private var albumJob: Job? = null
     private var relatedJob: Job? = null
+    private var insightsJob: Job? = null
+    private var bpmPulse: ValueAnimator? = null
 
-    private lateinit var relatedSongsHeader: android.widget.TextView
-    private lateinit var relatedSongsHeaderRow: View
-    private lateinit var btnPlayRelated: android.widget.ImageButton
-    private lateinit var relatedSongsList: RecyclerView
-    private lateinit var shimmerRelatedSongs: com.facebook.shimmer.ShimmerFrameLayout
+    private lateinit var songManager: SongManager
+    private lateinit var songViewModel: SongViewModel
     private lateinit var relatedAdapter: SongAdapter
 
-    private var albumArtAnimator: ObjectAnimator? = null
-    private val bitmapCache = mutableMapOf<String, Bitmap>()
-    private var artworkJob: Job? = null
-    override val coroutineContext: CoroutineContext get() = Dispatchers.Main + SupervisorJob()
-    lateinit var songAdapter: SongAdapter
-    private lateinit var songViewModel: SongViewModel
+    /** `requestId` de las relacionadas mostradas (impresiones `RELATED`). */
+    private var relatedRequestId: String? = null
 
-    private var isPlaying: Boolean = false
-    private lateinit var playButton: MaterialButton
-
-    // --- SERVICIOS Y MANAGERS ---
-    private lateinit var albumService: AlbumService
-    private lateinit var artistService: ArtistService
-    private lateinit var songManager: SongManager // Instancia del Manager
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        _binding = FragmentDetailedSongBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        songManager = SongManager(requireContext())
+        songViewModel = ViewModelProvider(requireActivity())[SongViewModel::class.java]
 
-        // --- 1. INICIALIZACIÓN DE DEPENDENCIAS ---
-        val context = requireContext()
-        albumService = ApiClient.getAlbumService(context)
-        artistService = ApiClient.getArtistService(context)
-        songManager = SongManager(context) // Instancia
-
+        setupHeader()
+        setupArtists()
+        setupRelated()
         setupViewModelObservers()
+
         val songId = arguments?.getString("songId")
         song = arguments?.getParcelable("song")
+        song?.let { bindSong(it) } // pinta ya lo que llega por argumentos
 
-        if (song == null && !songId.isNullOrBlank()) {
-            // CASO 1: Solo tenemos el ID
-            lifecycleScope.launch {
-                // Usamos la instancia songManager
-                val loadedSong = songManager.getSongById(songId)
-                if (loadedSong != null) {
-                    song = loadedSong
-                    setupSongUI(loadedSong)
-                } else {
-                    showSongNotFound()
-                }
+        viewLifecycleOwner.lifecycleScope.launch {
+            val id = song?.id ?: songId
+            if (id.isNullOrBlank()) {
+                showSongNotFound()
+                return@launch
             }
-        }
-        else if (song != null) {
-            // CASO 2: Ya tenemos el objeto Song, pero validamos frescura (URLs firmadas)
-            lifecycleScope.launch {
-                try {
-                    // Intentamos obtener versión fresca del Manager (cache vs red)
-                    val freshSong = songManager.getSongById(song!!.id)
-                    if (freshSong != null) {
-                        song = freshSong
-                    } else {
-                        // Si falla, enriquecemos el que tenemos como fallback
-                        song = songManager.enrichSingleSong(song!!)
-                    }
-                    setupSongUI(song!!)
-                } catch (e: Exception) {
-                    Log.e("DetailedSongFragment", "Error al actualizar la canción", e)
-                    setupSongUI(song!!)
-                }
+            // Versión fresca del manager (URLs firmadas, análisis); si falla, la que llegó enriquecida.
+            val fresh = try {
+                songManager.getSongById(id) ?: song?.let { songManager.enrichSingleSong(it) }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al actualizar la canción", e)
+                song
             }
+            if (fresh == null) {
+                showSongNotFound()
+                return@launch
+            }
+            song = fresh
+            bindSong(fresh)
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_detailed_song, container, false)
+    // ─── Cabecera ─────────────────────────────────────────────
 
-        // Inicializa los elementos del XML
-        songImage = view.findViewById(R.id.songImage)
-        songTitle = view.findViewById(R.id.songTitle)
-        artistList = view.findViewById(R.id.artistList)
-        songDuration = view.findViewById(R.id.songDuration)
-        songStreams = view.findViewById(R.id.songStreams)
-        songAlbum = view.findViewById(R.id.songAlbum)
-        playButton = view.findViewById(R.id.playButton)
-        relatedSongsHeader = view.findViewById(R.id.relatedSongsHeader)
-        relatedSongsHeaderRow = view.findViewById(R.id.relatedSongsHeaderRow)
-        btnPlayRelated = view.findViewById(R.id.btnPlayRelated)
-        relatedSongsList = view.findViewById(R.id.relatedSongsList)
-        shimmerRelatedSongs = view.findViewById(R.id.shimmerRelatedSongs)
-        relatedAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
-        relatedSongsList.layoutManager = LinearLayoutManager(requireContext())
-        relatedSongsList.adapter = relatedAdapter
-        relatedSongsList.isNestedScrollingEnabled = false
-        btnPlayRelated.setOnClickListener { playOrPauseRelatedSongs() }
-        relatedAdapter.onItemClick = { (relatedSong, bitmap) ->
-            val bundle = Bundle().apply { putParcelable("song", relatedSong) }
-            findNavController().navigate(R.id.action_global_to_detailedSongFragment, bundle)
+    private fun setupHeader() {
+        DetailHero.attachParallax(binding.appBar, binding.hero.root, binding.detailToolbar.detailToolbarTitle)
+        binding.detailToolbar.detailBack.setOnClickListener { findNavController().popBackStack() }
+        DetailHero.playButton(binding.hero.root).setOnClickListener { togglePlay() }
+        DetailHero.animateIn(binding.hero.root)
+    }
+
+    private fun bindSong(song: Song) {
+        val hero = binding.hero.root
+        val artists = song.artists.joinToString(", ") { it.name }.ifBlank { song.artistName }
+        val eyebrow = listOfNotNull("CANCIÓN", song.releaseYear.takeIf { it > 0 }?.toString()).joinToString(" · ")
+        DetailHero.bind(hero, eyebrow, song.title, artists)
+        binding.detailToolbar.detailToolbarTitle.text = song.title
+
+        val seconds = song.duration?.toIntOrNull()
+        DetailHero.setChips(hero, listOfNotNull(
+            seconds?.let { "${it / 60}:${(it % 60).toString().padStart(2, '0')}" },
+            song.streams.takeIf { it > 0 }?.let { "${DetailFormat.compactCount(it.toLong())} reproducciones" }
+        ))
+
+        loadArtwork(song.coverUrl)
+        bindAlbum(song)
+        (binding.artistList.adapter as? ArtistAdapter)?.submitArtists(song.artists.map { it.toArtist() })
+        binding.artistText.isVisible = song.artists.isNotEmpty()
+        reportVisibleSong()
+        loadInsights(song)
+        loadRelatedSongs(song.id)
+    }
+
+    private fun loadArtwork(url: String?) {
+        val hero = binding.hero.root
+        if (url.isNullOrBlank()) {
+            binding.hero.heroArt.setImageResource(R.drawable.ic_disc)
+            return
         }
+        Glide.with(this).asBitmap().load(url)
+            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+            .into(object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                    if (_binding == null) return
+                    artworkBitmap = resource
+                    DetailHero.setArtwork(hero, resource)
+                    DetailHero.applyPalette(hero, resource, binding.collapsing) { colors ->
+                        if (_binding == null) return@applyPalette
+                        accentColor = colors.accent
+                        binding.energySpectrum.setColors(colors.accent, colors.accentAlt)
+                        InsightTile.paint(binding.tileEnergy, colors.accent, binding.energyLabel)
+                        binding.albumEyebrow.setTextColor(colors.accent)
+                        lastInsights?.let { bindKeyWheel(it) }
+                    }
+                }
 
-        artistList.layoutManager = LinearLayoutManager(requireContext())
+                override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) = Unit
+            })
+    }
+
+    // ─── ADN sonoro ───────────────────────────────────────────
+
+    private fun loadInsights(song: Song) {
+        insightsJob?.cancel()
+        insightsJob = viewLifecycleOwner.lifecycleScope.launch {
+            val insights = try {
+                SongInsightsManager.load(requireContext(), song)
+            } catch (e: Exception) {
+                Log.w(TAG, "Sin datos de análisis: ${e.message}")
+                return@launch
+            }
+            if (_binding == null) return@launch
+            val firstTime = lastInsights == null
+            lastInsights = insights
+            bindInsights(insights, animate = firstTime)
+        }
+    }
+
+    private fun bindInsights(insights: SongInsights, animate: Boolean) {
+        val b = binding
+        val tempoColor = ResonantAccent.ARTISTS.color
+        val keyColor = ResonantAccent.ALBUMS.color
+        val loudColor = ResonantAccent.SONGS.color
+        InsightTile.paint(b.tileTempo, tempoColor, b.tempoLabel)
+        InsightTile.paint(b.tileKey, keyColor, b.keyLabel)
+        InsightTile.paint(b.tileLoudness, loudColor, b.loudnessLabel)
+        InsightTile.paint(b.tileEnergy, accentColor ?: ResonantAccent.PLAYMIX.color, b.energyLabel)
+
+        // Tempo
+        val bpmText = SongInsightsFormatter.bpmText(insights.bpm)
+        b.tileTempo.isVisible = bpmText != null
+        b.tempoValue.text = bpmText
+        b.tempoFeel.text = listOfNotNull(
+            SongInsightsFormatter.tempoFeel(insights.bpm),
+            insights.beatsPerBar?.takeIf { it > 0 }?.let { "compás $it/4" }
+        ).joinToString(" · ")
+        startBpmPulse(insights.bpm, tempoColor)
+
+        // Tono
+        val keyShort = SongInsightsFormatter.keyShort(insights.musicalKey)
+        b.tileKey.isVisible = keyShort != null || insights.camelot != null
+        b.keyValue.text = keyShort ?: insights.camelot
+        bindKeyWheel(insights)
+        val neighbours = SongInsightsFormatter.camelotNeighbours(insights.camelot)
+        b.keyName.text = listOfNotNull(
+            SongInsightsFormatter.keyName(insights.musicalKey),
+            neighbours.takeIf { it.isNotEmpty() }?.let { "casa con ${it.joinToString(", ")}" }
+        ).joinToString(" · ")
+
+        // Sonoridad
+        val loudFraction = SongInsightsFormatter.loudnessFraction(insights.loudnessLufs)
+        b.tileLoudness.isVisible = loudFraction != null
+        b.loudnessValue.text = SongInsightsFormatter.loudnessText(insights.loudnessLufs)
+        b.loudnessFeel.text = SongInsightsFormatter.loudnessFeel(insights.loudnessLufs)
+        loudFraction?.let { b.loudnessMeter.setLevel(it, loudColor, animate) }
+
+        // Energía
+        b.tileEnergy.isVisible = insights.energy.isNotEmpty()
+        b.energySpectrum.setData(insights.energy, SongInsightsFormatter.markers(insights), animate)
+        b.energyEnd.text = SongInsightsFormatter.clock(insights.durationMs)
+
+        val anyTile = b.tileTempo.isVisible || b.tileKey.isVisible || b.tileLoudness.isVisible || b.tileEnergy.isVisible
+        if (anyTile && !b.sonicSection.isVisible) {
+            b.sonicSection.isVisible = true
+            if (animate && ValueAnimator.areAnimatorsEnabled()) {
+                b.sonicSection.alpha = 0f
+                b.sonicSection.translationY = 24 * resources.displayMetrics.density
+                b.sonicSection.animate().alpha(1f).translationY(0f).setDuration(600)
+                    .setInterpolator(ResonantMotion.expoOut).start()
+            }
+        }
+        bindStyleChips(insights)
+    }
+
+    private fun bindKeyWheel(insights: SongInsights) {
+        binding.camelotWheel.setKey(insights.camelot, ResonantAccent.ALBUMS.color)
+    }
+
+    /** Punto que late al tempo de la canción. */
+    private fun startBpmPulse(bpm: Double?, color: Int) {
+        bpmPulse?.cancel()
+        val dot = binding.bpmPulse
+        dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+        if (bpm == null || bpm <= 0 || !ValueAnimator.areAnimatorsEnabled()) return
+        bpmPulse = ValueAnimator.ofFloat(1f, 0.35f).apply {
+            duration = (60_000 / bpm).toLong().coerceIn(250L, 2_000L)
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener {
+                val v = it.animatedValue as Float
+                dot.alpha = v
+                dot.scaleX = 0.7f + 0.5f * v
+                dot.scaleY = dot.scaleX
+            }
+            start()
+        }
+    }
+
+    private fun bindStyleChips(insights: SongInsights) {
+        val row = binding.styleChips
+        row.removeAllViews()
+        val density = resources.displayMetrics.density
+        val chips = buildList {
+            if (insights.hasSyncedLyrics) add("Letra sincronizada" to ResonantAccent.PLAYLISTS.color)
+            else if (insights.hasLyrics) add("Con letra" to ResonantAccent.PLAYLISTS.color)
+            insights.genres.forEach { add(it.replaceFirstChar(Char::uppercase) to ResonantAccent.TRENDING.color) }
+            insights.tags.take(8).forEach { add("#${it.lowercase()}" to null) }
+        }
+        chips.forEachIndexed { i, (text, color) ->
+            val chip = TextView(requireContext(), null, 0, R.style.PlaymixStatChip).apply {
+                this.text = text
+                textSize = 12.5f
+                setPadding((12 * density).toInt(), (7 * density).toInt(), (12 * density).toInt(), (7 * density).toInt())
+                if (color != null) InsightTile.paint(this, color).also { setTextColor(color) }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { if (i > 0) marginStart = (8 * density).toInt() }
+            }
+            row.addView(chip)
+        }
+        binding.styleLabel.isVisible = chips.isNotEmpty()
+        binding.styleScroll.isVisible = chips.isNotEmpty()
+    }
+
+    // ─── Álbum y artistas ─────────────────────────────────────
+
+    private fun bindAlbum(song: Song) {
+        val album = song.album
+        binding.albumCard.isVisible = album != null && album.title.isNotBlank()
+        if (album == null) return
+        binding.songAlbum.text = album.title
+        Glide.with(this).load(album.url ?: song.coverUrl).placeholder(R.drawable.ic_disc).centerCrop().into(binding.albumCover)
+        binding.albumCard.setOnClickListener {
+            findNavController().navigate(R.id.albumFragment, Bundle().apply { putString("albumId", album.id) })
+        }
+    }
+
+    private fun setupArtists() {
         val artistAdapter = ArtistAdapter(emptyList())
+        artistAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_LIST)
         artistAdapter.onSettingsClick = { artist ->
-             val bottomSheet = com.example.resonant.ui.bottomsheets.ArtistOptionsBottomSheet(
+            com.example.resonant.ui.bottomsheets.ArtistOptionsBottomSheet(
                 artist = artist,
-                onGoToArtistClick = { selectedArtist ->
-                    val bundle = Bundle().apply { 
-                         putString("artistId", selectedArtist.id)
-                         putString("artistName", selectedArtist.name)
-                         putString("artistImageUrl", selectedArtist.url)
+                onGoToArtistClick = { selected ->
+                    val bundle = Bundle().apply {
+                        putString("artistId", selected.id)
+                        putString("artistName", selected.name)
+                        putString("artistImageUrl", selected.url)
                     }
                     findNavController().navigate(R.id.action_detailedSongFragment_to_artistFragment, bundle)
                 },
                 onViewDetailsClick = {
-                     val bundle = Bundle().apply { 
-                         putParcelable("artist", it)
-                         putString("artistId", it.id)
-                     }
-                     findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
-                }
-            )
-            bottomSheet.show(parentFragmentManager, "ArtistOptionsBottomSheet")
-        }
-        artistList.adapter = artistAdapter
-        songViewModel = ViewModelProvider(requireActivity()).get(SongViewModel::class.java)
-
-        songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
-
-        playButton.setOnClickListener {
-            if (isPlaying) {
-                val intent = Intent(requireContext(), MusicPlaybackService::class.java)
-                intent.action = MusicPlaybackService.Companion.ACTION_PAUSE
-                requireContext().startService(intent)
-            } else {
-                song?.let { currentSong ->
-                    val songList = arrayListOf(currentSong)
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val bitmapPath = bitmapCache[currentSong.id]?.let {
-                            Utils.saveBitmapToCache(requireContext(), it, currentSong.id)
-                        }
-                        val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                            action = MusicPlaybackService.Companion.ACTION_PLAY
-                            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, currentSong)
-                            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
-                            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
-                            putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
-                        }
-                        requireContext().startService(playIntent)
+                    val bundle = Bundle().apply {
+                        putParcelable("artist", it)
+                        putString("artistId", it.id)
                     }
+                    findNavController().navigate(R.id.action_global_to_detailedArtistFragment, bundle)
                 }
-            }
+            ).show(parentFragmentManager, "ArtistOptionsBottomSheet")
         }
-
         artistAdapter.onArtistClick = { artist, sharedImage ->
             val bundle = Bundle().apply { putString("artistId", artist.id) }
             val extras = FragmentNavigatorExtras(sharedImage to sharedImage.transitionName)
-            findNavController().navigate(
-                R.id.action_detailedSongFragment_to_artistFragment,
-                bundle,
-                null,
-                extras
-            )
+            findNavController().navigate(R.id.action_detailedSongFragment_to_artistFragment, bundle, null, extras)
         }
-
-        return view
+        binding.artistList.layoutManager = LinearLayoutManager(requireContext())
+        binding.artistList.adapter = artistAdapter
     }
+
+    // ─── Relacionadas ─────────────────────────────────────────
+
+    private fun setupRelated() {
+        relatedAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        binding.relatedSongsList.layoutManager = LinearLayoutManager(requireContext())
+        binding.relatedSongsList.adapter = relatedAdapter
+        binding.btnPlayRelated.setOnClickListener { playOrPauseRelatedSongs() }
+        relatedAdapter.onItemClick = { (relatedSong, _) ->
+            val bundle = Bundle().apply { putParcelable("song", relatedSong) }
+            findNavController().navigate(R.id.action_global_to_detailedSongFragment, bundle)
+        }
+    }
+
+    private fun loadRelatedSongs(songId: String) {
+        if (relatedJob?.isActive == true || relatedAdapter.currentList.isNotEmpty()) return
+        val b = binding
+        b.shimmerRelatedSongs.isVisible = true
+        b.shimmerRelatedSongs.startShimmer()
+        relatedJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val result = songManager.getRelatedSongsWithRequestId(songId, limit = 10)
+                relatedRequestId = result.requestId
+                if (_binding == null) return@launch
+                b.shimmerRelatedSongs.stopShimmer()
+                b.shimmerRelatedSongs.isVisible = false
+                if (result.songs.isNotEmpty()) {
+                    b.relatedSongsHeaderRow.isVisible = true
+                    b.relatedSongsList.isVisible = true
+                    relatedAdapter.submitList(result.songs)
+                    updateRelatedPlayButtonIcon()
+                }
+            } catch (e: Exception) {
+                if (_binding == null) return@launch
+                b.shimmerRelatedSongs.stopShimmer()
+                b.shimmerRelatedSongs.isVisible = false
+            }
+        }
+    }
+
+    /** Reproduce las relacionadas desde el principio, o pausa si ya es esa la lista sonando. */
+    private fun playOrPauseRelatedSongs() {
+        val relatedList = ArrayList(relatedAdapter.currentList)
+        if (relatedList.isEmpty()) return
+        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
+            relatedList.any { it.id == songViewModel.currentSongLiveData.value?.id }
+        if (isRelatedListPlaying) {
+            requireContext().startService(Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PAUSE
+            })
+        } else {
+            val seedSongId = song?.id ?: "RELATED_UNKNOWN"
+            requireContext().startService(Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PLAY
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, relatedList[0])
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
+                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
+                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+                putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.RELATED)
+                relatedRequestId?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
+            })
+        }
+    }
+
+    private fun updateRelatedPlayButtonIcon() {
+        val b = _binding ?: return
+        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
+            relatedAdapter.currentList.any { it.id == songViewModel.currentSongLiveData.value?.id }
+        b.btnPlayRelated.setImageResource(if (isRelatedListPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+    }
+
+    // ─── Reproducción ─────────────────────────────────────────
+
+    private fun togglePlay() {
+        if (isPlaying) {
+            requireContext().startService(Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PAUSE
+            })
+            return
+        }
+        val current = song ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bitmapPath = artworkBitmap?.let { Utils.saveBitmapToCache(requireContext(), it, current.id) }
+            requireContext().startService(Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PLAY
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, current)
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
+                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_IMAGE_PATH, bitmapPath)
+                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, arrayListOf(current))
+            })
+        }
+    }
+
+    private fun setupViewModelObservers() {
+        fun updateButtonState() {
+            val b = _binding ?: return
+            val playingThis = songViewModel.isPlayingLiveData.value == true &&
+                songViewModel.currentSongLiveData.value?.id == song?.id
+            isPlaying = playingThis
+            DetailHero.playButton(b.hero.root).setIconResource(if (playingThis) R.drawable.ic_pause else R.drawable.ic_play)
+            updateRelatedPlayButtonIcon()
+        }
+        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { updateButtonState() }
+        songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { updateButtonState() }
+    }
+
+    // ─── Aria y ciclo de vida ─────────────────────────────────
 
     override fun onResume() {
         super.onResume()
@@ -251,243 +468,27 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         }
     }
 
-    private fun setupViewModelObservers() {
-        fun updateButtonState() {
-            val isCurrentlyPlaying = songViewModel.isPlayingLiveData.value ?: false
-            val currentlyPlayingId = songViewModel.currentSongLiveData.value?.id
-            val isThisSongPlaying = isCurrentlyPlaying && (currentlyPlayingId == song?.id)
-            this.isPlaying = isThisSongPlaying
-            updatePlayPauseButton(isThisSongPlaying)
-            updateRelatedPlayButtonIcon()
-        }
-
-        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { _ ->
-            updateButtonState()
-        }
-
-        songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { _ ->
-            updateButtonState()
-        }
-    }
-
-    private fun animateBackgroundColorFade(view: View, targetColor: Int, duration: Long = 500) {
-        val currentColor = (view.background as? ColorDrawable)?.color ?: Color.TRANSPARENT
-        val colorAnimator = ValueAnimator.ofArgb(currentColor, targetColor)
-        colorAnimator.duration = duration
-        colorAnimator.addUpdateListener { animator ->
-            val animatedColor = animator.animatedValue as Int
-            view.background = ColorDrawable(animatedColor)
-        }
-        colorAnimator.start()
-    }
-
-    private fun setBackgroundColorFromBitmapFade(view: View, bitmap: Bitmap) {
-        Palette.from(bitmap).generate { palette ->
-            val dominantColor = palette?.getDominantColor(
-                requireContext().getColor(R.color.primaryColorTheme)
-            ) ?: requireContext().getColor(R.color.primaryColorTheme)
-            animateBackgroundColorFade(view, dominantColor)
-        }
-    }
-
-    private fun setupSongUI(song: Song) {
-        cancelJobs()
-        albumArtAnimator?.cancel()
-        songImage.rotation = 0f
-        songImage.visibility = View.VISIBLE
-        Glide.with(requireContext()).clear(songImage)
-
-        val placeholderRes = R.drawable.ic_disc
-        val errorRes = R.drawable.ic_disc
-        val rootView = view?.findViewById<ConstraintLayout>(R.id.rootConstraint) ?: return
-
-        val albumUrl = song.coverUrl
-        if (!albumUrl.isNullOrBlank()) {
-            albumArtAnimator = ObjectAnimator.ofFloat(songImage, "rotation", 0f, 360f).apply {
-                duration = 3000
-                repeatCount = ObjectAnimator.INFINITE
-                interpolator = LinearInterpolator()
-                start()
-            }
-
-            Glide.with(requireContext())
-                .asBitmap()
-                .load(albumUrl)
-                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                .dontAnimate()
-                .placeholder(placeholderRes)
-                .error(errorRes)
-                .listener(object : RequestListener<Bitmap> {
-                    override fun onLoadFailed(
-                        e: GlideException?,
-                        model: Any?,
-                        target: Target<Bitmap>,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        albumArtAnimator?.cancel()
-                        songImage.rotation = 0f
-                        Log.w("DetailedSongFragment", "Album art load failed")
-                        return false
-                    }
-
-                    override fun onResourceReady(
-                        resource: Bitmap,
-                        model: Any,
-                        target: Target<Bitmap>?,
-                        dataSource: DataSource,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        albumArtAnimator?.cancel()
-                        songImage.rotation = 0f
-                        setBackgroundColorFromBitmapFade(rootView, resource)
-                        return false
-                    }
-                })
-                .into(songImage)
-        } else {
-            songImage.setImageResource(placeholderRes)
-        }
-
-        reportVisibleSong()
-        songTitle.text = song.title
-        songDuration.text = "Duración: ${Utils.formatSecondsToMinSec(song.duration.toString().toInt())}"
-        songStreams.text = "Reproducciones: ${song.streams}"
-
-        if (song.album != null) {
-            songAlbum.text = "Álbum: ${song.album.title}"
-            songAlbum.visibility = View.VISIBLE
-        } else {
-            loadAlbumName(song.album?.id)
-        }
-        loadArtists(song.artists.map { it.toArtist() })
-        loadRelatedSongs(song.id)
+    private fun showSongNotFound() {
+        val b = _binding ?: return
+        DetailHero.bind(b.hero.root, "CANCIÓN", "Canción no encontrada", null)
+        DetailHero.setChips(b.hero.root, emptyList())
+        b.hero.heroArt.setImageResource(R.drawable.ic_disc)
+        DetailHero.playButton(b.hero.root).isVisible = false
+        (b.artistList.adapter as? ArtistAdapter)?.submitArtists(emptyList())
+        b.artistText.isVisible = false
+        b.albumCard.isVisible = false
     }
 
     override fun onDestroyView() {
+        bpmPulse?.cancel()
+        bpmPulse = null
+        relatedJob?.cancel()
+        insightsJob?.cancel()
+        _binding = null
         super.onDestroyView()
-        cancelJobs()
-        albumArtAnimator?.cancel()
     }
 
-    private fun loadAlbumName(albumId: String?) {
-        albumJob?.cancel()
-
-        if (albumId.isNullOrBlank()) {
-            songAlbum.visibility = View.GONE
-            return
-        }
-
-        albumJob = lifecycleScope.launch {
-            try {
-                val album = albumService.getAlbumById(albumId)
-                val albumName = album.title ?: "Sin título"
-                songAlbum.text = "Álbum: $albumName"
-                songAlbum.visibility = View.VISIBLE
-            } catch (e: Exception) {
-                songAlbum.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun loadArtists(artists: List<com.example.resonant.data.models.Artist>, asList: Boolean = true) {
-        Log.i("DetailedSongFragment", "Artists from song model: ${artists.size}")
-
-        (artistList.adapter as? ArtistAdapter)?.apply {
-            submitArtists(artists)
-            setViewType(if (asList) ArtistAdapter.Companion.VIEW_TYPE_LIST else ArtistAdapter.Companion.VIEW_TYPE_GRID)
-        }
-    }
-
-    /** `requestId` de las relacionadas mostradas (impresiones `RELATED`). */
-    private var relatedRequestId: String? = null
-
-    private fun loadRelatedSongs(songId: String) {
-        relatedJob?.cancel()
-        shimmerRelatedSongs.visibility = View.VISIBLE
-        shimmerRelatedSongs.startShimmer()
-        relatedSongsHeader.visibility = View.GONE
-        relatedSongsHeaderRow.visibility = View.GONE
-        relatedSongsList.visibility = View.GONE
-        relatedJob = lifecycleScope.launch {
-            try {
-                val result = songManager.getRelatedSongsWithRequestId(songId, limit = 10)
-                val related = result.songs
-                relatedRequestId = result.requestId
-                shimmerRelatedSongs.stopShimmer()
-                shimmerRelatedSongs.visibility = View.GONE
-                if (related.isNotEmpty()) {
-                    relatedSongsHeader.visibility = View.VISIBLE
-                    relatedSongsHeaderRow.visibility = View.VISIBLE
-                    relatedSongsList.visibility = View.VISIBLE
-                    relatedAdapter.submitList(related)
-                    updateRelatedPlayButtonIcon()
-                }
-            } catch (e: Exception) {
-                shimmerRelatedSongs.stopShimmer()
-                shimmerRelatedSongs.visibility = View.GONE
-            }
-        }
-    }
-
-    /** Reproduce la lista de "Canciones relacionadas" desde el principio, o pausa si ya es esa la lista sonando — mismo patrón que AlbumFragment/ArtistFragment.playButton. */
-    private fun playOrPauseRelatedSongs() {
-        val relatedList = ArrayList(relatedAdapter.currentList)
-        if (relatedList.isEmpty()) return
-
-        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
-            relatedList.any { it.id == songViewModel.currentSongLiveData.value?.id }
-
-        if (isRelatedListPlaying) {
-            val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PAUSE
-            }
-            requireContext().startService(intent)
-        } else {
-            val firstSong = relatedList[0]
-            val seedSongId = song?.id ?: "RELATED_UNKNOWN"
-            val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                action = MusicPlaybackService.Companion.ACTION_PLAY
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, firstSong)
-                putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, 0)
-                putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
-                putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
-                putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.RELATED)
-                relatedRequestId?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
-            }
-            requireContext().startService(playIntent)
-        }
-    }
-
-    private fun updateRelatedPlayButtonIcon() {
-        if (!::btnPlayRelated.isInitialized) return
-        val isRelatedListPlaying = songViewModel.isPlayingLiveData.value == true &&
-            relatedAdapter.currentList.any { it.id == songViewModel.currentSongLiveData.value?.id }
-        btnPlayRelated.setImageResource(if (isRelatedListPlaying) R.drawable.ic_pause else R.drawable.ic_play)
-    }
-
-    fun updatePlayPauseButton(isPlaying: Boolean) {
-        if (isPlaying) {
-            playButton.setIconResource(R.drawable.ic_pause)
-        } else {
-            playButton.setIconResource(R.drawable.ic_play)
-        }
-    }
-
-    private fun cancelJobs() {
-        artworkJob?.cancel()
-        artworkJob = null
-        relatedJob?.cancel()
-        relatedJob = null
-    }
-
-    private fun showSongNotFound() {
-        songTitle.text = "Canción no encontrada"
-        songDuration.text = ""
-        songStreams.text = ""
-        songAlbum.visibility = View.GONE
-        songImage.setImageResource(R.drawable.ic_disc)
-        (artistList.adapter as? ArtistAdapter)?.submitArtists(emptyList())
-        playButton.visibility = View.GONE
+    private companion object {
+        const val TAG = "DetailedSongFragment"
     }
 }

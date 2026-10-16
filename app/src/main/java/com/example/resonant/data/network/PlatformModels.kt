@@ -26,9 +26,9 @@ data class PlatformFeaturesDTO(
     val streaks: Boolean = false,
     /** Bandeja de notificaciones (`api/notifications*`) y avisos locales. */
     val notifications: Boolean = false,
-    /** Descargas automáticas de lanzamientos nuevos de artistas suscritos (`api/me/auto-download/*`). */
+    /** Descargas automáticas de lanzamientos nuevos de artistas suscritos (`api/me/auto-download/…`). */
     val autoDownloads: Boolean = false,
-    /** Estadísticas personales (`api/me/stats/*`) e historial paginado (`api/me/history`). */
+    /** Estadísticas personales (`api/me/stats/…`) e historial paginado (`api/me/history`). */
     val listeningStats: Boolean = false,
     /** Resumen mensual de escucha (`api/me/recaps*`). */
     val monthlyRecap: Boolean = false

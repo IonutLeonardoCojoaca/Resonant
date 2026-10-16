@@ -52,7 +52,7 @@
             android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingHorizontal="24dp"
-            android:paddingBottom="140dp">
+            android:paddingBottom="@dimen/screen_bottom_inset">
 
             <!-- Portada de vista previa: muestra el nombre en directo -->
             <FrameLayout

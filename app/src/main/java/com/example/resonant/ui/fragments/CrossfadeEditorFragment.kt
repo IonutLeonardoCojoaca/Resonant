@@ -45,6 +45,14 @@ import android.util.Log
 import okhttp3.Request
 import org.json.JSONArray
 import com.example.resonant.data.network.ApiClient
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.isVisible
+import com.example.resonant.playback.PlaymixMixMode
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.ResonantAccent
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -65,6 +73,9 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     private val mixModeChipViews = mutableMapOf<String, TextView>()
     private val effectChipViews = mutableMapOf<String, TextView>()
     private var effectChipContainer: LinearLayout? = null
+    private var modeSelector: ChartPeriodSelector? = null
+    /** Bloques del editor avanzado ocultados por el blend automático, para restaurarlos tal cual. */
+    private val hiddenBySmartMode = mutableListOf<View>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -79,6 +90,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             .get(CrossfadeEditorViewModel::class.java)
 
         setupCompactLayout()
+        bindModePanel()
         setupListeners()
         setupPresetListeners()
         setupGapSlider()
@@ -231,6 +243,94 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         binding.advancedToggleButton.visibility = View.GONE
         setupMixModeChips()
         updateAdvancedControlsVisibility(null)
+    }
+
+    // ═══════════════════════════════════════════════
+    // MODO: BLEND AUTOMÁTICO / TRANSICIÓN AVANZADA
+    // ═══════════════════════════════════════════════
+
+    private fun bindModePanel() {
+        val panel = binding.playmixModePanel
+        val accent = ResonantAccent.PLAYMIX.color
+        modeSelector = ChartPeriodSelector(
+            panel.playmixModeSelector.root,
+            accent,
+            listOf("Blend automático", "Transición avanzada"),
+            initialIndex = 0
+        ) { index -> viewModel.setSmartMode(index == 0) }
+
+        panel.smartModeBadge.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(ColorUtils.setAlphaComponent(accent, 0x2E))
+        }
+        panel.smartModeIcon.imageTintList = ColorStateList.valueOf(accent)
+        panel.smartModeEyebrow.setTextColor(accent)
+        val link = GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(ColorUtils.setAlphaComponent(accent, 0x22), ColorUtils.setAlphaComponent(accent, 0x99))
+        ).apply { cornerRadius = 1.dp.toFloat() }
+        panel.smartModeBpmLink.background = link
+        panel.smartModeBpmLink2.background = link.constantState?.newDrawable()?.mutate()?.apply {
+            (this as GradientDrawable).orientation = GradientDrawable.Orientation.RIGHT_LEFT
+        }
+    }
+
+    /** Muestra el panel del modo elegido; en automático oculta el editor avanzado sin perder su estado. */
+    private fun updateModePanel(state: CrossfadeEditorState) {
+        val smart = state.mixMode == PlaymixMixMode.SMART
+        val panel = binding.playmixModePanel
+        val selectedIndex = if (smart) 0 else 1
+        modeSelector?.let { if (it.selectedIndex != selectedIndex) it.select(selectedIndex, animate = false) }
+        panel.smartModePanel.isVisible = smart
+
+        val content = binding.editorContent
+        if (smart) {
+            for (i in 0 until content.childCount) {
+                val child = content.getChildAt(i)
+                if (child === binding.songHeaderPanel || child === panel.root) continue
+                if (child.visibility == View.VISIBLE) {
+                    child.visibility = View.GONE
+                    hiddenBySmartMode += child
+                }
+            }
+            bindSmartExplanation(state)
+        } else if (hiddenBySmartMode.isNotEmpty()) {
+            hiddenBySmartMode.forEach { it.visibility = View.VISIBLE }
+            hiddenBySmartMode.clear()
+            updateAdvancedControlsVisibility(state)
+        }
+    }
+
+    private fun bindSmartExplanation(state: CrossfadeEditorState) {
+        val panel = binding.playmixModePanel
+        val hasTempo = state.bpmA > 0 && state.bpmB > 0
+        when (PlaymixMixMode.predictSmartStyle(state.bpmA, state.bpmB)) {
+            PlaymixMixMode.SmartStyle.BEATMATCH -> {
+                panel.smartModeTitle.text = "Beatmatch de 8 a 16 compases"
+                panel.smartModeDescription.text = "Los tempos casan: la segunda canción se ajusta al tempo " +
+                    "de la primera, entra a tiempo de compás y los graves se intercambian a mitad de la mezcla."
+            }
+            PlaymixMixMode.SmartStyle.BLEND -> {
+                panel.smartModeTitle.text = "Blend suave de unos 8 segundos"
+                panel.smartModeDescription.text = if (hasTempo) {
+                    "Los tempos están demasiado lejos para cuadrar beats sin que se note: " +
+                        "las dos canciones se funden con potencia constante, sin cambiar su velocidad."
+                } else {
+                    "Sin análisis de tempo de alguna canción: se funden con potencia constante, " +
+                        "sin cambiar su velocidad."
+                }
+            }
+        }
+        panel.smartModeSongA.text = state.waveformData?.songA?.title ?: "Canción A"
+        panel.smartModeSongB.text = state.waveformData?.songB?.title ?: "Canción B"
+        panel.smartModeBpmA.text = if (state.bpmA > 0) "${state.bpmA.roundToInt()} BPM" else "— BPM"
+        panel.smartModeBpmB.text = if (state.bpmB > 0) "${state.bpmB.roundToInt()} BPM" else "— BPM"
+        panel.smartModeMatch.text = if (hasTempo) {
+            val diff = abs(state.bpmA / state.bpmB - 1.0) * 100
+            "± " + String.format(Locale("es", "ES"), "%.1f", diff) + " %"
+        } else {
+            "Tempo"
+        }
     }
 
     private fun splitSongHeaders() {
@@ -459,6 +559,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             binding.presetSelectorContainer.visibility = View.GONE
             binding.activePresetBanner.visibility = View.GONE
             updateAdvancedControlsVisibility(state)
+            updateModePanel(state)
 
 
             if (state.savedSuccess) {

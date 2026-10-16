@@ -1,84 +1,314 @@
 package com.example.resonant.ui.fragments
 
+import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
-import androidx.palette.graphics.Palette
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.request.RequestListener
-import com.bumptech.glide.request.target.Target
-import android.widget.LinearLayout
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.R
 import com.example.resonant.aria.AriaScreenContextHolder
+import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
+import com.example.resonant.data.models.ArtistStatsDTO
+import com.example.resonant.data.models.Song
+import com.example.resonant.databinding.FragmentDetailedArtistBinding
+import com.example.resonant.databinding.ViewDetailStatTileBinding
+import com.example.resonant.playback.QueueSource
+import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.AlbumAdapter
 import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
+import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.components.DetailHero
+import com.example.resonant.ui.components.InsightTile
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.detail.DetailFormat
+import com.example.resonant.ui.detail.fixedCardWidth
 import com.example.resonant.ui.viewmodels.ArtistViewModel
+import com.example.resonant.ui.viewmodels.SongViewModel
 import com.google.android.material.imageview.ShapeableImageView
-import kotlinx.coroutines.launch
-import androidx.navigation.Navigation
 
+/**
+ * Ficha de artista: cabecera por capas con parallax (retrato circular), biografía, cifras,
+ * géneros, lo más escuchado, galería, discografía, sencillos y colaboradores. Casi todo ya lo
+ * cargaba [ArtistViewModel]; ahora se muestra.
+ */
 class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
 
+    private var _binding: FragmentDetailedArtistBinding? = null
+    private val binding get() = _binding!!
+
     private var artist: Artist? = null
-    private lateinit var artistImage: ShapeableImageView
-    private lateinit var artistName: TextView
-    private lateinit var artistDescription: TextView
-    private lateinit var genresHeader: TextView
-
-    private lateinit var albumsRecyclerView: RecyclerView
-    private lateinit var genresRecyclerView: RecyclerView
-
-    private lateinit var albumsHeader: TextView
-    private lateinit var albumCountText: TextView
+    private lateinit var artistViewModel: ArtistViewModel
+    private lateinit var songViewModel: SongViewModel
 
     private lateinit var albumsAdapter: AlbumAdapter
     private lateinit var genresAdapter: GenreAdapter
+    private lateinit var topSongsAdapter: SongAdapter
+    private lateinit var singlesAdapter: SongAdapter
     private lateinit var collaboratorsAdapter: ArtistAdapter
+    private val galleryAdapter = GalleryAdapter()
 
-    private lateinit var statsHeader: TextView
-    private lateinit var statsCardsRow: LinearLayout
-    private lateinit var statTotalSongs: TextView
-    private lateinit var statTotalAlbums: TextView
-    private lateinit var statTotalStreams: TextView
-    private lateinit var collaboratorsHeader: TextView
-    private lateinit var collaboratorsRecyclerView: RecyclerView
-
-    private lateinit var artistViewModel: ArtistViewModel
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        _binding = FragmentDetailedArtistBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        songViewModel = ViewModelProvider(requireActivity())[SongViewModel::class.java]
+        setupHeader()
+        setupAdapters()
 
         artist = arguments?.getParcelable("artist")
-        val artistId = arguments?.getString("artistId") ?: artist?.id
+        artist?.let { bindArtist(it) }
+        val artistId = arguments?.getString("artistId") ?: artist?.id ?: return
+        setupViewModel(artistId)
+    }
 
-        if (artistId != null) {
-            setupViewModels(artistId)
+    // ─── Cabecera ─────────────────────────────────────────────
+
+    private fun setupHeader() {
+        DetailHero.attachParallax(binding.appBar, binding.hero.root, binding.detailToolbar.detailToolbarTitle)
+        binding.detailToolbar.detailBack.setOnClickListener { findNavController().popBackStack() }
+        DetailHero.playButton(binding.hero.root).setOnClickListener { playTopSongs(0, toggle = true) }
+        binding.btnPlayTop.setOnClickListener { playTopSongs(0, toggle = true) }
+        DetailHero.animateIn(binding.hero.root)
+        songViewModel.isPlayingLiveData.observe(viewLifecycleOwner) { updatePlayIcons() }
+        songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { updatePlayIcons() }
+    }
+
+    private fun bindArtist(artist: Artist, genres: List<String> = emptyList()) {
+        this.artist = artist
+        val eyebrow = listOf("ARTISTA").plus(genres.take(2).map { it.uppercase() }).joinToString(" · ")
+        DetailHero.bind(binding.hero.root, eyebrow, artist.name, null, circularArt = true)
+        binding.detailToolbar.detailToolbarTitle.text = artist.name
+
+        val description = artist.description?.trim()
+        binding.aboutCard.isVisible = !description.isNullOrEmpty()
+        binding.artistDescription.text = description
+        binding.aboutCard.setOnClickListener {
+            val expanded = binding.artistDescription.maxLines > 4
+            binding.artistDescription.maxLines = if (expanded) 4 else Int.MAX_VALUE
+            binding.aboutMore.text = if (expanded) "Leer más" else "Leer menos"
+        }
+        reportVisibleArtist()
+        if (binding.hero.heroArt.drawable == null) loadArtwork(artist.url)
+    }
+
+    private fun loadArtwork(url: String?) {
+        if (url.isNullOrBlank()) {
+            binding.hero.heroArt.setImageResource(R.drawable.ic_user)
+            return
+        }
+        Glide.with(this).asBitmap().load(url).diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+            .into(object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                    val b = _binding ?: return
+                    DetailHero.setArtwork(b.hero.root, resource)
+                    DetailHero.applyPalette(b.hero.root, resource, b.collapsing) { colors ->
+                        _binding?.let { InsightTile.paint(it.aboutCard, colors.accent, it.aboutLabel) }
+                    }
+                }
+
+                override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) = Unit
+            })
+    }
+
+    // ─── Datos ────────────────────────────────────────────────
+
+    private fun setupViewModel(artistId: String) {
+        artistViewModel = ViewModelProvider(this)[ArtistViewModel::class.java]
+        artistViewModel.loadData(artistId)
+
+        artistViewModel.artist.observe(viewLifecycleOwner) { loaded ->
+            loaded?.let { bindArtist(it, artistViewModel.artistGenres.value.orEmpty().map { g -> g.name }) }
+        }
+        artistViewModel.featuredAlbum.observe(viewLifecycleOwner) { updateAlbums() }
+        artistViewModel.normalAlbums.observe(viewLifecycleOwner) { updateAlbums() }
+        artistViewModel.artistGenres.observe(viewLifecycleOwner) { genres ->
+            binding.genresHeader.isVisible = genres.isNotEmpty()
+            binding.genresRecyclerView.isVisible = genres.isNotEmpty()
+            genresAdapter.updateList(genres)
+            artist?.let { bindArtist(it, genres.map { g -> g.name }) }
+        }
+        artistViewModel.artistStats.observe(viewLifecycleOwner) { bindStats(it) }
+        artistViewModel.topSongs.observe(viewLifecycleOwner) { songs ->
+            topSongsAdapter.submitList(songs.take(5))
+            binding.topSongsHeaderRow.isVisible = songs.isNotEmpty()
+            updateHeroChips()
+            updatePlayIcons()
+        }
+        artistViewModel.singles.observe(viewLifecycleOwner) { singles ->
+            singlesAdapter.submitList(singles.take(5))
+            binding.singlesHeader.isVisible = singles.isNotEmpty()
+        }
+        artistViewModel.artistImages.observe(viewLifecycleOwner) { images ->
+            val gallery = images.filter { it.isNotBlank() && it != artist?.url }.distinct()
+            galleryAdapter.submit(gallery)
+            binding.galleryHeader.isVisible = gallery.isNotEmpty()
+            binding.galleryList.isVisible = gallery.isNotEmpty()
+        }
+        artistViewModel.collaborators.observe(viewLifecycleOwner) { collabs ->
+            collaboratorsAdapter.submitArtists(collabs.take(6))
+            binding.collaboratorsHeader.isVisible = collabs.isNotEmpty()
+            binding.collaboratorsRecyclerView.isVisible = collabs.isNotEmpty()
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_detailed_artist, container, false)
-        initViews(view)
-        setupAdapters()
-        return view
+    private fun updateAlbums() {
+        val albums = artistViewModel.featuredAlbum.value.orEmpty() + artistViewModel.normalAlbums.value.orEmpty()
+        val unique = albums.distinctBy { it.id }
+        albumsAdapter.updateList(unique)
+        binding.albumsHeaderRow.isVisible = unique.isNotEmpty()
+        binding.albumCountText.text = if (unique.size == 1) "1 álbum" else "${unique.size} álbumes"
     }
+
+    private fun bindStats(stats: ArtistStatsDTO?) {
+        val b = binding
+        b.statsSection.isVisible = stats != null
+        if (stats == null) return
+        bindStat(b.statStreams, ResonantAccent.ARTISTS.color, "REPRODUCCIONES",
+            DetailFormat.compactCount(stats.totalStreams.toLong()), "en todo Resonant")
+        bindStat(b.statFavorites, ResonantAccent.PLAYLISTS.color, "FAVORITOS",
+            DetailFormat.compactCount(stats.totalFavorites.toLong()), "lo tienen guardado")
+        bindStat(b.statSongs, ResonantAccent.SONGS.color, "CANCIONES",
+            stats.totalSongs.toString(), "en el catálogo")
+        bindStat(b.statAlbums, ResonantAccent.ALBUMS.color, "ÁLBUMES",
+            stats.totalAlbums.toString(), "publicados")
+        updateHeroChips()
+    }
+
+    private fun updateHeroChips() {
+        val stats = artistViewModel.artistStats.value
+        DetailHero.setChips(binding.hero.root, listOfNotNull(
+            stats?.totalStreams?.takeIf { it > 0 }?.let { "${DetailFormat.compactCount(it.toLong())} reproducciones" },
+            stats?.totalSongs?.takeIf { it > 0 }?.let { if (it == 1) "1 canción" else "$it canciones" }
+        ))
+    }
+
+    private fun bindStat(tile: ViewDetailStatTileBinding, color: Int, label: String, value: String, caption: String?) {
+        InsightTile.paint(tile.root, color, tile.statLabel)
+        tile.statLabel.text = label
+        tile.statValue.text = value
+        tile.statCaption.text = caption
+        tile.statCaption.isVisible = !caption.isNullOrBlank()
+    }
+
+    // ─── Listas ───────────────────────────────────────────────
+
+    private fun setupAdapters() {
+        albumsAdapter = AlbumAdapter(mutableListOf(), AlbumAdapter.VIEW_TYPE_SIMPLE)
+        albumsAdapter.onAlbumClick = { navigateToAlbum(it.id) }
+        albumsAdapter.onSettingsClick = { album ->
+            com.example.resonant.ui.bottomsheets.AlbumOptionsBottomSheet(
+                album = album,
+                onGoToAlbumClick = { navigateToAlbum(it.id) },
+                onGoToArtistClick = { /* Ya estamos aquí */ },
+                onViewDetailsClick = { navigateToAlbumDetails(it) }
+            ).show(parentFragmentManager, "AlbumOptionsBottomSheet")
+        }
+        binding.albumsRecyclerView.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.albumsRecyclerView.fixedCardWidth(156)
+        binding.albumsRecyclerView.adapter = albumsAdapter
+
+        genresAdapter = GenreAdapter(emptyList(), GenreAdapter.VIEW_TYPE_MINI) { genre ->
+            findNavController().navigate(R.id.genreArtistsFragment, Bundle().apply {
+                putString("genreId", genre.id)
+                putString("genreName", genre.name)
+                putString("genreGradientColors", genre.gradientColors)
+            })
+        }
+        binding.genresRecyclerView.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.genresRecyclerView.adapter = genresAdapter
+
+        topSongsAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        topSongsAdapter.onItemClickAtPosition = { _, _, position -> playTopSongs(position, toggle = false) }
+        binding.topSongsList.layoutManager = LinearLayoutManager(requireContext())
+        binding.topSongsList.adapter = topSongsAdapter
+
+        singlesAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
+        singlesAdapter.onItemClick = { (song, _) -> openSong(song) }
+        binding.singlesList.layoutManager = LinearLayoutManager(requireContext())
+        binding.singlesList.adapter = singlesAdapter
+
+        binding.galleryList.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.galleryList.adapter = galleryAdapter
+
+        collaboratorsAdapter = ArtistAdapter(emptyList())
+        collaboratorsAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_LIST)
+        collaboratorsAdapter.onArtistClick = { collab, _ ->
+            findNavController().navigate(R.id.detailedArtistFragment, Bundle().apply { putString("artistId", collab.id) })
+        }
+        binding.collaboratorsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        binding.collaboratorsRecyclerView.adapter = collaboratorsAdapter
+    }
+
+    private fun openSong(song: Song) {
+        findNavController().navigate(R.id.action_global_to_detailedSongFragment, Bundle().apply { putParcelable("song", song) })
+    }
+
+    private fun navigateToAlbum(albumId: String) {
+        findNavController().navigate(R.id.albumFragment, Bundle().apply { putString("albumId", albumId) })
+    }
+
+    private fun navigateToAlbumDetails(album: Album) {
+        findNavController().navigate(R.id.detailedAlbumFragment, Bundle().apply {
+            putParcelable("album", album)
+            putString("albumId", album.id)
+        })
+    }
+
+    // ─── Reproducción ─────────────────────────────────────────
+
+    private fun topSongs(): ArrayList<Song> = ArrayList(artistViewModel.topSongs.value.orEmpty())
+
+    private fun isTopPlaying(): Boolean {
+        val currentId = songViewModel.currentSongLiveData.value?.id ?: return false
+        if (!::artistViewModel.isInitialized) return false
+        return songViewModel.isPlayingLiveData.value == true && topSongs().any { it.id == currentId }
+    }
+
+    private fun updatePlayIcons() {
+        val b = _binding ?: return
+        val icon = if (isTopPlaying()) R.drawable.ic_pause else R.drawable.ic_play
+        DetailHero.playButton(b.hero.root).setIconResource(icon)
+        b.btnPlayTop.setImageResource(icon)
+    }
+
+    /** Mismo patrón que ArtistFragment: lo más escuchado con origen TOP_SONGS_ARTIST. */
+    private fun playTopSongs(startIndex: Int, toggle: Boolean) {
+        if (!::artistViewModel.isInitialized) return
+        val songs = topSongs()
+        if (songs.isEmpty()) return
+        if (toggle && isTopPlaying()) {
+            requireContext().startService(Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                action = MusicPlaybackService.Companion.ACTION_PAUSE
+            })
+            return
+        }
+        val index = startIndex.coerceIn(0, songs.lastIndex)
+        requireContext().startService(Intent(requireContext(), MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.Companion.ACTION_PLAY
+            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_SONG, songs[index])
+            putExtra(MusicPlaybackService.Companion.EXTRA_CURRENT_INDEX, index)
+            putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songs)
+            putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.TOP_SONGS_ARTIST)
+            putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, artist?.id ?: "ARTIST_UNKNOWN")
+        })
+    }
+
+    // ─── Aria y ciclo de vida ─────────────────────────────────
 
     override fun onResume() {
         super.onResume()
@@ -101,255 +331,39 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
         }
     }
 
-    private fun initViews(view: View) {
-        artistImage = view.findViewById(R.id.artistImage)
-        artistName = view.findViewById(R.id.artistName)
-        artistDescription = view.findViewById(R.id.artistDescription)
-        genresHeader = view.findViewById(R.id.genresHeader)
-
-        albumsRecyclerView = view.findViewById(R.id.albumsRecyclerView)
-        genresRecyclerView = view.findViewById(R.id.genresRecyclerView)
-
-        albumsHeader = view.findViewById(R.id.albumsHeader)
-        albumCountText = view.findViewById(R.id.albumCountText)
-
-        statsHeader = view.findViewById(R.id.statsHeader)
-        statsCardsRow = view.findViewById(R.id.statsCardsRow)
-        statTotalSongs = view.findViewById(R.id.statTotalSongs)
-        statTotalAlbums = view.findViewById(R.id.statTotalAlbums)
-        statTotalStreams = view.findViewById(R.id.statTotalStreams)
-        collaboratorsHeader = view.findViewById(R.id.collaboratorsHeader)
-        collaboratorsRecyclerView = view.findViewById(R.id.collaboratorsRecyclerView)
+    override fun onDestroyView() {
+        _binding = null
+        super.onDestroyView()
     }
 
-    private fun setupAdapters() {
-        // Albums
-        albumsAdapter = AlbumAdapter(mutableListOf(), AlbumAdapter.VIEW_TYPE_DETAILED)
-        albumsAdapter.onAlbumClick = { navigateToAlbum(it.id) }
-        albumsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        albumsRecyclerView.adapter = albumsAdapter
+    /** Galería horizontal de fotos del artista (portadas redondeadas, recorte centrado). */
+    private class GalleryAdapter : RecyclerView.Adapter<GalleryAdapter.Holder>() {
+        private var urls: List<String> = emptyList()
 
-        // Genres - CHANGED TO MINI
-        genresAdapter = GenreAdapter(emptyList(), GenreAdapter.VIEW_TYPE_MINI) { genre ->
-            val bundle = Bundle().apply {
-                putString("genreId", genre.id)
-                putString("genreName", genre.name)
+        fun submit(newUrls: List<String>) {
+            urls = newUrls
+            notifyDataSetChanged()
+        }
 
-                // ¡AQUÍ ESTÁ LA LÍNEA MÁGICA QUE FALTABA!
-                putString("genreGradientColors", genre.gradientColors)
+        class Holder(val image: ShapeableImageView) : RecyclerView.ViewHolder(image)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+            val density = parent.resources.displayMetrics.density
+            val image = ShapeableImageView(parent.context).apply {
+                layoutParams = RecyclerView.LayoutParams((168 * density).toInt(), (210 * density).toInt()).apply {
+                    marginEnd = (10 * density).toInt()
+                }
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                shapeAppearanceModel = shapeAppearanceModel.toBuilder().setAllCornerSizes(18 * density).build()
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
-            Navigation.findNavController(requireView()).navigate(R.id.genreArtistsFragment, bundle)
-        }
-        genresRecyclerView.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-        genresRecyclerView.adapter = genresAdapter
-
-        // Collaborators
-        collaboratorsAdapter = ArtistAdapter(emptyList())
-        collaboratorsAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_LIST)
-        collaboratorsAdapter.onArtistClick = { collab, _ ->
-            val bundle = Bundle().apply { putString("artistId", collab.id) }
-            Navigation.findNavController(requireView()).navigate(R.id.detailedArtistFragment, bundle)
-        }
-        collaboratorsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        collaboratorsRecyclerView.adapter = collaboratorsAdapter
-
-        setupClickListeners()
-    }
-
-    private fun setupViewModels(artistId: String) {
-        artistViewModel = ViewModelProvider(this)[ArtistViewModel::class.java]
-        artistViewModel.loadData(artistId)
-
-        // Observers
-        artistViewModel.artist.observe(viewLifecycleOwner) { artist ->
-            artist?.let { setupArtistUI(it) }
+            return Holder(image)
         }
 
-        artistViewModel.featuredAlbum.observe(viewLifecycleOwner) { featured ->
-            artistViewModel.normalAlbums.value?.let { normal ->
-                val allAlbums = featured + normal
-                updateAlbums(allAlbums)
-            }
+        override fun onBindViewHolder(holder: Holder, position: Int) {
+            Glide.with(holder.image).load(urls[position]).centerCrop().into(holder.image)
         }
 
-        artistViewModel.normalAlbums.observe(viewLifecycleOwner) { normal ->
-            artistViewModel.featuredAlbum.value?.let { featured ->
-                val allAlbums = featured + normal
-                updateAlbums(allAlbums)
-            }
-        }
-
-        artistViewModel.artistGenres.observe(viewLifecycleOwner) { genres ->
-            if (genres.isNotEmpty()) {
-                genresRecyclerView.visibility = View.VISIBLE
-                genresHeader.visibility = View.VISIBLE
-                genresAdapter.updateList(genres)
-            } else {
-                genresRecyclerView.visibility = View.GONE
-                genresHeader.visibility = View.GONE
-            }
-        }
-
-        artistViewModel.artistStats.observe(viewLifecycleOwner) { stats ->
-            if (stats != null) {
-                statsHeader.visibility = View.VISIBLE
-                statsCardsRow.visibility = View.VISIBLE
-                statTotalSongs.text = stats.totalSongs.toString()
-                statTotalAlbums.text = stats.totalAlbums.toString()
-                statTotalStreams.text = formatCount(stats.totalStreams)
-            } else {
-                statsHeader.visibility = View.GONE
-                statsCardsRow.visibility = View.GONE
-            }
-        }
-
-        artistViewModel.collaborators.observe(viewLifecycleOwner) { collabs ->
-            if (collabs.isNotEmpty()) {
-                collaboratorsHeader.visibility = View.VISIBLE
-                collaboratorsRecyclerView.visibility = View.VISIBLE
-                collaboratorsAdapter.submitArtists(collabs)
-            } else {
-                collaboratorsHeader.visibility = View.GONE
-                collaboratorsRecyclerView.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun formatCount(count: Int): String {
-        return when {
-            count >= 1_000_000 -> String.format("%.1fM", count / 1_000_000.0)
-            count >= 1_000 -> String.format("%.1fK", count / 1_000.0)
-            else -> count.toString()
-        }
-    }
-
-    private fun updateAlbums(albumsList: List<com.example.resonant.data.models.Album>) {
-        if (albumsList.isNotEmpty()) {
-            albumsHeader.visibility = View.VISIBLE
-            albumCountText.visibility = View.VISIBLE
-            albumCountText.text = "${albumsList.size} álbumes"
-            albumsAdapter.updateList(albumsList)
-        } else {
-            albumsHeader.visibility = View.GONE
-            albumCountText.visibility = View.GONE
-        }
-    }
-
-    private fun setupArtistUI(artist: Artist) {
-        this.artist = artist
-        reportVisibleArtist()
-        artistName.text = artist.name
-        
-        if (!artist.description.isNullOrEmpty()) {
-            artistDescription.text = artist.description
-            artistDescription.visibility = View.VISIBLE
-        } else {
-            artistDescription.visibility = View.GONE
-        }
-        
-        loadArtistImage(artist.url)
-    }
-
-    private fun setupClickListeners() {
-        albumsAdapter.onSettingsClick = { album ->
-             val bottomSheet = com.example.resonant.ui.bottomsheets.AlbumOptionsBottomSheet(
-                 album = album,
-                 onGoToAlbumClick = { navigateToAlbum(it.id) },
-                 onGoToArtistClick = { /* Already here */ },
-                 onViewDetailsClick = { navigateToAlbumDetails(it) }
-             )
-             bottomSheet.show(parentFragmentManager, "AlbumOptionsBottomSheet")
-        }
-
-        // Add click listeners to artist name and image to navigate to the current artist's detailed page
-        artistName.setOnClickListener {
-            artist?.id?.let { artistId ->
-                navigateToArtist(artistId)
-            }
-        }
-
-        artistImage.setOnClickListener {
-            artist?.id?.let { artistId ->
-                navigateToArtist(artistId)
-            }
-        }
-    }
-
-    private fun navigateToAlbum(albumId: String) {
-        val bundle = Bundle().apply { putString("albumId", albumId) }
-        Navigation.findNavController(requireView()).navigate(R.id.albumFragment, bundle)
-    }
-
-    private fun navigateToAlbumDetails(album: com.example.resonant.data.models.Album) {
-        val bundle = Bundle().apply {
-            putParcelable("album", album)
-            putString("albumId", album.id)
-        }
-        Navigation.findNavController(requireView()).navigate(R.id.detailedAlbumFragment, bundle)
-    }
-
-    private fun navigateToArtist(artistId: String) {
-        val bundle = Bundle().apply { putString("artistId", artistId) }
-        Navigation.findNavController(requireView()).navigate(R.id.detailedArtistFragment, bundle)
-    }
-
-    private fun loadArtistImage(url: String?) {
-        val placeholderRes = R.drawable.ic_user
-        val errorRes = R.drawable.ic_user
-        val rootView = view?.findViewById<ConstraintLayout>(R.id.rootConstraint)
-
-        Glide.with(requireContext()).clear(artistImage)
-
-        if (!url.isNullOrBlank()) {
-            Glide.with(requireContext())
-                .asBitmap()
-                .load(url)
-                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                .dontAnimate()
-                .placeholder(placeholderRes)
-                .error(errorRes)
-                .listener(object : RequestListener<Bitmap> {
-                    override fun onLoadFailed(
-                        e: GlideException?,
-                        model: Any?,
-                        target: Target<Bitmap>,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        return false
-                    }
-
-                    override fun onResourceReady(
-                        resource: Bitmap,
-                        model: Any,
-                        target: Target<Bitmap>?,
-                        dataSource: DataSource,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                         if (rootView != null) {
-                            setBackgroundColorFromBitmapFade(rootView, resource)
-                        }
-                        return false
-                    }
-                })
-                .into(artistImage)
-        } else {
-            artistImage.setImageResource(placeholderRes)
-        }
-    }
-    
-    private fun setBackgroundColorFromBitmapFade(view: View, bitmap: Bitmap) {
-        Palette.from(bitmap).generate { palette ->
-            val dominantColor = palette?.getDominantColor(
-                requireContext().getColor(R.color.primaryColorTheme)
-            ) ?: requireContext().getColor(R.color.primaryColorTheme)
-            
-            val currentColor = (view.background as? ColorDrawable)?.color ?: android.graphics.Color.TRANSPARENT
-            val colorAnimator = android.animation.ValueAnimator.ofArgb(currentColor, dominantColor)
-            colorAnimator.duration = 500
-            colorAnimator.addUpdateListener { animator ->
-                view.background = ColorDrawable(animator.animatedValue as Int)
-            }
-            colorAnimator.start()
-        }
+        override fun getItemCount() = urls.size
     }
 }

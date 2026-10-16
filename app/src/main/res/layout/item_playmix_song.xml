@@ -1,33 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Canción del set de PlayMix: nodo numerado sobre el raíl de marca + portada, título y datos.
+    El raíl (songRailTop / songRailBottom) se oculta en la primera y la última canción.
+-->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginVertical="4dp"
-    android:background="@drawable/bg_song_header_chip"
+    android:background="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:foreground="?attr/selectableItemBackground"
-    android:padding="10dp">
+    android:minHeight="76dp">
+
+    <View
+        android:id="@+id/songRailTop"
+        android:layout_width="2dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="21dp"
+        android:background="@drawable/bg_playmix_rail"
+        android:importantForAccessibility="no"
+        app:layout_constraintBottom_toTopOf="@id/songPosition"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
+        android:id="@+id/songRailBottom"
+        android:layout_width="2dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="21dp"
+        android:background="@drawable/bg_playmix_rail"
+        android:importantForAccessibility="no"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/songPosition" />
 
     <TextView
         android:id="@+id/songPosition"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:background="@drawable/bg_compat_chip"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="7dp"
+        android:background="@drawable/bg_playmix_node"
         android:fontFamily="@font/unageo_bold"
         android:gravity="center"
+        android:includeFontPadding="false"
         android:textColor="@color/white"
-        android:textSize="11sp"
+        android:textSize="12sp"
         app:layout_constraintBottom_toBottomOf="@id/songCover"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/songCover" />
+        app:layout_constraintTop_toTopOf="@id/songCover"
+        tools:text="1" />
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/songCover"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginStart="10dp"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginVertical="10dp"
         android:scaleType="centerCrop"
         android:src="@drawable/ic_disc"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -39,7 +68,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="4dp"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="@id/songCover"
         app:layout_constraintEnd_toStartOf="@id/songOptionsButton"
@@ -52,25 +81,28 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/white"
-            android:textSize="14sp" />
+            android:textSize="15sp"
+            tools:text="Summertime" />
 
         <TextView
             android:id="@+id/songArtist"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="4dp"
             android:ellipsize="end"
-            android:fontFamily="@font/unageo_regular"
+            android:fontFamily="@font/unageo_medium"
             android:maxLines="1"
             android:textColor="@color/textTheme"
-            android:textSize="12sp" />
+            android:textSize="12.5sp"
+            tools:text="Limi" />
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="7dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -78,35 +110,29 @@
                 android:id="@+id/songDuration"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_compat_chip"
-                android:fontFamily="@font/unageo_medium"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textColor="@color/white"
-                android:textSize="10sp" />
+                android:fontFamily="@font/unageo_semi_bold"
+                android:includeFontPadding="false"
+                android:textColor="@color/textTheme"
+                android:textSize="11.5sp"
+                tools:text="3:00" />
 
             <TextView
                 android:id="@+id/songBpm"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_bpm_chip_a"
-                android:fontFamily="@font/unageo_bold"
+                style="@style/PlaymixStatChip"
+                android:layout_marginStart="8dp"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:text="120 bpm"
-                android:textColor="@color/white"
-                android:textSize="10sp" />
-
+                android:textSize="10.5sp"
+                tools:text="139 BPM" />
         </LinearLayout>
-
     </LinearLayout>
 
     <ImageButton
         android:id="@+id/songOptionsButton"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Opciones de la canción"
         android:src="@drawable/ic_item_settings"
         app:layout_constraintBottom_toBottomOf="@id/songCover"
         app:layout_constraintEnd_toEndOf="parent"

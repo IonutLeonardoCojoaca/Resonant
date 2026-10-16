@@ -43,17 +43,29 @@
                 android:background="@drawable/bg_playmix_header_scrim"
                 app:layout_collapseMode="pin" />
 
-            <!-- Floating PlayMix icon – atmospheric, very transparent -->
-            <ImageView
-                android:layout_width="220dp"
-                android:layout_height="220dp"
-                android:layout_gravity="center"
-                android:layout_marginBottom="40dp"
-                android:src="@drawable/ic_playmix"
-                android:alpha="0.06"
-                app:tint="@color/white"
+            <!-- Resplandor de marca (atardecer) bajo el título -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_playmix_hero_glow"
+                android:importantForAccessibility="no"
                 app:layout_collapseMode="parallax"
                 app:layout_collapseParallaxMultiplier="0.3" />
+
+            <!-- Marca PlayMix: los dos discos que se solapan, grandes y muy sutiles -->
+            <ImageView
+                android:id="@+id/playmixHeroMark"
+                android:layout_width="260dp"
+                android:layout_height="260dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="-70dp"
+                android:layout_marginBottom="30dp"
+                android:alpha="0.12"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_playmix"
+                app:tint="@color/playmix_accent"
+                app:layout_collapseMode="parallax"
+                app:layout_collapseParallaxMultiplier="0.4" />
 
             <!-- Info panel at bottom of header -->
             <LinearLayout
@@ -66,6 +78,33 @@
                 android:paddingBottom="16dp"
                 android:paddingTop="80dp"
                 app:layout_collapseMode="none">
+
+                <!-- Eyebrow de marca -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_playmix"
+                        app:tint="@color/playmix_accent" />
+
+                    <TextView
+                        android:id="@+id/playmixEyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:fontFamily="@font/unageo_bold"
+                        android:letterSpacing="0.18"
+                        android:text="PLAYMIX"
+                        android:textColor="@color/playmix_accent"
+                        android:textSize="11sp" />
+                </LinearLayout>
 
                 <!-- Title row + play button -->
                 <LinearLayout
@@ -81,16 +120,17 @@
                         android:layout_weight="1"
                         android:ellipsize="end"
                         android:fontFamily="@font/unageo_bold"
-                        android:maxLines="1"
+                        android:includeFontPadding="false"
+                        android:maxLines="2"
                         android:textColor="@color/white"
-                        android:textSize="24sp" />
+                        android:textSize="30sp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/playButton"
-                        android:layout_width="52dp"
-                        android:layout_height="52dp"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
                         android:layout_marginStart="12dp"
-                        android:backgroundTint="@color/secondaryColorTheme"
+                        android:backgroundTint="@color/playmix_accent"
                         android:insetBottom="0dp"
                         android:insetTop="0dp"
                         app:cornerRadius="40dp"
@@ -114,43 +154,28 @@
                     android:textSize="13sp"
                     android:visibility="gone" />
 
+                <!-- Datos del set en píldoras -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="12dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <ImageView
-                        android:layout_width="13dp"
-                        android:layout_height="13dp"
-                        android:layout_marginEnd="5dp"
-                        android:src="@drawable/ic_sound"
-                        app:tint="@color/textTheme" />
-
                     <TextView
                         android:id="@+id/playmixNumberOfTracks"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_regular"
-                        android:textColor="@color/textTheme"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginHorizontal="6dp"
-                        android:text="·"
-                        android:textColor="@color/dividerOverlay"
-                        android:textSize="14sp" />
+                        style="@style/PlaymixStatChip" />
 
                     <TextView
                         android:id="@+id/playmixDuration"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_regular"
-                        android:textColor="@color/textTheme"
-                        android:textSize="12sp" />
+                        style="@style/PlaymixStatChip"
+                        android:layout_marginStart="6dp" />
+
+                    <TextView
+                        android:id="@+id/playmixBlendSummary"
+                        style="@style/PlaymixStatChip"
+                        android:layout_marginStart="6dp"
+                        android:visibility="gone" />
 
                 </LinearLayout>
 
@@ -233,6 +258,65 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- Curva de tempo del set -->
+            <LinearLayout
+                android:id="@+id/tempoFlowSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_surface_panel"
+                android:orientation="vertical"
+                android:paddingHorizontal="14dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="6dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="@font/unageo_bold"
+                        android:letterSpacing="0.16"
+                        android:text="CURVA DE TEMPO"
+                        android:textColor="@color/textTheme"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/tempoFlowRange"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textColor="@color/white"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <com.example.resonant.ui.views.PlaymixTempoFlowView
+                    android:id="@+id/tempoFlowView"
+                    android:layout_width="match_parent"
+                    android:layout_height="72dp"
+                    android:layout_marginTop="4dp"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/setlistLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="22dp"
+                android:fontFamily="@font/unageo_bold"
+                android:letterSpacing="0.16"
+                android:text="EL SET"
+                android:textColor="@color/textTheme"
+                android:textSize="10sp" />
+
             <!-- Song + transition list -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/songTransitionList"
@@ -241,8 +325,9 @@
                 android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
                 android:overScrollMode="never"
-                android:paddingHorizontal="12dp"
-                android:paddingTop="8dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
                 android:paddingBottom="250dp" />
 
             <!-- Empty state -->

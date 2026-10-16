@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Ficha de artista: cabecera por capas con parallax (retrato circular), biografía, cifras en
+    tarjetas de colores, géneros, lo más escuchado, galería, discografía, sencillos y
+    colaboradores. Lo rellena DetailedArtistFragment.
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/rootConstraint"
@@ -9,113 +13,157 @@
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.DetailedArtistFragment">
 
-    <View
-        android:id="@+id/view4"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@drawable/bg_gradient_bottom_song_list"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_percent="1.25"
-        app:layout_constraintStart_toStartOf="parent" />
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
+        android:layout_height="480dp"
+        android:background="@color/primaryColorTheme"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:id="@+id/collapsing"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:contentScrim="@color/primaryColorTheme"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed"
+            app:scrimAnimationDuration="250"
+            app:titleEnabled="false">
+
+            <include
+                android:id="@+id/hero"
+                layout="@layout/view_detail_hero"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <include
+                android:id="@+id/detailToolbar"
+                layout="@layout/view_detail_toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_gravity="top"
+                app:layout_collapseMode="pin" />
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true"
+        android:overScrollMode="never"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingBottom="200dp">
+            android:paddingHorizontal="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="@dimen/screen_bottom_inset">
 
-            <RelativeLayout
+            <!-- ═══ Biografía ═══ -->
+            <LinearLayout
+                android:id="@+id/aboutCard"
+                style="@style/DetailTile"
+                android:layout_width="match_parent"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:id="@+id/aboutLabel"
+                    style="@style/DetailTileLabel"
+                    android:text="SOBRE EL ARTISTA" />
+
+                <TextView
+                    android:id="@+id/artistDescription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_medium"
+                    android:lineSpacingExtra="3dp"
+                    android:maxLines="4"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    tools:text="Leland Tyler Wayne, conocido como Metro Boomin, es un productor estadounidense…" />
+
+                <TextView
+                    android:id="@+id/aboutMore"
+                    style="@style/DetailTileCaption"
+                    android:fontFamily="@font/unageo_bold"
+                    android:text="Leer más" />
+            </LinearLayout>
+
+            <!-- ═══ En cifras ═══ -->
+            <LinearLayout
+                android:id="@+id/statsSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="20dp">
+                android:layout_marginTop="22dp"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
 
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/artistImage"
-                    android:layout_width="160dp"
-                    android:layout_height="160dp"
-                    android:scaleType="centerCrop"
-                    app:shapeAppearanceOverlay="@style/CircularUserImage" />
+                <TextView
+                    style="@style/DetailSectionLabel"
+                    android:text="EN CIFRAS" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="20dp"
-                    android:layout_toRightOf="@id/artistImage"
-                    android:orientation="vertical"
-                    android:gravity="center_vertical">
+                    android:layout_marginTop="12dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/artistName"
-                        android:layout_width="wrap_content"
+                    <include
+                        android:id="@+id/statStreams"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:fontFamily="@font/unageo_bold"
-                        android:maxLines="2"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        tools:text="Nombre del Artista" />
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1" />
 
-                    <TextView
-                        android:id="@+id/itemType"
-                        android:layout_width="wrap_content"
+                    <include
+                        android:id="@+id/statFavorites"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:background="@drawable/bg_border_item_type"
-                        android:fontFamily="@font/unageo_regular"
-                        android:paddingHorizontal="10dp"
-                        android:paddingVertical="3dp"
-                        android:text="Artista"
-                        android:textColor="@color/white"
-                        android:textSize="14sp" />
-
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1" />
                 </LinearLayout>
 
-            </RelativeLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/informationText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:layout_marginTop="10dp"
-                android:fontFamily="@font/unageo_bold"
-                android:paddingTop="5dp"
-                android:paddingBottom="5dp"
-                android:text="Información detallada"
-                android:textColor="@color/white"
-                android:textSize="18sp" />
+                    <include
+                        android:id="@+id/statSongs"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1" />
 
-            <TextView
-                android:id="@+id/artistDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:ellipsize="end"
-                android:fontFamily="@font/unageo_medium"
-                android:maxLines="5"
-                android:textColor="#CCFFFFFF"
-                android:textSize="14sp"
-                android:visibility="gone"
-                tools:text="Biografía del artista..."
-                tools:visibility="visible" />
+                    <include
+                        android:id="@+id/statAlbums"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1" />
+                </LinearLayout>
+            </LinearLayout>
 
+            <!-- ═══ Géneros ═══ -->
             <TextView
                 android:id="@+id/genresHeader"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="20dp"
-                android:layout_marginTop="15dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Géneros asociados al artista"
-                android:textColor="@color/white"
-                android:textSize="18sp"
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="26dp"
+                android:text="GÉNEROS"
                 android:visibility="gone"
                 tools:visibility="visible" />
 
@@ -123,176 +171,138 @@
                 android:id="@+id/genresRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="-16dp"
                 android:layout_marginTop="10dp"
                 android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="12dp"
+                android:visibility="gone" />
+
+            <!-- ═══ Lo más escuchado ═══ -->
+            <LinearLayout
+                android:id="@+id/topSongsHeaderRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingHorizontal="20dp"
                 android:visibility="gone"
-                tools:listitem="@layout/item_genre_mini"
+                tools:visibility="visible">
+
+                <TextView
+                    style="@style/DetailSectionLabel"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="LO MÁS ESCUCHADO" />
+
+                <ImageButton
+                    android:id="@+id/btnPlayTop"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_playmix_icon_button"
+                    android:contentDescription="Reproducir lo más escuchado"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_play"
+                    app:tint="@color/white" />
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/topSongsList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="-8dp"
+                android:layout_marginTop="6dp"
+                android:nestedScrollingEnabled="false" />
+
+            <!-- ═══ Galería ═══ -->
+            <TextView
+                android:id="@+id/galleryHeader"
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="22dp"
+                android:text="GALERÍA"
+                android:visibility="gone"
                 tools:visibility="visible" />
 
-            <TextView
-                android:id="@+id/albumsHeader"
-                android:layout_width="wrap_content"
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/galleryList"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="18dp"
-                android:layout_marginTop="15dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Álbumes"
-                android:textColor="@color/white"
-                android:textSize="20sp" />
+                android:layout_marginHorizontal="-16dp"
+                android:layout_marginTop="10dp"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="16dp"
+                android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/albumCountText"
-                android:layout_width="wrap_content"
+            <!-- ═══ Discografía ═══ -->
+            <LinearLayout
+                android:id="@+id/albumsHeaderRow"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="18dp"
-                android:layout_marginTop="15dp"
-                android:layout_marginEnd="18dp"
-                android:fontFamily="@font/unageo_medium"
-                android:textColor="#BDBDBD"
-                android:textSize="14sp"
-                tools:text="5 álbumes" />
+                android:layout_marginTop="26dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:id="@+id/albumsHeader"
+                    style="@style/DetailSectionLabel"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="DISCOGRAFÍA" />
+
+                <TextView
+                    android:id="@+id/albumCountText"
+                    style="@style/PlaymixStatChip"
+                    tools:text="8 álbumes" />
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/albumsRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="-16dp"
                 android:layout_marginTop="10dp"
-                android:nestedScrollingEnabled="false"
                 android:clipToPadding="false"
-                android:paddingHorizontal="12dp"
-                android:paddingTop="10dp" />
+                android:nestedScrollingEnabled="false"
+                android:paddingHorizontal="12dp" />
 
-            <!-- STATS SECTION -->
+            <!-- ═══ Sencillos ═══ -->
             <TextView
-                android:id="@+id/statsHeader"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="18dp"
-                android:layout_marginTop="20dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Estadísticas"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:visibility="gone"/>
+                android:id="@+id/singlesHeader"
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="22dp"
+                android:text="SENCILLOS"
+                android:visibility="gone"
+                tools:visibility="visible" />
 
-            <LinearLayout
-                android:id="@+id/statsCardsRow"
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/singlesList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:layout_marginHorizontal="12dp"
-                android:orientation="horizontal"
-                android:visibility="gone">
+                android:layout_marginHorizontal="-8dp"
+                android:layout_marginTop="6dp"
+                android:nestedScrollingEnabled="false" />
 
-                <LinearLayout
-                    android:id="@+id/cardTotalSongs"
-                    android:layout_width="0dp"
-                    android:layout_height="72dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/bg_border_item_type"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="8dp">
-                    <TextView
-                        android:id="@+id/statTotalSongs"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textColor="@color/white"
-                        android:textSize="20sp"
-                        android:text="—"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_regular"
-                        android:textColor="#BDBDBD"
-                        android:textSize="11sp"
-                        android:text="Canciones"/>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/cardTotalAlbums"
-                    android:layout_width="0dp"
-                    android:layout_height="72dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/bg_border_item_type"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="8dp">
-                    <TextView
-                        android:id="@+id/statTotalAlbums"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textColor="@color/white"
-                        android:textSize="20sp"
-                        android:text="—"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_regular"
-                        android:textColor="#BDBDBD"
-                        android:textSize="11sp"
-                        android:text="Álbumes"/>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/cardTotalStreams"
-                    android:layout_width="0dp"
-                    android:layout_height="72dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_border_item_type"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="8dp">
-                    <TextView
-                        android:id="@+id/statTotalStreams"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textColor="@color/white"
-                        android:textSize="20sp"
-                        android:text="—"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_regular"
-                        android:textColor="#BDBDBD"
-                        android:textSize="11sp"
-                        android:text="Escuchas"/>
-                </LinearLayout>
-
-            </LinearLayout>
-
-            <!-- COLLABORATORS SECTION -->
+            <!-- ═══ Colaboradores ═══ -->
             <TextView
                 android:id="@+id/collaboratorsHeader"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="18dp"
-                android:layout_marginTop="20dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Colaboradores"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:visibility="gone"/>
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="22dp"
+                android:text="HA COLABORADO CON"
+                android:visibility="gone"
+                tools:visibility="visible" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/collaboratorsRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:clipToPadding="false"
-                android:paddingHorizontal="10dp"
+                android:layout_marginHorizontal="-8dp"
+                android:layout_marginTop="6dp"
                 android:nestedScrollingEnabled="false"
-                android:visibility="gone"/>
-
+                android:visibility="gone" />
         </LinearLayout>
-
     </androidx.core.widget.NestedScrollView>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -18,7 +18,12 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.data.network.PlaymixDetailDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
+import com.example.resonant.playback.PlaymixMixMode
+import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
+import kotlin.math.roundToInt
 import com.example.resonant.databinding.FragmentPlaymixDetailBinding
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SongManager
@@ -201,6 +206,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                     )
                 }
 
+                bindSetOverview(detail)
+
                 if (detail.songs.isEmpty()) {
                     binding.noSongsText.visibility = View.VISIBLE
                     binding.songTransitionList.visibility = View.GONE
@@ -220,6 +227,37 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             msg?.let {
                 Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    /** Curva de tempo del set y resumen de cómo se mezclan sus parejas (automático / avanzada). */
+    private fun bindSetOverview(detail: PlaymixDetailDTO) {
+        val songs = detail.songs.sortedBy { it.position }
+        val tempos = songs.map { song -> song.audioAnalysis?.bpm?.takeIf { it > 0 } }
+        val known = tempos.filterNotNull()
+        binding.tempoFlowSection.isVisible = known.size >= 2
+        if (known.size >= 2) {
+            binding.tempoFlowRange.text = "${known.min().roundToInt()}–${known.max().roundToInt()} BPM"
+            binding.tempoFlowView.setColors(
+                ContextCompat.getColor(requireContext(), R.color.playmix_accent),
+                ContextCompat.getColor(requireContext(), R.color.playmix_accent_end)
+            )
+            binding.tempoFlowView.setTempos(tempos, animate = true)
+        }
+        binding.setlistLabel.isVisible = songs.isNotEmpty()
+
+        val pairs = songs.zipWithNext()
+        val automatic = pairs.count { (from, to) ->
+            PlaymixMixMode.isSmart(detail.transitions.find {
+                it.fromPlaymixSongId == from.playmixSongId && it.toPlaymixSongId == to.playmixSongId
+            })
+        }
+        val advanced = pairs.size - automatic
+        binding.playmixBlendSummary.isVisible = pairs.isNotEmpty()
+        binding.playmixBlendSummary.text = when {
+            advanced == 0 -> "Blend automático"
+            automatic == 0 -> if (advanced == 1) "1 transición avanzada" else "$advanced transiciones avanzadas"
+            else -> "$advanced avanzadas · $automatic auto"
         }
     }
 

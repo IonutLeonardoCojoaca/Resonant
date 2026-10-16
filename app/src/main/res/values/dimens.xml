@@ -18,4 +18,12 @@
     <dimen name="space_xl">24dp</dimen>
     <dimen name="unisound_qr_size">216dp</dimen>
     <dimen name="unisound_badge_stroke">1.5dp</dimen>
+
+    <!--
+        Hueco inferior de las pantallas con scroll para que el último elemento no quede bajo lo
+        que flota abajo: bottom nav (80dp) + mini player (~152dp) + píldora "Pregúntame" (~200dp).
+        compact = pantallas sin la píldora (Aria info, Unisound).
+    -->
+    <dimen name="screen_bottom_inset">220dp</dimen>
+    <dimen name="screen_bottom_inset_compact">170dp</dimen>
 </resources>

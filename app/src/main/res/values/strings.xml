@@ -40,6 +40,9 @@
     <string name="flow_level_familiar">Familiar</string>
     <string name="flow_level_balanced">Equilibrado</string>
     <string name="flow_level_discover">Descubrir</string>
+    <string name="flow_level_familiar_hint">Canciones y artistas que ya te suenan</string>
+    <string name="flow_level_balanced_hint">Tus favoritos con alguna novedad entre medias</string>
+    <string name="flow_level_discover_hint">Más canciones y artistas nuevos para ti</string>
     <string name="flow_save_session">Guardar esta sesión como playlist</string>
     <string name="flow_save_session_done">Sesión guardada como «%1$s»</string>
     <string name="flow_save_session_failed">No se pudo guardar la sesión</string>

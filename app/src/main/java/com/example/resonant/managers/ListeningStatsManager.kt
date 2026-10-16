@@ -52,7 +52,7 @@ interface ListeningStatsSource {
 }
 
 /**
- * `api/me/stats/*` con caché en memoria de [CACHE_DURATION_MS] por clave (patrón de `ArtistManager`):
+ * `api/me/stats/…` con caché en memoria de [CACHE_DURATION_MS] por clave (patrón de `ArtistManager`):
  * cambiar de periodo y volver no repite peticiones. Solo se cachean las respuestas correctas.
  */
 class ListeningStatsManager(context: Context) : ListeningStatsSource {

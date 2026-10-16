@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botón redondo discreto (escuchar transición, más opciones). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/dividerOverlay">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/surfaceCardOverlay" />
+        </shape>
+    </item>
+</ripple>

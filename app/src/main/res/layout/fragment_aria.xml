@@ -502,24 +502,34 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <FrameLayout
+        <!-- ConstraintLayout (no FrameLayout): el anillo a 0dp sigue al composer sin
+             dictar el alto; un match_parent aquí estiraba el contenedor a toda la pantalla. -->
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/ariaComposerFrame"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
             <View
                 android:id="@+id/ariaComposerRing"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
                 android:alpha="0.35"
                 android:background="@drawable/bg_aria_composer_ring"
-                android:importantForAccessibility="no" />
+                android:importantForAccessibility="no"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
 
             <LinearLayout
                 android:id="@+id/ariaComposer"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_margin="1.5dp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
                 android:background="@drawable/bg_aria_composer"
                 android:gravity="center_vertical"
                 android:minHeight="52dp"
@@ -572,7 +582,7 @@
                     app:tint="@android:color/white"
                     android:contentDescription="Enviar mensaje" />
             </LinearLayout>
-        </FrameLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>
 

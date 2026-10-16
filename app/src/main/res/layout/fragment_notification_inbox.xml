@@ -71,7 +71,7 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:paddingTop="6dp"
-            android:paddingBottom="140dp"
+            android:paddingBottom="@dimen/screen_bottom_inset"
             tools:listitem="@layout/item_notification" />
 
         <TextView

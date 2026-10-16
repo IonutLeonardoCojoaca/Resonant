@@ -1,115 +1,139 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Controles de Flow compartidos por la hoja de cola y la pestaña "A continuación". -->
+<!--
+    Controles de Flow compartidos por la hoja de cola y la pestaña "A continuación": tarjeta con
+    insignia de acento, interruptor, nivel de descubrimiento (selector segmentado) y "Guardar
+    esta sesión". Colores de acento e interacción en PlaybackQueueController.bindFlowControls.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/flow_queue_controls"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginBottom="14dp"
+    android:background="@drawable/bg_surface_panel"
     android:orientation="vertical"
-    android:paddingBottom="8dp">
+    android:padding="14dp">
 
     <LinearLayout
+        android:id="@+id/flow_continue_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical"
         android:orientation="horizontal">
+
+        <FrameLayout
+            android:id="@+id/flow_badge"
+            android:layout_width="40dp"
+            android:layout_height="40dp">
+
+            <ImageView
+                android:id="@+id/flow_badge_icon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_flow" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
             <TextView
-                android:layout_width="match_parent"
+                android:id="@+id/flow_eyebrow"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/unageo_bold"
-                android:text="@string/flow_continue_title"
-                android:textColor="@color/white"
-                android:textSize="14sp" />
+                android:includeFontPadding="false"
+                android:letterSpacing="0.16"
+                android:text="FLOW"
+                android:textSize="9.5sp"
+                tools:textColor="#4FC8FF" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_regular"
+                android:layout_marginTop="3dp"
+                android:fontFamily="@font/unageo_bold"
+                android:includeFontPadding="false"
+                android:text="@string/flow_continue_title"
+                android:textColor="@color/white"
+                android:textSize="14.5sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:fontFamily="@font/unageo_medium"
                 android:text="@string/flow_continue_subtitle"
                 android:textColor="@color/textTheme"
-                android:textSize="12sp" />
+                android:textSize="11.5sp" />
         </LinearLayout>
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/flow_continue_switch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:contentDescription="@string/flow_continue_title"
             app:thumbTint="@color/switch_thumb_selector"
             app:trackTint="@color/switch_track_selector" />
     </LinearLayout>
-    <!-- Flow v2 (capacidad flowV2): nivel de descubrimiento y guardar la sesión. -->
-    <com.google.android.material.button.MaterialButtonToggleGroup
+
+    <!-- Flow v2 (capacidad flowV2): nivel de descubrimiento. -->
+    <LinearLayout
         android:id="@+id/flow_discovery_group"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="14dp"
+        android:orientation="vertical"
         android:visibility="gone"
-        app:selectionRequired="true"
-        app:singleSelection="true">
+        tools:visibility="visible">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/flow_level_familiar"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:fontFamily="@font/unageo_bold"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:text="@string/flow_level_familiar"
-            android:textAllCaps="false"
-            android:textColor="@color/white"
-            android:textSize="12sp" />
+        <include
+            android:id="@+id/flow_discovery_selector"
+            layout="@layout/view_chart_period_selector"
+            android:layout_width="match_parent"
+            android:layout_height="40dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/flow_level_balanced"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:fontFamily="@font/unageo_bold"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:text="@string/flow_level_balanced"
-            android:textAllCaps="false"
-            android:textColor="@color/white"
-            android:textSize="12sp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/flow_level_discover"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:fontFamily="@font/unageo_bold"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:text="@string/flow_level_discover"
-            android:textAllCaps="false"
-            android:textColor="@color/white"
-            android:textSize="12sp" />
-    </com.google.android.material.button.MaterialButtonToggleGroup>
+        <TextView
+            android:id="@+id/flow_discovery_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="@font/unageo_medium"
+            android:gravity="center"
+            android:textColor="@color/textTheme"
+            android:textSize="11.5sp"
+            tools:text="Tus favoritos con alguna novedad entre medias" />
+    </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/flow_save_session"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:layout_marginTop="4dp"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:layout_marginTop="12dp"
         android:fontFamily="@font/unageo_bold"
         android:insetTop="0dp"
         android:insetBottom="0dp"
-        android:paddingStart="0dp"
+        android:letterSpacing="0"
         android:text="@string/flow_save_session"
         android:textAllCaps="false"
-        android:textColor="@color/secondaryColorTheme"
+        android:textColor="@color/white"
         android:textSize="13sp"
-        android:visibility="gone" />
+        android:visibility="gone"
+        app:backgroundTint="@color/surfaceCardOverlay"
+        app:cornerRadius="21dp"
+        app:icon="@drawable/ic_add"
+        app:iconGravity="textStart"
+        app:iconPadding="8dp"
+        app:iconSize="18dp"
+        app:iconTint="@color/white"
+        tools:visibility="visible" />
 </LinearLayout>

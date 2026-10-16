@@ -1,7 +1,7 @@
 package com.example.resonant.data.models
 
 /**
- * Contrato de `api/me/auto-download/*` (descargas automáticas de lanzamientos nuevos).
+ * Contrato de `api/me/auto-download/…` (descargas automáticas de lanzamientos nuevos).
  * Gson ignora los valores por defecto de Kotlin: los campos que pueden faltar son nullables.
  */
 data class AutoDownloadSubscriptionDTO(

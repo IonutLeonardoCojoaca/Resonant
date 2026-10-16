@@ -1,6 +1,7 @@
 package com.example.resonant.ui.viewmodels
 
 import android.util.Log
+import com.example.resonant.playback.PlaymixMixMode
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -389,6 +390,26 @@ class CrossfadeEditorViewModel(
             showGapSlider = mode == "hard_edit" || safeDuration == 0 || current.gapMs > 0
         )
         checkPresetModified()
+    }
+
+    /** Último modo avanzado elegido: al volver de blend automático se recupera tal cual. */
+    private var lastAdvancedMixMode = PlaymixMixMode.DEFAULT_ADVANCED
+
+    /**
+     * Blend automático ↔ transición avanzada. Pasar a automático solo cambia el `mixMode`
+     * (los puntos y curvas se conservan por si el usuario vuelve a avanzada).
+     */
+    fun setSmartMode(smart: Boolean) {
+        val current = _state.value ?: return
+        val isSmart = current.mixMode == PlaymixMixMode.SMART
+        if (smart == isSmart) return
+        if (smart) {
+            lastAdvancedMixMode = current.mixMode
+            _state.value = current.copy(mixMode = PlaymixMixMode.SMART)
+            checkPresetModified()
+        } else {
+            setMixMode(lastAdvancedMixMode)
+        }
     }
 
     fun setFadeCurveType(type: String) {

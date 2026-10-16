@@ -134,7 +134,7 @@
                 android:overScrollMode="never"
                 android:paddingHorizontal="5dp"
                 android:paddingTop="2dp"
-                android:paddingBottom="112dp" />
+                android:paddingBottom="@dimen/screen_bottom_inset" />
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 

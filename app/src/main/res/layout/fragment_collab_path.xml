@@ -99,7 +99,7 @@
         android:layout_height="0dp"
         android:layout_marginTop="24dp"
         android:clipToPadding="false"
-        android:paddingBottom="180dp"
+        android:paddingBottom="@dimen/screen_bottom_inset"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvStatus" />

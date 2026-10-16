@@ -13,7 +13,7 @@
         android:orientation="vertical"
         android:paddingHorizontal="16dp"
         android:paddingTop="16dp"
-        android:paddingBottom="160dp">
+        android:paddingBottom="@dimen/screen_bottom_inset">
 
         <LinearLayout
             android:layout_width="match_parent"

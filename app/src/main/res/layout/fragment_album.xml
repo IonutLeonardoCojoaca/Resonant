@@ -165,7 +165,7 @@
                     android:layout_below="@+id/albumInfoContainer"
                     android:nestedScrollingEnabled="false"
                     android:paddingHorizontal="10dp"
-                    android:paddingBottom="100dp"
+                    android:paddingBottom="@dimen/screen_bottom_inset"
                     android:clipToPadding="false"/>
 
                 <com.facebook.shimmer.ShimmerFrameLayout

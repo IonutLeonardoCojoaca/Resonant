@@ -53,7 +53,7 @@
             android:gravity="center"
             android:minWidth="72dp"
             android:text="Guardar"
-            android:textColor="@color/secondaryColorTheme"
+            android:textColor="@color/playmix_accent"
             android:textSize="14sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -246,6 +246,11 @@
                 </LinearLayout>
 
             </LinearLayout>
+
+            <!-- ═══ Modo: blend automático / transición avanzada ═══ -->
+            <include
+                android:id="@+id/playmixModePanel"
+                layout="@layout/view_playmix_mode_panel" />
 
             <!-- ═══ Preset Selector Strip ═══ -->
             <LinearLayout

@@ -253,7 +253,7 @@
                 android:layout_height="wrap_content"
                 android:clipToPadding="false"
                 android:paddingHorizontal="10dp"
-                android:paddingBottom="200dp"
+                android:paddingBottom="@dimen/screen_bottom_inset"
                 android:nestedScrollingEnabled="false"
                 tools:listitem="@layout/item_song" />
 

@@ -31,10 +31,10 @@ object WhatsNewContent {
             title = "Bienvenido a Resonant 4.0",
             subtitle = "La mayor actualización hasta la fecha. Esto es todo lo nuevo desde la 3.6.",
             points = listOf(
-                Point("Escucha en grupo", "Salas Unisound para sonar a la vez con tus amigos"),
-                Point("Un Explorar hecho para ti", "Secciones según tu momento del día y recomendaciones de Aria"),
-                Point("Música que no se acaba", "Flow sigue sonando cuando termina tu cola"),
-                Point("Nueva identidad visual", "Rankings, Collab Finder, biblioteca y creación, rediseñados")
+                Point("Escucha en grupo y en directo", "Salas Unisound con amigos y emisiones Live con Aria DJ"),
+                Point("Tu música, en cifras", "Recap mensual, rachas diarias y tus estadísticas"),
+                Point("Un Explorar hecho para ti", "Secciones según tu momento del día y Flow cuando acaba tu cola"),
+                Point("Aria y PlayMix, renovados", "Un agente más capaz y transiciones que caen a ritmo")
             )
         ),
         Page(
@@ -96,6 +96,74 @@ object WhatsNewContent {
             orbitMotif = true
         ),
         Page(
+            accent = ResonantAccent.RADIO,
+            eyebrow = "Nuevo · Live",
+            title = "Emisiones en directo",
+            subtitle = "Sintoniza un canal y escucha lo mismo que todos, con la programación siempre a la vista.",
+            points = listOf(
+                Point("Programación", "Qué suena ahora, qué viene a continuación y cuándo empieza lo próximo"),
+                Point("Aria DJ", "Aria presenta las canciones con su voz o solo con subtítulos"),
+                Point("Avisos de especiales", "Te avisamos cuando empieza una emisión especial")
+            )
+        ),
+        Page(
+            accent = ResonantAccent.PLAYLISTS,
+            eyebrow = "Renovado · Aria",
+            title = "Tu agente musical",
+            subtitle = "Aria ahora te explica lo que sabe hacer y responde con tarjetas que puedes tocar.",
+            points = listOf(
+                Point("Lo que puede hacer", "Playlists, catálogo, tus datos y la reproducción, con un ejemplo de cada"),
+                Point("Respuestas visuales", "Canciones, artistas relacionados, tus picks y tu racha en el chat"),
+                Point("Nueva pantalla", "Un espacio que se mueve contigo mientras conversas")
+            )
+        ),
+        Page(
+            accent = ResonantAccent.ALBUMS,
+            eyebrow = "Nuevo · Recap",
+            title = "Tu mes, en historias",
+            subtitle = "Cada mes, un resumen de lo que has escuchado para repasar y compartir.",
+            points = listOf(
+                Point("Tus números", "Minutos, canciones y artistas top, géneros y tu momento del día"),
+                Point("Guárdalo", "Convierte tu mes en una playlist con un toque"),
+                Point("Compártelo", "Envía tus tarjetas a quien quieras"),
+                Point("Meses anteriores", "Tu historial de recaps desde Ajustes")
+            )
+        ),
+        Page(
+            accent = ResonantAccent.ARTISTS,
+            eyebrow = "Nuevo · Rachas",
+            title = "Un poco de música cada día",
+            subtitle = "Cumple tu objetivo diario de escucha y mantén viva tu racha.",
+            points = listOf(
+                Point("Tu racha", "Días seguidos, tu récord y el siguiente hito"),
+                Point("Protector semanal", "Un día perdido a la semana no rompe tu racha"),
+                Point("Canción del día", "Una recomendación nueva cada día, muchas veces elegida por Aria"),
+                Point("Recordatorio", "Te avisamos de los minutos que te faltan para no perderla")
+            )
+        ),
+        Page(
+            accent = ResonantAccent.SONGS,
+            eyebrow = "Nuevo · Estadísticas",
+            title = "Lo que escuchas, de un vistazo",
+            subtitle = "Tus minutos día a día y tus favoritos por semana, mes o año.",
+            points = listOf(
+                Point("Minutos escuchados", "Una gráfica de cada día del periodo"),
+                Point("Tus tops", "Canciones, artistas y géneros más escuchados"),
+                Point("Hoy hace un año", "Lo que sonaba en tu vida este mismo día")
+            )
+        ),
+        Page(
+            accent = ResonantAccent.PLAYMIX,
+            eyebrow = "Renovado · PlayMix",
+            title = "Transiciones que caen a ritmo",
+            subtitle = "El editor de transiciones entiende la estructura de cada canción.",
+            points = listOf(
+                Point("Imán musical", "Los marcadores se ajustan a frases, compases y beats al arrastrarlos"),
+                Point("Beats cuadrados", "Tempo y primer beat más precisos: los bombos no se desfasan"),
+                Point("Sin rejilla, sin ataduras", "En canciones sin análisis, el marcador se mueve libre")
+            )
+        ),
+        Page(
             accent = ResonantAccent.DOWNLOADS,
             eyebrow = "Tu biblioteca",
             title = "Más fácil, más rápido",
@@ -103,7 +171,19 @@ object WhatsNewContent {
             points = listOf(
                 Point("Crear playlist y PlayMix", "Vista previa en directo, ideas de nombre y sin duplicados"),
                 Point("Historial", "Reproduce todo o en aleatorio · últimas 20, 50 o 100"),
-                Point("Descargas", "Búsqueda siempre visible y el espacio que ocupan de un vistazo")
+                Point("Descargas", "Búsqueda siempre visible y el espacio que ocupan de un vistazo"),
+                Point("Lanzamientos automáticos", "Suscríbete a un artista y sus novedades se descargan solas")
+            )
+        ),
+        Page(
+            accent = ResonantAccent.TRENDING,
+            eyebrow = "Siempre a mano",
+            title = "Fuera de la app, también",
+            subtitle = "Controla la música desde la pantalla de inicio y no te pierdas nada.",
+            points = listOf(
+                Point("Widget", "Reproduce, pausa y vuelve a tu sala o a Live; adáptalo al tamaño que quieras"),
+                Point("Notificaciones", "Una bandeja con todo lo de Aria, Unisound y Live"),
+                Point("Tú decides", "Elige en Ajustes qué temas llegan a tu bandeja")
             )
         ),
         Page(

@@ -65,7 +65,7 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:paddingHorizontal="8dp"
-                android:paddingBottom="200dp"
+                android:paddingBottom="@dimen/screen_bottom_inset"
                 android:scrollbars="vertical"
                 tools:listitem="@layout/item_genre"
                 android:layoutAnimation="@anim/layout_animation_fall_down"/>

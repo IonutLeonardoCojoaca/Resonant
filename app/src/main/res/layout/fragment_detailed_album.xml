@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    Ficha de álbum: cabecera por capas con parallax (view_detail_hero), cifras en tarjetas de
+    colores, curva de tempo del disco, lista de canciones, artistas y más del artista.
+    Lo rellena DetailedAlbumFragment.
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/rootConstraint"
@@ -9,148 +13,203 @@
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.DetailedAlbumFragment">
 
-    <View
-        android:id="@+id/view4"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@drawable/bg_gradient_bottom_song_list"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHeight_percent="1.25"
-        app:layout_constraintStart_toStartOf="parent" />
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
+        android:layout_height="480dp"
+        android:background="@color/primaryColorTheme"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:id="@+id/collapsing"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:contentScrim="@color/primaryColorTheme"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed"
+            app:scrimAnimationDuration="250"
+            app:titleEnabled="false">
+
+            <include
+                android:id="@+id/hero"
+                layout="@layout/view_detail_hero"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <include
+                android:id="@+id/detailToolbar"
+                layout="@layout/view_detail_toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_gravity="top"
+                app:layout_collapseMode="pin" />
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true"
+        android:overScrollMode="never"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingBottom="100dp">
+            android:paddingHorizontal="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="@dimen/screen_bottom_inset">
 
-            <RelativeLayout
-                android:id="@+id/albumHeaderContainer"
-                android:layout_width="match_parent"
-                android:layout_height="200dp"
-                android:padding="20dp">
-
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/albumImage"
-                    android:layout_width="160dp"
-                    android:layout_height="160dp"
-                    android:scaleType="centerCrop"
-                    app:shapeAppearanceOverlay="@style/RoundedCornersDetailedSong" />
-
-                <TextView
-                    android:id="@+id/albumTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="20dp"
-                    android:layout_toRightOf="@id/albumImage"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:maxLines="2"
-                    android:text=""
-                    android:textColor="@color/white"
-                    android:textSize="18sp" />
-
-                <TextView
-                    android:id="@+id/itemType"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/albumTitle"
-                    android:layout_marginStart="20dp"
-                    android:layout_marginTop="8dp"
-                    android:layout_toRightOf="@id/albumImage"
-                    android:background="@drawable/bg_border_item_type"
-                    android:fontFamily="@font/unageo_regular"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="3dp"
-                    android:text="Álbum"
-                    android:textColor="@color/white"
-                    android:textSize="14sp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/playButton"
-                    android:layout_width="54dp"
-                    android:layout_height="54dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_alignParentBottom="true"
-                    android:backgroundTint="@color/secondaryColorTheme"
-                    app:cornerRadius="40dp"
-                    app:icon="@drawable/ic_play"
-                    app:iconGravity="textStart"
-                    app:iconPadding="0dp"
-                    app:iconSize="40dp"
-                    android:insetBottom="0dp"
-                    android:insetTop="0dp"
-                    app:iconTint="@color/white" />
-
-            </RelativeLayout>
-
-            <TextView
-                android:id="@+id/artistText"
+            <!-- ═══ En cifras ═══ -->
+            <LinearLayout
+                android:id="@+id/statsSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:fontFamily="@font/unageo_medium"
-                android:text="Artistas y colaboradores"
-                android:textColor="@color/white"
-                android:textSize="18sp" />
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    style="@style/DetailSectionLabel"
+                    android:text="EN CIFRAS" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <include
+                        android:id="@+id/statStreams"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1" />
+
+                    <include
+                        android:id="@+id/statDuration"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <include
+                        android:id="@+id/statFavorites"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1" />
+
+                    <include
+                        android:id="@+id/statTracks"
+                        layout="@layout/view_detail_stat_tile"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ═══ Curva de tempo del disco ═══ -->
+            <LinearLayout
+                android:id="@+id/tempoSection"
+                style="@style/DetailTile"
+                android:layout_width="match_parent"
+                android:layout_marginTop="12dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tempoLabel"
+                        style="@style/DetailTileLabel"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="TEMPO A LO LARGO DEL DISCO" />
+
+                    <TextView
+                        android:id="@+id/tempoRange"
+                        style="@style/DetailTileLabel"
+                        android:textColor="@color/white"
+                        tools:text="92–140 BPM" />
+                </LinearLayout>
+
+                <com.example.resonant.ui.views.PlaymixTempoFlowView
+                    android:id="@+id/tempoFlow"
+                    android:layout_width="match_parent"
+                    android:layout_height="84dp"
+                    android:layout_marginTop="8dp"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+
+            <!-- ═══ Canciones ═══ -->
+            <TextView
+                android:id="@+id/tracksLabel"
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="26dp"
+                android:text="CANCIONES"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/trackList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="-8dp"
+                android:layout_marginTop="6dp"
+                android:nestedScrollingEnabled="false" />
+
+            <!-- ═══ Artistas ═══ -->
+            <TextView
+                android:id="@+id/artistText"
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="22dp"
+                android:text="ARTISTAS" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/artistList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="-8dp"
+                android:layout_marginTop="6dp"
+                android:nestedScrollingEnabled="false" />
+
+            <!-- ═══ Más del artista ═══ -->
+            <TextView
+                android:id="@+id/moreLabel"
+                style="@style/DetailSectionLabel"
+                android:layout_marginTop="22dp"
+                android:visibility="gone"
+                tools:text="MÁS DE METRO BOOMIN"
+                tools:visibility="visible" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/moreAlbums"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="-16dp"
+                android:layout_marginTop="10dp"
+                android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="10dp" />
-
-            <TextView
-                android:id="@+id/informationText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:fontFamily="@font/unageo_medium"
-                android:paddingTop="5dp"
-                android:paddingBottom="15dp"
-                android:text="Información detallada"
-                android:textColor="@color/white"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/albumTracks"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:drawableStart="@drawable/ic_song"
-                android:drawablePadding="10dp"
-                android:fontFamily="@font/unageo_medium"
-                android:gravity="center_vertical"
-                android:paddingVertical="10dp"
-                android:text="Canciones"
-                android:textColor="@color/white"
-                android:textSize="15sp" />
-
-            <TextView
-                android:id="@+id/albumYear"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:drawableStart="@drawable/ic_edit"
-                android:drawablePadding="10dp"
-                android:fontFamily="@font/unageo_medium"
-                android:gravity="center_vertical"
-                android:paddingVertical="10dp"
-                android:text="Año de lanzamiento"
-                android:textColor="@color/white"
-                android:textSize="15sp" />
-
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp"
+                android:visibility="gone"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
         </LinearLayout>
-
     </androidx.core.widget.NestedScrollView>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

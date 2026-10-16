@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Cabecera por capas de las fichas (canción, álbum, artista). De atrás adelante: portada
+    desenfocada a sangre, velo de color, resplandor, portada nítida y bloque de texto. Cada capa
+    se desplaza a su velocidad al plegar la cabecera (DetailHero.attachParallax) y los colores
+    salen de la portada (DetailHero.applyPalette).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/detailHero"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false">
+
+    <ImageView
+        android:id="@+id/heroBackdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.55"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
+    <View
+        android:id="@+id/heroWash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/heroGlow"
+        android:layout_width="420dp"
+        android:layout_height="420dp"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="-30dp"
+        android:importantForAccessibility="no" />
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/heroArt"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="74dp"
+        android:elevation="24dp"
+        android:scaleType="centerCrop"
+        app:shapeAppearanceOverlay="@style/DetailHeroArtShape"
+        tools:src="@drawable/ic_disc" />
+
+    <LinearLayout
+        android:id="@+id/heroTextBlock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:id="@+id/heroEyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.18"
+            android:textColor="@color/white"
+            android:textSize="11sp"
+            tools:text="CANCIÓN · 2023" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/heroTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="2"
+                    android:textColor="@color/white"
+                    android:textSize="30sp"
+                    tools:text="Cinderella" />
+
+                <TextView
+                    android:id="@+id/heroSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_semi_bold"
+                    android:maxLines="1"
+                    android:textColor="@color/white"
+                    android:alpha="0.8"
+                    android:textSize="14sp"
+                    tools:text="Metro Boomin, Future, Travis Scott" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/heroPlayButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="12dp"
+                android:contentDescription="Reproducir"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:backgroundTint="@color/secondaryColorTheme"
+                app:cornerRadius="28dp"
+                app:icon="@drawable/ic_play"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="34dp"
+                app:iconTint="@android:color/white" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/heroChips"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal" />
+    </LinearLayout>
+</FrameLayout>

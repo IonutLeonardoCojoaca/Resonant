@@ -209,7 +209,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
-            android:paddingBottom="24dp">
+            android:paddingBottom="@dimen/screen_bottom_inset_compact">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -532,7 +532,7 @@
                 android:layout_marginTop="6dp"
                 android:layout_weight="1"
                 android:clipToPadding="false"
-                android:paddingBottom="24dp" />
+                android:paddingBottom="@dimen/screen_bottom_inset_compact" />
         </LinearLayout>
 
         <!-- Miembros -->
@@ -541,7 +541,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
-            android:paddingBottom="24dp"
+            android:paddingBottom="@dimen/screen_bottom_inset_compact"
             android:visibility="gone">
 
             <LinearLayout

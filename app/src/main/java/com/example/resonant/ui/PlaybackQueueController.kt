@@ -32,7 +32,12 @@ import com.example.resonant.managers.SettingsManager
 import com.example.resonant.playback.flow.FlowQueuePolicy
 import com.example.resonant.ui.bottomsheets.FlowSongOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
-import com.google.android.material.button.MaterialButtonToggleGroup
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
+import android.widget.ImageView
+import androidx.core.graphics.ColorUtils
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.PlaybackStateRepository
@@ -174,12 +179,43 @@ class PlaybackQueueController(
                 }
             }
         }
+        // Toda la fila actúa como el interruptor.
+        controls.findViewById<View>(R.id.flow_continue_row).setOnClickListener { continueSwitch.toggle() }
+
+        val context = fragment.requireContext()
+        val accent = ResonantAccent.TRENDING.color // acento de Flow (Explorar, novedades)
+        controls.findViewById<View>(R.id.flow_badge).background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(ColorUtils.setAlphaComponent(accent, 0x2E))
+        }
+        controls.findViewById<ImageView>(R.id.flow_badge_icon).imageTintList = ColorStateList.valueOf(accent)
+        controls.findViewById<TextView>(R.id.flow_eyebrow).setTextColor(accent)
+
+        val discoveryGroup = controls.findViewById<View>(R.id.flow_discovery_group)
+        val discoveryHint = controls.findViewById<TextView>(R.id.flow_discovery_hint)
+        val levelLabels = LEVEL_LABELS.map(context::getString)
+        val discoverySelector = ChartPeriodSelector(
+            controls.findViewById(R.id.flow_discovery_selector),
+            accent,
+            levelLabels,
+            initialIndex = DEFAULT_LEVEL
+        ) { level ->
+            discoveryHint.setText(LEVEL_HINTS[level])
+            owner.lifecycleScope.launch { FlowPreferencesManager.setDiscoveryLevel(fragment.requireContext(), level) }
+        }
+        discoveryHint.setText(LEVEL_HINTS[DEFAULT_LEVEL])
+
+        // Con Flow apagado el nivel no aplica: se atenúa pero sigue visible.
+        fun applyEnabled(enabled: Boolean) {
+            discoveryGroup.animate().alpha(if (enabled) 1f else 0.4f).setDuration(180).start()
+        }
+        applyEnabled(continueSwitch.isChecked)
         continueSwitch.setOnCheckedChangeListener { _, isChecked ->
+            applyEnabled(isChecked)
             if (applyingSetting) return@setOnCheckedChangeListener
             owner.lifecycleScope.launch { FlowPreferencesManager.setEnabled(fragment.requireContext(), isChecked) }
         }
 
-        val discoveryGroup = controls.findViewById<MaterialButtonToggleGroup>(R.id.flow_discovery_group)
         val saveSession = controls.findViewById<View>(R.id.flow_save_session)
         owner.lifecycleScope.launch {
             CapabilitiesManager.refresh(fragment.requireContext())
@@ -189,20 +225,14 @@ class PlaybackQueueController(
         }
         owner.lifecycleScope.launch {
             owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                settingsManager.flowDiscoveryLevelFlow.collect { level ->
-                    val buttonId = LEVEL_BUTTONS.getOrElse(level) { R.id.flow_level_balanced }
-                    if (discoveryGroup.checkedButtonId != buttonId) {
-                        applyingSetting = true
-                        discoveryGroup.check(buttonId)
-                        applyingSetting = false
+                settingsManager.flowDiscoveryLevelFlow.collect { stored ->
+                    val level = stored.takeIf { it in LEVEL_LABELS.indices } ?: DEFAULT_LEVEL
+                    if (discoverySelector.selectedIndex != level) {
+                        discoverySelector.select(level, animate = false)
+                        discoveryHint.setText(LEVEL_HINTS[level])
                     }
                 }
             }
-        }
-        discoveryGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked || applyingSetting) return@addOnButtonCheckedListener
-            val level = LEVEL_BUTTONS.indexOf(checkedId).takeIf { it >= 0 } ?: return@addOnButtonCheckedListener
-            owner.lifecycleScope.launch { FlowPreferencesManager.setDiscoveryLevel(fragment.requireContext(), level) }
         }
         saveSessionButton = saveSession
         saveSession.setOnClickListener { saveFlowSession(saveSession) }
@@ -522,7 +552,11 @@ class PlaybackQueueController(
         const val TAG = "PlaybackQueue"
         /** Etiqueta con la que MainActivity muestra el reproductor a pantalla completa. */
         const val SONG_FRAGMENT_TAG = "SongFragment"
-        /** Botón del deslizador por nivel: 0 familiar, 1 equilibrado, 2 descubrir. */
-        val LEVEL_BUTTONS = listOf(R.id.flow_level_familiar, R.id.flow_level_balanced, R.id.flow_level_discover)
+        /** Nivel de descubrimiento por índice: 0 familiar, 1 equilibrado, 2 descubrir. */
+        val LEVEL_LABELS = listOf(R.string.flow_level_familiar, R.string.flow_level_balanced, R.string.flow_level_discover)
+        val LEVEL_HINTS = listOf(
+            R.string.flow_level_familiar_hint, R.string.flow_level_balanced_hint, R.string.flow_level_discover_hint
+        )
+        const val DEFAULT_LEVEL = 1
     }
 }

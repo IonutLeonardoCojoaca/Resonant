@@ -38,6 +38,7 @@ import com.example.resonant.managers.AudioQuality
 import com.example.resonant.playback.AudioEqualizerController
 import com.example.resonant.playback.ListenClock
 import com.example.resonant.playback.PlaybackCache
+import com.example.resonant.playback.PlaymixMixMode
 import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.playback.PlaybackQueueEnricher
 import com.example.resonant.playback.RadioRepository
@@ -1600,7 +1601,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         // —— PlayMix mode: trigger at exitPointMs (which already accounts for crossfade + gap) ——
         if (isPlaymixMode) {
-            val transition = playmixTransitions["${song.id}:${nextSong.id}"]
+            val transition = PlaymixMixMode.advancedOrNull(playmixTransitions["${song.id}:${nextSong.id}"])
             if (transition != null) {
                 // Resonant Studio: con clip renderizado se dispara antes para precargar clip y B.
                 val nowMs = System.currentTimeMillis()
@@ -1622,7 +1623,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 }
                 return triggerMs.coerceAtLeast(0L)
             }
-            return -1L
+            // Blend automático (o pareja sin transición): el motor inteligente decide la mezcla.
+            val smartPlan = transitionPlanFor(song, nextSong, playmixSmart = true) ?: return -1L
+            return (smartPlan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
         }
 
         val player = exoPlayer
@@ -2558,7 +2561,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         return when {
             queue.sourceType == QueueSource.PLAYMIX -> {
                 val transition = currentSong?.let { playmixTransitions["${it.id}:${nextSong.id}"] }
-                TransitionTiming.resolveEntryPointMs(TransitionTiming.EntryMode.PLAYMIX, transition?.entryPointMs, null, null)
+                if (PlaymixMixMode.isSmart(transition)) {
+                    currentSong?.let { transitionPlanFor(it, nextSong, playmixSmart = true) }?.doc?.b?.startMs?.toLong()
+                        ?: TransitionTiming.resolveEntryPointMs(
+                            TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
+                        )
+                } else {
+                    TransitionTiming.resolveEntryPointMs(TransitionTiming.EntryMode.PLAYMIX, transition?.entryPointMs, null, null)
+                }
             }
             queue.sourceType == QueueSource.ALBUM -> 0L
             else -> currentSong?.let { transitionPlanFor(it, nextSong) }?.doc?.b?.startMs?.toLong()
@@ -2576,11 +2586,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     /**
      * Plan de la transición [from] → [to] con el modo y la duración de los ajustes. En modo inteligente
      * la receta del servidor, si ya llegó, tiene prioridad. Se cachea: se consulta en cada tick del seekbar.
+     * [playmixSmart]: blend automático de PlayMix, siempre en modo inteligente sin mirar los ajustes.
      */
-    private fun transitionPlanFor(from: Song, to: Song): TransitionPlanner.Plan? {
+    private fun transitionPlanFor(from: Song, to: Song, playmixSmart: Boolean = false): TransitionPlanner.Plan? {
         val player = exoPlayer
         val exoDurationMs = if (player != null && player.duration > 0 &&
             player.currentMediaItem?.mediaId == from.id) player.duration else -1L
+        val crossfadeMode = if (playmixSmart) CrossfadeMode.INTELLIGENT_EQ else crossfadeMode
         val recipe = if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) recipeFor(from, to) else null
         // La identidad del análisis entra en la clave: las canciones se sustituyen por copias enriquecidas.
         val key = "${from.id}:${to.id}:$crossfadeMode:$crossfadeDurationMs:$exoDurationMs:${recipe != null}:" +
@@ -4002,7 +4014,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         // PlayMix: use the full transition object (mixMode, fadeCurveType, bandFadeTypes, gapMs)
         // instead of the global crossfadeMode setting — Spotify-style per-transition config.
         val isPlaymixMode = queue.sourceType == QueueSource.PLAYMIX
-        val playmixTransition = if (isPlaymixMode) playmixTransitions["${oldSong.id}:${nextSong.id}"] else null
+        // Blend automático (mixMode "smart" o pareja sin transición): motor inteligente, no el de PlayMix.
+        val playmixTransition = if (isPlaymixMode) {
+            PlaymixMixMode.advancedOrNull(playmixTransitions["${oldSong.id}:${nextSong.id}"])
+        } else null
 
         // D1: aislar al player saliente. Solo puede terminar, nunca avanzar a B por su cuenta.
         // La cola completa se reconstruye en el player promocionado tras el relevo.
@@ -4017,7 +4032,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         // La UI y la cola cambian a B cuando B empieza a sonar (handleTransitionAudible, D6).
-        val plan = if (playmixTransition == null) transitionPlanFor(oldSong, nextSong) else null
+        val plan = if (playmixTransition == null) transitionPlanFor(oldSong, nextSong, playmixSmart = isPlaymixMode) else null
         // Un fundido sin EQ propio deja el ecualizador del usuario en A (y se copia a B al entrar):
         // quitarlo de golpe al empezar la transición se oía como un salto de volumen y timbre.
         if (playmixTransition != null || plan == null || plan.hasEq) {

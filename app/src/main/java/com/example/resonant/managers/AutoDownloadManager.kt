@@ -13,7 +13,7 @@ import com.example.resonant.data.network.services.AutoDownloadService
 import kotlinx.coroutines.CancellationException
 import retrofit2.Response
 
-/** Resultado de una llamada a `api/me/auto-download/*`. */
+/** Resultado de una llamada a `api/me/auto-download/…`. */
 sealed class AutoDownloadCall<out T> {
     data class Ok<T>(val value: T) : AutoDownloadCall<T>()
 
@@ -41,7 +41,7 @@ data class AutoDownloadPlanPage(
 )
 
 /**
- * Suscripciones por artista y protocolo de planes (`api/me/auto-download/*`), patrón legacy.
+ * Suscripciones por artista y protocolo de planes (`api/me/auto-download/…`), patrón legacy.
  * Quien lo llama comprueba antes `CapabilitiesManager.isAutoDownloadsEnabled()`.
  */
 class AutoDownloadManager internal constructor(

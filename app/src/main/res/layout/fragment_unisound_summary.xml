@@ -126,7 +126,7 @@
         android:layout_width="0dp"
         android:layout_height="50dp"
         android:layout_marginHorizontal="24dp"
-        android:layout_marginBottom="20dp"
+        android:layout_marginBottom="@dimen/screen_bottom_inset_compact"
         android:background="@drawable/bg_play_button_pill_accent"
         android:fontFamily="@font/unageo_bold"
         android:gravity="center"

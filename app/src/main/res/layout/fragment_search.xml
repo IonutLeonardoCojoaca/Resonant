@@ -312,7 +312,7 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:paddingHorizontal="14dp"
-                android:paddingBottom="160dp"
+                android:paddingBottom="@dimen/screen_bottom_inset"
                 android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
@@ -321,7 +321,7 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:paddingHorizontal="14dp"
-                android:paddingBottom="160dp"
+                android:paddingBottom="@dimen/screen_bottom_inset"
                 android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
@@ -332,7 +332,7 @@
                 android:fadeScrollbars="false"
                 android:nestedScrollingEnabled="false"
                 android:paddingHorizontal="5dp"
-                android:paddingBottom="160dp"
+                android:paddingBottom="@dimen/screen_bottom_inset"
                 android:scrollbarThumbVertical="@drawable/bg_scrollbar_thumb"
                 android:scrollbars="vertical"
                 android:visibility="invisible" />

@@ -1066,29 +1066,48 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     private fun setupAutoDownloadToggle(view: View, artistId: String) {
         val toggle = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.autoDownloadSwitch)
             ?: return
+        val card = view.findViewById<View>(R.id.autoDownloadCard) ?: return
+        val subtitle = view.findViewById<TextView>(R.id.autoDownloadSubtitle)
         val appContext = requireContext().applicationContext
         val manager = com.example.resonant.managers.AutoDownloadManager.get(appContext)
         var applyingServerState = false
+
+        // Mismo acento que Descargas en la biblioteca.
+        val accent = com.example.resonant.ui.components.ResonantAccent.DOWNLOADS.color
+        view.findViewById<View>(R.id.autoDownloadBadge).background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(accent, 0x2E))
+        }
+        view.findViewById<ImageView>(R.id.autoDownloadIcon).imageTintList =
+            android.content.res.ColorStateList.valueOf(accent)
+
+        fun showSubtitle(checked: Boolean) {
+            subtitle.setText(if (checked) R.string.auto_download_artist_on else R.string.auto_download_artist_off)
+        }
 
         fun showState(checked: Boolean) {
             applyingServerState = true
             toggle.isChecked = checked
             applyingServerState = false
+            showSubtitle(checked)
         }
+
+        // Toda la tarjeta actúa como el interruptor.
+        card.setOnClickListener { if (toggle.isEnabled) toggle.toggle() }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 if (!com.example.resonant.managers.CapabilitiesManager.refresh(appContext).autoDownloads) {
-                    toggle.visibility = View.GONE
+                    card.visibility = View.GONE
                     return@repeatOnLifecycle
                 }
                 when (val state = manager.isSubscribed(artistId)) {
                     is com.example.resonant.managers.AutoDownloadCall.Ok -> {
                         showState(state.value)
-                        toggle.visibility = View.VISIBLE
+                        card.visibility = View.VISIBLE
                     }
                     com.example.resonant.managers.AutoDownloadCall.Disabled -> {
-                        toggle.visibility = View.GONE
+                        card.visibility = View.GONE
                         com.example.resonant.managers.CapabilitiesManager.refresh(appContext, force = true)
                     }
                     else -> Unit // Sin red: se deja como esté hasta la próxima vez.
@@ -1098,6 +1117,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         toggle.setOnCheckedChangeListener { _, checked ->
             if (applyingServerState) return@setOnCheckedChangeListener
+            showSubtitle(checked)
             toggle.isEnabled = false
             viewLifecycleOwner.lifecycleScope.launch {
                 val result = if (checked) manager.subscribe(artistId) else manager.unsubscribe(artistId)
@@ -1116,7 +1136,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                     }
                     com.example.resonant.managers.AutoDownloadCall.Disabled -> {
                         showState(!checked)
-                        toggle.visibility = View.GONE
+                        card.visibility = View.GONE
                     }
                     else -> {
                         showState(!checked)

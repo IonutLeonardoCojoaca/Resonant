@@ -169,7 +169,7 @@ class StreakManagerTest {
 
     @Test
     fun `204 is empty`() = runTest {
-        service.songResponse = Response.success(204, null)
+        service.songResponse = Response.success<ResponseBody>(204, null)
 
         assertEquals(SongOfDayResult.Empty, manager.getSongOfDay())
     }

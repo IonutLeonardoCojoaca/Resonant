@@ -4,6 +4,8 @@
     <string name="auto_download_channel_name">Descargas automáticas</string>
     <string name="auto_download_notification_title">Lanzamientos nuevos descargados</string>
     <string name="auto_download_artist_toggle">Descargar lanzamientos nuevos</string>
+    <string name="auto_download_artist_off">Sus novedades se descargan solas al salir</string>
+    <string name="auto_download_artist_on">Activado · sus novedades, sin conexión</string>
     <string name="auto_download_paused_notice">Las descargas automáticas están en pausa en Ajustes</string>
     <string name="auto_download_limit_reached">Has llegado al máximo de %1$d artistas con descargas automáticas</string>
     <string name="auto_download_toggle_failed">No se pudo cambiar la descarga automática</string>

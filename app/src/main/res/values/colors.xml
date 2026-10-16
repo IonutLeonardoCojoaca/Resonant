@@ -89,6 +89,12 @@
     <color name="artist_gradient_end">#00FFFFFF</color>
 
     <!-- Playmix header scrim colors (Light mode) -->
+    <!-- Marca PlayMix: degradado atardecer (naranja → rosa); igual en claro y oscuro. -->
+    <color name="playmix_accent">#FF7A59</color>
+    <color name="playmix_accent_end">#FF4FB8</color>
+    <color name="playmix_rail_start">#80FF7A59</color>
+    <color name="playmix_rail_end">#80FF4FB8</color>
+    <color name="playmix_glow">#55FF7A59</color>
     <color name="playmix_scrim_start">#00FFFFFF</color>
     <color name="playmix_scrim_center">#80FFFFFF</color>
     <color name="playmix_scrim_end">#FFFFFFFF</color>

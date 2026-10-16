@@ -112,19 +112,19 @@ class WaveformView @JvmOverloads constructor(
     // ── Zoom gesture ──────────────────────────────────────────────────────────
     // ── Paints ────────────────────────────────────────────────────────────────
     private val paintWaveA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CC1ED760")
+        color = Color.parseColor("#CCFF7A59")
         style = Paint.Style.FILL
     }
     private val paintWaveAOverlap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#AA1ED760")
+        color = Color.parseColor("#AAFF7A59")
         style = Paint.Style.FILL
     }
     private val paintWaveB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CC40C4FF")
+        color = Color.parseColor("#CCFF4FB8")
         style = Paint.Style.FILL
     }
     private val paintWaveBOverlap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#AA40C4FF")
+        color = Color.parseColor("#AAFF4FB8")
         style = Paint.Style.FILL
     }
     private val paintDivider = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -133,35 +133,35 @@ class WaveformView @JvmOverloads constructor(
         style = Paint.Style.STROKE
     }
     private val paintCenterA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FF1ED760")
+        color = Color.parseColor("#FFFF7A59")
         strokeWidth = 2.5f
         style = Paint.Style.STROKE
     }
     private val paintCenterB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FF40C4FF")
+        color = Color.parseColor("#FFFF4FB8")
         strokeWidth = 2.5f
         style = Paint.Style.STROKE
     }
     private val paintCfZoneA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#221ED760")
+        color = Color.parseColor("#22FF7A59")
         style = Paint.Style.FILL
     }
     private val paintCfZoneB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#2240C4FF")
+        color = Color.parseColor("#22FF4FB8")
         style = Paint.Style.FILL
     }
     private val paintBeatA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#551ED760")
+        color = Color.parseColor("#55FF7A59")
         strokeWidth = 1f
         style = Paint.Style.STROKE
     }
     private val paintBeatB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#5540C4FF")
+        color = Color.parseColor("#55FF4FB8")
         strokeWidth = 1f
         style = Paint.Style.STROKE
     }
     private val paintBeatSnap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#9900FF88")
+        color = Color.parseColor("#99FFD27A")
         strokeWidth = 1.5f
         style = Paint.Style.STROKE
         pathEffect = DashPathEffect(floatArrayOf(4f, 3f), 0f)
@@ -188,7 +188,7 @@ class WaveformView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
     private val paintSnapIndicator = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CC00FF88")
+        color = Color.parseColor("#CCFFD27A")
         style = Paint.Style.FILL
     }
 
@@ -208,21 +208,21 @@ class WaveformView @JvmOverloads constructor(
         style = Paint.Style.STROKE
     }
     private val paintMinimapMarkerA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FF1ED760")
+        color = Color.parseColor("#FFFF7A59")
         strokeWidth = 2f
         style = Paint.Style.STROKE
     }
     private val paintMinimapMarkerB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FF40C4FF")
+        color = Color.parseColor("#FFFF4FB8")
         strokeWidth = 2f
         style = Paint.Style.STROKE
     }
     private val paintMinimapWaveA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#661ED760")
+        color = Color.parseColor("#66FF7A59")
         style = Paint.Style.FILL
     }
     private val paintMinimapWaveB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#6640C4FF")
+        color = Color.parseColor("#66FF4FB8")
         style = Paint.Style.FILL
     }
     private var isDraggingMinimap = false
@@ -252,7 +252,7 @@ class WaveformView @JvmOverloads constructor(
         pathEffect = DashPathEffect(floatArrayOf(8f, 4f), 0f)
     }
     private val paintAutoTreble = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CC40C4FF")
+        color = Color.parseColor("#CCFF4FB8")
         strokeWidth = 2.2f
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -262,11 +262,11 @@ class WaveformView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val paintTransitionWindow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#221ED760")
+        color = Color.parseColor("#22FF7A59")
         style = Paint.Style.FILL
     }
     private val paintHighlightBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CC1ED760")
+        color = Color.parseColor("#CCFF7A59")
         style = Paint.Style.STROKE
         strokeWidth = 4f
         strokeJoin = Paint.Join.ROUND

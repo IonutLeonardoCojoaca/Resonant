@@ -148,6 +148,12 @@
         <item name="cornerSize">15dp</item>
     </style>
 
+    <!-- Portada nítida de la cabecera de las fichas (canción, álbum). -->
+    <style name="DetailHeroArtShape">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">22dp</item>
+    </style>
+
     <style name="CircularUserImage">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>
@@ -268,6 +274,20 @@
         <item name="android:textSize">13sp</item>
     </style>
 
+    <!-- Dato compacto de PlayMix (BPM, duración, tono): píldora oscura con texto en negrita. -->
+    <style name="PlaymixStatChip">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_playmix_stat_chip</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:paddingVertical">6dp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">11.5sp</item>
+    </style>
+
     <!-- Fila de "Top canciones" en la tarjeta de entidad de Aria. -->
     <style name="AriaCardTrackRow">
         <item name="android:layout_width">match_parent</item>
@@ -279,5 +299,50 @@
         <item name="android:paddingBottom">5dp</item>
         <item name="android:textColor">@color/textEmphasisHigh</item>
         <item name="android:textSize">12.5sp</item>
+    </style>
+
+    <!-- ═══ Fichas (canción, álbum, artista) ═══ -->
+    <style name="DetailSectionLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:letterSpacing">0.16</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">10.5sp</item>
+    </style>
+
+    <style name="DetailTile">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">14dp</item>
+    </style>
+
+    <style name="DetailTileLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:letterSpacing">0.14</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">9.5sp</item>
+    </style>
+
+    <style name="DetailTileValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">34sp</item>
+    </style>
+
+    <style name="DetailTileCaption">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">11.5sp</item>
     </style>
 </resources>

@@ -60,7 +60,7 @@
             android:layout_height="match_parent"
             android:paddingHorizontal="14dp"
             android:paddingTop="8dp"
-            android:paddingBottom="120dp"
+            android:paddingBottom="@dimen/screen_bottom_inset"
             android:clipToPadding="false"
             android:overScrollMode="never" />
 
@@ -103,7 +103,7 @@
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
         android:layout_marginEnd="20dp"
-        android:layout_marginBottom="100dp"
+        android:layout_marginBottom="@dimen/screen_bottom_inset_compact"
         android:src="@drawable/ic_add"
         app:backgroundTint="#E21616"
         app:tint="@android:color/white" />

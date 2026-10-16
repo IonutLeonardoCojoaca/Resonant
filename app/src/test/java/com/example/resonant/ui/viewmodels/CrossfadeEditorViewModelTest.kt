@@ -307,6 +307,66 @@ class CrossfadeEditorViewModelTest {
         assertFalse(viewModel.state.value!!.showGapSlider)
     }
 
+    // ─── Blend automático / transición avanzada ─────────
+
+    @Test
+    fun `switching to smart keeps the manual points and saves mixMode smart`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse(exitPointMs = 190000, crossfadeDurationMs = 12000)
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        viewModel.setSmartMode(true)
+        val state = viewModel.state.value!!
+        assertEquals("smart", state.mixMode)
+        assertEquals(190000, state.exitPointMs)
+        assertEquals(12000, state.crossfadeDurationMs)
+
+        viewModel.saveTransition()
+        advanceUntilIdle()
+        assertEquals("smart", fakePlaymixManager.updateRequests.single().mixMode)
+    }
+
+    @Test
+    fun `smart on an applied preset counts as a modification and drops the preset`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse(presetCode = "smooth-fade", presetName = "Smooth Fade")
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        viewModel.setSmartMode(true)
+        assertTrue(viewModel.state.value!!.isPresetModified)
+
+        viewModel.saveTransition()
+        advanceUntilIdle()
+        val update = fakePlaymixManager.updateRequests.single()
+        assertEquals("smart", update.mixMode)
+        assertNull(update.presetCode)
+    }
+
+    @Test
+    fun `back to advanced restores the previous manual mode`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+        viewModel.setMixMode("club_drop")
+
+        viewModel.setSmartMode(true)
+        viewModel.setSmartMode(false)
+
+        assertEquals("club_drop", viewModel.state.value!!.mixMode)
+    }
+
+    @Test
+    fun `a smart transition opens in advanced as crossfade`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse(mixMode = "smart")
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+        assertEquals("smart", viewModel.state.value!!.mixMode)
+
+        viewModel.setSmartMode(false)
+
+        assertEquals("crossfade", viewModel.state.value!!.mixMode)
+    }
+
     // ─── Helpers ────────────────────────────────
 
     private fun createWaveformResponse(
@@ -315,7 +375,8 @@ class CrossfadeEditorViewModelTest {
         isPresetModified: Boolean = false,
         exitPointMs: Int = 200000,
         entryPointMs: Int = 0,
-        crossfadeDurationMs: Int = 8000
+        crossfadeDurationMs: Int = 8000,
+        mixMode: String = "crossfade"
     ): WaveformResponseDTO {
         val transition = PlaymixTransitionDTO(
             id = "t1",
@@ -329,7 +390,8 @@ class CrossfadeEditorViewModelTest {
             compatibility = createCompatibility(),
             presetCode = presetCode,
             presetName = presetName,
-            isPresetModified = isPresetModified
+            isPresetModified = isPresetModified,
+            mixMode = mixMode
         )
         return WaveformResponseDTO(
             transition = transition,

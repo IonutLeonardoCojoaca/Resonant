@@ -82,7 +82,7 @@ data class ListeningStatsUiState(
     val minutesDelta: Int get() = (summary?.minutes ?: 0) - (summary?.previousMinutes ?: 0)
 }
 
-/** Pantalla "Tus estadísticas": periodo Semana/Mes/Año, navegación al anterior y datos de `api/me/stats/*`. */
+/** Pantalla "Tus estadísticas": periodo Semana/Mes/Año, navegación al anterior y datos de `api/me/stats/…`. */
 class ListeningStatsViewModel(
     private val source: ListeningStatsSource,
     private val today: () -> LocalDate = { LocalDate.now() }

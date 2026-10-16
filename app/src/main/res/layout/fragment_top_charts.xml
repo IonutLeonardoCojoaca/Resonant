@@ -98,7 +98,7 @@
         android:layoutAnimation="@anim/layout_animation_fade_slide"
         android:paddingHorizontal="10dp"
         android:paddingTop="4dp"
-        android:paddingBottom="200dp"
+        android:paddingBottom="@dimen/screen_bottom_inset"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <!-- ProgressBar -->

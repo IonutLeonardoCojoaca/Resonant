@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de dato de las fichas: etiqueta en su color, valor grande y apunte. Color en InsightTile. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/DetailTile"
+    android:layout_width="match_parent">
+
+    <TextView
+        android:id="@+id/statLabel"
+        style="@style/DetailTileLabel"
+        tools:text="REPRODUCCIONES" />
+
+    <TextView
+        android:id="@+id/statValue"
+        style="@style/DetailTileValue"
+        android:layout_marginTop="10dp"
+        android:textSize="28sp"
+        tools:text="12,3 K" />
+
+    <TextView
+        android:id="@+id/statCaption"
+        style="@style/DetailTileCaption"
+        android:maxLines="1"
+        tools:text="en todo Resonant" />
+</LinearLayout>

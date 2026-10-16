@@ -88,6 +88,8 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         private const val MAX_PROMPT_LENGTH = 500
         private const val CHAR_DELAY_MS = 18L
         private const val KEYBOARD_EXTRA_LIFT_DP = 16
+        /** `paddingBottom` del composer en `fragment_aria.xml`. */
+        private const val INPUT_BASE_PADDING_BOTTOM_DP = 6
     }
 
     // ── Core Views ────────────────────────────────────────────────────────────
@@ -1123,14 +1125,20 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         ViewCompat.requestApplyInsets(rootLayout)
     }
 
+    /**
+     * El hueco del bottom nav/mini-player se reserva como padding, no como margen: así el
+     * velo degradado del composer llega hasta el borde inferior y tapa el contenido que
+     * pasa por detrás del nav, en vez de cortarse justo encima de él.
+     */
     private fun applyInputBottomMargin() {
         val inputContainer = view?.findViewById<View>(R.id.ariaInputContainer) ?: return
         val extra = if (isKeyboardVisible) dpToPx(KEYBOARD_EXTRA_LIFT_DP) else 0
-        val newMargin = baseInputBottomMargin + extra
-        val params = inputContainer.layoutParams as ViewGroup.MarginLayoutParams
-        if (params.bottomMargin != newMargin) {
-            params.bottomMargin = newMargin
-            inputContainer.requestLayout()
+        val newPadding = dpToPx(INPUT_BASE_PADDING_BOTTOM_DP) + baseInputBottomMargin + extra
+        if (inputContainer.paddingBottom != newPadding) {
+            inputContainer.setPadding(
+                inputContainer.paddingLeft, inputContainer.paddingTop,
+                inputContainer.paddingRight, newPadding
+            )
         }
     }
 
