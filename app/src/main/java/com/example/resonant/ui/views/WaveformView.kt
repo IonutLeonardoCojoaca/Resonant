@@ -1,8 +1,10 @@
 package com.example.resonant.ui.views
 
 import com.example.resonant.data.network.MixDocumentDTO
+import com.example.resonant.playback.BarGrid
 import com.example.resonant.playback.BeatMagnet
 import com.example.resonant.playback.MixLanes
+import com.example.resonant.playback.PhaseAlignment
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -23,8 +25,12 @@ import kotlin.math.roundToInt
  * - Top half  = Song A (exiting). Drag left/right to move the exit point.
  * - Bottom half= Song B (entering). Drag left/right to move the entry point.
  * - A fixed center line acts as the scrub head; dragging scrolls the waveform under it.
- * - While dragging, the marker is pulled to the nearest beat when within a fraction of the
- *   local beat interval (BeatMagnet); on finger-up the same rule applies.
+ * - Grid: bar lines (downbeats) and slightly stronger phrase lines; beat lines only when zoomed in
+ *   enough. With bpmPrecise + firstDownbeatMs the exact bar grid ([BarGrid]) is used.
+ * - Tempo lock: when both songs have exact grids and compatible tempos, song B is drawn at A's tempo
+ *   from its entry marker (as playback does with beatSync), so B's bars line up with A's.
+ * - While dragging, markers stay locked to their song's bars (phrase starts first); without real
+ *   downbeats the old beat magnet (BeatMagnet) applies.
  * - The crossfade zone is highlighted and both waveforms are drawn overlapping there.
  * - A thin white playback cursor is updated via [setPlaybackPositionMs].
  */
@@ -50,6 +56,10 @@ class WaveformView @JvmOverloads constructor(
         const val ZOOM_MAX = 1f      // muy cerca
         const val ZOOM_DEFAULT = 0.05f
         private const val AUTO_TRANSITION_WIDTH_RATIO = 0.68f
+        /** Separación mínima entre beats para dibujarlos (dp). */
+        private const val BEAT_LINE_MIN_SPACING_DP = 12f
+        /** Separación mínima entre líneas de compás; por debajo se dibuja uno de cada 2, 4… (dp). */
+        private const val BAR_LINE_MIN_SPACING_DP = 6f
     }
 
     // ── Mix mode & curve ──────────────────────────────────────────────────────
@@ -93,6 +103,19 @@ class WaveformView @JvmOverloads constructor(
     private var downbeatsB: List<Int> = emptyList()
     private var phrasesA: List<Int> = emptyList()
     private var phrasesB: List<Int> = emptyList()
+    // Rejilla exacta (bpmPrecise + firstDownbeatMs) de cada canción; null sin ajuste
+    private var tempoGridA: PhaseAlignment.Grid? = null
+    private var tempoGridB: PhaseAlignment.Grid? = null
+    private var beatsPerBarA: Int? = null
+    private var beatsPerBarB: Int? = null
+    private var barGridA: BarGrid = BarGrid.EMPTY
+    private var barGridB: BarGrid = BarGrid.EMPTY
+    /**
+     * ms de B por ms de la mezcla mientras suenan juntas: `bpmA / bpmB` con tempos bloqueados (la reproducción
+     * acelera B a ese ritmo), 1 si no. B se dibuja escalada desde su marcador para que sus compases caigan
+     * sobre los de A.
+     */
+    private var tempoRatioB: Float = 1f
 
     // ── Shared scroll offset ──────────────────────────────────────────────────
     // sharedOffsetMs: ms offset (negative = marker is to the RIGHT of left edge).
@@ -308,6 +331,7 @@ class WaveformView @JvmOverloads constructor(
         durationB = durB
         beatGridA = beatsA ?: emptyList()
         beatGridB = beatsB ?: emptyList()
+        rebuildGrids()
         exitPointMsF = exitPointMs.toFloat()
         entryPointMsF = entryPointMs.toFloat()
         recenterOffsets()
@@ -320,6 +344,30 @@ class WaveformView @JvmOverloads constructor(
         phrasesA = phraseStartsA ?: emptyList()
         downbeatsB = downB ?: emptyList()
         phrasesB = phraseStartsB ?: emptyList()
+        rebuildGrids()
+        invalidate()
+    }
+
+    /**
+     * Rejillas exactas de cada canción (`PhaseAlignment.gridOf(bpmPrecise, firstDownbeatMs, beatsPerBar)`), o null
+     * para usar la rejilla en bruto. Con las dos y tempos compatibles, B se dibuja al tempo de A.
+     */
+    fun setTempoGrids(gridA: PhaseAlignment.Grid?, gridB: PhaseAlignment.Grid?, bpbA: Int? = null, bpbB: Int? = null) {
+        tempoGridA = gridA
+        tempoGridB = gridB
+        beatsPerBarA = bpbA
+        beatsPerBarB = bpbB
+        rebuildGrids()
+        invalidate()
+    }
+
+    /** true si B se dibuja al tempo de A (tempos bloqueados). */
+    val isTempoLocked: Boolean get() = tempoRatioB != 1f
+
+    private fun rebuildGrids() {
+        barGridA = BarGrid.of(tempoGridA, beatGridA, downbeatsA, phrasesA, beatsPerBarA, durationA)
+        barGridB = BarGrid.of(tempoGridB, beatGridB, downbeatsB, phrasesB, beatsPerBarB, durationB)
+        tempoRatioB = BarGrid.tempoLockRatio(barGridA, barGridB)?.toFloat() ?: 1f
     }
 
     fun setTransitionPoints(exitMs: Int, entryMs: Int, crossfadeMs: Int) {
@@ -403,12 +451,14 @@ class WaveformView @JvmOverloads constructor(
 
         // Unified single-scroll: both lanes anchored to the transition point.
         // sharedOffsetMs is the ms-from-transition-start at the LEFT edge of the screen.
-        val offsetAMs = exitPointMs.toFloat() + sharedOffsetMs
-        val offsetBMs = entryPointMs.toFloat() + sharedOffsetMs
-        // EXIT and ENTRY markers are at the same screen x (they define time=0 of the transition)
+        // markerX = time 0 of the mix (A's exit). B enters `b.offsetMs` later on the mix timeline and,
+        // with tempo lock, runs `tempoRatioB` B-ms per mix-ms from its entry marker.
         val markerX = -sharedOffsetMs * pixelsPerMs
         val markerAx = markerX
-        val markerBx = markerX
+        val markerBx = markerX + (mixDocument?.b?.offsetMs ?: 0) * pixelsPerMs
+        val scaleB = tempoRatioB
+        val exitMsF = exitPointMs.toFloat()
+        val entryMsF = entryPointMs.toFloat()
 
         // Waveform drawing areas (above minimap)
         val waveTopA = 0f
@@ -427,8 +477,8 @@ class WaveformView @JvmOverloads constructor(
         }
 
         // Waveforms
-        drawScrolledWaveform(canvas, amplitudesA, durationA, offsetAMs, waveTopA, waveBotA, paintWaveA)
-        drawScrolledWaveform(canvas, amplitudesB, durationB, offsetBMs, waveTopB, waveBotB, paintWaveB)
+        drawScrolledWaveform(canvas, amplitudesA, durationA, exitMsF, markerAx, 1f, waveTopA, waveBotA, paintWaveA)
+        drawScrolledWaveform(canvas, amplitudesB, durationB, entryMsF, markerBx, scaleB, waveTopB, waveBotB, paintWaveB)
 
         // Dim overlays
         if (transLeft > 0f) {
@@ -443,19 +493,19 @@ class WaveformView @JvmOverloads constructor(
             canvas.drawRoundRect(winRect, 16f, 16f, paintHighlightBorder)
         }
 
-        // Beat grids
-        drawBeatGrid(canvas, beatGridA, durationA, offsetAMs, waveTopA, waveBotA, w, paintBeatA)
-        drawBeatGrid(canvas, beatGridB, durationB, offsetBMs, waveTopB, waveBotB, w, paintBeatB)
+        // Bar grids (bars, phrases and, zoomed in, beats)
+        drawBarGrid(canvas, barGridA, exitMsF, markerAx, 1f, waveTopA, waveBotA, w, paintBeatA)
+        drawBarGrid(canvas, barGridB, entryMsF, markerBx, scaleB, waveTopB, waveBotB, w, paintBeatB)
 
-        // Nearest-beat snap guides
-        if (isDragging && !isDraggingMinimap && touchingTopHalf && beatGridA.isNotEmpty()) {
-            val nearestMs = snapToNearestBeat(exitPointMs, beatGridA)
-            val nearX = (nearestMs - offsetAMs) * pixelsPerMs
+        // Snap guides: where the dragged marker is locked
+        if (isDragging && !isDraggingMinimap && touchingTopHalf && barGridA.hasBars) {
+            val nearestMs = lockExit(exitPointMs)
+            val nearX = markerAx + (nearestMs - exitMsF) * pixelsPerMs
             if (nearX in 0f..w) canvas.drawLine(nearX, waveTopA, nearX, waveBotA, paintBeatSnap)
         }
-        if (isDragging && !isDraggingMinimap && !touchingTopHalf && beatGridB.isNotEmpty()) {
-            val nearestMs = snapToNearestBeat(entryPointMs, beatGridB)
-            val nearX = (nearestMs - offsetBMs) * pixelsPerMs
+        if (isDragging && !isDraggingMinimap && !touchingTopHalf && barGridB.hasBars) {
+            val nearestMs = lockEntry(entryPointMs)
+            val nearX = markerBx + (nearestMs - entryMsF) / scaleB * pixelsPerMs
             if (nearX in 0f..w) canvas.drawLine(nearX, waveTopB, nearX, waveBotB, paintBeatSnap)
         }
 
@@ -465,11 +515,11 @@ class WaveformView @JvmOverloads constructor(
 
         // ── Playback cursors ──────────────────────────────────────────────────
         if (playbackPositionAMs >= 0) {
-            val curAx = (playbackPositionAMs - offsetAMs) * pixelsPerMs
+            val curAx = markerAx + (playbackPositionAMs - exitMsF) * pixelsPerMs
             if (curAx in 0f..w) canvas.drawLine(curAx, waveTopA, curAx, waveBotA, paintCursor)
         }
         if (playbackPositionBMs >= 0) {
-            val curBx = (playbackPositionBMs - offsetBMs) * pixelsPerMs
+            val curBx = markerBx + (playbackPositionBMs - entryMsF) / scaleB * pixelsPerMs
             if (curBx in 0f..w) canvas.drawLine(curBx, waveTopB, curBx, waveBotB, paintCursor)
         }
 
@@ -477,11 +527,17 @@ class WaveformView @JvmOverloads constructor(
         drawAutomationLines(canvas, markerAx, markerBx, cfPx, w, waveTopA, waveBotA, waveTopB, waveBotB)
     }
 
+    /**
+     * Onda de una canción: el instante [anchorMs] de la canción cae en [anchorX] y cada ms de la mezcla avanza
+     * [scale] ms de la canción (1 para A; `bpmA / bpmB` para B con tempos bloqueados).
+     */
     private fun drawScrolledWaveform(
         canvas: Canvas,
         amps: List<Float>,
         durMs: Int,
-        offsetMs: Float,
+        anchorMs: Float,
+        anchorX: Float,
+        scale: Float,
         top: Float,
         bottom: Float,
         paint: Paint
@@ -490,8 +546,10 @@ class WaveformView @JvmOverloads constructor(
         val midY = (top + bottom) / 2f
         val maxAmp = (bottom - top) * 0.42f
         val barDurMs = durMs.toFloat() / amps.size
+        val pxPerSongMs = pixelsPerMs / scale
+        val offsetMs = anchorMs - anchorX / pxPerSongMs // ms de la canción en el borde izquierdo
         val firstVisible = ((offsetMs / barDurMs).toInt() - 1).coerceAtLeast(0)
-        val lastVisible = (((offsetMs + width / pixelsPerMs) / barDurMs).toInt() + 1).coerceAtMost(amps.size - 1)
+        val lastVisible = (((offsetMs + width / pxPerSongMs) / barDurMs).toInt() + 1).coerceAtMost(amps.size - 1)
         val visibleCount = (lastVisible - firstVisible + 1).coerceAtLeast(1)
         val groupSize = (visibleCount / 96).coerceAtLeast(1)
 
@@ -504,8 +562,8 @@ class WaveformView @JvmOverloads constructor(
             }
             val timeMs = i * barDurMs
             val nextTimeMs = (end + 1) * barDurMs
-            val x = (timeMs - offsetMs) * pixelsPerMs
-            val x2 = (nextTimeMs - offsetMs) * pixelsPerMs
+            val x = (timeMs - offsetMs) * pxPerSongMs
+            val x2 = (nextTimeMs - offsetMs) * pxPerSongMs
             val rectWidth = (x2 - x - 2.5f).coerceAtLeast(4f)
             val cornerRadius = (rectWidth / 2f).coerceAtMost(4f)
             val ampH = (amp * maxAmp).coerceAtLeast(3f)
@@ -514,33 +572,66 @@ class WaveformView @JvmOverloads constructor(
         }
     }
 
-    private fun drawBeatGrid(
+    /**
+     * Rejilla de una canción con el mismo anclaje que [drawScrolledWaveform]: una línea por compás (aclarada si
+     * los compases quedan muy juntos), las frases algo más marcadas y los beats solo con zoom suficiente.
+     */
+    private fun drawBarGrid(
         canvas: Canvas,
-        beats: List<Int>,
-        durMs: Int,
-        offsetMs: Float,
+        grid: BarGrid,
+        anchorMs: Float,
+        anchorX: Float,
+        scale: Float,
         top: Float,
         bottom: Float,
         totalWidth: Float,
         paint: Paint
     ) {
-        if (beats.isEmpty() || durMs <= 0) return
-        val viewEndMs = offsetMs + totalWidth / pixelsPerMs
+        if (!grid.hasBars) return
+        val pxPerSongMs = pixelsPerMs / scale
+        val fromMs = (anchorMs - anchorX / pxPerSongMs).toDouble()
+        val toMs = (anchorMs + (totalWidth - anchorX) / pxPerSongMs).toDouble()
+        val centerMs = (fromMs + toMs) / 2.0
+        val density = resources.displayMetrics.density
         val originalStroke = paint.strokeWidth
         val originalAlpha = paint.alpha
-        for ((index, beatMs) in beats.withIndex()) {
-            if (beatMs < offsetMs - 500 || beatMs > viewEndMs + 500) continue
-            val x = (beatMs - offsetMs) * pixelsPerMs
-            if (x < 0f || x > totalWidth) continue
-            if (index % 4 == 0) {
-                paint.strokeWidth = originalStroke * 1.8f
-                paint.alpha = (originalAlpha * 1.35f).toInt().coerceAtMost(255)
-            } else {
-                paint.strokeWidth = originalStroke
-                paint.alpha = originalAlpha
+        fun xOf(ms: Double): Float = (anchorX + (ms - anchorMs) * pxPerSongMs).toFloat()
+
+        // Beats: solo cuando quedan a ≥ BEAT_LINE_MIN_SPACING_DP entre sí.
+        val beatPx = grid.beatMsAt(centerMs) * pxPerSongMs
+        if (beatPx >= BEAT_LINE_MIN_SPACING_DP * density) {
+            paint.strokeWidth = originalStroke
+            paint.alpha = (originalAlpha * 0.6f).toInt()
+            grid.forEachBeat(fromMs, toMs, includeDownbeats = false) { ms ->
+                val x = xOf(ms)
+                canvas.drawLine(x, top, x, bottom, paint)
             }
+        }
+
+        // Compases: uno de cada `step` si quedan a menos de BAR_LINE_MIN_SPACING_DP (índice estable al desplazarse).
+        val barPx = grid.barMsAt(centerMs) * pxPerSongMs
+        var step = 1
+        if (barPx > 0.0) {
+            while (barPx * step < BAR_LINE_MIN_SPACING_DP * density && step < 1024) step *= 2
+        }
+        paint.strokeWidth = originalStroke * 1.6f
+        paint.alpha = (originalAlpha * 1.3f).toInt().coerceAtMost(255)
+        grid.forEachDownbeat(fromMs, toMs) { index, ms ->
+            if (index.mod(step) == 0) {
+                val x = xOf(ms)
+                canvas.drawLine(x, top, x, bottom, paint)
+            }
+        }
+
+        // Frases: algo más marcadas que los compases.
+        paint.strokeWidth = originalStroke * 2.4f
+        paint.alpha = (originalAlpha * 2.2f).toInt().coerceAtMost(255)
+        for (phraseMs in grid.phraseStarts) {
+            if (phraseMs < fromMs || phraseMs > toMs) continue
+            val x = xOf(phraseMs.toDouble())
             canvas.drawLine(x, top, x, bottom, paint)
         }
+
         paint.strokeWidth = originalStroke
         paint.alpha = originalAlpha
     }
@@ -600,16 +691,16 @@ class WaveformView @JvmOverloads constructor(
                         }
                     } else {
                         // ── Main area drag: move the exit/entry point ──
-                        // Imán a beats durante el arrastre: la posición real del dedo vive en
-                        // exitPointMsF/entryPointMsF; lo que se muestra y se guarda es el beat
-                        // capturado cuando el dedo está dentro del umbral local (BeatMagnet).
+                        // La posición real del dedo vive en exitPointMsF/entryPointMsF; lo que se muestra
+                        // y se guarda es el punto enganchado. Con rejilla de compases el marcador queda siempre en un downbeat (frase primero):
+                        // salida y entrada en compás = A y B en fase. B se mueve a su escala (tempo bloqueado).
                         val dx = event.x - lastTouchX
                         if (touchingTopHalf) {
                             exitPointMsF -= dx / pixelsPerMs
-                            exitPointMs = magnetize(exitPointMsF.roundToInt(), beatGridA)
+                            exitPointMs = lockExit(exitPointMsF.roundToInt())
                         } else {
-                            entryPointMsF -= dx / pixelsPerMs
-                            entryPointMs = magnetize(entryPointMsF.roundToInt(), beatGridB)
+                            entryPointMsF -= dx * tempoRatioB / pixelsPerMs
+                            entryPointMs = lockEntry(entryPointMsF.roundToInt())
                         }
                         lastTouchX = event.x
                         onScrubbing?.invoke(exitPointMs, entryPointMs)
@@ -623,13 +714,13 @@ class WaveformView @JvmOverloads constructor(
                 isDraggingMinimap = false
 
                 if (!wasMinimap) {
-                    // Snap to nearest beat on release if enabled (only for marker drags)
+                    // Same lock on release (only for marker drags)
                     if (snapToBeatEnabled) {
-                        if (touchingTopHalf && beatGridA.isNotEmpty()) {
-                            exitPointMs = snapToNearestBeat(exitPointMs, beatGridA)
+                        if (touchingTopHalf) {
+                            exitPointMs = lockExit(exitPointMs)
                             exitPointMsF = exitPointMs.toFloat()
-                        } else if (!touchingTopHalf && beatGridB.isNotEmpty()) {
-                            entryPointMs = snapToNearestBeat(entryPointMs, beatGridB)
+                        } else {
+                            entryPointMs = lockEntry(entryPointMs)
                             entryPointMsF = entryPointMs.toFloat()
                         }
                     }
@@ -647,16 +738,22 @@ class WaveformView @JvmOverloads constructor(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /** Beat capturado por el imán si está dentro del umbral local; si no, el propio instante. */
-    private fun magnetize(ms: Int, beatGrid: List<Int>): Int {
-        if (!snapToBeatEnabled) return ms
-        val isA = beatGrid === beatGridA
-        val downbeats = if (isA) downbeatsA else downbeatsB
-        val phrases = if (isA) phrasesA else phrasesB
-        return BeatMagnet.snapLevels(ms, beatGrid, downbeats, phrases).ms
-    }
+    /** Salida bloqueada a los compases de A (ver [lockToBars]). */
+    private fun lockExit(ms: Int): Int = lockToBars(ms, barGridA, beatGridA, downbeatsA, phrasesA)
 
-    private fun snapToNearestBeat(ms: Int, beatGrid: List<Int>): Int = magnetize(ms, beatGrid)
+    /** Entrada bloqueada a los compases de B (ver [lockToBars]). */
+    private fun lockEntry(ms: Int): Int = lockToBars(ms, barGridB, beatGridB, downbeatsB, phrasesB)
+
+    /**
+     * Con downbeats reales (rejilla exacta o del análisis), el inicio de frase cercano o el downbeat más próximo,
+     * siempre: salida y entrada en compás dejan A y B en fase. Sin ellos, el imán a beats de siempre.
+     */
+    private fun lockToBars(ms: Int, grid: BarGrid, beats: List<Int>, downbeats: List<Int>, phrases: List<Int>): Int {
+        if (!snapToBeatEnabled) return ms
+        val bar = grid.snapToBar(ms)
+        if (bar.level != BeatMagnet.Level.NONE) return bar.ms
+        return BeatMagnet.snapLevels(ms, beats, downbeats, phrases).ms
+    }
 
     private fun nextBeat(ms: Int, beatGrid: List<Int>): Int =
         beatGrid.filter { it > ms }.minOrNull() ?: ms
@@ -727,7 +824,9 @@ class WaveformView @JvmOverloads constructor(
         waveTopA: Float, waveBotA: Float, waveTopB: Float, waveBotB: Float
     ) {
         mixDocument?.let { doc ->
-            drawDocumentLanes(canvas, doc, markerAx, markerBx, w, waveTopA, waveBotA, waveTopB, waveBotB)
+            // Los carriles de las dos canciones van en la línea de tiempo de la mezcla (tiempo de A), que empieza en
+            // el marcador de A; el de B ya se desplaza `b.offsetMs` dentro de drawDocumentLanes.
+            drawDocumentLanes(canvas, doc, markerAx, markerAx, w, waveTopA, waveBotA, waveTopB, waveBotB)
             return
         }
         val autoAreaHA = (waveBotA - waveTopA) * 0.22f

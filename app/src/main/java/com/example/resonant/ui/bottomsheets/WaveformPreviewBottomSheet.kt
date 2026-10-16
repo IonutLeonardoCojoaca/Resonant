@@ -15,6 +15,7 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.WaveformResponseDTO
 import com.example.resonant.data.network.WaveformSongDTO
+import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SessionManager
 import com.example.resonant.managers.SongManager
@@ -112,6 +113,16 @@ class WaveformPreviewBottomSheet(
                     ampA, ampB,
                     data.songA.durationMs, data.songB.durationMs,
                     data.songA.beatGrid, data.songB.beatGrid
+                )
+                // Mismas rejillas que el editor: compases exactos y B al tempo de A.
+                waveform.setStructureGrids(
+                    data.songA.downbeatGrid, data.songA.phrases?.map { it.startMs },
+                    data.songB.downbeatGrid, data.songB.phrases?.map { it.startMs }
+                )
+                waveform.setTempoGrids(
+                    PhaseAlignment.gridOf(data.songA.bpmPrecise, data.songA.firstDownbeatMs, data.songA.beatsPerBar),
+                    PhaseAlignment.gridOf(data.songB.bpmPrecise, data.songB.firstDownbeatMs, data.songB.beatsPerBar),
+                    data.songA.beatsPerBar, data.songB.beatsPerBar
                 )
                 waveform.fadeCurveType = transition.fadeCurveType
                 waveform.mixMode = transition.mixMode ?: "crossfade"

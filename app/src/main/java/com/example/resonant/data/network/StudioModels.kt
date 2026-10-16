@@ -32,7 +32,10 @@ data class StudioSongDTO(
     val integratedLufs: Double? = null,
     val mixInMs: Int? = null,
     val mixOutMs: Int? = null,
-    val dropMs: Int? = null
+    val dropMs: Int? = null,
+    /** BPM ajustado y primer downbeat: con [beatsPerBar] definen la rejilla de compases exacta (null sin ajuste). */
+    val bpmPrecise: Double? = null,
+    val firstDownbeatMs: Int? = null
 )
 
 data class StudioLimitsDTO(

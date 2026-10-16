@@ -150,7 +150,10 @@ data class WaveformSongDTO(
     val beatsPerBar: Int? = null,
     val mixInMs: Int? = null,
     val mixOutMs: Int? = null,
-    val dropMs: Int? = null
+    val dropMs: Int? = null,
+    // ─── Rejilla exacta: con beatsPerBar define los compases sin el cuantizado de beatGrid (null sin ajuste) ───
+    val bpmPrecise: Double? = null,
+    val firstDownbeatMs: Int? = null
 )
 
 /** Frase musical del análisis v2: inicio (downbeat) y número de compases. */

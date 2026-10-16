@@ -21,9 +21,10 @@ import kotlin.math.roundToInt
  *   donde empieza su audio. Con rejilla, el fundido empieza en un compás de A.
  * - Corte: corte casi instantáneo (empalme de [CUT_SPLICE_MS]) al final de A. Con rejilla en las
  *   dos, el primer downbeat de B cae justo en el compás siguiente de A.
- * - Inteligente: con rejilla en las dos y BPM compatibles, mezcla en compases enteros con
- *   intercambio de graves y sincronía de tempo; si no, fundido de [SMART_BLEND_MS] con un traspaso
- *   suave de graves. Una receta del servidor tiene prioridad.
+ * - Inteligente: con rejilla en las dos y BPM compatibles, mezcla en compases enteros con sincronía
+ *   de tempo y una "unión" suave: B entra sin graves, los medios de A se retiran, los graves se
+ *   cruzan en una rampa de un beat que acaba en un downbeat y los agudos de A se van al final; si no,
+ *   fundido de [SMART_BLEND_MS] con un traspaso suave de graves. Una receta del servidor tiene prioridad.
  *
  * Regla común ("outro sobre intro"): la mezcla termina donde acaba el audio de A y B empieza en su
  * inicio (primer downbeat), así que no se salta nada de ninguna canción. Los cue points solo limitan
@@ -62,9 +63,16 @@ object TransitionPlanner {
     const val SMART_MAX_BLEND_MS = 12_000L
     const val MAX_BEATMATCH_MS = 40_000L
     const val BEATMATCH_TOLERANCE = 0.06
-    /** Atenuación de graves que se pide al EQ del dispositivo (suele admitir hasta −15 dB). */
-    const val BASS_KILL_DB = -15.0
+    /**
+     * Corte de graves del beatmatch. Se pide más de lo que admite el EQ del dispositivo (suele llegar a
+     * −15 dB): `TransitionManager` lo limita a su rango, así que en la práctica es el máximo corte posible.
+     */
+    const val BASS_KILL_DB = -30.0
     const val BASS_SOFT_DB = -6.0
+    /** Medios de A al final de su retirada (antes del intercambio de graves). */
+    const val MID_FADE_DB = -12.0
+    /** Agudos de A al final de la mezcla: es lo último que se va. */
+    const val HIGH_FADE_DB = -12.0
 
     fun trackOf(analysis: AudioAnalysis?, exoDurationMs: Long): Track? {
         val analysisDuration = (analysis?.durationMs ?: 0).toLong()
@@ -170,14 +178,27 @@ object TransitionPlanner {
         if (aStart < a.audioStartMs || aStart + blend > a.durationMs) return null
 
         val duration = blend.roundToInt().toLong()
-        val half = (blend / 2).roundToInt()
+        val end = duration.toInt()
         val beat = (barA / gridA.beatsPerBar).roundToInt()
-        val swapFrom = (half - beat).coerceAtLeast(0)
+        // Intercambio de graves en un compás de A: el del centro o, si cae dentro, el del mixIn de B
+        // (donde termina su intro), pasado a tiempo de la mezcla (B suena `ratio` veces más rápida).
+        val swapBars = b.mixInMs
+            ?.let { (it - bStart) / ratio }
+            ?.takeIf { it >= barA && it <= blend - barA }
+            ?.let { Math.round(it / barA).toInt().coerceIn(1, bars - 1) }
+            ?: (bars / 2)
+        val swap = (swapBars * barA).roundToInt()
+        val swapFrom = (swap - beat).coerceAtLeast(0)
+        // Unión suave: ganancias de potencia constante en toda la mezcla; B entra sin graves y con sus medios;
+        // los medios de A se retiran antes del intercambio, los graves se cruzan en una rampa de un beat que
+        // acaba en el downbeat y los agudos de A son lo último que se va.
         val lanes = mapOf(
-            "a.gain" to listOf(point(0, 1.0, "hold"), point(half, 1.0, "equalPower"), point(duration.toInt(), 0.0)),
-            "b.gain" to listOf(point(0, 0.0, "equalPower"), point(half, 1.0)),
-            "a.eq.low" to listOf(point(0, 0.0, "hold"), point(swapFrom, 0.0, "linear"), point(half, BASS_KILL_DB)),
-            "b.eq.low" to listOf(point(0, BASS_KILL_DB, "hold"), point(swapFrom, BASS_KILL_DB, "linear"), point(half, 0.0))
+            "a.gain" to listOf(point(0, 1.0, "equalPower"), point(end, 0.0)),
+            "b.gain" to listOf(point(0, 0.0, "equalPower"), point(end, 1.0)),
+            "a.eq.low" to lane(point(0, 0.0, "linear"), point(swapFrom, 0.0, "smooth"), point(swap, BASS_KILL_DB)),
+            "b.eq.low" to lane(point(0, BASS_KILL_DB, "linear"), point(swapFrom, BASS_KILL_DB, "smooth"), point(swap, 0.0)),
+            "a.eq.mid" to lane(point(0, 0.0, "smooth"), point(swapFrom, MID_FADE_DB)),
+            "a.eq.high" to lane(point(0, 0.0, "linear"), point(swap, 0.0, "smooth"), point(end, HIGH_FADE_DB))
         )
         return Plan(
             doc = document(aStart.roundToInt().toLong(), bStart.roundToInt().toLong().coerceAtLeast(0L), duration, lanes),
@@ -224,6 +245,10 @@ object TransitionPlanner {
         )
 
     private fun point(t: Int, v: Double, curve: String? = null) = MixLanePointDTO(t = t, v = v, curve = curve)
+
+    /** Carril sin puntos repetidos en el mismo instante (se queda el último de cada instante). */
+    private fun lane(vararg points: MixLanePointDTO): List<MixLanePointDTO> =
+        points.filterIndexed { i, p -> i == points.lastIndex || points[i + 1].t > p.t }
 
     fun downbeatAtOrBefore(grid: PhaseAlignment.Grid, t: Double): Double {
         val bar = PhaseAlignment.barMs(grid)

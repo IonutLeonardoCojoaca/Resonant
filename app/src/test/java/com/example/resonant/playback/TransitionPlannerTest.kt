@@ -108,13 +108,56 @@ class TransitionPlannerTest {
         assertTrue(plan.hasEq)
 
         val doc = plan.doc
-        assertEquals(1.0, MixLanes.gain(doc, 'a', 7_500.0), 1e-9)       // A entera hasta la mitad
-        assertEquals(1.0, MixLanes.gain(doc, 'b', 7_500.0), 1e-9)       // B ya entera en la mitad
+        // Ganancias de potencia constante durante toda la mezcla (sin escalones "hold").
+        assertConstantPower(plan)
+        assertEquals(1.0, MixLanes.gain(doc, 'a', 0.0), 1e-9)
+        assertEquals(0.0, MixLanes.gain(doc, 'b', 0.0), 1e-9)
         assertEquals(0.0, MixLanes.gain(doc, 'a', 15_000.0), 1e-9)
-        assertEquals(0.0, MixLanes.eqDb(doc, 'a', "low", 7_000.0), 1e-9) // graves de A hasta un beat antes
+        assertEquals(1.0, MixLanes.gain(doc, 'b', 15_000.0), 1e-9)
+        assertTrue(doc.lanes!!.values.flatten().none { it.curve == "hold" })
+
+        // Intercambio de graves en el downbeat del centro (compás 4 de 8 = 7 500 ms) con rampa de un beat (469 ms).
+        assertEquals(0.0, MixLanes.eqDb(doc, 'a', "low", 7_031.0), 1e-9)                       // graves de A hasta un beat antes
+        assertEquals(TransitionPlanner.BASS_KILL_DB, MixLanes.eqDb(doc, 'b', "low", 0.0), 1e-9) // B entra sin graves
+        assertEquals(TransitionPlanner.BASS_KILL_DB, MixLanes.eqDb(doc, 'b', "low", 7_031.0), 1e-9)
+        val midRampA = MixLanes.eqDb(doc, 'a', "low", 7_265.0)
+        val midRampB = MixLanes.eqDb(doc, 'b', "low", 7_265.0)
+        assertTrue("rampa, no escalón", midRampA < -1.0 && midRampA > TransitionPlanner.BASS_KILL_DB + 1.0)
+        assertTrue("rampa, no escalón", midRampB < -1.0 && midRampB > TransitionPlanner.BASS_KILL_DB + 1.0)
         assertEquals(TransitionPlanner.BASS_KILL_DB, MixLanes.eqDb(doc, 'a', "low", 7_500.0), 1e-9)
-        assertEquals(TransitionPlanner.BASS_KILL_DB, MixLanes.eqDb(doc, 'b', "low", 7_000.0), 1e-9)
-        assertEquals(0.0, MixLanes.eqDb(doc, 'b', "low", 7_500.0), 1e-9) // intercambio de graves
+        assertEquals(0.0, MixLanes.eqDb(doc, 'b', "low", 7_500.0), 1e-9)
+
+        // Medios de A: se retiran poco a poco y han terminado antes del intercambio; B conserva los suyos.
+        val midEarly = MixLanes.eqDb(doc, 'a', "mid", 2_000.0)
+        assertTrue(midEarly < 0.0 && midEarly > TransitionPlanner.MID_FADE_DB)
+        assertEquals(TransitionPlanner.MID_FADE_DB, MixLanes.eqDb(doc, 'a', "mid", 7_031.0), 1e-9)
+        assertEquals(0.0, MixLanes.eqDb(doc, 'b', "mid", 3_000.0), 1e-9)
+
+        // Agudos de A: intactos hasta el intercambio, lo último que se va.
+        assertEquals(0.0, MixLanes.eqDb(doc, 'a', "high", 7_500.0), 1e-9)
+        assertTrue(MixLanes.eqDb(doc, 'a', "high", 11_250.0) < 0.0)
+        assertEquals(TransitionPlanner.HIGH_FADE_DB, MixLanes.eqDb(doc, 'a', "high", 15_000.0), 1e-9)
+    }
+
+    @Test
+    fun `smart beatmatch swaps the bass on B's mixIn bar when it falls inside the mix`() {
+        val gridA = PhaseAlignment.Grid(bpm = 128.0, firstDownbeatMs = 100, beatsPerBar = 4)  // compás 1 875 ms
+        val gridB = PhaseAlignment.Grid(bpm = 128.0, firstDownbeatMs = 300, beatsPerBar = 4)
+        val plan = TransitionPlanner.plan(
+            Mode.SMART,
+            track(durationMs = 240_000, audioEndMs = 238_000, grid = gridA),
+            // Intro de B de 2,9 compases: no caben ni 4 compases, la mezcla se queda en 4 y el mixIn cae dentro.
+            track(durationMs = 200_000, audioEndMs = 199_000, mixInMs = 300L + 5_440, grid = gridB),
+            0
+        )!!
+        assertEquals("smart-beatmatch-4bars", plan.label)
+        assertEquals(7_500, plan.doc.durationMs)
+        val doc = plan.doc
+        // mixIn a 5 440 ms de la entrada de B → compás 3 de A (5 625 ms).
+        assertEquals(0.0, MixLanes.eqDb(doc, 'b', "low", 5_625.0), 1e-9)
+        assertEquals(TransitionPlanner.BASS_KILL_DB, MixLanes.eqDb(doc, 'b', "low", 5_156.0), 1e-9)
+        assertEquals(TransitionPlanner.BASS_KILL_DB, MixLanes.eqDb(doc, 'a', "low", 5_625.0), 1e-9)
+        assertConstantPower(plan)
     }
 
     @Test

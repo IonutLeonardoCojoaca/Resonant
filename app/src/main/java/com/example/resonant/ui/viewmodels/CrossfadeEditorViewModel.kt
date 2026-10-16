@@ -22,12 +22,16 @@ import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.PlaymixTransitionUpdateDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.WaveformResponseDTO
+import com.example.resonant.data.network.WaveformSongDTO
+import com.example.resonant.playback.BarGrid
+import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.TransitionPresetManager
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 
 data class CrossfadeEditorState(
@@ -441,7 +445,7 @@ class CrossfadeEditorViewModel(
             // Con documento, la salida es `a.startMs`; la duración es la del documento.
             // A tiene que sonar entera durante el cruce: la salida no pasa de (duración de A − cruce).
             val maxStart = ((current.waveformData?.songA?.durationMs ?: Int.MAX_VALUE) - doc.durationMs).coerceAtLeast(0)
-            val start = ms.coerceIn(0, maxStart)
+            val start = keepOnBar(ms, maxStart, current.waveformData?.songA)
             _state.value = current.copy(exitPointMs = start, document = doc.copy(a = MixSideADTO(start)))
             return
         }
@@ -456,7 +460,7 @@ class CrossfadeEditorViewModel(
         val current = _state.value ?: return
         current.document?.let { doc ->
             val maxStart = ((current.waveformData?.songB?.durationMs ?: Int.MAX_VALUE) - (doc.durationMs - doc.b.offsetMs)).coerceAtLeast(0)
-            val start = ms.coerceIn(0, maxStart)
+            val start = keepOnBar(ms, maxStart, current.waveformData?.songB)
             _state.value = current.copy(entryPointMs = start, document = doc.copy(b = MixSideBDTO(start, doc.b.offsetMs)))
             return
         }
@@ -465,6 +469,20 @@ class CrossfadeEditorViewModel(
             crossfadeDurationMs = coerceCrossfadeDuration(moved.crossfadeDurationMs, moved)
         )
         checkPresetModified()
+    }
+
+    /**
+     * [ms] dentro de [0, maxStart]. El editor ya entrega puntos en compás; si hay que recortarlos (no cabe el cruce),
+     * se lleva al compás más cercano que quepa, para que salida y entrada sigan en downbeat (A y B en fase).
+     */
+    private fun keepOnBar(ms: Int, maxStart: Int, song: WaveformSongDTO?): Int {
+        val clamped = ms.coerceIn(0, maxStart)
+        if (clamped == ms || song == null) return clamped
+        val exact = PhaseAlignment.gridOf(song.bpmPrecise, song.firstDownbeatMs, song.beatsPerBar)
+        val grid = BarGrid.of(exact, song.beatGrid, song.downbeatGrid, null, song.beatsPerBar, song.durationMs)
+        if (!grid.hasRealDownbeats) return clamped
+        val bar = if (clamped < ms) grid.downbeatAtOrBefore(clamped.toDouble()) else grid.downbeatAtOrAfter(clamped.toDouble())
+        return bar?.roundToInt()?.takeIf { it in 0..maxStart } ?: clamped
     }
 
     fun setPrelistenTarget(target: String?) {

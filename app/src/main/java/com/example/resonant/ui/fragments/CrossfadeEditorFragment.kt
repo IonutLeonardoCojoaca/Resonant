@@ -22,6 +22,7 @@ import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.WaveformResponseDTO
 import com.example.resonant.data.network.WaveformSongDTO
+import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.databinding.FragmentCrossfadeEditorBinding
 import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
 import com.example.resonant.managers.PlaymixManager
@@ -136,15 +137,16 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         }
 
         // Action UP / Cancel -> commit changes to state
+        // El ViewModel puede recortar el punto (el cruce tiene que caber): la etiqueta muestra el valor final.
         binding.waveformView.onExitChanged = { ms ->
             viewModel.setExitPoint(ms)
-            binding.exitPointLabel.text = formatMs(ms)
+            binding.exitPointLabel.text = formatMs(viewModel.state.value?.exitPointMs ?: ms)
             updateWaveformMarkers()
         }
 
         binding.waveformView.onEntryChanged = { ms ->
             viewModel.setEntryPoint(ms)
-            binding.entryPointLabel.text = formatMs(ms)
+            binding.entryPointLabel.text = formatMs(viewModel.state.value?.entryPointMs ?: ms)
             updateWaveformMarkers()
         }
 
@@ -911,6 +913,12 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                 b.waveformView.setStructureGrids(
                     songA.downbeatGrid, songA.phrases?.map { it.startMs },
                     songB.downbeatGrid, songB.phrases?.map { it.startMs }
+                )
+                // Rejilla exacta (bpmPrecise + primer downbeat): compases sin deriva y B al tempo de A.
+                b.waveformView.setTempoGrids(
+                    PhaseAlignment.gridOf(songA.bpmPrecise, songA.firstDownbeatMs, songA.beatsPerBar),
+                    PhaseAlignment.gridOf(songB.bpmPrecise, songB.firstDownbeatMs, songB.beatsPerBar),
+                    songA.beatsPerBar, songB.beatsPerBar
                 )
                 updateWaveformMarkers()
             }
