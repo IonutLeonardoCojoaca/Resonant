@@ -44,6 +44,13 @@ class ExploreSectionsRenderer(
         fun onPlaylistClick(playlist: Playlist)
         fun onGenreClick(genre: Genre)
         fun onSeeAllGenres()
+
+        // Mantener pulsado un elemento: sus opciones (por defecto, nada).
+        fun onSongLongPress(song: Song) {}
+        fun onAlbumLongPress(album: Album) {}
+        fun onArtistLongPress(artist: Artist) {}
+        fun onPlaylistLongPress(playlist: Playlist) {}
+        fun onGenreLongPress(genre: Genre) {}
         fun onSeeAllPlaylists()
     }
 
@@ -123,6 +130,7 @@ class ExploreSectionsRenderer(
 
         private val songAdapter by lazy {
             ExploreSongAdapter { index -> callbacks.onSongClick(sectionId, currentSongs, index) }
+                .apply { onItemLongClick = callbacks::onSongLongPress }
         }
         private val ariaAdapter by lazy {
             AriaPickAdapter(
@@ -130,10 +138,10 @@ class ExploreSectionsRenderer(
                 onPickLongClick = callbacks::onAriaPickLongClick
             )
         }
-        private val albumAdapter by lazy { ExploreAlbumAdapter(callbacks::onAlbumClick) }
-        private val artistAdapter by lazy { ExploreArtistAdapter(callbacks::onArtistClick) }
-        private val playlistAdapter by lazy { ExplorePlaylistAdapter(callbacks::onPlaylistClick) }
-        private val genreAdapter by lazy { GenreAdapter(emptyList(), onGenreClick = callbacks::onGenreClick) }
+        private val albumAdapter by lazy { ExploreAlbumAdapter(callbacks::onAlbumClick).apply { onItemLongClick = callbacks::onAlbumLongPress } }
+        private val artistAdapter by lazy { ExploreArtistAdapter(callbacks::onArtistClick).apply { onItemLongClick = callbacks::onArtistLongPress } }
+        private val playlistAdapter by lazy { ExplorePlaylistAdapter(callbacks::onPlaylistClick).apply { onItemLongClick = callbacks::onPlaylistLongPress } }
+        private val genreAdapter by lazy { GenreAdapter(emptyList(), onGenreClick = callbacks::onGenreClick).apply { onItemLongClick = callbacks::onGenreLongPress } }
 
         init {
             val context = view.context

@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
@@ -238,6 +239,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             }
 
             settingsButton.setOnClickListener { onSettingsClick?.invoke(song) }
+            itemView.onLongPressOptions { onSettingsClick?.let { it(song); true } ?: false }
             likeButton.setOnClickListener {
                 val newState = !_favoriteSongIds.contains(song.id)
                 _favoriteSongIds = if (newState) _favoriteSongIds + song.id else _favoriteSongIds - song.id
@@ -278,10 +280,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             settingsButton.setOnClickListener {
                 onAlbumSettingsClick?.invoke(album)
             }
-            itemView.setOnLongClickListener {
-                onAlbumSettingsClick?.invoke(album)
-                true
-            }
+            itemView.onLongPressOptions { onAlbumSettingsClick?.let { it(album); true } ?: false }
             itemView.setOnClickListener {
                 onAlbumClick?.invoke(album)
             }
@@ -320,10 +319,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
             settingsButton.setOnClickListener {
                 onArtistSettingsClick?.invoke(artist)
             }
-            itemView.setOnLongClickListener {
-                onArtistSettingsClick?.invoke(artist)
-                true
-            }
+            itemView.onLongPressOptions { onArtistSettingsClick?.let { it(artist); true } ?: false }
             itemView.setOnClickListener {
                 onArtistClick?.invoke(artist, artistImage)
             }

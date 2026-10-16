@@ -83,180 +83,85 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="15dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/relativeLayout">
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/seeSongButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_song"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:text="Ver información"
-            android:textColor="@color/white"
-            android:textSize="15sp"/>
+            android:text="Ver información"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/playNextButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_play_next_compact"
-            android:drawablePadding="14dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:gravity="start|center_vertical"
-            android:padding="16dp"
-            android:text="Reproducir a continuación"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Reproducir a continuación" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToQueueButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_queue_add"
-            android:drawablePadding="14dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:gravity="start|center_vertical"
-            android:padding="16dp"
-            android:text="Añadir a la cola"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Añadir a la cola" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToRoomButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_add"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
             android:text="Añadir a la sala"
-            android:textColor="@color/white"
-            android:textSize="15sp"
             android:visibility="gone" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/goToAlbumButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_album"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
+            android:drawableStart="@drawable/ic_album_outline"
             android:text="Ir al álbum"
-            android:textColor="@color/white"
-            android:visibility="gone"
-            android:textSize="15sp"/>
+            android:visibility="gone"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/goToArtistButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_artist_person"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:text="Ir al artista"
-            android:textColor="@color/white"
-            android:textSize="15sp"/>
+            android:text="Ir al artista"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/shareSongButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_share"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:text="Compartir"
-            android:textColor="@color/white"
-            android:textSize="15sp"/>
+            android:text="Compartir"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/downloadSongButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_download_done"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Descargar"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Descargar" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToFavoriteButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_favorite"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/secondaryColorTheme"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Añadir a favoritos"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:drawableStart="@drawable/ic_add_favorite"
+            android:text="Añadir a favoritos" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToPlaylistButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_menu_add_selected"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Agregar a playlist"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Agregar a playlist" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToPlaymixButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_playmix"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Añadir a PlayMix"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Añadir a PlayMix" />
 
         <TextView
+            style="@style/OptionRow.Muted"
             android:id="@+id/cancelButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_cancel"
-            android:drawablePadding="10dp"
-            android:drawableTint="@color/errorColor"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Cancelar"
-            android:textColor="@color/errorColor"
-            android:textSize="15sp" />
+            android:text="Cancelar" />
 
     </LinearLayout>
 

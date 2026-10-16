@@ -21,6 +21,7 @@ import com.bumptech.glide.request.target.Target
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.R
 import com.example.resonant.data.models.Artist
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class ArtistAdapter(
     private var artists: List<Artist>,
@@ -161,10 +162,7 @@ class ArtistAdapter(
                 onArtistClick?.invoke(artist, artistImage)
             }
             
-            itemView.setOnLongClickListener {
-                onSettingsClick?.invoke(artist)
-                true
-            }
+            itemView.onLongPressOptions { onSettingsClick?.let { it(artist); true } ?: false }
         }
     }
 
@@ -241,10 +239,7 @@ class ArtistAdapter(
                 onArtistClick?.invoke(artist, artistImage) 
             }
             
-            itemView.setOnLongClickListener {
-                 onSettingsClick?.invoke(artist)
-                 true
-            }
+            itemView.onLongPressOptions { onSettingsClick?.let { it(artist); true } ?: false }
         }
     }
 }

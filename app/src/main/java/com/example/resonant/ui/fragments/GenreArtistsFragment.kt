@@ -19,6 +19,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.viewmodels.GenreArtistsViewModel
@@ -165,6 +166,7 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
 
     private fun setupRecyclerView() {
         artistsAdapter = ArtistAdapter(emptyList(), ArtistAdapter.VIEW_TYPE_GRID, forceWhiteText = true)
+        artistsAdapter.onSettingsClick = { ItemOptions.artist(this, it) }
         
         recyclerViewArtists.apply {
             layoutManager = GridLayoutManager(requireContext(), 3)

@@ -93,67 +93,31 @@
 
         <!-- Play song -->
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/playSongButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_play"
-            android:drawablePadding="14dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_medium"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:gravity="center_vertical"
-            android:text="Reproducir canción"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Reproducir canción" />
 
         <!-- See song info -->
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/seeSongButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_song"
-            android:drawablePadding="14dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_medium"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:gravity="center_vertical"
-            android:text="Ver información"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:text="Ver información" />
 
         <!-- Remove from playmix -->
         <TextView
+            style="@style/OptionRow.Destructive"
             android:id="@+id/removeSongButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_delete"
-            android:drawablePadding="14dp"
-            android:drawableTint="#EF5350"
-            android:fontFamily="@font/unageo_medium"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:gravity="center_vertical"
-            android:text="Eliminar del PlayMix"
-            android:textColor="#EF5350"
-            android:textSize="15sp" />
+            android:text="Eliminar del PlayMix" />
 
         <!-- Cancel -->
         <TextView
+            style="@style/OptionRow.Muted"
             android:id="@+id/cancelButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_cancel"
-            android:drawablePadding="14dp"
-            android:drawableTint="@color/textBottomSheet"
-            android:fontFamily="@font/unageo_medium"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:gravity="center_vertical"
-            android:text="Cancelar"
-            android:textColor="@color/textBottomSheet"
-            android:textSize="15sp" />
+            android:text="Cancelar" />
 
     </LinearLayout>
 

@@ -16,6 +16,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.utils.ImageRequestHelper
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 /**
  * Fila estilo búsqueda (ver item_result_album.xml / SearchResultAdapter):
@@ -28,6 +29,9 @@ class PublicPlaylistAdapter(
     private val onPlaylistClick: (Playlist) -> Unit
 ) : ListAdapter<Playlist, PublicPlaylistAdapter.PlaylistViewHolder>(PlaylistDiffCallback()) {
 
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((Playlist) -> Unit)? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaylistViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_public_playlist, parent, false)
@@ -35,6 +39,13 @@ class PublicPlaylistAdapter(
     }
 
     override fun onBindViewHolder(holder: PlaylistViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 

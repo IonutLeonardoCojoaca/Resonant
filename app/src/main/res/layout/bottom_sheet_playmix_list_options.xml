@@ -82,35 +82,17 @@
 
         <!-- Delete -->
         <TextView
+            style="@style/OptionRow.Destructive"
             android:id="@+id/deletePlaymixButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_delete"
-            android:drawablePadding="14dp"
-            android:drawableTint="#EF5350"
-            android:fontFamily="@font/unageo_medium"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:gravity="center_vertical"
-            android:text="Borrar PlayMix"
-            android:textColor="#EF5350"
-            android:textSize="15sp" />
+            android:text="Borrar PlayMix" />
 
         <!-- Cancel -->
         <TextView
+            style="@style/OptionRow.Muted"
             android:id="@+id/cancelButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_cancel"
-            android:drawablePadding="14dp"
-            android:drawableTint="@color/textBottomSheet"
-            android:fontFamily="@font/unageo_medium"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:gravity="center_vertical"
-            android:text="Cancelar"
-            android:textColor="@color/textBottomSheet"
-            android:textSize="15sp" />
+            android:text="Cancelar" />
 
     </LinearLayout>
 

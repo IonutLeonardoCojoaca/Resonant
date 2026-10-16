@@ -19,6 +19,7 @@ import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixSongDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.playback.PlaymixMixMode
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 import com.example.resonant.ui.views.PlaymixMixGlyphView
 
 sealed class PlaymixDetailItem {
@@ -120,6 +121,12 @@ class PlaymixSongTransitionAdapter(
         init {
             itemView.setOnClickListener { currentSong()?.let { onSongClick?.invoke(it) } }
             optionsButton.setOnClickListener { currentSong()?.let { onSongOptionsClick?.invoke(it) } }
+            itemView.onLongPressOptions {
+                val song = currentSong() ?: return@onLongPressOptions false
+                val open = onSongOptionsClick?.takeUnless { isReadOnly } ?: return@onLongPressOptions false
+                open(song)
+                true
+            }
         }
 
         private fun currentSong(): PlaymixSongDTO? =

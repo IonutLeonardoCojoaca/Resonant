@@ -18,6 +18,7 @@ import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.chip.ChipGroup
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.ChartHero
 import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.adapters.PublicPlaylistAdapter
@@ -137,6 +138,7 @@ class PublicPlaylistsFragment : Fragment() {
                 bundle
             )
         }
+        playlistAdapter.onItemLongClick = { ItemOptions.playlist(this, it) }
         rvPlaylists.adapter = playlistAdapter
     }
 

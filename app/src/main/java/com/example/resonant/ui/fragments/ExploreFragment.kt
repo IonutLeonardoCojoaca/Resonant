@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -25,6 +24,8 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
+import com.example.resonant.ui.bottomsheets.QuickOptionsBottomSheet
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Genre
@@ -68,8 +69,6 @@ class ExploreFragment : Fragment() {
     companion object {
         private const val GENRES_PER_BATCH = 6
         private const val DEFERRED_SECTION_MARGIN_DP = 200
-        private const val MENU_ARIA_LIKE = 1
-        private const val MENU_ARIA_DISMISS = 2
         private const val LIVE_CARD_TAG = "live_card"
         private const val SONG_OF_DAY_SECTION_ID = "song_of_day"
     }
@@ -399,9 +398,13 @@ class ExploreFragment : Fragment() {
 
     private fun setupRecyclerViews() {
         playlistAdapter = ExplorePlaylistAdapter { navigateToPlaylist(it) }
+            .apply { onItemLongClick = { ItemOptions.playlist(this@ExploreFragment, it) } }
         albumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
+            .apply { onItemLongClick = { ItemOptions.album(this@ExploreFragment, it) } }
         recommendedAlbumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
+            .apply { onItemLongClick = { ItemOptions.album(this@ExploreFragment, it) } }
         recommendedArtistAdapter = ExploreArtistAdapter { navigateToArtist(it) }
+            .apply { onItemLongClick = { ItemOptions.artist(this@ExploreFragment, it) } }
 
         recyclerViewPlaylists.setupHorizontalExploreList(playlistAdapter)
         recyclerViewAlbums.setupHorizontalExploreList(albumAdapter)
@@ -410,16 +413,28 @@ class ExploreFragment : Fragment() {
 
         artistEssentialsAdapter = ArtistMixAdapter(ArtistMixAdapter.Kind.ESSENTIALS) {
             navigateToArtistSmartPlaylist(it.artist, "Essentials")
+        }.apply {
+            onItemLongClick = { mix ->
+                ItemOptions.artistMix(this@ExploreFragment, mix.playlist.name, "Lo esencial · ${mix.playlist.songCount} canciones",
+                    mix.playlist.coverUrl, mix.artist) { navigateToArtistSmartPlaylist(mix.artist, "Essentials") }
+            }
         }
         artistRadiosAdapter = ArtistMixAdapter(ArtistMixAdapter.Kind.RADIO) {
             navigateToArtistSmartPlaylist(it.artist, "Radio")
+        }.apply {
+            onItemLongClick = { mix ->
+                ItemOptions.artistMix(this@ExploreFragment, mix.playlist.name, "Radio del artista · ${mix.playlist.songCount} canciones",
+                    mix.playlist.coverUrl, mix.artist) { navigateToArtistSmartPlaylist(mix.artist, "Radio") }
+            }
         }
         recyclerViewArtistEssentials.setupHorizontalExploreList(artistEssentialsAdapter)
         recyclerViewArtistRadios.setupHorizontalExploreList(artistRadiosAdapter)
 
         val onGenreClick: (Genre) -> Unit = ::navigateToGenre
         genreAdapter = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
+            .apply { onItemLongClick = { ItemOptions.genre(this@ExploreFragment, it) } }
         genreAdapterMore = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
+            .apply { onItemLongClick = { ItemOptions.genre(this@ExploreFragment, it) } }
         recyclerViewGenres.setupGenreGrid(genreAdapter)
         recyclerViewGenresMore.setupGenreGrid(genreAdapterMore)
     }
@@ -646,6 +661,12 @@ class ExploreFragment : Fragment() {
         override fun onPlaylistClick(playlist: Playlist) = navigateToPlaylist(playlist)
         override fun onGenreClick(genre: Genre) = navigateToGenre(genre)
 
+        override fun onSongLongPress(song: Song) = ItemOptions.song(this@ExploreFragment, song)
+        override fun onAlbumLongPress(album: Album) = ItemOptions.album(this@ExploreFragment, album)
+        override fun onArtistLongPress(artist: Artist) = ItemOptions.artist(this@ExploreFragment, artist)
+        override fun onPlaylistLongPress(playlist: Playlist) = ItemOptions.playlist(this@ExploreFragment, playlist)
+        override fun onGenreLongPress(genre: Genre) = ItemOptions.genre(this@ExploreFragment, genre)
+
         override fun onSeeAllGenres() {
             findNavController().navigate(R.id.action_exploreFragment_to_allGenresFragment)
         }
@@ -656,15 +677,26 @@ class ExploreFragment : Fragment() {
 
     }
 
-    private fun showAriaPickMenu(pick: AriaPick, anchor: View) {
-        PopupMenu(requireContext(), anchor).apply {
-            menu.add(0, MENU_ARIA_LIKE, 0, R.string.aria_pick_like)
-            menu.add(0, MENU_ARIA_DISMISS, 1, R.string.aria_pick_dismiss)
-            setOnMenuItemClickListener { item ->
-                viewModel.sendAriaFeedback(pick.song.id, liked = item.itemId == MENU_ARIA_LIKE)
-                true
-            }
-        }.show()
+    /** Recomendación de Aria: valorarla o ir a las opciones completas de la canción. */
+    private fun showAriaPickMenu(pick: AriaPick, @Suppress("UNUSED_PARAMETER") anchor: View) {
+        val song = pick.song
+        QuickOptionsBottomSheet(
+            title = song.title,
+            subtitle = song.artistName ?: song.artists.joinToString(", ") { it.name },
+            imageUrl = song.coverUrl ?: song.album?.url,
+            placeholder = R.drawable.ic_disc,
+            options = listOf(
+                QuickOptionsBottomSheet.Option(R.drawable.ic_add_favorite, getString(R.string.aria_pick_like)) {
+                    viewModel.sendAriaFeedback(song.id, liked = true)
+                },
+                QuickOptionsBottomSheet.Option(R.drawable.ic_cancel, getString(R.string.aria_pick_dismiss)) {
+                    viewModel.sendAriaFeedback(song.id, liked = false)
+                },
+                QuickOptionsBottomSheet.Option(R.drawable.ic_item_settings, "Más opciones de la canción") {
+                    ItemOptions.song(this, song)
+                }
+            )
+        ).show(parentFragmentManager, "AriaPickOptions")
     }
 
     /** Secciones dinámicas pintadas por última vez (para leer el `requestId` de la sección pulsada). */

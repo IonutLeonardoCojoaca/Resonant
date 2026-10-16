@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class PlaylistAdapter(
     private val viewType: Int,
@@ -94,11 +95,7 @@ class PlaylistAdapter(
                 }
             }
 
-            itemView.setOnLongClickListener {
-                // Pasamos null en el bitmap porque ya no lo generamos localmente
-                onPlaylistLongClick?.invoke(playlist, null)
-                true
-            }
+            itemView.onLongPressOptions { onPlaylistLongClick?.let { it(playlist, null); true } ?: false }
         }
     }
 

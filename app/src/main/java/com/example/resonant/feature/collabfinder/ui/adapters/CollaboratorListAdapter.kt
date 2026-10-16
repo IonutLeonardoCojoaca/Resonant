@@ -11,10 +11,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.feature.collabfinder.domain.model.CollaboratorNode
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class CollaboratorListAdapter(
     private val onItemClicked: (CollaboratorNode) -> Unit
 ) : ListAdapter<CollaboratorNode, CollaboratorListAdapter.ViewHolder>(DiffCallback) {
+
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((CollaboratorNode) -> Unit)? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -23,6 +27,13 @@ class CollaboratorListAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position), position + 1)
     }
 

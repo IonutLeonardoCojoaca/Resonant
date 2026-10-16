@@ -21,6 +21,7 @@ import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import androidx.core.graphics.ColorUtils
 import com.google.android.material.appbar.AppBarLayout
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.ChartHero
 import com.example.resonant.ui.components.ChartPeriodSelector
 import com.example.resonant.ui.components.ResonantAccent
@@ -75,6 +76,7 @@ class TopAlbumsFragment : Fragment() {
         topAlbumAdapter = TopAlbumAdapter { album ->
             navigateToAlbum(album)
         }
+        topAlbumAdapter.onItemLongClick = { ItemOptions.album(this, it.album) }
     }
 
     private fun initViews(view: View) {

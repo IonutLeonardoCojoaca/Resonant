@@ -22,6 +22,7 @@ import com.example.resonant.utils.MiniPlayerColorizer
 import com.example.resonant.R
 import com.example.resonant.data.models.Album
 import java.util.Calendar
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class AlbumAdapter(
     albums: List<Album>,
@@ -132,10 +133,7 @@ class AlbumAdapter(
                 }
             }
             
-            itemView.setOnLongClickListener {
-                onSettingsClick?.invoke(album)
-                true
-            }
+            itemView.onLongPressOptions { onSettingsClick?.let { it(album); true } ?: false }
         }
     }
 
@@ -176,10 +174,7 @@ class AlbumAdapter(
                 }
             }
             
-             itemView.setOnLongClickListener {
-                onSettingsClick?.invoke(album)
-                true
-            }
+             itemView.onLongPressOptions { onSettingsClick?.let { it(album); true } ?: false }
         }
     }
 
@@ -204,10 +199,7 @@ class AlbumAdapter(
                 onSettingsClick?.invoke(album)
             }
             
-             itemView.setOnLongClickListener {
-                onSettingsClick?.invoke(album)
-                true
-            }
+             itemView.onLongPressOptions { onSettingsClick?.let { it(album); true } ?: false }
         }
     }
 
@@ -254,10 +246,7 @@ class AlbumAdapter(
                 }
             }
 
-             itemView.setOnLongClickListener {
-                onSettingsClick?.invoke(album)
-                true
-            }
+             itemView.onLongPressOptions { onSettingsClick?.let { it(album); true } ?: false }
         }
     }
 

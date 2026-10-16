@@ -1255,6 +1255,7 @@ class SongFragment : DialogFragment() {
                 .navigate(R.id.action_global_to_detailedSongFragment, bundle)
         }
         songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        songAdapter.onSettingsClick = { showSongOptions(it) }
         songAdapter.showPlayButton = true
         songAdapter.onPlayClick = { _, position -> playRelatedSongAt(position) }
         btnPlayRelated.setOnClickListener { playOrPauseRelatedSongs() }

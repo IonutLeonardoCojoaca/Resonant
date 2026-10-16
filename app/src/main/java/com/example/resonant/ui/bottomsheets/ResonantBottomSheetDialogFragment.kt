@@ -22,6 +22,14 @@ abstract class ResonantBottomSheetDialogFragment : BottomSheetDialogFragment() {
 
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 
+    /** Las hojas de opciones lo activan: iconos de fila a 24dp (ver [OptionRows]). */
+    protected open val hasOptionRows: Boolean = false
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        if (hasOptionRows) OptionRows.normalize(view)
+    }
+
     override fun onStart() {
         super.onStart()
 

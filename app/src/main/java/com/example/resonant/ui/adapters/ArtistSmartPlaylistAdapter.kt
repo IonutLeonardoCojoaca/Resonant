@@ -16,6 +16,7 @@ import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.R
 import com.example.resonant.data.models.ArtistSmartPlaylist
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.MiniPlayerColorizer
@@ -23,6 +24,9 @@ import com.example.resonant.utils.MiniPlayerColorizer
 class ArtistSmartPlaylistAdapter(
     private val onItemClick: (ArtistSmartPlaylist) -> Unit
 ) : ListAdapter<ArtistSmartPlaylist, ArtistSmartPlaylistAdapter.ViewHolder>(DiffCallback()) {
+
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((ArtistSmartPlaylist) -> Unit)? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_smart_playlist, parent, false)
@@ -34,6 +38,13 @@ class ArtistSmartPlaylistAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         val playlist = getItem(position)
         holder.bind(playlist, onItemClick)
     }

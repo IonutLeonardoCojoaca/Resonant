@@ -27,6 +27,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Song
@@ -231,6 +232,13 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         // Smart Playlists
         smartPlaylistsAdapter = ArtistSmartPlaylistAdapter { playlist ->
             onSmartPlaylistClick(playlist)
+        }
+        smartPlaylistsAdapter.onItemLongClick = { playlist ->
+            currentArtist?.let { artist ->
+                ItemOptions.artistMix(this, playlist.name, playlist.description, playlist.coverUrl, artist) {
+                    onSmartPlaylistClick(playlist)
+                }
+            }
         }
         smartPlaylistsRecycler.adapter = smartPlaylistsAdapter
         // LayoutManager ya definido en XML, pero aseguramos horizontal

@@ -37,35 +37,20 @@
         android:textSize="12sp" />
 
     <TextView
+            style="@style/OptionRow"
+            android:drawableStart="@drawable/ic_artist_person"
         android:id="@+id/flowLessArtistButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_regular"
-        android:gravity="start|center_vertical"
-        android:padding="16dp"
-        android:text="@string/flow_less_artist"
-        android:textColor="@color/white"
-        android:textSize="15sp" />
+        android:text="@string/flow_less_artist" />
 
     <TextView
+            style="@style/OptionRow"
+            android:drawableStart="@drawable/ic_cancel"
         android:id="@+id/flowNeverSongButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_regular"
-        android:gravity="start|center_vertical"
-        android:padding="16dp"
-        android:text="@string/flow_never_song"
-        android:textColor="@color/white"
-        android:textSize="15sp" />
+        android:text="@string/flow_never_song" />
 
     <TextView
+            style="@style/OptionRow"
+            android:drawableStart="@drawable/ic_item_settings"
         android:id="@+id/flowSongOptionsButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_regular"
-        android:gravity="start|center_vertical"
-        android:padding="16dp"
-        android:text="@string/flow_song_options"
-        android:textColor="@color/textTheme"
-        android:textSize="15sp" />
+        android:text="@string/flow_song_options" />
 </LinearLayout>

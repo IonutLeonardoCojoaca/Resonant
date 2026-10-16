@@ -31,7 +31,7 @@ import com.example.resonant.managers.FlowPreferencesManager
 import com.example.resonant.managers.SettingsManager
 import com.example.resonant.playback.flow.FlowQueuePolicy
 import com.example.resonant.ui.bottomsheets.FlowSongOptionsBottomSheet
-import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.widget.ImageView
@@ -146,6 +146,7 @@ class PlaybackQueueController(
             relatedRecycler.layoutManager = LinearLayoutManager(fragment.requireContext(), LinearLayoutManager.HORIZONTAL, false)
             relatedRecycler.adapter = relatedAdapter
             relatedAdapter.onItemClick = { (song, _) -> playRelatedSong(song) }
+            relatedAdapter.onSettingsClick = { ItemOptions.song(fragment, it) }
         }
 
         PlaybackStateRepository.queueSnapshotLiveData.observe(fragment.viewLifecycleOwner) {
@@ -156,7 +157,7 @@ class PlaybackQueueController(
 
     private fun showFlowOptions(song: Song) {
         FlowSongOptionsBottomSheet(song) { selected ->
-            SongOptionsBottomSheet(selected).show(fragment.parentFragmentManager, "SongOptionsBottomSheet")
+            ItemOptions.song(fragment, selected)
         }.show(fragment.parentFragmentManager, "FlowSongOptionsBottomSheet")
     }
 

@@ -345,4 +345,34 @@
         <item name="android:textColor">@color/textTheme</item>
         <item name="android:textSize">11.5sp</item>
     </style>
+
+    <!-- ═══ Filas de los bottom sheets de opciones (mismo icono, espacio y tinte en todos) ═══ -->
+    <style name="OptionRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+        <item name="android:drawablePadding">18dp</item>
+        <item name="android:drawableTint">@color/white</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="OptionRow.Destructive">
+        <item name="android:drawableTint">@color/errorColor</item>
+        <item name="android:textColor">@color/errorColor</item>
+    </style>
+
+    <style name="OptionRow.Muted">
+        <item name="android:drawableTint">@color/textTheme</item>
+        <item name="android:textColor">@color/textTheme</item>
+    </style>
 </resources>

@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
@@ -226,6 +227,13 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                         ?: onItemClick?.invoke(song to null)
                 }
             }
+            itemView.onLongPressOptions {
+                val position = bindingAdapterPosition
+                val open = onSettingsClick
+                if (position == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+                open(getItem(position))
+                true
+            }
         }
 
         fun cancelJobs() {
@@ -339,6 +347,13 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                         ?: onItemClick?.invoke(song to null)
                 }
             }
+            itemView.onLongPressOptions {
+                val position = bindingAdapterPosition
+                val open = onSettingsClick
+                if (position == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+                open(getItem(position))
+                true
+            }
         }
 
         fun bind(song: Song, itemPosition: Int, partial: Boolean = false) {
@@ -403,6 +418,13 @@ class SongAdapter(private val viewType: Int) : ListAdapter<Song, RecyclerView.Vi
                     onItemClickAtPosition?.invoke(song, null, position)
                         ?: onItemClick?.invoke(song to null)
                 }
+            }
+            itemView.onLongPressOptions {
+                val position = bindingAdapterPosition
+                val open = onSettingsClick
+                if (position == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+                open(getItem(position))
+                true
             }
         }
 

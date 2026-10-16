@@ -29,6 +29,7 @@ import com.example.resonant.ui.adapters.AlbumAdapter
 import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.DetailHero
 import com.example.resonant.ui.components.InsightTile
 import com.example.resonant.ui.components.ResonantAccent
@@ -229,16 +230,19 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
                 putString("genreGradientColors", genre.gradientColors)
             })
         }
+        genresAdapter.onItemLongClick = { ItemOptions.genre(this, it) }
         binding.genresRecyclerView.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
         binding.genresRecyclerView.adapter = genresAdapter
 
         topSongsAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         topSongsAdapter.onItemClickAtPosition = { _, _, position -> playTopSongs(position, toggle = false) }
+        topSongsAdapter.onSettingsClick = { ItemOptions.song(this, it) }
         binding.topSongsList.layoutManager = LinearLayoutManager(requireContext())
         binding.topSongsList.adapter = topSongsAdapter
 
         singlesAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         singlesAdapter.onItemClick = { (song, _) -> openSong(song) }
+        singlesAdapter.onSettingsClick = { ItemOptions.song(this, it) }
         binding.singlesList.layoutManager = LinearLayoutManager(requireContext())
         binding.singlesList.adapter = singlesAdapter
 
@@ -247,6 +251,7 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
 
         collaboratorsAdapter = ArtistAdapter(emptyList())
         collaboratorsAdapter.setViewType(ArtistAdapter.Companion.VIEW_TYPE_LIST)
+        collaboratorsAdapter.onSettingsClick = { ItemOptions.artist(this, it) }
         collaboratorsAdapter.onArtistClick = { collab, _ ->
             findNavController().navigate(R.id.detailedArtistFragment, Bundle().apply { putString("artistId", collab.id) })
         }

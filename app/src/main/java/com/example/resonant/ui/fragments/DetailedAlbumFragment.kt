@@ -31,6 +31,7 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.AlbumAdapter
 import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.DetailHero
 import com.example.resonant.ui.components.InsightTile
 import com.example.resonant.ui.components.ResonantAccent
@@ -212,6 +213,7 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
     private fun setupLists() {
         trackAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         trackAdapter.onItemClickAtPosition = { _, _, position -> playAlbum(position) }
+        trackAdapter.onSettingsClick = { ItemOptions.song(this, it) }
         binding.trackList.layoutManager = LinearLayoutManager(requireContext())
         binding.trackList.adapter = trackAdapter
 
@@ -240,6 +242,7 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
                 putString("albumId", other.id)
             })
         }
+        moreAdapter.onSettingsClick = { ItemOptions.album(this, it) }
         binding.moreAlbums.fixedCardWidth(156)
         binding.moreAlbums.adapter = moreAdapter
     }

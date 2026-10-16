@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.managers.PlaylistManager
@@ -43,7 +44,6 @@ import com.example.resonant.ui.bottomsheets.ArtistSelectorBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaylistOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaymixListOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
-import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
 import com.example.resonant.ui.components.ChartHero
 import com.example.resonant.ui.components.CollectionActions
 import com.example.resonant.ui.components.CollectionState
@@ -431,42 +431,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             if (currentIndex != -1) playFavorites(songs, currentIndex, song, bitmap)
         }
 
-        onSettingsClick = { song ->
-            val bottomSheet = SongOptionsBottomSheet(
-                song = song,
-                onSeeSongClick = { selectedSong ->
-                    val bundle = Bundle().apply { putParcelable("song", selectedSong) }
-                    findNavController().navigate(R.id.action_savedFragment_to_detailedSongFragment, bundle)
-                },
-                onFavoriteToggled = { toggledSong ->
-                    favoritesViewModel.toggleFavoriteSong(toggledSong)
-                },
-                onAddToPlaylistClick = { songToAdd ->
-                    val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
-                        song = songToAdd,
-                        onNoPlaylistsFound = {
-                            findNavController().navigate(R.id.action_savedFragment_to_createPlaylistFragment)
-                        }
-                    )
-                    selectPlaylistBottomSheet.show(parentFragmentManager, "SelectPlaylistBottomSheet")
-                },
-                onDownloadClick = { songToDownload ->
-                    downloadViewModel.downloadSong(songToDownload)
-                },
-                onRemoveDownloadClick = { songToDelete ->
-                    downloadViewModel.deleteSong(songToDelete)
-                },
-                onGoToAlbumClick = { albumId ->
-                    val bundle = Bundle().apply { putString("albumId", albumId) }
-                    findNavController().navigate(R.id.action_savedFragment_to_albumFragment, bundle)
-                },
-                onGoToArtistClick = { artist ->
-                    val bundle = Bundle().apply { putString("artistId", artist.id) }
-                    findNavController().navigate(R.id.action_savedFragment_to_artistFragment, bundle)
-                }
-            )
-            bottomSheet.show(childFragmentManager, bottomSheet.tag)
-        }
+        onSettingsClick = { song -> ItemOptions.song(this@SavedFragment, song) }
         onFavoriteClick = { song, _ ->
             favoritesViewModel.toggleFavoriteSong(song)
         }
@@ -684,11 +649,8 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
     private fun openPlaylistOptionsIfEditable(playlist: Playlist) {
         if (!canManagePlaylist(playlist)) {
-            showResonantSnackbar(
-                text = "Puedes guardar esta playlist, pero solo su propietario puede editarla",
-                colorRes = R.color.adviseColor,
-                iconRes = R.drawable.ic_warning
-            )
+            // Lista guardada de otro usuario: sus opciones de lectura (reproducir, abrir).
+            ItemOptions.playlist(this, playlist)
             return
         }
         val bottomSheet = PlaylistOptionsBottomSheet(

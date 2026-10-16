@@ -11,11 +11,15 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDTO
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class PlaymixListAdapter(
     private val onClick: (PlaymixDTO) -> Unit,
     private val onOptionsClick: (PlaymixDTO) -> Unit
 ) : ListAdapter<PlaymixDTO, PlaymixListAdapter.PlaymixViewHolder>(PlaymixDiffCallback()) {
+
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((PlaymixDTO) -> Unit)? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaymixViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_playmix, parent, false)
@@ -23,6 +27,13 @@ class PlaymixListAdapter(
     }
 
     override fun onBindViewHolder(holder: PlaymixViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick ?: onOptionsClick // por defecto, las mismas opciones que ⋯
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 

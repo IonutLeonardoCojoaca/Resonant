@@ -9,12 +9,16 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.data.models.Genre
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class GenreAdapter(
     private var genres: List<Genre>,
     private val viewType: Int = VIEW_TYPE_NORMAL,
     private val onGenreClick: (Genre) -> Unit
 ) : RecyclerView.Adapter<GenreAdapter.GenreViewHolder>() {
+
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((Genre) -> Unit)? = null
 
     companion object {
         const val VIEW_TYPE_NORMAL = 0
@@ -37,6 +41,13 @@ class GenreAdapter(
     }
 
     override fun onBindViewHolder(holder: GenreViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(genres[pos])
+            true
+        }
         holder.bind(genres[position], onGenreClick)
     }
 

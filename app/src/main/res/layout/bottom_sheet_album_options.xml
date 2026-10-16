@@ -72,95 +72,48 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="15dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/headerLayout">
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToRoomButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_add"
-            android:drawablePadding="16dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
             android:text="Añadir a la sala"
-            android:textColor="@color/white"
-            android:textSize="15sp"
             android:visibility="gone"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/goToAlbumButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_album"
-            android:drawablePadding="16dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:text="Ir al álbum"
-            android:textColor="@color/white"
-            android:textSize="15sp"/>
+            android:drawableStart="@drawable/ic_album_outline"
+            android:text="Ir al álbum"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/goToArtistButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_artist"
-            android:drawablePadding="16dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:text="Ir al artista"
-            android:textColor="@color/white"
-            android:textSize="15sp"/>
+            android:drawableStart="@drawable/ic_artist_person"
+            android:text="Ir al artista"/>
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/addToFavoriteButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_favorite"
-            android:drawablePadding="16dp"
-            android:drawableTint="@color/secondaryColorTheme"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Añadir a favoritos"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:drawableStart="@drawable/ic_add_favorite"
+            android:text="Añadir a favoritos" />
 
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/viewDetailsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_warning"
-            android:drawablePadding="16dp"
-            android:drawableTint="@color/white"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:gravity="start|center_vertical"
-            android:text="Ver información detallada"
-            android:textColor="@color/white"
-            android:textSize="15sp" />
+            android:drawableStart="@drawable/ic_info"
+            android:text="Ver información detallada" />
             
         <TextView
+            style="@style/OptionRow"
             android:id="@+id/shareAlbumButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:drawableStart="@drawable/ic_share"
-            android:drawablePadding="16dp"
-            android:drawableTint="@color/white"
-            android:gravity="start|center_vertical"
-            android:fontFamily="@font/unageo_regular"
-            android:padding="16dp"
-            android:text="Compartir"
-            android:textColor="@color/white"
-            android:textSize="15sp"/>
+            android:text="Compartir"/>
 
     </LinearLayout>
 

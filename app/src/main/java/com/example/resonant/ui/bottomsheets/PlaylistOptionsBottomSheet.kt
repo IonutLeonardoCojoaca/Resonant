@@ -23,6 +23,8 @@ class PlaylistOptionsBottomSheet(
     private val onToggleVisibilityClick: ((Playlist) -> Unit)? = null
 ) : ResonantBottomSheetDialogFragment() {
 
+    override val hasOptionRows = true
+
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 
     override fun onCreateView(
@@ -79,9 +81,7 @@ class PlaylistOptionsBottomSheet(
         // Toggle visibility button label + icon
         val isPublic = playlist.isPublic
         toggleVisibilityBtn.text = if (isPublic == true) "Hacer privada" else "Hacer pública"
-        toggleVisibilityBtn.setCompoundDrawablesWithIntrinsicBounds(
-            if (isPublic == true) R.drawable.ic_private else R.drawable.ic_public, 0, 0, 0
-        )
+        OptionRows.setIcon(toggleVisibilityBtn, if (isPublic == true) R.drawable.ic_private else R.drawable.ic_public)
 
         // Listeners
         editBtn.setOnClickListener {

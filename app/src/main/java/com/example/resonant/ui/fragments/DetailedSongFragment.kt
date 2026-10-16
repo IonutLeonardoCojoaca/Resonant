@@ -33,6 +33,7 @@ import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.ArtistAdapter
 import com.example.resonant.ui.adapters.SongAdapter
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.DetailHero
 import com.example.resonant.ui.components.InsightTile
 import com.example.resonant.ui.components.ResonantAccent
@@ -346,6 +347,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
         binding.relatedSongsList.layoutManager = LinearLayoutManager(requireContext())
         binding.relatedSongsList.adapter = relatedAdapter
         binding.btnPlayRelated.setOnClickListener { playOrPauseRelatedSongs() }
+        relatedAdapter.onSettingsClick = { ItemOptions.song(this, it) }
         relatedAdapter.onItemClick = { (relatedSong, _) ->
             val bundle = Bundle().apply { putParcelable("song", relatedSong) }
             findNavController().navigate(R.id.action_global_to_detailedSongFragment, bundle)

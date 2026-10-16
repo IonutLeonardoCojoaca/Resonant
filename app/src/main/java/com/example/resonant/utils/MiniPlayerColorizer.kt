@@ -5,6 +5,8 @@ import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.ImageView
@@ -156,7 +158,22 @@ object MiniPlayerColorizer {
         return adjusted
     }
 
+    /**
+     * Si el contenedor puede mostrar el color de fondo: hace falta un relleno sobre el que se vea
+     * el tinte. Un ripple sin capa de contenido (`?attr/selectableItemBackground`), un fondo
+     * transparente o ninguno no lo muestran, y elegir el color del texto contra un fondo que no
+     * se ve deja texto oscuro sobre oscuro (o claro sobre claro).
+     */
+    private fun showsBackgroundTint(container: View): Boolean = when (val bg = container.background) {
+        null -> false
+        is RippleDrawable -> (0 until bg.numberOfLayers).any { bg.getId(it) != android.R.id.mask }
+        is ColorDrawable -> Color.alpha(bg.color) > 0
+        else -> true
+    }
+
     private fun tintTextAndIcons(targets: Targets, toColor: Int, animateMillis: Long) {
+        // Sin fondo visible, el texto conserva el color del tema (ya contrasta con la pantalla).
+        if (!showsBackgroundTint(targets.container)) return
         fun animateTextColor(tv: TextView?, target: Int) {
             tv ?: return
             val from = tv.currentTextColor

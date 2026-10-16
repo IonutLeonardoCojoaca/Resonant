@@ -975,8 +975,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             val isFavorite = song?.id?.let { favoriteIds?.contains(it) } ?: false
             miniPlayerLikeButton.setImageResource(if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border)
 
+            // Los textos se actualizan siempre, también con el mini player oculto (Live, Ajustes…):
+            // si no, al volver a mostrarse enseña la canción de antes aunque la portada ya cambió.
+            if (song != null) updateDataPlayer(song)
+
             if (song != null && shouldShowMiniPlayer && !playbackTransferredAway) {
-                updateDataPlayer(song)
                 AnimationsUtils.setMiniPlayerVisibility(true, miniPlayer, this)
                 miniPlayerSwipeHandler.maybeShowHint()
             } else if (playbackTransferredAway || song == null) {

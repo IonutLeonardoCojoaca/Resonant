@@ -16,6 +16,8 @@ class PlaymixListOptionsBottomSheet(
     private val onDeleteClick: (PlaymixDTO) -> Unit
 ) : ResonantBottomSheetDialogFragment() {
 
+    override val hasOptionRows = true
+
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 
     override fun onCreateView(

@@ -13,6 +13,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.example.resonant.R
 import com.example.resonant.ui.viewmodels.ExploreViewModel.ArtistMix
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 /**
  * Filas horizontales de Explorar con las smart playlists por artista:
@@ -23,6 +24,9 @@ class ArtistMixAdapter(
     private val onClick: (ArtistMix) -> Unit
 ) : ListAdapter<ArtistMix, ArtistMixAdapter.MixViewHolder>(DIFF) {
 
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((ArtistMix) -> Unit)? = null
+
     enum class Kind { ESSENTIALS, RADIO }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MixViewHolder {
@@ -32,6 +36,13 @@ class ArtistMixAdapter(
     }
 
     override fun onBindViewHolder(holder: MixViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 

@@ -49,6 +49,8 @@ class SongOptionsBottomSheet(
 
 ) : ResonantBottomSheetDialogFragment() {
 
+    override val hasOptionRows = true
+
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme
     }
@@ -157,12 +159,8 @@ class SongOptionsBottomSheet(
         if (localFile.exists()) {
             // --- MODO ELIMINAR ---
             downloadSongButton.text = "Eliminar descarga"
-            downloadSongButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_download_delete, 0, 0, 0)
-
-            // Color ROJO para indicar acción destructiva
-            val redColor = "#F44336".toColorInt()
-            downloadSongButton.setTextColor(redColor)
-            downloadSongButton.compoundDrawableTintList = ColorStateList.valueOf(redColor)
+            OptionRows.setIcon(downloadSongButton, R.drawable.ic_download_delete)
+            OptionRows.setTone(downloadSongButton, OptionRows.Tone.DESTRUCTIVE)
 
             downloadSongButton.setOnClickListener {
                 onRemoveDownloadClick?.invoke(song)
@@ -171,12 +169,8 @@ class SongOptionsBottomSheet(
         } else {
             // --- MODO DESCARGAR ---
             downloadSongButton.text = "Descargar"
-            downloadSongButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_download_done, 0, 0, 0)
-
-            // Color adaptable al tema
-            val themeWhite = requireContext().getColor(R.color.white)
-            downloadSongButton.setTextColor(themeWhite)
-            downloadSongButton.compoundDrawableTintList = ColorStateList.valueOf(themeWhite)
+            OptionRows.setIcon(downloadSongButton, R.drawable.ic_download_done)
+            OptionRows.setTone(downloadSongButton, OptionRows.Tone.NORMAL)
 
             if (isNetworkAvailable) {
                 downloadSongButton.setOnClickListener {
@@ -192,21 +186,17 @@ class SongOptionsBottomSheet(
         if (isNetworkAvailable) {
             if (playlistId != null) {
                 addToPlaylistButton.text = "Eliminar de la lista"
-                addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_delete, 0, 0, 0)
-                val redColor = "#F44336".toColorInt()
-                addToPlaylistButton.setTextColor(redColor)
-                addToPlaylistButton.compoundDrawableTintList = ColorStateList.valueOf(redColor)
+                OptionRows.setIcon(addToPlaylistButton, R.drawable.ic_delete)
+                OptionRows.setTone(addToPlaylistButton, OptionRows.Tone.DESTRUCTIVE)
                 addToPlaylistButton.setOnClickListener {
                     onRemoveFromPlaylistClick?.invoke(song, playlistId)
                     showResonantSnackbar(text = "Canción eliminada de la playlist", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
                     dismiss()
                 }
             } else {
-                val themeWhite = requireContext().getColor(R.color.white)
                 addToPlaylistButton.text = "Añadir a lista"
-                addToPlaylistButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_menu_add_selected, 0, 0, 0)
-                addToPlaylistButton.setTextColor(themeWhite)
-                addToPlaylistButton.compoundDrawableTintList = ColorStateList.valueOf(themeWhite)
+                OptionRows.setIcon(addToPlaylistButton, R.drawable.ic_menu_add_selected)
+                OptionRows.setTone(addToPlaylistButton, OptionRows.Tone.NORMAL)
                 addToPlaylistButton.setOnClickListener {
                     onAddToPlaylistClick?.invoke(song)
                     dismiss()
@@ -244,8 +234,8 @@ class SongOptionsBottomSheet(
                 dismiss()
             }
         } else {
+            OptionRows.setFavorite(addToFavoriteButton, isFavorite = false)
             disableButton(addToFavoriteButton, disabledAlpha, disabledColor)
-            addToFavoriteButton.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
         }
 
         // 4. VER CANCIÓN
@@ -274,10 +264,7 @@ class SongOptionsBottomSheet(
     }
 
     private fun disableButton(button: TextView, alpha: Float, color: Int) {
-        button.isEnabled = false
-        button.alpha = alpha
-        button.setTextColor(color)
-        button.compoundDrawableTintList = ColorStateList.valueOf(color)
+        OptionRows.disable(button)
         val currentText = button.text.toString()
         if (!currentText.contains("(Offline)")) {
             button.text = "$currentText (Offline)"
@@ -285,15 +272,7 @@ class SongOptionsBottomSheet(
     }
 
     private fun updateFavoriteButtonUI(button: TextView, isFavorite: Boolean) {
-        if (isFavorite) {
-            button.text = "Eliminar de favoritos"
-            button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_favorite_delete, 0, 0, 0)
-            button.setTextColor(Color.parseColor("#F44336"))
-        } else {
-            button.text = "Añadir a favoritos"
-            button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
-            button.setTextColor(requireContext().getColor(R.color.white))
-        }
+        OptionRows.setFavorite(button, isFavorite)
     }
 
     private fun shareSongLogic(song: Song) {

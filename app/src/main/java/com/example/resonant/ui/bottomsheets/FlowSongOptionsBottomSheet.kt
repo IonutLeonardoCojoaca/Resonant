@@ -18,6 +18,8 @@ class FlowSongOptionsBottomSheet(
     private val onSongOptions: (Song) -> Unit
 ) : ResonantBottomSheetDialogFragment() {
 
+    override val hasOptionRows = true
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         inflater.inflate(R.layout.bottom_sheet_flow_song_options, container, false)
 

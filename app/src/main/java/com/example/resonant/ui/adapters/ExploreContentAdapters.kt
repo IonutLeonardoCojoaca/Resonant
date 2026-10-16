@@ -17,10 +17,14 @@ import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.explore.AriaPick
 import com.example.resonant.utils.ImageRequestHelper
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class ExplorePlaylistAdapter(
     private val onPlaylistClick: (Playlist) -> Unit
 ) : ListAdapter<Playlist, ExplorePlaylistAdapter.PlaylistViewHolder>(PlaylistDiffCallback()) {
+
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((Playlist) -> Unit)? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PlaylistViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -29,6 +33,13 @@ class ExplorePlaylistAdapter(
     }
 
     override fun onBindViewHolder(holder: PlaylistViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 
@@ -72,6 +83,9 @@ class ExploreArtistAdapter(
     private val onArtistClick: (Artist) -> Unit
 ) : ListAdapter<Artist, ExploreArtistAdapter.ArtistViewHolder>(ArtistDiffCallback()) {
 
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((Artist) -> Unit)? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ArtistViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_explore_artist, parent, false)
@@ -79,6 +93,13 @@ class ExploreArtistAdapter(
     }
 
     override fun onBindViewHolder(holder: ArtistViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 
@@ -116,6 +137,9 @@ class ExploreAlbumAdapter(
     private val onAlbumClick: (Album) -> Unit
 ) : ListAdapter<Album, ExploreAlbumAdapter.AlbumViewHolder>(AlbumDiffCallback()) {
 
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((Album) -> Unit)? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AlbumViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_explore_album, parent, false)
@@ -123,6 +147,13 @@ class ExploreAlbumAdapter(
     }
 
     override fun onBindViewHolder(holder: AlbumViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 
@@ -165,6 +196,9 @@ class ExploreSongAdapter(
     private val onSongClick: (Int) -> Unit
 ) : ListAdapter<Song, ExploreSongAdapter.SongViewHolder>(SongDiffCallback()) {
 
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((Song) -> Unit)? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SongViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_explore_song, parent, false)
@@ -172,6 +206,13 @@ class ExploreSongAdapter(
     }
 
     override fun onBindViewHolder(holder: SongViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(getItem(pos))
+            true
+        }
         holder.bind(getItem(position))
     }
 

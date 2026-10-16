@@ -15,6 +15,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.adapters.GenreAdapter
 import com.example.resonant.ui.viewmodels.ExploreViewModel
 import com.google.android.material.button.MaterialButton
@@ -76,6 +77,7 @@ class AllGenresFragment : BaseFragment(R.layout.fragment_all_genres) {
                 bundle
             )
         }
+        genreAdapter.onItemLongClick = { ItemOptions.genre(this, it) }
         recyclerViewAllGenres.adapter = genreAdapter
     }
 

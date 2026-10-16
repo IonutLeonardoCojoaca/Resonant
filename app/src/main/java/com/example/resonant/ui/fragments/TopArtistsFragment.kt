@@ -19,6 +19,7 @@ import com.bumptech.glide.request.RequestOptions
 import androidx.core.graphics.ColorUtils
 import com.google.android.material.appbar.AppBarLayout
 import com.example.resonant.R
+import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.ChartHero
 import com.example.resonant.ui.components.ChartPeriodSelector
 import com.example.resonant.ui.components.ResonantAccent
@@ -75,6 +76,7 @@ class TopArtistsFragment : Fragment() {
         topArtistAdapter = TopArtistAdapter { artist ->
             navigateToArtist(artist.id, artist.name, artist.url)
         }
+        topArtistAdapter.onItemLongClick = { ItemOptions.artist(this, it.artist) }
         galleryAdapter = FeaturedImageAdapter()
     }
 

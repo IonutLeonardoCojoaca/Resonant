@@ -26,6 +26,8 @@ class AlbumOptionsBottomSheet(
     private val onViewDetailsClick: ((Album) -> Unit)? = null
 ) : ResonantBottomSheetDialogFragment() {
 
+    override val hasOptionRows = true
+
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme
     }
@@ -121,22 +123,11 @@ class AlbumOptionsBottomSheet(
     }
 
     private fun updateFavoriteButtonUI(button: TextView, isFavorite: Boolean) {
-        if (isFavorite) {
-            button.text = "Eliminar de favoritos"
-            button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_favorite_delete, 0, 0, 0)
-            button.setTextColor(Color.parseColor("#F44336"))
-        } else {
-            button.text = "Añadir a favoritos"
-            button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_add_favorite, 0, 0, 0)
-            button.setTextColor(requireContext().getColor(R.color.white))
-        }
+        OptionRows.setFavorite(button, isFavorite)
     }
 
     private fun disableButton(button: TextView, alpha: Float, color: Int) {
-        button.isEnabled = false
-        button.alpha = alpha
-        button.setTextColor(color)
-        button.compoundDrawableTintList = ColorStateList.valueOf(color)
+        OptionRows.disable(button)
         val currentText = button.text.toString()
         if (!currentText.contains("(Offline)")) {
             button.text = "$currentText (Offline)"

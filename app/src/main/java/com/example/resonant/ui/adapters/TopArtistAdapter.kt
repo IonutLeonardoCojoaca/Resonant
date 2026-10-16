@@ -13,11 +13,15 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.viewmodels.ArtistRank
 import com.example.resonant.utils.ChartUtils
+import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 
 class TopArtistAdapter(
     private var artists: List<ArtistRank> = emptyList(),
     private val onArtistClick: (Artist) -> Unit
 ) : RecyclerView.Adapter<TopArtistAdapter.ViewHolder>() {
+
+    /** Mantener pulsado: abre las opciones del elemento (ItemOptions). */
+    var onItemLongClick: ((ArtistRank) -> Unit)? = null
 
     init {
         setHasStableIds(true)
@@ -39,6 +43,13 @@ class TopArtistAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.itemView.onLongPressOptions {
+            val pos = holder.bindingAdapterPosition
+            val open = onItemLongClick
+            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
+            open(artists[pos])
+            true
+        }
         val item = artists[position]
         val artist = item.artist
 
