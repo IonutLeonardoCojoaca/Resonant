@@ -23,6 +23,7 @@ import com.example.resonant.data.network.services.RadioService
 import com.example.resonant.data.network.services.SongService
 import com.example.resonant.data.network.services.StreakService
 import com.example.resonant.data.network.services.TransitionPresetService
+import com.example.resonant.data.network.services.StudioService
 import com.example.resonant.data.network.services.UnisoundService
 import com.example.resonant.data.network.services.UniversalSearchService
 
@@ -122,6 +123,10 @@ object ApiClient {
 
     fun getTransitionPresetService(context: Context): TransitionPresetService {
         return getRetrofitInstance(context).create(TransitionPresetService::class.java)
+    }
+
+    fun getStudioService(context: Context): StudioService {
+        return getRetrofitInstance(context).create(StudioService::class.java)
     }
 
     fun getUniversalSearchService(context: Context): UniversalSearchService {

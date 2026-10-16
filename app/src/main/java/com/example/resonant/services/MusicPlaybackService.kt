@@ -1601,7 +1601,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         // —— PlayMix mode: trigger at exitPointMs (which already accounts for crossfade + gap) ——
         if (isPlaymixMode) {
-            val transition = PlaymixMixMode.advancedOrNull(playmixTransitions["${song.id}:${nextSong.id}"])
+            val stored = playmixTransitions["${song.id}:${nextSong.id}"]
+            // Studio sin clip listo: el documento se reproduce con el motor del móvil (add-rhythmic-mix-styles D5).
+            stored?.let { studioPlanFor(it, song, nextSong) }?.let { plan ->
+                return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
+            }
+            val transition = PlaymixMixMode.advancedOrNull(stored)
             if (transition != null) {
                 // Resonant Studio: con clip renderizado se dispara antes para precargar clip y B.
                 val nowMs = System.currentTimeMillis()
@@ -2561,7 +2566,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         return when {
             queue.sourceType == QueueSource.PLAYMIX -> {
                 val transition = currentSong?.let { playmixTransitions["${it.id}:${nextSong.id}"] }
-                if (PlaymixMixMode.isSmart(transition)) {
+                if (transition != null && currentSong != null && studioPlanFor(transition, currentSong, nextSong) != null) {
+                    studioPlanFor(transition, currentSong, nextSong)!!.doc.b.startMs.toLong()
+                } else if (PlaymixMixMode.isSmart(transition)) {
                     currentSong?.let { transitionPlanFor(it, nextSong, playmixSmart = true) }?.doc?.b?.startMs?.toLong()
                         ?: TransitionTiming.resolveEntryPointMs(
                             TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
@@ -2616,6 +2623,31 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         cachedPlanKey = key
         cachedPlan = plan
         plan?.let { Log.d("MusicService", "🎚️ Plan ${it.label} ${from.title} → ${to.title}: A=${it.doc.a.startMs}ms, B=${it.doc.b.startMs}ms, ${it.doc.durationMs}ms") }
+        return plan
+    }
+
+    /**
+     * Plan con el documento de Studio de una transición de Playmix, si lo tiene y su clip renderizado aún no
+     * está listo (con clip listo manda `RenderedTransition`). Así la transición suena como en la web desde que
+     * se guarda, sin esperar al render. Con tempos compatibles, B va a tempo de A.
+     */
+    private var cachedStudioKey: String? = null
+    private var cachedStudioPlan: TransitionPlanner.Plan? = null
+
+    private fun studioPlanFor(transition: PlaymixTransitionDTO, from: Song, to: Song): TransitionPlanner.Plan? {
+        val doc = transition.mixDocument ?: return null
+        // Se consulta en cada tick del seekbar: se cachea por transición, estado del clip y análisis.
+        val key = "${transition.id}:${transition.render?.status}:${System.identityHashCode(doc)}:" +
+            "${System.identityHashCode(from.audioAnalysis)}:${System.identityHashCode(to.audioAnalysis)}"
+        if (key == cachedStudioKey) return cachedStudioPlan
+        val plan = if (RenderedTransition.planFor(transition, System.currentTimeMillis()) != null) null else {
+            val a = TransitionPlanner.trackOf(from.audioAnalysis, -1L)
+            val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
+            val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
+            TransitionPlanner.Plan(doc, "studio-${doc.preset?.code ?: "custom"}", beatSync = ratio != null, bpmRatio = ratio ?: 1.0)
+        }
+        cachedStudioKey = key
+        cachedStudioPlan = plan
         return plan
     }
 
@@ -4032,20 +4064,23 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         // La UI y la cola cambian a B cuando B empieza a sonar (handleTransitionAudible, D6).
-        val plan = if (playmixTransition == null) transitionPlanFor(oldSong, nextSong, playmixSmart = isPlaymixMode) else null
+        val studioPlan = if (isPlaymixMode) playmixTransitions["${oldSong.id}:${nextSong.id}"]?.let { studioPlanFor(it, oldSong, nextSong) } else null
+        // Con documento de Studio (sin clip listo) manda el documento, no los campos antiguos de la transición.
+        val legacyTransition = if (studioPlan != null) null else playmixTransition
+        val plan = studioPlan ?: if (legacyTransition == null) transitionPlanFor(oldSong, nextSong, playmixSmart = isPlaymixMode) else null
         // Un fundido sin EQ propio deja el ecualizador del usuario en A (y se copia a B al entrar):
         // quitarlo de golpe al empezar la transición se oía como un salto de volumen y timbre.
-        if (playmixTransition != null || plan == null || plan.hasEq) {
+        if (legacyTransition != null || plan == null || plan.hasEq) {
             audioEqualizerController.suspendForTransition()
         }
-        if (playmixTransition != null) {
-            Log.d("MusicService", "🎹 PlayMix — using dedicated engine: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, mixMode=${playmixTransition.mixMode}, curve=${playmixTransition.fadeCurveType}, gap=${playmixTransition.gapMs}ms")
+        if (legacyTransition != null) {
+            Log.d("MusicService", "🎹 PlayMix — using dedicated engine: exit=${legacyTransition.exitPointMs}ms, entry=${legacyTransition.entryPointMs}ms, crossfade=${legacyTransition.crossfadeDurationMs}ms, mixMode=${legacyTransition.mixMode}, curve=${legacyTransition.fadeCurveType}, gap=${legacyTransition.gapMs}ms")
             transitionManager.startPlaymixTransition(
                 oldPlayer = player,
                 oldSong = oldSong,
                 nextSong = nextSong,
                 nextSongIndex = nextIndex,
-                transition = playmixTransition,
+                transition = legacyTransition,
                 oldSongTargetVolume = getEffectivePlaybackVolume(oldSong),
                 nextSongTargetVolume = getEffectivePlaybackVolume(nextSong)
             )

@@ -26,6 +26,7 @@ import com.example.resonant.databinding.FragmentCrossfadeEditorBinding
 import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.managers.StudioManager
 import com.example.resonant.managers.TransitionPresetManager
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.QueueSource
@@ -73,6 +74,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     private val mixModeChipViews = mutableMapOf<String, TextView>()
     private val effectChipViews = mutableMapOf<String, TextView>()
     private var effectChipContainer: LinearLayout? = null
+    private var studioUnavailableShown = false
     private var modeSelector: ChartPeriodSelector? = null
     /** Bloques del editor avanzado ocultados por el blend automático, para restaurarlos tal cual. */
     private val hiddenBySmartMode = mutableListOf<View>()
@@ -86,7 +88,8 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
 
         val playmixManager = PlaymixManager(requireContext())
         val presetManager = TransitionPresetManager(requireContext())
-        viewModel = ViewModelProvider(this, CrossfadeEditorViewModelFactory(playmixManager, presetManager))
+        val studioManager = StudioManager(requireContext())
+        viewModel = ViewModelProvider(this, CrossfadeEditorViewModelFactory(playmixManager, presetManager, studioManager))
             .get(CrossfadeEditorViewModel::class.java)
 
         setupCompactLayout()
@@ -176,7 +179,8 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                 eqSettingsB = state.eqSettingsB,
                 mixMode = state.mixMode,
                 bandFadeTypes = state.bandFadeTypes,
-                gapMs = state.gapMs
+                gapMs = state.gapMs,
+                mixDocument = state.document.takeIf { state.mixMode != PlaymixMixMode.SMART }
             )
             WaveformPreviewBottomSheet(playmixId, previewTransition)
                 .show(childFragmentManager, "WaveformPreview")
@@ -241,7 +245,6 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         binding.actionButtonsPanel.visibility = View.GONE
         binding.prelistenPanel.visibility = View.GONE
         binding.advancedToggleButton.visibility = View.GONE
-        setupMixModeChips()
         updateAdvancedControlsVisibility(null)
     }
 
@@ -350,8 +353,12 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         binding.visualizerPanel.addView(songBBlock, insertIndex)
     }
 
-    private fun setupMixModeChips() {
-        if (mixModeChipViews.isNotEmpty()) return
+    /**
+     * Estilos de mezcla (add-rhythmic-mix-styles D5): un chip por preset del servidor. Elegir uno pide su
+     * documento con los compases actuales; los chips se crean cuando llega la lista de presets.
+     */
+    private fun setupStyleChips(state: CrossfadeEditorState) {
+        if (mixModeChipViews.isNotEmpty() || state.availablePresets.isEmpty()) return
         val scroll = HorizontalScrollView(requireContext()).apply {
             isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(
@@ -363,18 +370,32 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 8.dp, 0, 2.dp)
         }
-        mixModeOptions.forEach { option ->
-            val chip = createCompactChip(option.label)
-            chip.setOnClickListener {
-                viewModel.setMixMode(option.code)
-                updateMixModeUI(option.code)
-                updateWaveformMarkers()
-            }
+        state.availablePresets.sortedBy { it.sortOrder }.forEach { preset ->
+            val chip = createCompactChip(preset.name)
+            chip.contentDescription = "${preset.name}: ${preset.description}"
+            chip.setOnClickListener { viewModel.selectStyle(preset.code) }
             row.addView(chip)
-            mixModeChipViews[option.code] = chip
+            mixModeChipViews[preset.code] = chip
         }
         scroll.addView(row)
         binding.mixModePanel.addView(scroll, 1)
+    }
+
+    /** Chip del estilo del documento marcado; descripción del estilo bajo los chips. */
+    private fun updateStyleChips(state: CrossfadeEditorState) {
+        setupStyleChips(state)
+        mixModeChipViews.forEach { (code, chip) ->
+            val selected = code == state.styleCode
+            chip.isSelected = selected
+            chip.setTextColor(if (selected) Color.WHITE else Color.parseColor("#CCFFFFFF"))
+            chip.alpha = if (state.styleLoading) 0.5f else 1f
+            chip.isEnabled = !state.styleLoading
+        }
+        val style = state.availablePresets.firstOrNull { it.code == state.styleCode }
+        binding.mixModeSelectedLabel.text = style?.name ?: "Personalizada"
+        binding.mixModeDescription.text = style?.description
+            ?: "Mezcla con sus propios puntos. Elige un estilo para que los cambios caigan en los compases."
+        binding.mixModeDescription.visibility = View.VISIBLE
     }
 
     private fun setupEffectChips() {
@@ -438,22 +459,12 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     }
 
     private fun updateAdvancedControlsVisibility(state: CrossfadeEditorState?) {
-        val visibility = if (showAdvancedControls) View.VISIBLE else View.GONE
-        binding.mixModeDescription.visibility = View.GONE
         binding.mixModeGraph.visibility = View.GONE
         binding.fadeCurvePanel.visibility = View.GONE
         binding.bandFadePanel.visibility = View.GONE
-        effectChipContainer?.visibility = visibility
-        binding.advancedToggleButton.text = if (showAdvancedControls) {
-            "Ocultar ajustes"
-        } else {
-            "Ajustes: Volumen · EQ · Filtrar"
-        }
-        if (!showAdvancedControls) {
-            binding.gapSliderPanel.visibility = View.GONE
-        } else {
-            updateGapSlider(state ?: viewModel.state.value ?: return)
-        }
+        // Curvas por banda, EQ manual y hueco pertenecen al editor antiguo: el estilo y los compases los sustituyen.
+        effectChipContainer?.visibility = View.GONE
+        binding.gapSliderPanel.visibility = View.GONE
     }
 
     private fun updateCurveSelection(selected: String) {
@@ -546,9 +557,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             updatePointLabels(state)
             updateBeatPresetLabels(state)
             updateDurationSlider(state)
-            updateCurveSelection(state.fadeCurveType)
-            updateBandFadeSelection(state.bandFadeTypes)
-            updateMixModeUI(state.mixMode)
+            updateStyleChips(state)
             updateWaveformMarkers()
             updateWaveformPlaybackCursor()
             updatePrelistenButtons(state.prelistenTarget)
@@ -561,6 +570,11 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             updateAdvancedControlsVisibility(state)
             updateModePanel(state)
 
+
+            if (state.studioUnavailable && !studioUnavailableShown) {
+                studioUnavailableShown = true
+                Toast.makeText(requireContext(), "Resonant Studio no está disponible: solo se pueden guardar los puntos.", Toast.LENGTH_LONG).show()
+            }
 
             if (state.savedSuccess) {
                 Toast.makeText(requireContext(), "Transición guardada", Toast.LENGTH_SHORT).show()
@@ -770,7 +784,9 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         )
         val state = viewModel.state.value
         val bpm = state?.let { bestBpm(it) } ?: 0.0
-        val currentMeasures = if (state != null && bpm > 0.0 && state.crossfadeDurationMs > 0) {
+        val currentMeasures = if (state?.bars != null) {
+            state.bars.toString()
+        } else if (state != null && bpm > 0.0 && state.crossfadeDurationMs > 0) {
             (state.crossfadeDurationMs / (60000.0 / bpm) / 4.0).roundToInt().coerceAtLeast(1).toString()
         } else {
             "4"
@@ -792,6 +808,16 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     }
 
     private fun applyMeasurePreset(measures: Int) {
+        val state = viewModel.state.value
+        if (state?.document != null) {
+            // Con documento la duración es en compases: el servidor rehace el estilo a esa duración.
+            if (state.styleCode == null) {
+                Toast.makeText(requireContext(), "Elige un estilo para cambiar los compases", Toast.LENGTH_SHORT).show()
+                return
+            }
+            viewModel.selectBars(measures)
+            return
+        }
         applyBeatPreset(measures * 4)
     }
 
@@ -989,6 +1015,8 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
 
     private fun updateWaveformMarkers() {
         val state = viewModel.state.value ?: return
+        // Con documento se dibujan sus carriles (volumen y tres bandas); en blend automático no hay curvas que enseñar.
+        binding.waveformView.setMixDocument(state.document.takeIf { state.mixMode != PlaymixMixMode.SMART })
         binding.waveformView.fadeCurveType = state.fadeCurveType
         binding.waveformView.mixMode = state.mixMode
         binding.waveformView.bandFadeTypeBass = state.bandFadeTypes.bass
@@ -1136,37 +1164,6 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     // MIX MODE SELECTOR (dropdown)
     // ═══════════════════════════════════════════════
 
-    private data class MixModeOption(val code: String, val label: String, val description: String)
-
-    private val mixModeOptions = listOf(
-        MixModeOption("crossfade",  "Crossfade",  "Fade suave entre las dos canciones con volumen cruzado."),
-        MixModeOption("overlap",    "Overlap",    "Ambas canciones suenan a volumen completo simultáneamente."),
-        MixModeOption("freq_split", "Freq Split", "Divide por frecuencias: graves de A se mezclan con agudos de B."),
-        MixModeOption("club_drop",  "Club Drop",  "Caída dramática de graves de A mientras B entra progresivamente."),
-        MixModeOption("hard_edit",  "Hard Edit",  "Corte instantáneo sin transición. De A a B al instante.")
-    )
-
-    private fun showMixModeMenu(anchor: View) {
-        val current = viewModel.state.value?.mixMode ?: "crossfade"
-        val pairs = mixModeOptions.map { it.code to it.label }
-        showStyledPopup(anchor, pairs, current) { code ->
-            viewModel.setMixMode(code)
-            updateMixModeUI(code)
-            updateWaveformMarkers()
-        }
-    }
-
-    private fun updateMixModeUI(mode: String) {
-        val opt = mixModeOptions.firstOrNull { it.code == mode } ?: mixModeOptions[0]
-        binding.mixModeSelectedLabel.text = opt.label
-        binding.mixModeDescription.text = opt.description
-        binding.mixModeGraph.mixMode = mode
-        mixModeChipViews.forEach { (code, chip) ->
-            val selected = code == opt.code
-            chip.isSelected = selected
-            chip.setTextColor(if (selected) Color.WHITE else Color.parseColor("#CCFFFFFF"))
-        }
-    }
 
     // ═══════════════════════════════════════════════
     // PRESET SELECTOR STRIP

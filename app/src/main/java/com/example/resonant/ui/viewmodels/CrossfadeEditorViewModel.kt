@@ -7,7 +7,14 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.resonant.data.network.MixDocumentDTO
+import com.example.resonant.data.network.MixPresetRefDTO
+import com.example.resonant.data.network.MixSideADTO
+import com.example.resonant.data.network.MixSideBDTO
 import com.example.resonant.data.network.StudioErrors
+import com.example.resonant.data.network.StudioTransitionDTO
+import com.example.resonant.managers.StudioManager
+import retrofit2.HttpException
 import com.example.resonant.data.network.BandFadeTypesDTO
 import com.example.resonant.data.network.EqBandDTO
 import com.example.resonant.data.network.EqSettingsDTO
@@ -51,7 +58,20 @@ data class CrossfadeEditorState(
     val showGapSlider: Boolean = false,
     val bandFadeTypes: BandFadeTypesDTO = BandFadeTypesDTO(),
     // ─── Pre-listen state ─────────────────────────
-    val prelistenTarget: String? = null // "songA" or "songB" or null
+    val prelistenTarget: String? = null, // "songA" or "songB" or null
+    // ─── Resonant Studio: documento de mezcla (add-rhythmic-mix-styles D5) ─────
+    /** Transición en Studio (documento guardado o derivado, revisión, datos de las canciones). null si Studio no respondió. */
+    val studio: StudioTransitionDTO? = null,
+    /** Documento que se edita: estilo + compases + puntos. Es lo que se dibuja y lo que se guarda. */
+    val document: MixDocumentDTO? = null,
+    val revision: Int = 0,
+    /** Estilo (código del preset) del documento; null si es personalizado. */
+    val styleCode: String? = null,
+    /** Compases elegidos (2, 4, 8, 16); null = los nativos del estilo. */
+    val bars: Int? = null,
+    val styleLoading: Boolean = false,
+    /** Studio apagado o inaccesible: el editor solo puede guardar puntos y el blend automático. */
+    val studioUnavailable: Boolean = false
 )
 
 fun defaultEq() = EqSettingsDTO(
@@ -61,7 +81,9 @@ fun defaultEq() = EqSettingsDTO(
 class CrossfadeEditorViewModel(
     private val playmixManager: PlaymixManager,
     private val presetManager: TransitionPresetManager,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Sin gestor de Studio (tests, Studio apagado) el editor queda en modo reducido: puntos y blend automático. */
+    private val studioManager: StudioManager? = null
 ) : ViewModel() {
 
     private val _state = MutableLiveData(CrossfadeEditorState())
@@ -139,6 +161,7 @@ class CrossfadeEditorViewModel(
 
         // Load presets in parallel
         loadPresets()
+        loadStudio()
 
         viewModelScope.launch {
             try {
@@ -149,12 +172,14 @@ class CrossfadeEditorViewModel(
                 val bA = data.songA.bpm ?: 0.0
                 val bB = data.songB.bpm ?: 0.0
 
+                // Si Studio ya respondió, los puntos y la duración son los del documento, no los campos antiguos.
+                val doc = _state.value?.document
                 _state.value = _state.value?.copy(
                     isLoading = false,
                     waveformData = data,
-                    exitPointMs = transition.exitPointMs,
-                    entryPointMs = transition.entryPointMs,
-                    crossfadeDurationMs = transition.crossfadeDurationMs,
+                    exitPointMs = doc?.a?.startMs ?: transition.exitPointMs,
+                    entryPointMs = doc?.b?.startMs ?: transition.entryPointMs,
+                    crossfadeDurationMs = doc?.durationMs ?: transition.crossfadeDurationMs,
                     fadeCurveType = transition.fadeCurveType,
                     eqSettings = transition.eqSettings ?: defaultEq(),
                     eqSettingsA = transition.eqSettingsA ?: (transition.eqSettings ?: defaultEq()),
@@ -190,6 +215,83 @@ class CrossfadeEditorViewModel(
             }
         }
     }
+
+    // ─── Resonant Studio: documento, estilo y compases ─────────────────────────
+
+    /** Documento guardado (o derivado de los campos antiguos) y revisión. Sin Studio, el editor queda en modo reducido. */
+    private fun loadStudio() {
+        val manager = studioManager ?: run {
+            _state.value = _state.value?.copy(studioUnavailable = true)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val studio = withContext(ioDispatcher) { manager.get(playmixId, transitionId) }
+                applyStudio(studio, keepSmart = true)
+            } catch (e: Exception) {
+                logError("Studio no disponible para la transición", e)
+                _state.value = _state.value?.copy(studioUnavailable = true)
+            }
+        }
+    }
+
+    private fun applyStudio(studio: StudioTransitionDTO, keepSmart: Boolean) {
+        val current = _state.value ?: return
+        val doc = studio.document
+        _state.value = current.copy(
+            studio = studio,
+            document = doc,
+            revision = studio.revision,
+            styleCode = doc.preset?.code,
+            studioUnavailable = false,
+            exitPointMs = doc.a.startMs,
+            entryPointMs = doc.b.startMs,
+            crossfadeDurationMs = doc.durationMs,
+            mixMode = if (keepSmart && current.mixMode == PlaymixMixMode.SMART) current.mixMode
+                else if (current.mixMode == PlaymixMixMode.SMART) PlaymixMixMode.DEFAULT_ADVANCED else current.mixMode
+        )
+    }
+
+    /** Pide al servidor el documento del estilo con los compases elegidos y lo deja como documento actual. */
+    fun selectStyle(code: String) {
+        val manager = studioManager ?: return
+        val current = _state.value ?: return
+        _state.value = current.copy(styleLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val response = withContext(ioDispatcher) { manager.preset(playmixId, transitionId, code, current.bars) }
+                val doc = response.document.copy(preset = response.document.preset ?: MixPresetRefDTO(code))
+                val now = _state.value ?: return@launch
+                _state.value = now.copy(
+                    document = doc,
+                    styleCode = code,
+                    styleLoading = false,
+                    exitPointMs = doc.a.startMs,
+                    entryPointMs = doc.b.startMs,
+                    crossfadeDurationMs = doc.durationMs,
+                    mixMode = if (now.mixMode == PlaymixMixMode.SMART) PlaymixMixMode.DEFAULT_ADVANCED else now.mixMode,
+                    activePresetCode = null, activePresetName = null, isPresetModified = false
+                )
+            } catch (e: Exception) {
+                logError("Error pidiendo el estilo $code", e)
+                _state.value = _state.value?.copy(
+                    styleLoading = false,
+                    error = if (e is HttpException && e.code() == 422) "Falta el análisis de audio de una canción para este estilo."
+                            else "No se pudo cargar el estilo."
+                )
+            }
+        }
+    }
+
+    /** Compases del cruce (2, 4, 8 o 16). Con un estilo elegido vuelve a pedirlo con la duración nueva. */
+    fun selectBars(bars: Int) {
+        val current = _state.value ?: return
+        _state.value = current.copy(bars = bars)
+        current.styleCode?.let { selectStyle(it) }
+    }
+
+    /** Vuelve a cargar la revisión actual tras un conflicto o un cambio externo. */
+    fun reloadStudio() = loadStudio()
 
     // ─── Preset Loading ─────────────────────────
 
@@ -335,6 +437,14 @@ class CrossfadeEditorViewModel(
 
     fun setExitPoint(ms: Int) {
         val current = _state.value ?: return
+        current.document?.let { doc ->
+            // Con documento, la salida es `a.startMs`; la duración es la del documento.
+            // A tiene que sonar entera durante el cruce: la salida no pasa de (duración de A − cruce).
+            val maxStart = ((current.waveformData?.songA?.durationMs ?: Int.MAX_VALUE) - doc.durationMs).coerceAtLeast(0)
+            val start = ms.coerceIn(0, maxStart)
+            _state.value = current.copy(exitPointMs = start, document = doc.copy(a = MixSideADTO(start)))
+            return
+        }
         val moved = current.copy(exitPointMs = ms.coerceAtLeast(0))
         _state.value = moved.copy(
             crossfadeDurationMs = coerceCrossfadeDuration(moved.crossfadeDurationMs, moved)
@@ -344,6 +454,12 @@ class CrossfadeEditorViewModel(
 
     fun setEntryPoint(ms: Int) {
         val current = _state.value ?: return
+        current.document?.let { doc ->
+            val maxStart = ((current.waveformData?.songB?.durationMs ?: Int.MAX_VALUE) - (doc.durationMs - doc.b.offsetMs)).coerceAtLeast(0)
+            val start = ms.coerceIn(0, maxStart)
+            _state.value = current.copy(entryPointMs = start, document = doc.copy(b = MixSideBDTO(start, doc.b.offsetMs)))
+            return
+        }
         val moved = current.copy(entryPointMs = ms.coerceAtLeast(0))
         _state.value = moved.copy(
             crossfadeDurationMs = coerceCrossfadeDuration(moved.crossfadeDurationMs, moved)
@@ -356,6 +472,7 @@ class CrossfadeEditorViewModel(
     }
 
     fun setCrossfadeDuration(ms: Int) {
+        if (_state.value?.document != null) return // con documento la duración se elige en compases
         val current = _state.value ?: return
         val clampedMs = coerceCrossfadeDuration(ms, current)
         _state.value = current.copy(
@@ -366,6 +483,7 @@ class CrossfadeEditorViewModel(
     }
 
     fun setCrossfadeDurationWithAutoFit(ms: Int) {
+        if (_state.value?.document != null) return
         val current = _state.value ?: return
         _state.value = fitTransitionToDuration(ms, current)
         checkPresetModified()
@@ -378,6 +496,11 @@ class CrossfadeEditorViewModel(
 
     fun setMixMode(mode: String) {
         val current = _state.value ?: return
+        current.document?.let { doc ->
+            // Con documento solo cambia el modo (smart ↔ transición); los puntos y la duración son los del documento.
+            _state.value = current.copy(mixMode = mode, crossfadeDurationMs = doc.durationMs, showGapSlider = false)
+            return
+        }
         val updatedDuration = when {
             mode == "hard_edit" -> 0
             current.mixMode == "hard_edit" && current.crossfadeDurationMs == 0 -> 4000
@@ -445,6 +568,17 @@ class CrossfadeEditorViewModel(
     fun saveTransition() {
         val current = _state.value ?: return
 
+        if (current.mixMode == PlaymixMixMode.SMART) {
+            saveSmart(current)
+            return
+        }
+        val manager = studioManager
+        val document = current.document
+        if (manager != null && document != null && current.studio != null) {
+            saveDocument(manager, current, document)
+            return
+        }
+
         if (current.activePresetCode != null && !current.isPresetModified) {
             _state.value = current.copy(isSaving = false, savedSuccess = true, error = null)
             return
@@ -487,6 +621,68 @@ class CrossfadeEditorViewModel(
         }
     }
 
+    /** Guarda el documento en Studio. Un 409 (otra revisión) recarga y pide volver a guardar. */
+    private fun saveDocument(manager: StudioManager, current: CrossfadeEditorState, document: MixDocumentDTO) {
+        _state.value = current.copy(isSaving = true, savedSuccess = false, error = null)
+        viewModelScope.launch {
+            try {
+                val saved = withContext(ioDispatcher) { manager.save(playmixId, transitionId, current.revision, document) }
+                applyStudio(saved, keepSmart = false)
+                _state.value = _state.value?.copy(isSaving = false, savedSuccess = true, error = null)
+            } catch (e: Exception) {
+                logError("Error guardando el documento", e)
+                val conflict = e is HttpException && e.code() == 409
+                if (conflict) loadStudio()
+                _state.value = _state.value?.copy(
+                    isSaving = false,
+                    error = if (conflict) "La transición cambió en otro sitio. Revisa y vuelve a guardar."
+                            else "No se pudo guardar la transición."
+                )
+            }
+        }
+    }
+
+    /**
+     * Blend automático: se guarda con el editor antiguo (`mixMode = "smart"`). Si la transición tenía documento en
+     * Studio, primero se suelta (`detach`), porque el PUT antiguo lo rechazaría con 409.
+     */
+    private fun saveSmart(current: CrossfadeEditorState) {
+        _state.value = current.copy(isSaving = true, savedSuccess = false, error = null)
+        viewModelScope.launch {
+            try {
+                val manager = studioManager
+                if (manager != null && current.studio?.derived == false) {
+                    withContext(ioDispatcher) { manager.detach(playmixId, transitionId) }
+                    // Ya sin documento en el servidor: un reintento tras un fallo del PUT no vuelve a soltar.
+                    _state.value = _state.value?.copy(studio = current.studio.copy(derived = true, revision = 0), revision = 0, document = null)
+                }
+                val update = PlaymixTransitionUpdateDTO(
+                    exitPointMs = current.exitPointMs,
+                    entryPointMs = current.entryPointMs,
+                    crossfadeDurationMs = current.crossfadeDurationMs,
+                    fadeCurveType = current.fadeCurveType,
+                    eqSettings = current.eqSettings,
+                    eqSettingsA = current.eqSettingsA,
+                    eqSettingsB = current.eqSettingsB,
+                    mixMode = PlaymixMixMode.SMART,
+                    bandFadeTypes = current.bandFadeTypes,
+                    gapMs = 0,
+                    presetCode = null,
+                    isPresetModified = false
+                )
+                val updated = withContext(ioDispatcher) { playmixManager.updateTransition(playmixId, transitionId, update) }
+                applyTransitionToState(updated)
+                _state.value = _state.value?.copy(
+                    isSaving = false, savedSuccess = true, error = null,
+                    studio = _state.value?.studio?.copy(derived = true, revision = 0), revision = 0
+                )
+            } catch (e: Exception) {
+                logError("Error guardando el blend automático", e)
+                _state.value = _state.value?.copy(isSaving = false, error = editError(e, "No se pudo guardar la transición."))
+            }
+        }
+    }
+
     fun onSaveHandled() {
         _state.value = _state.value?.copy(savedSuccess = false, error = null)
     }
@@ -494,12 +690,13 @@ class CrossfadeEditorViewModel(
 
 class CrossfadeEditorViewModelFactory(
     private val playmixManager: PlaymixManager,
-    private val presetManager: TransitionPresetManager
+    private val presetManager: TransitionPresetManager,
+    private val studioManager: StudioManager? = null
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CrossfadeEditorViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return CrossfadeEditorViewModel(playmixManager, presetManager) as T
+            return CrossfadeEditorViewModel(playmixManager, presetManager, studioManager = studioManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

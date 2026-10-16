@@ -77,7 +77,9 @@ data class PlaymixTransitionDTO(
     val isActive: Boolean = false,
     val gapMs: Int = 0,
     // ─── Resonant Studio: clip renderizado en el servidor (null si no hay) ───
-    val render: PlaymixRenderDTO? = null
+    val render: PlaymixRenderDTO? = null,
+    /** Documento de mezcla de Studio (null si la transición no lo tiene). Se reproduce tal cual mientras no hay clip. */
+    val mixDocument: MixDocumentDTO? = null
 )
 
 /**

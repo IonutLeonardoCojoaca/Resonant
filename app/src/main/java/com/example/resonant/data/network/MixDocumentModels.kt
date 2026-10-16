@@ -9,8 +9,12 @@ data class MixDocumentDTO(
     val durationMs: Int,
     val a: MixSideADTO,
     val b: MixSideBDTO,
-    val lanes: Map<String, List<MixLanePointDTO>>? = null
+    val lanes: Map<String, List<MixLanePointDTO>>? = null,
+    /** Estilo del que salió el documento (código del preset), si lo hubo. */
+    val preset: MixPresetRefDTO? = null
 )
+
+data class MixPresetRefDTO(val code: String, val version: Int? = null)
 
 data class MixSideADTO(val startMs: Int)
 

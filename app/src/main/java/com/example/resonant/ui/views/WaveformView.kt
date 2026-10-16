@@ -1,6 +1,8 @@
 package com.example.resonant.ui.views
 
+import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.playback.BeatMagnet
+import com.example.resonant.playback.MixLanes
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -57,6 +59,19 @@ class WaveformView @JvmOverloads constructor(
         set(v) { field = v; invalidate() }
     var canvasBackgroundColor: Int = Color.BLACK
         set(v) { field = v; invalidate() }
+
+    // ── Documento de mezcla (add-rhythmic-mix-styles) ────────────────────────
+    /**
+     * Con documento, las curvas se dibujan evaluando sus carriles (`MixLanes`): volumen y graves, medios y
+     * agudos de cada canción, con los escalones en los compases tal como sonarán. Sin documento se dibujan
+     * las curvas del editor antiguo (mixMode y bandFadeType*).
+     */
+    private var mixDocument: MixDocumentDTO? = null
+
+    fun setMixDocument(doc: MixDocumentDTO?) {
+        mixDocument = doc
+        invalidate()
+    }
 
     /** Per-band fade curve types: bass, mid, treble. Each can be linear/logarithmic/exponential/hold/cut. */
     var bandFadeTypeBass: String = "linear"
@@ -237,6 +252,11 @@ class WaveformView @JvmOverloads constructor(
     private val paintDimOverlay = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#77000000") // Darker outside the transition window
         style = Paint.Style.FILL
+    }
+    private val paintAutoGain = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#E6FFFFFF")
+        style = Paint.Style.STROKE
+        strokeWidth = 2.5f
     }
     private val paintAutoBass = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#CCFF5030")
@@ -706,6 +726,10 @@ class WaveformView @JvmOverloads constructor(
         canvas: Canvas, markerAx: Float, markerBx: Float, cfPx: Float, w: Float,
         waveTopA: Float, waveBotA: Float, waveTopB: Float, waveBotB: Float
     ) {
+        mixDocument?.let { doc ->
+            drawDocumentLanes(canvas, doc, markerAx, markerBx, w, waveTopA, waveBotA, waveTopB, waveBotB)
+            return
+        }
         val autoAreaHA = (waveBotA - waveTopA) * 0.22f
         val autoAreaHB = (waveBotB - waveTopB) * 0.22f
         val autoTopA = waveTopA + 4f
@@ -761,6 +785,60 @@ class WaveformView @JvmOverloads constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Carriles del documento sobre cada onda: volumen (blanco) y graves, medios y agudos (colores). El carril
+     * de A empieza en su marcador; el de B en su marcador más `b.offsetMs`. El EQ se dibuja en [0, 1] con
+     * 0 dB arriba y −40 dB abajo; el volumen directamente.
+     */
+    private fun drawDocumentLanes(
+        canvas: Canvas, doc: MixDocumentDTO, markerAx: Float, markerBx: Float, w: Float,
+        waveTopA: Float, waveBotA: Float, waveTopB: Float, waveBotB: Float
+    ) {
+        val durPx = doc.durationMs * pixelsPerMs
+        if (durPx <= 0f) return
+        val lanePaints = listOf(paintAutoGain, paintAutoBass, paintAutoMid, paintAutoTreble)
+        val bands = listOf("low", "mid", "high")
+
+        fun drawSide(side: Char, startX: Float, top: Float, bottom: Float, alignLegendEnd: Boolean) {
+            val areaH = (bottom - top) * 0.26f
+            val areaTop = top + 4f
+            val sideOffsetMs = if (side == 'b') doc.b.offsetMs else 0
+            val x0 = startX + sideOffsetMs * pixelsPerMs
+            val x1 = startX + durPx
+            if (x1 <= 0f || x0 >= w) return
+            val from = x0.coerceAtLeast(0f)
+            val to = x1.coerceAtMost(w)
+            val stepPx = 2f
+            fun levelAt(lane: Int, x: Float): Float {
+                val t = ((x - startX) / pixelsPerMs).toDouble()
+                return if (lane == 0) MixLanes.gain(doc, side, t).toFloat().coerceIn(0f, 1f)
+                else ((MixLanes.eqDb(doc, side, bands[lane - 1], t) + 40.0) / 40.0).toFloat().coerceIn(0f, 1.15f)
+            }
+            for (lane in 0..3) {
+                if (lane > 0 && doc.lanes?.get("$side.eq.${bands[lane - 1]}").isNullOrEmpty()) continue
+                val path = Path()
+                var x = from
+                var first = true
+                while (x <= to) {
+                    val y = areaTop + (1f - levelAt(lane, x)) * areaH
+                    if (first) { path.moveTo(x, y); first = false } else path.lineTo(x, y)
+                    x += stepPx
+                }
+                canvas.drawPath(path, lanePaints[lane])
+            }
+            // Leyenda: V, B, M, T al borde del tramo visible.
+            val labels = listOf("V", "B", "M", "T")
+            val legendX = if (alignLegendEnd) (to - 56f).coerceAtLeast(4f) else (from + 4f)
+            for (lane in 0..3) {
+                if (lane > 0 && doc.lanes?.get("$side.eq.${bands[lane - 1]}").isNullOrEmpty()) continue
+                paintAutoLegend.color = lanePaints[lane].color
+                canvas.drawText(labels[lane], legendX + lane * 14f, areaTop + areaH + 14f, paintAutoLegend)
+            }
+        }
+        drawSide('a', markerAx, waveTopA, waveBotA, alignLegendEnd = false)
+        drawSide('b', markerBx, waveTopB, waveBotB, alignLegendEnd = true)
     }
 
     private fun drawMinimap(
