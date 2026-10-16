@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fila de Ajustes que abre otra pantalla o muestra un valor. El chevron se oculta en las filas informativas. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="64dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="12dp">
+
+    <ImageView
+        android:id="@+id/settingIcon"
+        style="@style/SettingsRowIcon"
+        tools:src="@drawable/ic_equalizer_badge" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/settingTitle"
+            style="@style/SettingsRowTitle"
+            tools:text="Ecualizador" />
+
+        <TextView
+            android:id="@+id/settingSubtitle"
+            style="@style/SettingsRowSubtitle"
+            tools:text="Activado · Graves" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/settingValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/textTheme"
+        android:textSize="13sp"
+        android:visibility="gone"
+        tools:text="4.0.0"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/settingChevron"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_chevron_right_mini"
+        app:tint="@color/textTheme" />
+</LinearLayout>

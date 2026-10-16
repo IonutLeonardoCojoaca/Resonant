@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Opción de un selector de Ajustes (p. ej. la transición entre canciones). Seleccionada: borde de acento y radio marcado. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:background="@drawable/bg_transition_option"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingVertical="12dp"
+    android:paddingStart="14dp"
+    android:paddingEnd="6dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/choiceTitle"
+                style="@style/SettingsRowTitle"
+                android:layout_width="wrap_content"
+                tools:text="Automática" />
+
+            <TextView
+                android:id="@+id/choiceBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_settings_badge"
+                android:fontFamily="@font/unageo_semi_bold"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:textColor="@color/secondaryColorTheme"
+                android:textSize="10.5sp"
+                android:visibility="gone"
+                tools:text="Recomendada"
+                tools:visibility="visible" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/choiceSubtitle"
+            style="@style/SettingsRowSubtitle"
+            tools:text="Mezcla el final de una con la intro de la otra" />
+    </LinearLayout>
+
+    <com.google.android.material.radiobutton.MaterialRadioButton
+        android:id="@+id/choiceRadio"
+        android:layout_width="wrap_content"
+        android:saveEnabled="false"
+        android:layout_height="wrap_content"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no"
+        app:buttonTint="@color/secondaryColorTheme" />
+</LinearLayout>

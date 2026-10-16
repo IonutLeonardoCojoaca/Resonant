@@ -12,15 +12,54 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlin.math.max
 
+/** Modo interno del motor de transiciones (lo que lee `MusicPlaybackService`). */
 enum class CrossfadeMode {
     SOFT_MIX,
     DIRECT_CUT,
     INTELLIGENT_EQ
 }
 
+/**
+ * Cómo pasa una canción a la siguiente fuera de Playmix: lo que el usuario elige en Ajustes
+ * (unify-transition-engine). Se guarda en las claves de siempre (`crossfade_mode` y la duración),
+ * así que no hay migración: los valores antiguos se leen con [fromStored].
+ */
+enum class TransitionStyle(val crossfadeMode: CrossfadeMode) {
+    /** Empalme limpio: sin silencios entre canciones y la siguiente entra a compás. */
+    CLEAN_CUT(CrossfadeMode.DIRECT_CUT),
+    /** Fundido de la duración elegida. */
+    FADE(CrossfadeMode.SOFT_MIX),
+    /** Mezcla según el ritmo y la estructura de cada pareja (recetas del servidor y beatmatch). */
+    AUTO(CrossfadeMode.INTELLIGENT_EQ);
+
+    companion object {
+        const val DEFAULT_FADE_SECONDS = 6
+        const val MIN_FADE_SECONDS = 1
+        const val MAX_FADE_SECONDS = 12
+
+        /**
+         * Sin nada guardado es [AUTO]. Valores antiguos: inteligente → [AUTO]; corte o 0 s
+         * ("desactivado") → [CLEAN_CUT]; fundido suave con duración → [FADE].
+         */
+        fun fromStored(mode: String?, durationSeconds: Int?): TransitionStyle = when {
+            mode == null && durationSeconds == null -> AUTO
+            mode == CrossfadeMode.INTELLIGENT_EQ.name -> AUTO
+            mode == CrossfadeMode.DIRECT_CUT.name -> CLEAN_CUT
+            durationSeconds == 0 -> CLEAN_CUT
+            else -> FADE
+        }
+
+        /** Duración del fundido que se muestra y se usa: la guardada, acotada; por defecto 6 s. */
+        fun fadeSeconds(durationSeconds: Int?): Int =
+            durationSeconds?.takeIf { it > 0 }?.coerceIn(MIN_FADE_SECONDS, MAX_FADE_SECONDS) ?: DEFAULT_FADE_SECONDS
+    }
+}
+
 enum class ThemeMode {
     DARK,
-    LIGHT;
+    LIGHT,
+    /** Sigue el tema claro/oscuro del sistema. */
+    SYSTEM;
 
     companion object {
         fun fromStored(value: String?): ThemeMode =
@@ -32,6 +71,7 @@ enum class ThemeMode {
 fun ThemeMode.toNightMode(): Int = when (this) {
     ThemeMode.DARK -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
     ThemeMode.LIGHT -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+    ThemeMode.SYSTEM -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
 }
 
 enum class AudioQuality(
@@ -121,16 +161,10 @@ class SettingsManager(private val context: Context) {
             )
         }
 
+    // El ecualizador del usuario y la transición automática ya conviven: el motor solo suspende el EQ
+    // del usuario durante las mezclas que usan EQ propio (unify-transition-engine D5).
     suspend fun setEqualizerEnabled(enabled: Boolean) {
-        context.dataStore.edit {
-            it[EQUALIZER_ENABLED_KEY] = enabled
-            if (
-                enabled &&
-                it[CROSSFADE_MODE_KEY] == CrossfadeMode.INTELLIGENT_EQ.name
-            ) {
-                it[CROSSFADE_MODE_KEY] = CrossfadeMode.SOFT_MIX.name
-            }
-        }
+        context.dataStore.edit { it[EQUALIZER_ENABLED_KEY] = enabled }
     }
 
     suspend fun setEqualizerPreset(preset: EqualizerPreset) {
@@ -235,40 +269,33 @@ class SettingsManager(private val context: Context) {
     }
 
 
-    // Flujo combinado que considera el modo inteligente
-    val crossfadeDurationFlow: Flow<Int> = context.dataStore.data.map { preferences ->
-        val mode = try {
-            CrossfadeMode.valueOf(preferences[CROSSFADE_MODE_KEY] ?: CrossfadeMode.SOFT_MIX.name)
-        } catch (e: IllegalArgumentException) {
-            CrossfadeMode.SOFT_MIX
-        }
+    // ── Transición entre canciones ─────────────────────────────────────────────────────────
 
-        // Si es modo inteligente, duración = 0
-        if (mode == CrossfadeMode.INTELLIGENT_EQ) {
-            0
-        } else {
-            preferences[CROSSFADE_DURATION_KEY] ?: 5 // 5 segundos por defecto para modos normales
-        }
+    val transitionStyleFlow: Flow<TransitionStyle> = context.dataStore.data.map { preferences ->
+        TransitionStyle.fromStored(preferences[CROSSFADE_MODE_KEY], preferences[CROSSFADE_DURATION_KEY])
     }
 
-    val crossfadeModeFlow: Flow<CrossfadeMode> = context.dataStore.data.map { preferences ->
-        try {
-            CrossfadeMode.valueOf(preferences[CROSSFADE_MODE_KEY] ?: CrossfadeMode.SOFT_MIX.name)
-        } catch (e: IllegalArgumentException) {
-            CrossfadeMode.SOFT_MIX // Fallback seguro
-        }
+    /** Duración del fundido en segundos (solo cuenta con [TransitionStyle.FADE]). */
+    val fadeSecondsFlow: Flow<Int> = context.dataStore.data.map { preferences ->
+        TransitionStyle.fadeSeconds(preferences[CROSSFADE_DURATION_KEY])
     }
 
-    suspend fun setCrossfadeDuration(durationInSeconds: Int) {
-        context.dataStore.edit { it[CROSSFADE_DURATION_KEY] = durationInSeconds }
-    }
+    /** Modo del motor, derivado del estilo (lo lee el servicio de reproducción). */
+    val crossfadeModeFlow: Flow<CrossfadeMode> = transitionStyleFlow.map { it.crossfadeMode }
 
-    suspend fun setCrossfadeMode(mode: CrossfadeMode) {
+    /** Duración en segundos para el motor: la del fundido; el corte y el modo automático la ignoran. */
+    val crossfadeDurationFlow: Flow<Int> = fadeSecondsFlow
+
+    suspend fun setTransitionStyle(style: TransitionStyle) {
         context.dataStore.edit {
-            it[CROSSFADE_MODE_KEY] = mode.name
-            if (mode == CrossfadeMode.INTELLIGENT_EQ) {
-                it[EQUALIZER_ENABLED_KEY] = false
-            }
+            it[CROSSFADE_MODE_KEY] = style.crossfadeMode.name
+            if (style == TransitionStyle.FADE) it[CROSSFADE_DURATION_KEY] = TransitionStyle.fadeSeconds(it[CROSSFADE_DURATION_KEY])
+        }
+    }
+
+    suspend fun setFadeSeconds(seconds: Int) {
+        context.dataStore.edit {
+            it[CROSSFADE_DURATION_KEY] = seconds.coerceIn(TransitionStyle.MIN_FADE_SECONDS, TransitionStyle.MAX_FADE_SECONDS)
         }
     }
 

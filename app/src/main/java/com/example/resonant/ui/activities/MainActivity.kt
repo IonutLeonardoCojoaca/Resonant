@@ -951,24 +951,15 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         val logoutButton = findViewById<TextView>(R.id.logoutButton)
         logoutButton?.setOnClickListener {
-            // Detener servicio de música
-            val stopServiceIntent = Intent(this, com.example.resonant.services.MusicPlaybackService::class.java).apply {
-                action = com.example.resonant.services.MusicPlaybackService.ACTION_SHUTDOWN
+            logoutButton.isEnabled = false
+            // Mismo cierre de sesión que en Ajustes: revoca el token, para la música y limpia la cuenta.
+            lifecycleScope.launch {
+                com.example.resonant.managers.AccountSignOut.signOut(this@MainActivity)
+                val intent = Intent(this@MainActivity, LoginActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                startActivity(intent)
             }
-            startService(stopServiceIntent)
-
-            // Cerrar sesión Firebase
-            FirebaseAuth.getInstance().signOut()
-
-            // Limpiar preferencias
-            getSharedPreferences("Auth", MODE_PRIVATE).edit().clear().apply()
-            getSharedPreferences("user_data", MODE_PRIVATE).edit().clear().apply()
-
-            // Navegar al login
-            val intent = Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-            startActivity(intent)
         }
     }
 

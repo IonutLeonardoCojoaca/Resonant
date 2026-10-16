@@ -292,7 +292,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private var noisyReceiverRegistered: Boolean = false
     private var automixEnabled: Boolean = false
     private var crossfadeDurationMs: Long = 5000L
-    private var crossfadeMode: CrossfadeMode = CrossfadeMode.SOFT_MIX
+    private var crossfadeMode: CrossfadeMode = CrossfadeMode.INTELLIGENT_EQ
     private var isSeeking: Boolean = false
     private var lastManualChangeTimestamp: Long = 0L
     private val pendingDeletionSongIds = mutableSetOf<String>()
@@ -2542,7 +2542,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val nextSong = queue.songs.getOrNull(currentQueueIndex + 1)
         val needsSecondPlayer = nextSong != null && (
             queue.sourceType == QueueSource.PLAYMIX ||
-                crossfadeMode == CrossfadeMode.INTELLIGENT_EQ ||
+                crossfadeMode != CrossfadeMode.SOFT_MIX || // automático y empalme limpio siempre mezclan
                 (queue.sourceType == QueueSource.ALBUM && automixEnabled) ||
                 crossfadeDurationMs > 0L
             )
@@ -2609,8 +2609,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 TransitionPlanner.Plan(recipe, "recipe", beatSync = ratio != null, bpmRatio = ratio ?: 1.0)
             }
             crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> TransitionPlanner.plan(TransitionPlanner.Mode.SMART, a, b, 0L)
-            crossfadeDurationMs <= 0L -> null // 0 s = transiciones desactivadas
             crossfadeMode == CrossfadeMode.DIRECT_CUT -> TransitionPlanner.plan(TransitionPlanner.Mode.CUT, a, b, crossfadeDurationMs)
+            crossfadeDurationMs <= 0L -> null
             else -> TransitionPlanner.plan(TransitionPlanner.Mode.SOFT, a, b, crossfadeDurationMs)
         }
         cachedPlanKey = key

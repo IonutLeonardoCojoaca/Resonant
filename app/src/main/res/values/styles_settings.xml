@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Estilos de la pantalla de Ajustes (redesign-settings). -->
+<resources>
+    <style name="SettingsSectionLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">26dp</item>
+        <item name="android:layout_marginBottom">10dp</item>
+        <item name="android:paddingHorizontal">6dp</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:textColor">@color/secondaryColorTheme</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:letterSpacing">0.04</item>
+    </style>
+
+    <style name="SettingsSectionCard">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_settings_section</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingVertical">4dp</item>
+    </style>
+
+    <style name="SettingsRowIcon">
+        <item name="android:layout_width">36dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:background">@drawable/bg_settings_icon</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="tint">@color/secondaryColorTheme</item>
+    </style>
+
+    <style name="SettingsRowTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">15.5sp</item>
+    </style>
+
+    <style name="SettingsRowSubtitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:fontFamily">@font/unageo_regular</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">12.5sp</item>
+        <item name="android:lineSpacingMultiplier">1.1</item>
+    </style>
+
+    <style name="SettingsDivider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:layout_marginStart">64dp</item>
+        <item name="android:layout_marginEnd">14dp</item>
+        <item name="android:background">@color/dividerOverlay</item>
+    </style>
+
+    <!-- Interruptor de una categoría de notificaciones (texto a la izquierda), sangrado bajo su fila. -->
+    <style name="SettingsCategorySwitch">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">50dp</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:minHeight">44dp</item>
+        <!-- El estado lo pone el servidor: restaurarlo dispararía un PUT por interruptor. -->
+        <item name="android:saveEnabled">false</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">14sp</item>
+        <item name="thumbTint">@color/switch_thumb_selector</item>
+        <item name="trackTint">@color/switch_track_selector</item>
+    </style>
+
+    <!-- Tarjeta de tema (Oscuro / Claro / Sistema). -->
+    <style name="SettingsThemeOption">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/bg_transition_option</item>
+        <item name="android:foreground">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingVertical">14dp</item>
+    </style>
+
+    <style name="SettingsThemeIcon">
+        <item name="android:layout_width">26dp</item>
+        <item name="android:layout_height">26dp</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="tint">@color/white</item>
+    </style>
+
+    <style name="SettingsThemeLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+</resources>

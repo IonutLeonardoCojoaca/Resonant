@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de una sección de Ajustes: agrupa sus filas sobre el fondo de la pantalla. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/cardsTheme" />
+    <corners android:radius="18dp" />
+</shape>

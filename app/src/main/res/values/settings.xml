@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pantalla de Ajustes (redesign-settings). -->
+<resources>
+    <string name="settings_title">Ajustes</string>
+
+    <!-- Reproducción -->
+    <string name="settings_section_playback">Reproducción</string>
+    <string name="settings_transition_title">Transición entre canciones</string>
+    <string name="settings_transition_subtitle">Cómo pasa una canción a la siguiente en playlists, radio y tu cola. Las Playmix usan sus propias transiciones.</string>
+    <string name="settings_transition_auto_title">Automática</string>
+    <string name="settings_transition_auto_subtitle">Mezcla el final de una con la intro de la otra según su ritmo, tonalidad y estructura. A tempo cuando encajan.</string>
+    <string name="settings_transition_recommended">Recomendada</string>
+    <string name="settings_transition_fade_title">Fundido</string>
+    <string name="settings_transition_fade_subtitle">Una baja mientras la otra sube, durante el tiempo que elijas.</string>
+    <string name="settings_transition_cut_title">Sin fundido</string>
+    <string name="settings_transition_cut_subtitle">Empalme limpio: sin silencios entre canciones y la siguiente entra a compás.</string>
+    <string name="settings_fade_duration">Duración del fundido</string>
+    <string name="settings_fade_seconds">%1$d s</string>
+    <string name="settings_album_gapless_title">Álbumes sin pausas</string>
+    <string name="settings_album_gapless_subtitle">Las pistas de un mismo álbum suenan seguidas, como en el disco, sin silencios ni fundidos.</string>
+
+    <!-- Al terminar la cola -->
+    <string name="settings_section_queue_end">Al terminar tu cola</string>
+
+    <!-- Sonido -->
+    <string name="settings_section_sound">Sonido</string>
+    <string name="settings_normalization_title">Volumen equilibrado</string>
+    <string name="settings_normalization_subtitle">Iguala el volumen entre canciones para que ninguna suene mucho más alta o más baja que la anterior.</string>
+    <string name="settings_equalizer_title">Ecualizador</string>
+    <string name="settings_equalizer_on">Activado · %1$s</string>
+    <string name="settings_equalizer_off">Desactivado</string>
+    <string name="settings_quality_title">Calidad de audio</string>
+    <string name="settings_quality_subtitle">Automática, hasta 320 kbps. Se adapta a tu conexión en streaming y descargas.</string>
+
+    <!-- Descargas y almacenamiento -->
+    <string name="settings_section_storage">Descargas y almacenamiento</string>
+    <string name="settings_downloads_title">Mis descargas</string>
+    <string name="settings_downloads_empty">Guarda canciones para escucharlas sin conexión</string>
+    <string name="settings_downloads_summary">%1$s · %2$s</string>
+    <plurals name="settings_downloads_count">
+        <item quantity="one">%1$d canción</item>
+        <item quantity="other">%1$d canciones</item>
+    </plurals>
+    <string name="settings_auto_downloads_title">Descargas automáticas</string>
+    <string name="settings_auto_downloads_subtitle">Artistas a los que sigues, cuándo descargar y cuánto espacio usar</string>
+    <string name="settings_cache_title">Liberar caché de reproducción</string>
+    <string name="settings_cache_subtitle">%1$s de música guardada temporalmente para que suene sin cortes. Tus descargas no se tocan.</string>
+    <string name="settings_cache_confirm_title">¿Liberar la caché?</string>
+    <string name="settings_cache_confirm_message">Se borra la música guardada temporalmente. Lo que vuelvas a escuchar se descargará de nuevo. Tus descargas no se tocan.</string>
+    <string name="settings_cache_confirm_action">Liberar</string>
+    <string name="settings_cache_cleared">Liberados %1$s</string>
+
+    <!-- Aria -->
+    <string name="settings_section_aria">Aria</string>
+    <string name="settings_aria_floating_title">Acceso rápido flotante</string>
+    <string name="settings_aria_floating_subtitle">Aria sobre todas las pantallas para escribirle o hablarle sin salir de lo que estás viendo.</string>
+    <string name="settings_aria_wake_title">Decir «Oye Aria» o «Aria»</string>
+    <string name="settings_aria_wake_subtitle">Escucha solo mientras Resonant está abierta y visible.</string>
+    <string name="settings_aria_wake_needs_mic">El micrófono es necesario para detectar «Aria» o «Oye Aria»</string>
+    <string name="settings_aria_wake_unsupported">Este dispositivo no ofrece reconocimiento local compatible</string>
+
+    <!-- Notificaciones -->
+    <string name="settings_section_notifications">Notificaciones</string>
+    <string name="settings_system_notifications_title">Sonido, vibración y permisos</string>
+    <string name="settings_system_notifications_subtitle">Ajustes de notificaciones de Android para Resonant</string>
+
+    <!-- Tu actividad -->
+    <string name="settings_section_activity">Tu actividad</string>
+    <string name="settings_stats_title">Estadísticas de escucha</string>
+    <string name="settings_stats_subtitle">Tus artistas, canciones y horas más escuchadas</string>
+    <string name="settings_history_title">Historial</string>
+    <string name="settings_history_subtitle">Todo lo que has escuchado, día a día</string>
+
+    <!-- Apariencia -->
+    <string name="settings_section_appearance">Apariencia</string>
+    <string name="settings_theme_dark">Oscuro</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_system">Sistema</string>
+
+    <!-- Cuenta y app -->
+    <string name="settings_section_account">Cuenta y app</string>
+    <string name="settings_whats_new_title">Novedades de Resonant</string>
+    <string name="settings_whats_new_subtitle">Lo que trae esta versión</string>
+    <string name="settings_version_title">Versión</string>
+    <string name="settings_logout_title">Cerrar sesión</string>
+    <string name="settings_logout_confirm_title">¿Cerrar sesión?</string>
+    <string name="settings_logout_confirm_message">Se detendrá la música. Tus descargas, playlists y ajustes se quedan en tu cuenta.</string>
+</resources>
