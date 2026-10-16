@@ -10,6 +10,7 @@ import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDTO
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaymixListOptionsBottomSheet(
     private val playmix: PlaymixDTO,
@@ -36,16 +37,7 @@ class PlaymixListOptionsBottomSheet(
         val count = playmix.numberOfTracks
         infoText.text = if (count == 1) "1 canción" else "$count canciones"
 
-        if (!playmix.coverUrl.isNullOrBlank()) {
-            Glide.with(coverImage)
-                .load(playmix.coverUrl)
-                .placeholder(R.drawable.ic_playmix)
-                .error(R.drawable.ic_playmix)
-                .centerCrop()
-                .into(coverImage)
-        } else {
-            coverImage.setImageResource(R.drawable.ic_playmix)
-        }
+        DefaultCover.load(coverImage, playmix.coverUrl, DefaultCover.Kind.PLAYMIX, playmix.name)
 
         deleteButton.setOnClickListener {
             dismiss()

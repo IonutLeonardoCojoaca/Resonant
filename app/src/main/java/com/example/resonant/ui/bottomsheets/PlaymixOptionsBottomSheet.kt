@@ -10,6 +10,7 @@ import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDetailDTO
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaymixOptionsBottomSheet(
     private val detail: PlaymixDetailDTO,
@@ -45,16 +46,7 @@ class PlaymixOptionsBottomSheet(
         playmixDuration.text = formatDuration(detail.duration)
 
         val coverUrl = detail.coverUrl
-        if (!coverUrl.isNullOrBlank()) {
-            Glide.with(playmixImage)
-                .load(coverUrl)
-                .placeholder(R.drawable.ic_playmix)
-                .error(R.drawable.ic_playmix)
-                .centerCrop()
-                .into(playmixImage)
-        } else {
-            playmixImage.setImageResource(R.drawable.ic_playmix)
-        }
+        DefaultCover.load(playmixImage, coverUrl, DefaultCover.Kind.PLAYMIX, detail.name)
 
         // Actions
         playAllButton.setOnClickListener {

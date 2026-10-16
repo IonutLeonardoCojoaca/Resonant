@@ -17,6 +17,7 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
+import com.example.resonant.ui.components.DefaultCover
 
 /**
  * Fila estilo búsqueda (ver item_result_album.xml / SearchResultAdapter):
@@ -107,8 +108,8 @@ class PublicPlaylistAdapter(
                 .override(160, 160)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .timeout(10_000)
-                .placeholder(R.drawable.ic_playlist_stack)
-                .error(R.drawable.ic_playlist_stack)
+                .placeholder(DefaultCover.drawable(itemView.context, DefaultCover.Kind.PLAYLIST, playlist.name))
+                .error(DefaultCover.drawable(itemView.context, DefaultCover.Kind.PLAYLIST, playlist.name))
                 .centerCrop()
                 .dontAnimate()
                 .into(ivCover)

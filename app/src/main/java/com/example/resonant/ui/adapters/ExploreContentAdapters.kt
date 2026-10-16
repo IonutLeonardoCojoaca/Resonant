@@ -18,6 +18,7 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.explore.AriaPick
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
+import com.example.resonant.ui.components.DefaultCover
 
 class ExplorePlaylistAdapter(
     private val onPlaylistClick: (Playlist) -> Unit
@@ -59,7 +60,12 @@ class ExplorePlaylistAdapter(
         fun bind(playlist: Playlist) {
             title.text = playlist.name
             tracks?.text = playlist.trackCountLabel()
-            image.loadExploreImage(playlist.imageUrl, R.drawable.ic_playlist_stack)
+            if (playlist.imageUrl.isNullOrBlank()) {
+                Glide.with(image).clear(image)
+                DefaultCover.apply(image, DefaultCover.Kind.PLAYLIST, playlist.name)
+            } else {
+                image.loadExploreImage(playlist.imageUrl, R.drawable.ic_playlist_stack)
+            }
             itemView.setOnClickListener { onClick(playlist) }
         }
 

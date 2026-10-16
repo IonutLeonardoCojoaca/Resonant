@@ -15,6 +15,7 @@ import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaylistAdapter(
     private val viewType: Int,
@@ -86,7 +87,7 @@ class PlaylistAdapter(
             playlistInfo.text = "Lista ● $count $songText"
 
             // Carga simple y directa de la URL del backend
-            loadCoverImage(playlist.imageUrl, coverImage)
+            DefaultCover.load(coverImage, playlist.imageUrl, DefaultCover.Kind.PLAYLIST, playlist.name, COVER_SIZE_PX)
 
             itemView.setOnClickListener {
                 onClick?.invoke(playlist) ?: run {
@@ -111,27 +112,9 @@ class PlaylistAdapter(
             playlistName.text = playlist.name
             songsCount.text = "${playlist.numberOfTracks ?: 0} canciones"
 
-            loadCoverImage(playlist.imageUrl, coverImage)
+            DefaultCover.load(coverImage, playlist.imageUrl, DefaultCover.Kind.PLAYLIST, playlist.name, COVER_SIZE_PX)
 
             itemView.setOnClickListener { onClick?.invoke(playlist) }
-        }
-    }
-
-    private fun loadCoverImage(imageUrl: String?, imageView: ImageView) {
-        if (!imageUrl.isNullOrEmpty()) {
-            Glide.with(imageView.context)
-                .load(imageUrl)
-                // Miniatura: se decodifica a su tamaño en pantalla, no a la resolución original.
-                .override(COVER_SIZE_PX)
-                .placeholder(R.drawable.ic_playlist_stack)
-                .error(R.drawable.ic_playlist_stack)
-                .centerCrop()
-                .into(imageView)
-
-            // IMPORTANTE: Quitamos el filtro si hay imagen real
-            imageView.clearColorFilter()
-        } else {
-            imageView.setImageResource(R.drawable.ic_playlist_stack)
         }
     }
 

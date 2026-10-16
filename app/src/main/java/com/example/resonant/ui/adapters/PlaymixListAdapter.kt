@@ -12,6 +12,7 @@ import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDTO
 import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaymixListAdapter(
     private val onClick: (PlaymixDTO) -> Unit,
@@ -50,19 +51,8 @@ class PlaymixListAdapter(
             val songText = if (count == 1) "canción" else "canciones"
             info.text = "Playmix ● $count $songText · ${formatDuration(playmix.duration)}"
 
-            if (!playmix.coverUrl.isNullOrEmpty()) {
-                Glide.with(cover.context)
-                    .load(playmix.coverUrl)
-                    // Miniatura: se decodifica a su tamaño en pantalla, no a la resolución original.
-                    .override(240)
-                    .placeholder(R.drawable.ic_playmix)
-                    .error(R.drawable.ic_playmix)
-                    .centerCrop()
-                    .into(cover)
-                cover.clearColorFilter()
-            } else {
-                cover.setImageResource(R.drawable.ic_playmix)
-            }
+            // Miniatura: se decodifica a su tamaño en pantalla, no a la resolución original.
+            DefaultCover.load(cover, playmix.coverUrl, DefaultCover.Kind.PLAYMIX, playmix.name, 240)
 
             itemView.setOnClickListener { onClick(playmix) }
             settings.setOnClickListener { onOptionsClick(playmix) }

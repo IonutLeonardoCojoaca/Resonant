@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDTO
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaymixSelectorAdapter(
     private val onClick: (PlaymixDTO) -> Unit
@@ -35,16 +36,7 @@ class PlaymixSelectorAdapter(
             name.text = playmix.name
             val count = playmix.numberOfTracks
             trackCount.text = if (count == 1) "1 canción" else "$count canciones"
-            if (!playmix.coverUrl.isNullOrBlank()) {
-                Glide.with(icon)
-                    .load(playmix.coverUrl)
-                    .placeholder(R.drawable.ic_playmix)
-                    .error(R.drawable.ic_playmix)
-                    .centerCrop()
-                    .into(icon)
-            } else {
-                icon.setImageResource(R.drawable.ic_playmix)
-            }
+            DefaultCover.load(icon, playmix.coverUrl, DefaultCover.Kind.PLAYMIX, playmix.name)
             itemView.setOnClickListener { onClick(playmix) }
         }
     }

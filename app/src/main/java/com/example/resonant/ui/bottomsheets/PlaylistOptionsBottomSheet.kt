@@ -14,6 +14,7 @@ import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.network.ApiClient
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.launch
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaylistOptionsBottomSheet(
     private val playlist: Playlist,
@@ -48,10 +49,8 @@ class PlaylistOptionsBottomSheet(
         // Cover image
         val imageUrl = playlist.imageUrl
         when {
-            !imageUrl.isNullOrEmpty() ->
-                Glide.with(this).load(imageUrl).placeholder(R.drawable.ic_playlist_stack).into(playlistImage)
-            playlistImageBitmap != null -> playlistImage.setImageBitmap(playlistImageBitmap)
-            else -> playlistImage.setImageResource(R.drawable.ic_playlist_stack)
+            imageUrl.isNullOrEmpty() && playlistImageBitmap != null -> playlistImage.setImageBitmap(playlistImageBitmap)
+            else -> DefaultCover.load(playlistImage, imageUrl, DefaultCover.Kind.PLAYLIST, playlist.name)
         }
 
         playlistName.text = playlist.name

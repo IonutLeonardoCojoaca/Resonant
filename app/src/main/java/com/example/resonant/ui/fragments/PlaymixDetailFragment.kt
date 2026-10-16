@@ -36,6 +36,7 @@ import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModel
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModelFactory
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
 
@@ -194,17 +195,11 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                 binding.playmixNumberOfTracks.text = songText
                 binding.playmixDuration.text = formatDuration(detail.duration)
 
-                if (!detail.coverUrl.isNullOrEmpty()) {
-                    Glide.with(this)
-                        .load(detail.coverUrl)
-                        .placeholder(R.drawable.ic_playmix)
-                        .error(R.drawable.ic_playmix)
-                        .centerCrop()
-                        .into(binding.playmixCoverImage)
-                    binding.playmixCoverImage.setRenderEffect(
-                        RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
-                    )
-                }
+                // Sin canciones no hay portada: la tarjeta por defecto, desenfocada igual que una portada.
+                DefaultCover.load(binding.playmixCoverImage, detail.coverUrl, DefaultCover.Kind.PLAYMIX, detail.name)
+                binding.playmixCoverImage.setRenderEffect(
+                    RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
+                )
 
                 bindSetOverview(detail)
 

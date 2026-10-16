@@ -43,6 +43,7 @@ import com.example.resonant.ui.views.NonScrollableLinearLayoutManager
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import kotlinx.coroutines.launch
+import com.example.resonant.ui.components.DefaultCover
 
 class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
@@ -366,15 +367,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
             )
 
             val imageUrl = details.imageUrl
-            if (!imageUrl.isNullOrEmpty()) {
-                Glide.with(this)
-                    .load(imageUrl)
-                    .error(R.drawable.ic_playlist_stack)
-                    .centerCrop()
-                    .into(playlistCoverImage)
-            } else {
-                playlistCoverImage.setImageResource(R.drawable.ic_playlist_stack)
-            }
+            DefaultCover.load(playlistCoverImage, imageUrl, DefaultCover.Kind.PLAYLIST, details.name)
         }
 
         playlistOwner.text = state.ownerName

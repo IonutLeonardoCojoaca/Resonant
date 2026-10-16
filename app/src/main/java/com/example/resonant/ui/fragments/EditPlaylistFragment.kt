@@ -16,6 +16,7 @@ import com.example.resonant.utils.Utils
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
+import com.example.resonant.ui.components.DefaultCover
 
 class EditPlaylistFragment : BaseFragment(R.layout.fragment_edit_playlist) {
 
@@ -44,18 +45,8 @@ class EditPlaylistFragment : BaseFragment(R.layout.fragment_edit_playlist) {
             inputName.setText(playlist.name)
 
             // 3. CARGAR IMAGEN DE LA PLAYLIST
-            if (!playlist.imageUrl.isNullOrEmpty()) {
-                Glide.with(this)
-                    .load(playlist.imageUrl)
-                    .placeholder(R.drawable.ic_playlist_stack)
-                    .error(R.drawable.ic_playlist_stack)
-                    .centerCrop()
-                    .into(playlistImage)
-            } else {
-                playlistImage.setImageResource(R.drawable.ic_playlist_stack)
-                // Opcional: ponerle padding si es el icono vectorial para que no se vea gigante
-                playlistImage.setPadding(50, 50, 50, 50)
-            }
+            playlistImage.setPadding(0, 0, 0, 0)
+            DefaultCover.load(playlistImage, playlist.imageUrl, DefaultCover.Kind.PLAYLIST, playlist.name)
         }
     }
 
