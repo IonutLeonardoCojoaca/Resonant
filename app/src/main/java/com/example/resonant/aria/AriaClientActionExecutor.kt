@@ -22,6 +22,8 @@ class AriaClientActionExecutor(
     context: Context,
     private val scope: CoroutineScope,
     private val onFavoriteStateChanged: () -> Unit = {},
+    /** Screens and sheets Aria can open (add-aria-context-v2); provided by MainActivity. */
+    private val featureNavigator: AriaFeatureNavigator = AriaFeatureNavigator.NONE,
     private val onFeedback: (message: String, success: Boolean) -> Unit
 ) {
     private val appContext = context.applicationContext
@@ -44,8 +46,19 @@ class AriaClientActionExecutor(
         telemetry = FirebaseAriaActionTelemetry(appContext)
     )
 
+    private val featureHandler = AriaFeatureActionHandler(
+        gateway = AndroidAriaFeatureGateway(appContext, featureNavigator) { message ->
+            onFeedback(message, false)
+        },
+        idempotency = idempotency,
+        telemetry = FirebaseAriaActionTelemetry(appContext)
+    )
+
     fun execute(action: AriaAction) {
         when (action.type) {
+            in AriaFeatureActionHandler.CLIENT_ACTION_TYPES -> {
+                scope.launch { featureHandler.handle(action) }
+            }
             "controlar_reproduccion" -> {
                 if (action.isPendingClientAction() && !unisoundHandler.handle(action)) {
                     scope.launch { playbackHandler.execute(action) }

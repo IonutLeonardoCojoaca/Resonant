@@ -43,6 +43,7 @@
     <string name="flow_save_session">Guardar esta sesión como playlist</string>
     <string name="flow_save_session_done">Sesión guardada como «%1$s»</string>
     <string name="flow_save_session_failed">No se pudo guardar la sesión</string>
+    <string name="flow_save_session_open">Ver</string>
     <string name="flow_less_artist">Menos de este artista</string>
     <string name="flow_never_song">No volver a sugerir</string>
     <string name="flow_song_options">Opciones de canción…</string>

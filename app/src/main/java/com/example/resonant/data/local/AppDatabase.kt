@@ -6,7 +6,9 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.resonant.data.local.dao.AutoDownloadJobDao
 import com.example.resonant.data.local.dao.DownloadedSongDao
+import com.example.resonant.data.local.entities.AutoDownloadJob
 import com.example.resonant.data.local.entities.DownloadedSong
 import com.example.resonant.data.local.entities.DownloadCollection
 import com.example.resonant.data.local.entities.DownloadCollectionSong
@@ -15,15 +17,18 @@ import com.example.resonant.data.local.entities.DownloadCollectionSong
     entities = [
         DownloadedSong::class,
         DownloadCollection::class,
-        DownloadCollectionSong::class
+        DownloadCollectionSong::class,
+        AutoDownloadJob::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun downloadedSongDao(): DownloadedSongDao
+
+    abstract fun autoDownloadJobDao(): AutoDownloadJobDao
 
     companion object {
         @Volatile
@@ -125,6 +130,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v5 → v6: tabla auto_download_jobs (descargas automáticas). Solo añade; no toca las
+        // descargas existentes. Columnas, PK e índice deben coincidir con la entidad AutoDownloadJob.
+        internal val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `auto_download_jobs` (
+                        `userId` TEXT NOT NULL,
+                        `planId` TEXT NOT NULL,
+                        `songId` TEXT NOT NULL,
+                        `artistId` TEXT NOT NULL,
+                        `artistName` TEXT NOT NULL,
+                        `state` TEXT NOT NULL,
+                        `attempts` INTEGER NOT NULL,
+                        `sizeBytes` INTEGER NOT NULL,
+                        `updatedAtEpochMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`userId`, `planId`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_auto_download_jobs_userId_state` " +
+                        "ON `auto_download_jobs` (`userId`, `state`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -132,7 +164,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "resonant_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance

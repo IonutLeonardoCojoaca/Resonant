@@ -378,6 +378,12 @@
             app:destination="@id/savedFragment" />
     </fragment>
 
+    <fragment
+        android:id="@+id/autoDownloadSettingsFragment"
+        android:name="com.example.resonant.ui.fragments.AutoDownloadSettingsFragment"
+        android:label="Descargas automáticas"
+        tools:layout="@layout/fragment_auto_download_settings" />
+
     <action
         android:id="@+id/action_global_to_songFragment"
         app:destination="@id/songFragment"
@@ -420,6 +426,23 @@
         android:label="Resumen de la sala"
         tools:layout="@layout/fragment_unisound_summary" />
 
+    <!-- Resumen mensual: historias (también destino de /recap/{yyyy-MM}) e historial desde Ajustes. -->
+    <fragment
+        android:id="@+id/recapStoriesFragment"
+        android:name="com.example.resonant.ui.fragments.RecapStoriesFragment"
+        android:label="Tu resumen"
+        tools:layout="@layout/fragment_recap_stories">
+        <argument
+            android:name="periodKey"
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/recapHistoryFragment"
+        android:name="com.example.resonant.ui.fragments.RecapHistoryFragment"
+        android:label="Tus resúmenes"
+        tools:layout="@layout/fragment_recap_history" />
+
     <action
         android:id="@+id/action_global_to_unisoundRoom"
         app:destination="@id/unisoundRoomFragment"
@@ -438,6 +461,18 @@
     <action
         android:id="@+id/action_global_to_liveChannel"
         app:destination="@id/liveChannelFragment"
+        app:launchSingleTop="true" />
+
+    <!-- Bandeja de notificaciones (add-notifications): campana de Inicio y avisos sin destino. -->
+    <fragment
+        android:id="@+id/notificationInboxFragment"
+        android:name="com.example.resonant.ui.fragments.NotificationInboxFragment"
+        android:label="Notificaciones"
+        tools:layout="@layout/fragment_notification_inbox" />
+
+    <action
+        android:id="@+id/action_global_to_notificationInbox"
+        app:destination="@id/notificationInboxFragment"
         app:launchSingleTop="true" />
 
     <action
@@ -485,6 +520,23 @@
         tools:layout="@layout/fragment_history">
         <action
             android:id="@+id/action_historyFragment_to_detailedSongFragment"
+            app:destination="@id/detailedSongFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_historyFragment_to_listeningStatsFragment"
+            app:destination="@id/listeningStatsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/listeningStatsFragment"
+        android:name="com.example.resonant.ui.fragments.ListeningStatsFragment"
+        android:label="Tus estadísticas"
+        tools:layout="@layout/fragment_listening_stats">
+        <action
+            android:id="@+id/action_listeningStatsFragment_to_detailedSongFragment"
             app:destination="@id/detailedSongFragment"
             app:enterAnim="@anim/slide_in_up"
             app:exitAnim="@anim/scale_down_fade_out"

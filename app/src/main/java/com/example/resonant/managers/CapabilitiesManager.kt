@@ -72,7 +72,22 @@ object CapabilitiesManager {
     fun isLiveEnabled(): Boolean = cache?.features?.live == true
 
     /** Last known value; false until the first successful [refresh]. */
+    fun isAriaDjEnabled(): Boolean = cache?.features?.ariaDj == true
+
+    /** Last known value; false until the first successful [refresh]. */
     fun isStreaksEnabled(): Boolean = cache?.features?.streaks == true
+
+    /** Last known value; false until the first successful [refresh]. */
+    fun isNotificationsEnabled(): Boolean = cache?.features?.notifications == true
+
+    /** Last known value; false until the first successful [refresh]. */
+    fun isAutoDownloadsEnabled(): Boolean = cache?.features?.autoDownloads == true
+
+    /** Last known value; false until the first successful [refresh]. */
+    fun isListeningStatsEnabled(): Boolean = cache?.features?.listeningStats == true
+
+    /** Last known value; false until the first successful [refresh]. */
+    fun isMonthlyRecapEnabled(): Boolean = cache?.features?.monthlyRecap == true
 
     suspend fun refresh(context: Context, force: Boolean = false): PlatformFeaturesDTO =
         withContext(Dispatchers.IO) { cache(context).refresh(force) }

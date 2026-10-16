@@ -1,28 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/ariaUserStatsCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="12dp"
-    android:visibility="gone"
-    app:cardBackgroundColor="#1C1C1E"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="0dp">
+    android:layout_marginTop="14dp"
+    android:background="@drawable/bg_aria_glass_panel"
+    android:clipToOutline="true"
+    android:visibility="gone">
+
+    <View
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-110dp"
+        android:layout_marginEnd="-90dp"
+        android:alpha="0.4"
+        android:background="@drawable/bg_aria_ai_glow"
+        android:importantForAccessibility="no" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="14dp">
+        android:padding="16dp">
 
         <!-- Header: kind label + title -->
         <TextView
             android:id="@+id/userStatsKindLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#66FFFFFF"
+            android:textColor="@color/aria_accent_text"
             android:textSize="9sp"
             android:fontFamily="@font/unageo_medium"
             android:textAllCaps="true"
@@ -34,10 +42,10 @@
             android:id="@+id/userStatsTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
+            android:textColor="@color/white"
+            android:textSize="18sp"
             android:fontFamily="@font/unageo_bold"
-            android:layout_marginBottom="10dp"/>
+            android:layout_marginBottom="14dp"/>
 
         <!-- ── Stats grid: 2-column layout for key metrics ── -->
         <LinearLayout
@@ -60,23 +68,24 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_aria_action_card"
-                    android:padding="10dp"
+                    android:background="@drawable/bg_aria_stat_tile"
+                    android:padding="12dp"
                     android:layout_marginEnd="4dp">
 
                     <TextView
                         android:id="@+id/userStatsTotalPlaysValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:includeFontPadding="false"
                         android:fontFamily="@font/unageo_bold"/>
                     <TextView
                         android:id="@+id/userStatsTotalPlaysLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="reproducciones"
-                        android:textColor="#66FFFFFF"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="10sp"
                         android:fontFamily="@font/unageo_regular"/>
                 </LinearLayout>
@@ -86,23 +95,24 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_aria_action_card"
-                    android:padding="10dp"
+                    android:background="@drawable/bg_aria_stat_tile"
+                    android:padding="12dp"
                     android:layout_marginStart="4dp">
 
                     <TextView
                         android:id="@+id/userStatsListenHoursValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:includeFontPadding="false"
                         android:fontFamily="@font/unageo_bold"/>
                     <TextView
                         android:id="@+id/userStatsListenHoursLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="horas escuchadas"
-                        android:textColor="#66FFFFFF"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="10sp"
                         android:fontFamily="@font/unageo_regular"/>
                 </LinearLayout>
@@ -121,23 +131,24 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_aria_action_card"
-                    android:padding="10dp"
+                    android:background="@drawable/bg_aria_stat_tile"
+                    android:padding="12dp"
                     android:layout_marginEnd="4dp">
 
                     <TextView
                         android:id="@+id/userStatsPlaylistsValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:includeFontPadding="false"
                         android:fontFamily="@font/unageo_bold"/>
                     <TextView
                         android:id="@+id/userStatsPlaylistsLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="playlists"
-                        android:textColor="#66FFFFFF"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="10sp"
                         android:fontFamily="@font/unageo_regular"/>
                 </LinearLayout>
@@ -147,23 +158,24 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_aria_action_card"
-                    android:padding="10dp"
+                    android:background="@drawable/bg_aria_stat_tile"
+                    android:padding="12dp"
                     android:layout_marginStart="4dp">
 
                     <TextView
                         android:id="@+id/userStatsDaysActiveValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:includeFontPadding="false"
                         android:fontFamily="@font/unageo_bold"/>
                     <TextView
                         android:id="@+id/userStatsDaysActiveLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="dias activo"
-                        android:textColor="#66FFFFFF"
+                        android:text="días activo"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="10sp"
                         android:fontFamily="@font/unageo_regular"/>
                 </LinearLayout>
@@ -182,23 +194,24 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_aria_action_card"
-                    android:padding="10dp"
+                    android:background="@drawable/bg_aria_stat_tile"
+                    android:padding="12dp"
                     android:layout_marginEnd="4dp">
 
                     <TextView
                         android:id="@+id/userStatsAvgPerDayValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:includeFontPadding="false"
                         android:fontFamily="@font/unageo_bold"/>
                     <TextView
                         android:id="@+id/userStatsAvgPerDayLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="plays / dia"
-                        android:textColor="#66FFFFFF"
+                        android:text="plays / día"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="10sp"
                         android:fontFamily="@font/unageo_regular"/>
                 </LinearLayout>
@@ -208,23 +221,24 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
-                    android:background="@drawable/bg_aria_action_card"
-                    android:padding="10dp"
+                    android:background="@drawable/bg_aria_stat_tile"
+                    android:padding="12dp"
                     android:layout_marginStart="4dp">
 
                     <TextView
                         android:id="@+id/userStatsLast7dValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#FFFFFF"
-                        android:textSize="18sp"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:includeFontPadding="false"
                         android:fontFamily="@font/unageo_bold"/>
                     <TextView
                         android:id="@+id/userStatsLast7dLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="ultimos 7 dias"
-                        android:textColor="#66FFFFFF"
+                        android:text="últimos 7 días"
+                        android:textColor="@color/textTertiaryAlpha"
                         android:textSize="10sp"
                         android:fontFamily="@font/unageo_regular"/>
                 </LinearLayout>
@@ -237,7 +251,7 @@
             android:id="@+id/userStatsDivider1"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#12FFFFFF"
+            android:background="@color/dividerOverlay"
             android:layout_marginTop="6dp"
             android:layout_marginBottom="10dp"
             android:visibility="gone"/>
@@ -264,7 +278,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="ARTISTA FAVORITO"
-                    android:textColor="#55FFFFFF"
+                    android:textColor="@color/textTertiaryAlpha"
                     android:textSize="9sp"
                     android:fontFamily="@font/unageo_medium"
                     android:textAllCaps="true"
@@ -273,7 +287,7 @@
                     android:id="@+id/userStatsFavArtistName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
                     android:fontFamily="@font/unageo_bold"
                     android:layout_marginTop="2dp"
@@ -293,8 +307,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="GENERO FAVORITO"
-                    android:textColor="#55FFFFFF"
+                    android:text="GÉNERO FAVORITO"
+                    android:textColor="@color/textTertiaryAlpha"
                     android:textSize="9sp"
                     android:fontFamily="@font/unageo_medium"
                     android:textAllCaps="true"
@@ -303,7 +317,7 @@
                     android:id="@+id/userStatsFavGenreName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
                     android:fontFamily="@font/unageo_bold"
                     android:layout_marginTop="2dp"
@@ -317,7 +331,7 @@
             android:id="@+id/userStatsDivider2"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#12FFFFFF"
+            android:background="@color/dividerOverlay"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="10dp"
             android:visibility="gone"/>
@@ -334,7 +348,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="TOP ARTISTAS"
-                android:textColor="#55FFFFFF"
+                android:textColor="@color/textTertiaryAlpha"
                 android:textSize="9sp"
                 android:fontFamily="@font/unageo_medium"
                 android:textAllCaps="true"
@@ -360,8 +374,8 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="TOP GENEROS"
-                android:textColor="#55FFFFFF"
+                android:text="TOP GÉNEROS"
+                android:textColor="@color/textTertiaryAlpha"
                 android:textSize="9sp"
                 android:fontFamily="@font/unageo_medium"
                 android:textAllCaps="true"
@@ -387,7 +401,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="TUS FAVORITAS"
-                android:textColor="#55FFFFFF"
+                android:textColor="@color/textTertiaryAlpha"
                 android:textSize="9sp"
                 android:fontFamily="@font/unageo_medium"
                 android:textAllCaps="true"
@@ -413,7 +427,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="TU MOOD ACTUAL"
-                android:textColor="#55FFFFFF"
+                android:textColor="@color/textTertiaryAlpha"
                 android:textSize="9sp"
                 android:fontFamily="@font/unageo_medium"
                 android:textAllCaps="true"
@@ -424,7 +438,7 @@
                 android:id="@+id/userStatsMoodValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="20sp"
                 android:fontFamily="@font/unageo_bold"/>
 
@@ -432,7 +446,7 @@
                 android:id="@+id/userStatsMoodTrend"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#88FFFFFF"
+                android:textColor="@color/textSecondaryAlpha"
                 android:textSize="11sp"
                 android:fontFamily="@font/unageo_regular"
                 android:layout_marginTop="2dp"
@@ -451,7 +465,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="HISTORIAL RECIENTE"
-                android:textColor="#55FFFFFF"
+                android:textColor="@color/textTertiaryAlpha"
                 android:textSize="9sp"
                 android:fontFamily="@font/unageo_medium"
                 android:textAllCaps="true"
@@ -466,4 +480,4 @@
         </LinearLayout>
 
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+</FrameLayout>

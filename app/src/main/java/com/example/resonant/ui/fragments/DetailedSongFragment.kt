@@ -30,6 +30,7 @@ import com.bumptech.glide.request.target.Target
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.R
 import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -397,6 +398,9 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         }
     }
 
+    /** `requestId` de las relacionadas mostradas (impresiones `RELATED`). */
+    private var relatedRequestId: String? = null
+
     private fun loadRelatedSongs(songId: String) {
         relatedJob?.cancel()
         shimmerRelatedSongs.visibility = View.VISIBLE
@@ -406,7 +410,9 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
         relatedSongsList.visibility = View.GONE
         relatedJob = lifecycleScope.launch {
             try {
-                val related = songManager.getRelatedSongs(songId, limit = 10)
+                val result = songManager.getRelatedSongsWithRequestId(songId, limit = 10)
+                val related = result.songs
+                relatedRequestId = result.requestId
                 shimmerRelatedSongs.stopShimmer()
                 shimmerRelatedSongs.visibility = View.GONE
                 if (related.isNotEmpty()) {
@@ -446,6 +452,8 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song), Coro
                 putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+                putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.RELATED)
+                relatedRequestId?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
             }
             requireContext().startService(playIntent)
         }

@@ -140,6 +140,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         // --- NUEVO: Configuración del botón Play ---
         setupPlayButtonLogic()
         setupClickListeners()
+        setupAutoDownloadToggle(view, artistId)
 
         return view
     }
@@ -1054,4 +1055,94 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         dialog.show()
     }
+
+    // region Descargas automáticas
+
+    /**
+     * Interruptor «Descargar lanzamientos nuevos»: único punto de alta de las descargas automáticas.
+     * Refleja el estado del servidor, se revierte si la llamada falla y nunca toca la pausa ni las
+     * condiciones (si la pausa está activa, solo avisa).
+     */
+    private fun setupAutoDownloadToggle(view: View, artistId: String) {
+        val toggle = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.autoDownloadSwitch)
+            ?: return
+        val appContext = requireContext().applicationContext
+        val manager = com.example.resonant.managers.AutoDownloadManager.get(appContext)
+        var applyingServerState = false
+
+        fun showState(checked: Boolean) {
+            applyingServerState = true
+            toggle.isChecked = checked
+            applyingServerState = false
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                if (!com.example.resonant.managers.CapabilitiesManager.refresh(appContext).autoDownloads) {
+                    toggle.visibility = View.GONE
+                    return@repeatOnLifecycle
+                }
+                when (val state = manager.isSubscribed(artistId)) {
+                    is com.example.resonant.managers.AutoDownloadCall.Ok -> {
+                        showState(state.value)
+                        toggle.visibility = View.VISIBLE
+                    }
+                    com.example.resonant.managers.AutoDownloadCall.Disabled -> {
+                        toggle.visibility = View.GONE
+                        com.example.resonant.managers.CapabilitiesManager.refresh(appContext, force = true)
+                    }
+                    else -> Unit // Sin red: se deja como esté hasta la próxima vez.
+                }
+            }
+        }
+
+        toggle.setOnCheckedChangeListener { _, checked ->
+            if (applyingServerState) return@setOnCheckedChangeListener
+            toggle.isEnabled = false
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = if (checked) manager.subscribe(artistId) else manager.unsubscribe(artistId)
+                toggle.isEnabled = true
+                when (result) {
+                    is com.example.resonant.managers.AutoDownloadCall.Ok -> if (checked) showPausedNoticeIfNeeded(appContext)
+                    com.example.resonant.managers.AutoDownloadCall.SubscriptionLimit -> {
+                        showState(!checked)
+                        val max = (manager.getSubscriptions() as? com.example.resonant.managers.AutoDownloadCall.Ok)
+                            ?.value?.maxSubscriptions?.takeIf { it > 0 } ?: 100
+                        showResonantSnackbar(
+                            text = getString(R.string.auto_download_limit_reached, max),
+                            colorRes = R.color.errorColor,
+                            iconRes = R.drawable.ic_error
+                        )
+                    }
+                    com.example.resonant.managers.AutoDownloadCall.Disabled -> {
+                        showState(!checked)
+                        toggle.visibility = View.GONE
+                    }
+                    else -> {
+                        showState(!checked)
+                        showResonantSnackbar(
+                            text = getString(R.string.auto_download_toggle_failed),
+                            colorRes = R.color.errorColor,
+                            iconRes = R.drawable.ic_error
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun showPausedNoticeIfNeeded(appContext: android.content.Context) {
+        val userId = appContext.getSharedPreferences("user_data", android.content.Context.MODE_PRIVATE)
+            .getString("USER_ID", null)?.takeIf(String::isNotBlank) ?: return
+        val paused = com.example.resonant.managers.AutoDownloadPreferences(appContext).get(userId).paused
+        if (paused && isAdded) {
+            showResonantSnackbar(
+                text = getString(R.string.auto_download_paused_notice),
+                colorRes = R.color.successColor,
+                iconRes = R.drawable.ic_success
+            )
+        }
+    }
+
+    // endregion
 }

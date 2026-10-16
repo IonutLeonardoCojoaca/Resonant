@@ -81,4 +81,72 @@ class LiveCardMapperTest {
         assertEquals("18:00", LiveCardMapper.startText(start, at("2026-10-25T09:00"), madrid))
         assertEquals("dom 18:00", LiveCardMapper.startText(start, at("2026-10-24T09:00"), madrid))
     }
+
+    private fun offAirSpecial(slug: String, next: Long?, kind: String = "special") = LiveChannelDTO(
+        channelId = slug, slug = slug, kind = kind, name = "Lo nuevo de la semana",
+        status = "off_air", nextOccurrenceUtcMs = next
+    )
+
+    @Test
+    fun `off air special within a week shows its next edition`() {
+        val card = LiveCardMapper.map(
+            listOf(offAirSpecial("lo-nuevo", at("2026-10-19T21:00"))), at("2026-10-16T12:00"), madrid
+        ).single()
+
+        assertNull(card.badge)
+        assertNull(card.imageUrl)
+        assertEquals("Especial · lun 21:00", card.subtitle)
+    }
+
+    @Test
+    fun `off air special later today shows only the time`() {
+        val card = LiveCardMapper.map(
+            listOf(offAirSpecial("lo-nuevo", at("2026-10-19T21:00"))), at("2026-10-19T08:00"), madrid
+        ).single()
+
+        assertEquals("Especial · 21:00", card.subtitle)
+    }
+
+    @Test
+    fun `special eight days away, monthly in twenty days or without next edition is hidden`() {
+        val now = at("2026-10-16T12:00")
+        val cards = LiveCardMapper.map(
+            listOf(
+                offAirSpecial("lejano", at("2026-10-24T12:01")),
+                offAirSpecial("mensual", at("2026-11-05T21:00")),
+                offAirSpecial("sin-edicion", null)
+            ),
+            now, madrid
+        )
+
+        assertEquals(emptyList<LiveCardUi>(), cards)
+    }
+
+    @Test
+    fun `monthly special appears once it is seven days away`() {
+        val cards = LiveCardMapper.map(
+            listOf(offAirSpecial("noche-reggae", at("2026-11-07T21:00"))), at("2026-10-31T21:00"), madrid
+        )
+
+        assertEquals(listOf("noche-reggae"), cards.map(LiveCardUi::slug))
+    }
+
+    @Test
+    fun `off air 24-7 channel stays hidden even with a next occurrence`() {
+        val cards = LiveCardMapper.map(
+            listOf(offAirSpecial("rock", at("2026-10-17T12:00"), kind = "channel")), at("2026-10-16T12:00"), madrid
+        )
+
+        assertEquals(emptyList<LiveCardUi>(), cards)
+    }
+
+    @Test
+    fun `upcoming special keeps the coming soon text`() {
+        val channel = upcoming("viernes-2000s", at("2026-10-16T22:00"))
+            .copy(nextOccurrenceUtcMs = at("2026-10-16T22:00"))
+
+        val card = LiveCardMapper.map(listOf(channel), at("2026-10-16T12:00"), madrid).single()
+
+        assertEquals("Próximamente · 22:00", card.subtitle)
+    }
 }

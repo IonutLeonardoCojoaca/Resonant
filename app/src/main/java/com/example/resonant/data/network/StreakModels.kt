@@ -41,7 +41,9 @@ data class SongOfDayDTO(
     val reason: String? = null,
     /** `aria` or `resonant_ai`. */
     val origin: String? = null,
-    val date: String? = null
+    val date: String? = null,
+    /** Estable durante el día; se envía como `recommendationRequestId` al reproducirla. */
+    val requestId: String? = null
 )
 
 /** `202` of `GET api/me/song-of-the-day` while Aria prepares today's picks. */

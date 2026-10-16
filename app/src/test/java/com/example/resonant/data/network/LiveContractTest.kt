@@ -81,6 +81,27 @@ class LiveContractTest {
     }
 
     @Test
+    fun `parses now with an aria dj opening`() {
+        val now = gson.fromJson(
+            """{ "serverTimeUtcMs": 1791640630250, "status": "on_air",
+                 "channel": { "channelId": "6f1c", "slug": "rock", "kind": "channel", "name": "Resonant Rock" },
+                 "block": { "blockId": "c3d4", "title": "Resonant Rock · noche",
+                            "startsAtUtcMs": 1791639000000, "endsAtUtcMs": 1791642612000,
+                            "items": [
+                              { "position": 0, "startOffsetMs": 0, "durationMs": 222000,
+                                "djIntro": "Viernes noche en Resonant Rock. Abrimos con The Killers.", "song": null },
+                              { "position": 1, "startOffsetMs": 222000, "durationMs": 198500, "djIntro": null, "song": null }
+                            ] },
+                 "nextBlock": null }""",
+            LiveNowResponseDTO::class.java
+        )
+
+        val items = now.block!!.items!!
+        assertEquals("Viernes noche en Resonant Rock. Abrimos con The Killers.", items[0].djIntro)
+        assertNull(items[1].djIntro)
+    }
+
+    @Test
     fun `parses now off air`() {
         val now = gson.fromJson(
             """{ "serverTimeUtcMs": 1, "status": "off_air",
@@ -93,5 +114,57 @@ class LiveContractTest {
         assertNotNull(now.channel)
         assertNull(now.block)
         assertNull(now.nextBlock)
+    }
+
+    @Test
+    fun `parses special schedule and next occurrence`() {
+        val listing = gson.fromJson(
+            """{ "serverTimeUtcMs": 1792404000000, "channels": [
+                 { "channelId": "d5e6", "slug": "noche-reggae", "kind": "special", "name": "Noche reggae",
+                   "status": "off_air", "nowPlaying": null, "currentBlock": null, "nextStartsAtUtcMs": null,
+                   "schedule": { "timeZone": "Europe/Madrid", "weekdays": [],
+                                 "recurrence": { "frequency": "monthly", "interval": 1, "anchorDate": null,
+                                                 "monthDay": null, "monthWeekday": { "week": 1, "weekday": 6 } },
+                                 "dates": [], "exceptDates": [], "startLocal": "21:00", "durationMinutes": 90 },
+                   "nextOccurrenceUtcMs": 1794081600000 } ] }""",
+            LiveChannelsResponseDTO::class.java
+        )
+
+        val special = listing.channels!!.single()
+        assertEquals(1794081600000L, special.nextOccurrenceUtcMs)
+        val schedule = special.schedule!!
+        assertEquals("Europe/Madrid", schedule.timeZone)
+        assertEquals(90, schedule.durationMinutes)
+        assertEquals("21:00", schedule.startLocal)
+        assertEquals("monthly", schedule.recurrence?.frequency)
+        assertEquals(1, schedule.recurrence?.monthWeekday?.week)
+        assertEquals(6, schedule.recurrence?.monthWeekday?.weekday)
+        assertNull(schedule.recurrence?.anchorDate)
+    }
+
+    @Test
+    fun `older server without schedule fields parses as null`() {
+        val listing = gson.fromJson(
+            """{ "serverTimeUtcMs": 1, "channels": [
+                 { "channelId": "c", "slug": "viernes-2000s", "kind": "special", "name": "Viernes",
+                   "status": "off_air" } ] }""",
+            LiveChannelsResponseDTO::class.java
+        )
+        val now = gson.fromJson(
+            """{ "serverTimeUtcMs": 1, "status": "off_air",
+                 "channel": { "channelId": "c", "slug": "viernes-2000s", "kind": "special", "name": "Viernes",
+                              "schedule": { "timeZone": "Europe/Madrid", "weekdays": [5], "recurrence": null,
+                                            "dates": ["2026-12-31"], "exceptDates": [], "startLocal": "22:00",
+                                            "durationMinutes": 90 },
+                              "nextOccurrenceUtcMs": 1792785600000 } }""",
+            LiveNowResponseDTO::class.java
+        )
+
+        val special = listing.channels!!.single()
+        assertNull(special.schedule)
+        assertNull(special.nextOccurrenceUtcMs)
+        assertEquals(1792785600000L, now.channel?.nextOccurrenceUtcMs)
+        assertNull(now.channel?.schedule?.recurrence)
+        assertEquals(listOf("2026-12-31"), now.channel?.schedule?.dates)
     }
 }

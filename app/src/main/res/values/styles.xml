@@ -267,4 +267,17 @@
         <item name="android:textColor">@color/textTheme</item>
         <item name="android:textSize">13sp</item>
     </style>
+
+    <!-- Fila de "Top canciones" en la tarjeta de entidad de Aria. -->
+    <style name="AriaCardTrackRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingTop">5dp</item>
+        <item name="android:paddingBottom">5dp</item>
+        <item name="android:textColor">@color/textEmphasisHigh</item>
+        <item name="android:textSize">12.5sp</item>
+    </style>
 </resources>

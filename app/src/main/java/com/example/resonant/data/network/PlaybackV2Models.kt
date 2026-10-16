@@ -41,7 +41,9 @@ data class HomeSectionDTO(
     val type: String = "",
     val items: List<JsonElement> = emptyList(),
     val ttlSeconds: Int = 1,
-    val error: ApiErrorDTO? = null
+    val error: ApiErrorDTO? = null,
+    /** Solo en `recommended-songs` con la telemetría activa: se envía como `recommendationRequestId`. */
+    val requestId: String? = null
 )
 
 data class HomeResponseDTO(

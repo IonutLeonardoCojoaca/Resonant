@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Widget de inicio de Resonant (design D8): mínimo el compacto (2x1), por defecto 4x2,
+    redimensionable. Sin refresco periódico: lo repinta el servicio de reproducción.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="com.example.resonant.widget.ResonantWidgetConfigActivity"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/widget_resonant_empty"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
+    android:previewLayout="@layout/widget_resonant_large"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

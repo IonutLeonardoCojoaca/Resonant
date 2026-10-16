@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta "minutes" del resumen mensual. recapCardRoot es lo que se comparte como imagen. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/recapCardRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_recap_card"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:padding="28dp">
+
+    <TextView
+        android:id="@+id/recapCardTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="0dp"
+        android:fontFamily="@font/unageo_bold"
+        android:textColor="@color/recap_text_primary"
+        android:textSize="18sp"
+        android:text="@string/recap_minutes_title" />
+
+    <TextView
+        android:id="@+id/recapCardValue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/unageo_bold"
+        android:textColor="@color/recap_text_primary"
+        android:textSize="56sp"
+        tools:text="842" />
+
+    <TextView
+        android:id="@+id/recapCardSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/recap_text_secondary"
+        android:textSize="16sp"
+        tools:text="+38 % que agosto" />
+</LinearLayout>

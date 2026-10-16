@@ -3,8 +3,8 @@ package com.example.resonant.ui.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.resonant.aria.AriaClientContextV2
 import com.example.resonant.aria.AriaScreenContextHolder
-import com.example.resonant.aria.AriaUnisoundContext
 import com.example.resonant.unisound.UnisoundManager
 import com.example.resonant.data.network.AriaClientActionDTO
 import com.example.resonant.playback.PlaybackStateRepository
@@ -160,7 +160,17 @@ data class AriaAction(
     
     // New fields for artist playback actions
     val clientArtistId: String? = null,
-    val clientArtistName: String? = null
+    val clientArtistName: String? = null,
+
+    // add-aria-context-v2: Live, Unisound, navigation, streak, explain_pick and Flow feedback.
+    val liveChannelSlug: String? = null,
+    val liveChannelName: String? = null,
+    val destination: String? = null,
+    val streakCard: com.example.resonant.aria.AriaStreakCard? = null,
+    val pickExplanation: com.example.resonant.aria.AriaPickExplanationCard? = null,
+    val targetType: String? = null,
+    val targetName: String? = null,
+    val feedback: String? = null
 )
 
 data class AriaMessage(
@@ -184,11 +194,14 @@ class AriaViewModel : ViewModel() {
         const val CLIENT_PREVIEW_MAX_SIZE = 5
         const val CLIENT_FOLLOWUP_MAX_SIZE = 3
 
-        val CLIENT_SCREEN_VALUES = setOf(
-            "home", "search", "library", "player", "stats", "playlist_detail",
-            "artist_detail", "album_detail", "song_detail", "aria_chat", "settings"
+        val CLIENT_SCREEN_VALUES = AriaClientContextV2.SCREEN_VALUES
+        val CLIENT_ENTITY_TYPES = AriaClientContextV2.ENTITY_TYPES
+        /** Server-side actions of add-aria-context-v2 (no client effect; cards and followups). */
+        val CONTEXT_V2_SERVER_ACTION_TYPES = setOf(
+            "streak_status", "explain_pick", "flow_feedback", "flow_set_preferences",
+            // Optional song_id/title/artist when the song is a resolved reference, not the current one.
+            "guardar_actual", "quitar_actual"
         )
-        val CLIENT_ENTITY_TYPES = setOf("playlist", "artist", "album", "song", "genre")
     }
 
     private val tag = "AriaViewModel"
@@ -510,7 +523,35 @@ class AriaViewModel : ViewModel() {
             }
         }
 
-        AriaUnisoundContext.sessionFields(UnisoundManager.activeSessionIdOrNull())
+        // Context V2 (add-aria-context-v2): schema, client capabilities, time zone, playback, Live.
+        val liveSlug = com.example.resonant.live.LiveManager.activeSlugOrNull()
+        val unisoundSessionId = UnisoundManager.activeSessionIdOrNull()
+        val playback = if (context.has("now_playing")) {
+            PlaybackStateRepository.activeQueue?.let { queue ->
+                val entryId = queue.entryIds.getOrNull(queue.currentIndex)
+                val isFlowEntry = entryId != null && entryId in queue.flowEntryIds
+                AriaClientContextV2.Playback(
+                    sourceType = if (isFlowEntry) "FLOW" else queue.sourceType.name,
+                    sourceId = queue.sourceId
+                )
+            } ?: AriaClientContextV2.Playback(sourceType = "UNKNOWN")
+        } else {
+            null
+        }
+        val v2Fields = AriaClientContextV2.fields(
+            AriaClientContextV2.Input(
+                appVersion = com.example.resonant.BuildConfig.VERSION_NAME,
+                timeZone = java.util.TimeZone.getDefault().id,
+                playback = playback,
+                unisoundSessionId = unisoundSessionId,
+                liveChannelSlug = liveSlug.takeIf { unisoundSessionId.isNullOrBlank() }
+            )
+        )
+        v2Fields.forEach { (key, value) ->
+            context.put(key, if (value is Map<*, *>) JSONObject(value) else value)
+        }
+
+        AriaClientContextV2.sessionFields(unisoundSessionId, liveSlug)
             ?.let { context.put("session", JSONObject(it)) }
 
         context.takeIf { it.length() > 0 }
@@ -641,6 +682,8 @@ class AriaViewModel : ViewModel() {
         return when (action.type) {
             "controlar_reproduccion" -> action.clientSide && action.executionStatus == "pending_client"
             "guardar_actual", "quitar_actual" -> true
+            in com.example.resonant.aria.AriaFeatureActionHandler.CLIENT_ACTION_TYPES ->
+                action.clientSide && action.executionStatus == "pending_client"
             else -> false
         }
     }
@@ -669,6 +712,9 @@ class AriaViewModel : ViewModel() {
                 clientActionDto.content?.kind == "song_disambiguation"
             ) {
                 return clientActionDto.toSongDisambiguationAction()
+            }
+            if (clientActionDto != null && clientActionDto.isContextV2Action()) {
+                return clientActionDto.toContextV2Action()
             }
             val json = JSONObject(payload)
             val type = json.optString("type").takeIf { it.isNotBlank() } ?: return null
@@ -990,6 +1036,46 @@ class AriaViewModel : ViewModel() {
             clientSongArtist = artist,
             clientArtistId = clientArtistId?.takeIf { it.isNotBlank() },
             clientArtistName = clientArtistName?.takeIf { it.isNotBlank() }
+        )
+    }
+
+    /** Actions of add-aria-context-v2, parsed only with Gson (no org.json) so JVM tests cover them. */
+    private fun AriaClientActionDTO.isContextV2Action(): Boolean =
+        type in com.example.resonant.aria.AriaFeatureActionHandler.CLIENT_ACTION_TYPES ||
+            type in CONTEXT_V2_SERVER_ACTION_TYPES ||
+            content?.kind == com.example.resonant.aria.AriaFeatureCards.KIND_STREAK ||
+            content?.kind == com.example.resonant.aria.AriaFeatureCards.KIND_PICK_EXPLANATION
+
+    private fun AriaClientActionDTO.toContextV2Action(): AriaAction {
+        val streakCard = com.example.resonant.aria.AriaFeatureCards.streakCard(content, streak)
+        val pickCard = com.example.resonant.aria.AriaFeatureCards.pickExplanationCard(content)
+        return AriaAction(
+            type = requireNotNull(type),
+            actionId = actionId?.takeIf { it.isNotBlank() },
+            executionStatus = executionStatus?.takeIf { it.isNotBlank() },
+            verified = verified,
+            success = success,
+            question = question?.takeIf { it.isNotBlank() },
+            logId = logId?.takeIf { it.isNotBlank() },
+            entityKind = content?.kind?.takeIf { it.isNotBlank() },
+            suggestedFollowups = suggestedFollowups.orEmpty()
+                .mapNotNull { it.trim().takeIf { followup -> followup.isNotEmpty() } }
+                .take(CLIENT_FOLLOWUP_MAX_SIZE)
+                .takeIf { it.isNotEmpty() },
+            clientSide = clientSide,
+            unisoundSessionId = unisoundSessionId?.takeIf { it.isNotBlank() },
+            songId = songId?.takeIf { it.isNotBlank() } ?: pickCard?.songId,
+            clientSongId = songId?.trim()?.takeIf { it.isNotEmpty() },
+            clientSongTitle = songTitle?.trim()?.takeIf { it.isNotEmpty() },
+            clientSongArtist = songArtist?.trim()?.takeIf { it.isNotEmpty() },
+            liveChannelSlug = liveChannelSlug?.trim()?.takeIf { it.isNotEmpty() },
+            liveChannelName = liveChannelName?.trim()?.takeIf { it.isNotEmpty() },
+            destination = destination?.trim()?.takeIf { it.isNotEmpty() },
+            streakCard = streakCard,
+            pickExplanation = pickCard,
+            targetType = targetType?.takeIf { it.isNotBlank() },
+            targetName = targetName?.takeIf { it.isNotBlank() },
+            feedback = feedback?.takeIf { it.isNotBlank() }
         )
     }
 

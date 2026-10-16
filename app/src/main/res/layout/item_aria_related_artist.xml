@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de artista relacionado (carrusel de Aria). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="150dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="10dp"
+    android:background="@drawable/bg_aria_glass_panel"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    android:minHeight="176dp"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:stateListAnimator="@animator/explore_quick_card_press">
+
+    <FrameLayout
+        android:id="@+id/relatedArtistAvatarFrame"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:clipToOutline="true">
+
+        <TextView
+            android:id="@+id/relatedArtistInitials"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fontFamily="@font/unageo_bold"
+            android:gravity="center"
+            android:textColor="@android:color/white"
+            android:textSize="20sp" />
+
+        <ImageView
+            android:id="@+id/relatedArtistImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/relatedArtistName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_bold"
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="13.5sp" />
+
+    <TextView
+        android:id="@+id/relatedArtistReason"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/unageo_regular"
+        android:lineSpacingExtra="1dp"
+        android:maxLines="3"
+        android:textColor="@color/textTheme"
+        android:textSize="11sp" />
+
+    <Space
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/relatedArtistMatch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_aria_genre_chip"
+        android:backgroundTint="@color/aria_accent_soft"
+        android:fontFamily="@font/unageo_bold"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="3dp"
+        android:textColor="@color/aria_accent_text"
+        android:textSize="9.5sp"
+        android:visibility="gone" />
+</LinearLayout>

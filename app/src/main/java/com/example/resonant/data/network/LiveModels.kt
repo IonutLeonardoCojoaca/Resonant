@@ -22,7 +22,40 @@ data class LiveChannelDTO(
     val status: String = "",
     val nowPlaying: LiveNowPlayingDTO? = null,
     val currentBlock: LiveBlockSummaryDTO? = null,
-    val nextStartsAtUtcMs: Long? = null
+    val nextStartsAtUtcMs: Long? = null,
+    /** Declared schedule of a special; null for 24/7 channels and on older servers. */
+    val schedule: LiveScheduleDTO? = null,
+    /** Next edition according to the schedule (up to 400 days ahead), even if its block does not exist yet. */
+    val nextOccurrenceUtcMs: Long? = null
+)
+
+/** Normalised schedule of a special. Dates are local `YYYY-MM-DD` of [timeZone]. */
+data class LiveScheduleDTO(
+    val timeZone: String = "",
+    /** ISO days (1 = Monday … 7 = Sunday). */
+    val weekdays: List<Int>? = null,
+    /** Null for a special made only of one-off [dates]. Parsed for later use; not shown yet. */
+    val recurrence: LiveRecurrenceDTO? = null,
+    val dates: List<String>? = null,
+    val exceptDates: List<String>? = null,
+    /** Local start "HH:mm". */
+    val startLocal: String = "",
+    val durationMinutes: Int = 0
+)
+
+/** daily | weekly | monthly, every [interval] units. */
+data class LiveRecurrenceDTO(
+    val frequency: String = "",
+    val interval: Int = 1,
+    val anchorDate: String? = null,
+    val monthDay: Int? = null,
+    val monthWeekday: LiveMonthWeekdayDTO? = null
+)
+
+/** [week] 1…5 or -1 (last); [weekday] ISO 1…7. */
+data class LiveMonthWeekdayDTO(
+    val week: Int = 0,
+    val weekday: Int = 0
 )
 
 data class LiveNowPlayingDTO(
@@ -53,7 +86,9 @@ data class LiveChannelInfoDTO(
     val slug: String = "",
     val kind: String = "",
     val name: String = "",
-    val description: String? = null
+    val description: String? = null,
+    val schedule: LiveScheduleDTO? = null,
+    val nextOccurrenceUtcMs: Long? = null
 )
 
 data class LiveBlockDTO(

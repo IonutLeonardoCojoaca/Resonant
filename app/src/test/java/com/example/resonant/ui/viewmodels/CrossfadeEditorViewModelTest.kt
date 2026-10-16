@@ -9,6 +9,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import org.junit.*
 import org.junit.Assert.*
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CrossfadeEditorViewModelTest {
@@ -208,6 +211,25 @@ class CrossfadeEditorViewModelTest {
     }
 
     @Test
+    fun `saving a studio transition shows the studio message and keeps the edit`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        fakePlaymixManager.updateError = HttpException(
+            Response.error<Any>(409, """{"code":"TRANSITION_STUDIO_MANAGED"}""".toResponseBody(null))
+        )
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+        viewModel.setExitPoint(190000)
+
+        viewModel.saveTransition()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value!!
+        assertEquals(StudioErrors.STUDIO_MANAGED_MESSAGE, state.error)
+        assertFalse(state.isSaving)
+        assertEquals(190000, state.exitPointMs)
+    }
+
+    @Test
     fun `switching to Manual clears activePresetCode`() = runTest {
         fakePlaymixManager.waveformResponse = createWaveformResponse(presetCode = "smooth-fade")
         fakePresetManager.presets = listOf(createPresetDTO("smooth-fade", "Smooth Fade", 1))
@@ -357,6 +379,7 @@ class CrossfadeEditorViewModelTest {
     class FakePlaymixManager : PlaymixManager(null) {
         var waveformResponse: WaveformResponseDTO? = null
         val updateRequests = mutableListOf<PlaymixTransitionUpdateDTO>()
+        var updateError: Throwable? = null
 
         override suspend fun getWaveformData(playmixId: String, transitionId: String): WaveformResponseDTO {
             return waveformResponse ?: throw Exception("No waveform response configured")
@@ -366,6 +389,7 @@ class CrossfadeEditorViewModelTest {
             playmixId: String, transitionId: String, update: PlaymixTransitionUpdateDTO
         ): PlaymixTransitionDTO {
             updateRequests.add(update)
+            updateError?.let { throw it }
             return PlaymixTransitionDTO(
                 id = transitionId, fromPlaymixSongId = "ps1", toPlaymixSongId = "ps2",
                 exitPointMs = update.exitPointMs, entryPointMs = update.entryPointMs,

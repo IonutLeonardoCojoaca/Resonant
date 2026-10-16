@@ -141,7 +141,8 @@ class StreakManager internal constructor(
             song = song,
             reason = dto.reason.orEmpty(),
             isAria = dto.origin == ORIGIN_ARIA,
-            date = dto.date.orEmpty()
+            date = dto.date.orEmpty(),
+            requestId = dto.requestId?.takeIf { it.isNotBlank() }
         )
     }
 

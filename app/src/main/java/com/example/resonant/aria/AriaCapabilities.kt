@@ -59,6 +59,34 @@ object AriaCapabilities {
             )
         ),
         AriaIntentCategory(
+            id = "live_and_rooms",
+            title = "Live y Escuchar juntos 📻",
+            iconRes = R.drawable.ic_radio,
+            intents = listOf(
+                AriaIntent("Resonant Live", "Dile 'pon algo tranquilo en Live' o 'pon el canal de rock' y sintonizará la emisión en directo. 'Sal de la radio' la deja."),
+                AriaIntent("Salas de Escuchar juntos", "Pídele 'crea una sala para escuchar juntos' o, si ya estás en una, 'enséñame el código' para compartirlo.")
+            )
+        ),
+        AriaIntentCategory(
+            id = "your_activity",
+            title = "Tu racha y tus recomendaciones 🔥",
+            iconRes = R.drawable.ic_streak_flame,
+            intents = listOf(
+                AriaIntent("Tu racha", "Pregunta '¿cómo va mi racha?' y verás tus días seguidos, lo que te falta hoy y tu próximo hito."),
+                AriaIntent("¿Por qué me recomiendas esto?", "Aria te explica el motivo de una recomendación con datos reales de lo que escuchas."),
+                AriaIntent("No me pongas más de esto", "Dile que no quieres más de una canción o artista y Flow dejará de proponerlo. 'Deshaz eso' lo revierte."),
+                AriaIntent("Ajustar Flow", "Pídele que active o desactive Flow, o que te ponga música más conocida o más por descubrir.")
+            )
+        ),
+        AriaIntentCategory(
+            id = "navigation",
+            title = "Navegación 🧭",
+            iconRes = R.drawable.ic_unisound_search,
+            intents = listOf(
+                AriaIntent("Llévame a…", "Pídele que te abra Explorar, tus elecciones de Aria, tu racha, tus estadísticas, tu resumen mensual, un canal de Live o tu sala.")
+            )
+        ),
+        AriaIntentCategory(
             id = "information",
             title = "Consultas e Información \uD83E\uDDE0",
             iconRes = R.drawable.ic_info,

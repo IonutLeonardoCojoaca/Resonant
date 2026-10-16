@@ -11,6 +11,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -18,11 +19,15 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
 import com.example.resonant.playback.IntelligentEffectsState
+import com.example.resonant.playback.MixLanes
 import com.example.resonant.playback.MixStrategy
+import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.playback.PlaybackUrlResolver
+import com.example.resonant.playback.RenderedTransition
 import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.data.models.AudioAnalysis
 import com.example.resonant.data.models.Song
+import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import kotlin.math.abs
 import kotlin.math.cos
@@ -50,6 +55,9 @@ import kotlin.math.sqrt
  * - El fundido sigue la posición de la saliente (A), no el reloj de pared.
  * - La UI cambia a B en el instante en que B empieza a sonar ([onTransitionAudible]).
  * - Todo se ejecuta en el hilo principal.
+ *
+ * Las transiciones de Playmix con clip renderizado en el servidor (Resonant Studio) siguen otro camino,
+ * [RenderedRun]: A → clip → B con dos empalmes cortos sobre material idéntico (ver `RenderedTransition`).
  */
 class TransitionManager(
     private val context: Context,
@@ -58,7 +66,9 @@ class TransitionManager(
     private val onTransitionComplete: (newPlayer: ExoPlayer, oldPlayer: ExoPlayer) -> Unit,
     private val onTransitionFailed: (oldPlayer: ExoPlayer, oldSong: Song?, nextSong: Song?, wasAudible: Boolean) -> Unit,
     private val onTransitionAudible: ((nextSong: Song, nextIndex: Int) -> Unit)? = null,
-    private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null
+    private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null,
+    /** Presets v2: documento de mezcla sugerido por el backend para la pareja, si lo hay (modo inteligente). */
+    private val recipeProvider: ((oldSong: Song, newSong: Song) -> MixDocumentDTO?)? = null
 ) {
 
     private val musicAudioAttributes = AudioAttributes.Builder()
@@ -74,6 +84,9 @@ class TransitionManager(
         private const val EQ_MAX_ATTENUATION: Short = -1500
         private const val EQ_MEDIUM_ATTENUATION: Short = -800
         private const val EQ_LIGHT_ATTENUATION: Short = -400
+        private const val RENDERED_TICK_MS = 10L
+        private const val SPLICE_SEEK_TOLERANCE_MS = 20L
+        private const val PHASE_TOLERANCE_MS = 15L
     }
 
     private fun createTransitionPlayer(): ExoPlayer {
@@ -566,6 +579,22 @@ class TransitionManager(
         targetOldPlayerVolume = oldSongTargetVolume
         targetNewPlayerVolume = nextSongTargetVolume
 
+        val plan = RenderedTransition.planFor(transition, System.currentTimeMillis())
+        if (plan != null) {
+            beginRendered(oldPlayer, oldSong, nextSong, nextSongIndex, transition, plan)
+            return
+        }
+        beginLegacyPlaymix(oldPlayer, oldSong, nextSong, nextSongIndex, transition)
+    }
+
+    /** Transición de Playmix con el motor de volúmenes y EQ del dispositivo (sin clip renderizado). */
+    private fun beginLegacyPlaymix(
+        oldPlayer: ExoPlayer,
+        oldSong: Song,
+        nextSong: Song,
+        nextSongIndex: Int,
+        transition: PlaymixTransitionDTO
+    ) {
         val entryMs = TransitionTiming.resolveEntryPointMs(
             TransitionTiming.EntryMode.PLAYMIX, transition.entryPointMs, null, null
         )
@@ -631,6 +660,457 @@ class TransitionManager(
         )
     }
 
+    // =================================================================================================
+    // ===                    RESONANT STUDIO: TRANSICIÓN CON CLIP RENDERIZADO                       ===
+    // =================================================================================================
+
+    private enum class RenderPhase { PREPARING, SPLICE_IN, CLIP, SPLICE_OUT }
+
+    /**
+     * Transición A → clip → B. A sigue sonando en silencio durante el clip para que una cancelación
+     * la devuelva en su posición real. B se precarga en la posición equivalente al cambio.
+     */
+    private inner class RenderedRun(
+        val oldPlayer: ExoPlayer,
+        val oldSong: Song,
+        val nextSong: Song,
+        val nextIndex: Int,
+        val transition: PlaymixTransitionDTO,
+        val plan: RenderedTransition.Plan,
+        val clipPlayer: ExoPlayer,
+        val bPlayer: ExoPlayer,
+        val volumeA: Float,
+        val volumeB: Float
+    ) {
+        var phase = RenderPhase.PREPARING
+        var spliceStartUptime = 0L
+        var audible = false
+        var aEnded = false
+        var clipEndedUptime = -1L
+        var lastProgressReportUptime = 0L
+        val listeners = mutableListOf<Pair<ExoPlayer, Player.Listener>>()
+    }
+
+    private var rendered: RenderedRun? = null
+    private var renderedRunnable: Runnable? = null
+
+    private fun beginRendered(
+        oldPlayer: ExoPlayer,
+        oldSong: Song,
+        nextSong: Song,
+        nextIndex: Int,
+        transition: PlaymixTransitionDTO,
+        plan: RenderedTransition.Plan
+    ) {
+        Log.i(TAG, "🎚 Studio: ${oldSong.title} → ${nextSong.title} con clip (A=${plan.aStartMs}ms, clip=${plan.clipDurationMs}ms, B=${plan.bEndMs}ms)")
+        val clipPlayer = try {
+            createTransitionPlayer().apply {
+                setMediaItem(MediaItem.Builder().setUri(plan.url).setMimeType(MimeTypes.AUDIO_FLAC).build())
+                volume = 0f
+                prepare()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo preparar el clip; motor actual", e)
+            beginLegacyPlaymix(oldPlayer, oldSong, nextSong, nextIndex, transition)
+            return
+        }
+        val bPlayer = acquireTransitionPlayer(nextSong, plan.bPreparePositionMs)
+
+        val job = RenderedRun(
+            oldPlayer, oldSong, nextSong, nextIndex, transition, plan, clipPlayer, bPlayer,
+            volumeA = targetOldPlayerVolume, volumeB = targetNewPlayerVolume
+        )
+        rendered = job
+        isTransitioning = true
+        transitionProgress = 0f
+        currentPlayer = oldPlayer
+        currentSong = oldSong
+        nextPlayer = bPlayer
+
+        listen(job, oldPlayer, object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) job.aEnded = true
+            }
+        })
+        listen(job, clipPlayer, object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                if (job.phase == RenderPhase.PREPARING) fallbackToLegacy(job, "clip: ${error.errorCodeName}")
+                else failRendered(job, "clip: ${error.errorCodeName}")
+            }
+        })
+        listen(job, bPlayer, object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                failRendered(job, "B: ${error.errorCodeName}")
+            }
+        })
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (rendered !== job) return
+                try {
+                    tickRendered(job)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error en la transición con clip", e)
+                    failRendered(job, "excepción: ${e.message}")
+                    return
+                }
+                if (rendered === job) mainHandler.postDelayed(this, RENDERED_TICK_MS)
+            }
+        }
+        renderedRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    private fun listen(run: RenderedRun, player: ExoPlayer, listener: Player.Listener) {
+        player.addListener(listener)
+        run.listeners += player to listener
+    }
+
+    private fun tickRendered(run: RenderedRun) {
+        val plan = run.plan
+        val now = SystemClock.uptimeMillis()
+        when (run.phase) {
+            RenderPhase.PREPARING -> {
+                val positionA = run.oldPlayer.currentPosition
+                reportProgress(run, now, positionA, run.oldPlayer.duration)
+                if (run.aEnded || RenderedTransition.missedPreroll(positionA, plan)) {
+                    fallbackToLegacy(run, "el clip no estuvo listo dentro del preroll")
+                    return
+                }
+                val clipPosition = RenderedTransition.clipPositionForA(positionA, plan) ?: return
+                if (run.clipPlayer.playbackState != Player.STATE_READY) return
+                if (abs(run.clipPlayer.currentPosition - clipPosition) > SPLICE_SEEK_TOLERANCE_MS) {
+                    run.clipPlayer.seekTo(clipPosition)
+                }
+                run.clipPlayer.volume = 0f
+                run.clipPlayer.play()
+                run.phase = RenderPhase.SPLICE_IN
+                run.spliceStartUptime = now
+            }
+            RenderPhase.SPLICE_IN -> {
+                val p = RenderedTransition.spliceProgress(now, run.spliceStartUptime)
+                val clipVolume = RenderedTransition.clipVolume(run.clipPlayer.currentPosition, plan, run.volumeA, run.volumeB)
+                run.clipPlayer.volume = clipVolume * p
+                run.oldPlayer.volume = run.volumeA * (1f - p)
+                if (p >= 1f) run.phase = RenderPhase.CLIP
+            }
+            RenderPhase.CLIP -> {
+                val clipPosition = run.clipPlayer.currentPosition
+                run.clipPlayer.volume = RenderedTransition.clipVolume(clipPosition, plan, run.volumeA, run.volumeB)
+                transitionProgress = (clipPosition.toFloat() / plan.clipDurationMs).coerceIn(0f, 1f)
+                if (!run.audible && RenderedTransition.isAudible(clipPosition, plan)) markRenderedAudible(run)
+                if (run.audible) {
+                    reportProgress(run, now, RenderedTransition.bPositionForClip(plan, clipPosition), run.bPlayer.duration)
+                } else {
+                    reportProgress(run, now, run.oldPlayer.currentPosition, run.oldPlayer.duration)
+                }
+
+                val bReady = run.bPlayer.playbackState == Player.STATE_READY
+                if (RenderedTransition.shouldSwitchToB(clipPosition, plan) && bReady &&
+                    run.clipPlayer.playbackState != Player.STATE_ENDED
+                ) {
+                    val target = RenderedTransition.bPositionForClip(plan, clipPosition)
+                    if (abs(run.bPlayer.currentPosition - target) > SPLICE_SEEK_TOLERANCE_MS) run.bPlayer.seekTo(target)
+                    run.bPlayer.volume = 0f
+                    run.bPlayer.play()
+                    run.phase = RenderPhase.SPLICE_OUT
+                    run.spliceStartUptime = now
+                } else if (run.clipPlayer.playbackState == Player.STATE_ENDED) {
+                    // El clip terminó sin B lista: B entra en su posición de final de clip en cuanto pueda.
+                    if (run.clipEndedUptime < 0) run.clipEndedUptime = now
+                    if (bReady) {
+                        if (abs(run.bPlayer.currentPosition - plan.bEndMs) > SPLICE_SEEK_TOLERANCE_MS) run.bPlayer.seekTo(plan.bEndMs)
+                        run.bPlayer.volume = run.volumeB
+                        run.bPlayer.play()
+                        completeRendered(run)
+                    } else if (now - run.clipEndedUptime > TransitionTiming.HANDOFF_TIMEOUT_MS) {
+                        failRendered(run, "B no estuvo lista al terminar el clip")
+                    }
+                }
+            }
+            RenderPhase.SPLICE_OUT -> {
+                val p = RenderedTransition.spliceProgress(now, run.spliceStartUptime)
+                run.bPlayer.volume = run.volumeB * p
+                run.clipPlayer.volume = RenderedTransition.clipVolume(run.clipPlayer.currentPosition, plan, run.volumeA, run.volumeB) * (1f - p)
+                if (p >= 1f) completeRendered(run)
+            }
+        }
+    }
+
+    private fun reportProgress(run: RenderedRun, now: Long, position: Long, duration: Long) {
+        if (now - run.lastProgressReportUptime < 250 || duration <= 0) return
+        run.lastProgressReportUptime = now
+        onTransitionProgress?.invoke(position, duration)
+    }
+
+    private fun markRenderedAudible(run: RenderedRun) {
+        if (run.audible) return
+        run.audible = true
+        try {
+            onTransitionAudible?.invoke(run.nextSong, run.nextIndex)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error notificando onTransitionAudible", e)
+        }
+    }
+
+    private fun detachRendered(run: RenderedRun) {
+        renderedRunnable?.let { mainHandler.removeCallbacks(it) }
+        renderedRunnable = null
+        run.listeners.forEach { (player, listener) -> runCatching { player.removeListener(listener) } }
+        run.listeners.clear()
+        if (rendered === run) rendered = null
+    }
+
+    private fun releaseClip(run: RenderedRun) {
+        runCatching { run.clipPlayer.stop(); run.clipPlayer.release() }
+            .onFailure { Log.w(TAG, "No se pudo liberar el clip", it) }
+    }
+
+    private fun completeRendered(run: RenderedRun) {
+        if (rendered !== run) return
+        markRenderedAudible(run)
+        detachRendered(run)
+        releaseClip(run)
+        resetState()
+        runCatching { run.bPlayer.volume = run.volumeB }
+        onTransitionComplete(run.bPlayer, run.oldPlayer)
+        Log.d(TAG, "🎉 Transición con clip COMPLETADA: ${run.nextSong.title}")
+    }
+
+    /** El clip no sirvió antes de empalmar: B vuelve a ser la precarga y sigue el motor actual. */
+    private fun fallbackToLegacy(run: RenderedRun, reason: String) {
+        if (rendered !== run) return
+        Log.w(TAG, "Studio: se usa el motor actual ($reason)")
+        detachRendered(run)
+        releaseClip(run)
+        runCatching { run.oldPlayer.volume = run.volumeA }
+        isTransitioning = false
+        nextPlayer = run.bPlayer
+        preloadedSongId = run.nextSong.id
+        targetOldPlayerVolume = run.volumeA
+        targetNewPlayerVolume = run.volumeB
+        beginLegacyPlaymix(run.oldPlayer, run.oldSong, run.nextSong, run.nextIndex, run.transition)
+    }
+
+    /** Fallo con el clip ya sonando: A recupera su volumen en su posición real y sigue. */
+    private fun failRendered(run: RenderedRun, reason: String) {
+        if (rendered !== run) return
+        Log.e(TAG, "❌ Transición con clip fallida: $reason. A recupera su estado.")
+        detachRendered(run)
+        releaseClip(run)
+        runCatching { run.bPlayer.stop(); run.bPlayer.release() }
+        runCatching { run.oldPlayer.volume = run.volumeA }
+        val wasAudible = run.audible
+        resetState()
+        onTransitionFailed(run.oldPlayer, run.oldSong, run.nextSong, wasAudible)
+    }
+
+    private fun cancelRendered(run: RenderedRun, reason: String) {
+        Log.w(TAG, "🛑 Transición con clip $reason")
+        detachRendered(run)
+        releaseClip(run)
+        runCatching { run.bPlayer.stop(); run.bPlayer.release() }
+        runCatching { run.oldPlayer.volume = run.volumeA }
+        resetState()
+    }
+
+    /**
+     * Buscar o forzar durante el clip: si B ya es la canción actual, B suena desde su posición equivalente;
+     * si no, se vuelve a A, que sigue en su posición real.
+     */
+    private fun forceCompleteRendered(run: RenderedRun) {
+        if (!run.audible) {
+            cancelRendered(run, "abandonada antes de entrar B")
+            return
+        }
+        try {
+            val target = RenderedTransition.bPositionForClip(run.plan, run.clipPlayer.currentPosition)
+            if (abs(run.bPlayer.currentPosition - target) > SPLICE_SEEK_TOLERANCE_MS) run.bPlayer.seekTo(target)
+            run.bPlayer.volume = run.volumeB
+            if (!run.bPlayer.isPlaying) run.bPlayer.play()
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo arrancar B al forzar", e)
+        }
+        completeRendered(run)
+    }
+
+    // =================================================================================================
+    // ===            PRESETS V2: RECETA (DOCUMENTO DE MEZCLA) EN EL MODO INTELIGENTE                  ===
+    // =================================================================================================
+
+    /**
+     * Ejecuta un documento de mezcla sugerido por el backend: la línea de tiempo sigue a la posición de A,
+     * B entra en `b.offsetMs`, los volúmenes siguen los carriles de ganancia y el EQ del dispositivo
+     * aproxima los carriles de EQ (bandas agrupadas en graves, medios y agudos).
+     */
+    private inner class RecipeRun(
+        val oldPlayer: ExoPlayer,
+        val oldSong: Song,
+        val nextSong: Song,
+        val nextIndex: Int,
+        val doc: MixDocumentDTO,
+        val bPlayer: ExoPlayer,
+        val volumeA: Float,
+        val volumeB: Float
+    ) {
+        var started = false
+        var audible = false
+        var aEndedUptime = -1L
+        var timelineAtAEnd = 0.0
+        var lastProgressReportUptime = 0L
+        val listeners = mutableListOf<Pair<ExoPlayer, Player.Listener>>()
+    }
+
+    private var recipe: RecipeRun? = null
+    private var recipeRunnable: Runnable? = null
+
+    private fun beginRecipe(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextIndex: Int, doc: MixDocumentDTO) {
+        Log.i(TAG, "🧩 Receta v2: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, cruce=${doc.durationMs}ms)")
+        val bPlayer = acquireTransitionPlayer(newSong, doc.b.startMs.toLong())
+        val job = RecipeRun(oldPlayer, oldSong, newSong, nextIndex, doc, bPlayer, targetOldPlayerVolume, targetNewPlayerVolume)
+        recipe = job
+        isTransitioning = true
+        transitionProgress = 0f
+        currentPlayer = oldPlayer
+        currentSong = oldSong
+        nextPlayer = bPlayer
+
+        val aListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED && job.aEndedUptime < 0) {
+                    job.aEndedUptime = SystemClock.uptimeMillis()
+                    job.timelineAtAEnd = recipeTimeline(job)
+                }
+            }
+        }
+        val bListener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) = failRecipe(job, "B: ${error.errorCodeName}")
+        }
+        oldPlayer.addListener(aListener); job.listeners += oldPlayer to aListener
+        bPlayer.addListener(bListener); job.listeners += bPlayer to bListener
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (recipe !== job) return
+                try {
+                    tickRecipe(job)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error en la receta", e)
+                    failRecipe(job, "excepción: ${e.message}")
+                    return
+                }
+                if (recipe === job) mainHandler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
+            }
+        }
+        recipeRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    /** Instante de la línea de tiempo: posición de A menos `a.startMs`; si A ya terminó, sigue con el reloj. */
+    private fun recipeTimeline(job: RecipeRun): Double =
+        if (job.aEndedUptime >= 0) job.timelineAtAEnd + (SystemClock.uptimeMillis() - job.aEndedUptime)
+        else (job.oldPlayer.currentPosition - job.doc.a.startMs).toDouble()
+
+    private fun tickRecipe(job: RecipeRun) {
+        val doc = job.doc
+        val t = recipeTimeline(job)
+        val now = SystemClock.uptimeMillis()
+        if (!job.started) {
+            if (now - job.lastProgressReportUptime >= 250 && job.oldPlayer.duration > 0) {
+                job.lastProgressReportUptime = now
+                onTransitionProgress?.invoke(job.oldPlayer.currentPosition, job.oldPlayer.duration)
+            }
+            if (t < 0) return
+            job.started = true
+            initializeIntelligentEQ(job.oldPlayer, job.bPlayer)
+        }
+
+        if (!job.audible && t >= doc.b.offsetMs) {
+            if (job.bPlayer.playbackState != Player.STATE_READY) {
+                if (t > doc.b.offsetMs + TransitionTiming.HANDOFF_TIMEOUT_MS) failRecipe(job, "B no estuvo lista")
+                return
+            }
+            job.bPlayer.volume = 0f
+            job.bPlayer.play()
+            job.audible = true
+            try { onTransitionAudible?.invoke(job.nextSong, job.nextIndex) } catch (e: Exception) { Log.e(TAG, "onTransitionAudible", e) }
+        }
+
+        job.oldPlayer.volume = (job.volumeA * MixLanes.gain(doc, 'a', t)).toFloat().coerceIn(0f, 1f)
+        if (job.audible) job.bPlayer.volume = (job.volumeB * MixLanes.gain(doc, 'b', t)).toFloat().coerceIn(0f, 1f)
+        applyRecipeEq(oldPlayerEq, doc, 'a', t)
+        if (job.audible) applyRecipeEq(newPlayerEq, doc, 'b', t)
+        transitionProgress = if (doc.durationMs > 0) (t / doc.durationMs).toFloat().coerceIn(0f, 1f) else 1f
+
+        if (job.audible && now - job.lastProgressReportUptime >= 500 && job.bPlayer.duration > 0) {
+            job.lastProgressReportUptime = now
+            onTransitionProgress?.invoke(job.bPlayer.currentPosition, job.bPlayer.duration)
+        }
+        if (job.audible && t >= doc.durationMs) completeRecipe(job)
+    }
+
+    private fun applyRecipeEq(eq: Equalizer?, doc: MixDocumentDTO, side: Char, t: Double) {
+        eq ?: return
+        try {
+            for (i in 0 until eq.numberOfBands) {
+                val centerHz = eq.getCenterFreq(i.toShort()) / 1000
+                val db = MixLanes.eqDb(doc, side, MixLanes.bandForFrequency(centerHz), t)
+                setSafeBandLevel(eq, i, (db * 100).toFloat())
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo aplicar el EQ de la receta", e)
+        }
+    }
+
+    private fun detachRecipe(job: RecipeRun) {
+        recipeRunnable?.let { mainHandler.removeCallbacks(it) }
+        recipeRunnable = null
+        job.listeners.forEach { (player, listener) -> runCatching { player.removeListener(listener) } }
+        job.listeners.clear()
+        if (recipe === job) recipe = null
+    }
+
+    private fun completeRecipe(job: RecipeRun) {
+        if (recipe !== job) return
+        detachRecipe(job)
+        releaseTransitionEqs()
+        resetState()
+        runCatching { job.bPlayer.volume = job.volumeB }
+        onTransitionComplete(job.bPlayer, job.oldPlayer)
+        Log.d(TAG, "🎉 Receta completada: ${job.nextSong.title}")
+    }
+
+    private fun failRecipe(job: RecipeRun, reason: String) {
+        if (recipe !== job) return
+        Log.e(TAG, "❌ Receta fallida: $reason. A recupera su estado.")
+        detachRecipe(job)
+        releaseTransitionEqs()
+        runCatching { job.bPlayer.stop(); job.bPlayer.release() }
+        runCatching { job.oldPlayer.volume = job.volumeA }
+        val wasAudible = job.audible
+        resetState()
+        onTransitionFailed(job.oldPlayer, job.oldSong, job.nextSong, wasAudible)
+    }
+
+    private fun cancelRecipe(job: RecipeRun, reason: String) {
+        Log.w(TAG, "🛑 Receta $reason")
+        detachRecipe(job)
+        releaseTransitionEqs()
+        runCatching { job.bPlayer.stop(); job.bPlayer.release() }
+        runCatching { job.oldPlayer.volume = job.volumeA }
+        resetState()
+    }
+
+    /** Buscar o forzar durante la receta: si B ya suena se completa; si no, se vuelve a A. */
+    private fun forceCompleteRecipe(job: RecipeRun) {
+        if (!job.audible) {
+            cancelRecipe(job, "abandonada antes de entrar B")
+            return
+        }
+        runCatching { job.bPlayer.volume = job.volumeB; if (!job.bPlayer.isPlaying) job.bPlayer.play() }
+        completeRecipe(job)
+    }
+
     private fun beginAlbumCut(oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextSongIndex: Int) {
         Log.i(TAG, "🤖 Automix de álbum (corte sobre la precarga)")
         val newPlayer = acquireTransitionPlayer(nextSong, 0L)
@@ -673,6 +1153,10 @@ class TransitionManager(
     }
 
     private fun beginIntelligentMix(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextSongIndex: Int) {
+        recipeProvider?.invoke(oldSong, newSong)?.let { doc ->
+            beginRecipe(oldPlayer, oldSong, newSong, nextSongIndex, doc)
+            return
+        }
         val strategy = calculateAutomixStrategy(oldSong, newSong)
         val mixDuration = calculateFullyIntelligentDuration(oldSong, newSong, strategy)
         val optimalOutPoint = findOptimalOutPoint(oldSong.audioAnalysis)
@@ -709,6 +1193,8 @@ class TransitionManager(
         TransitionTiming.clampIntelligentEntry(findOptimalInPoint(song.audioAnalysis))
 
     fun cancelCurrentTransition() {
+        rendered?.let { cancelRendered(it, "cancelada"); return }
+        recipe?.let { cancelRecipe(it, "cancelada"); return }
         val t = active
         if (t == null) {
             releasePreload()
@@ -724,6 +1210,8 @@ class TransitionManager(
 
     /** Completa la transición ya, con B sonando a su volumen objetivo. */
     fun forceCompleteTransition() {
+        rendered?.let { forceCompleteRendered(it); return }
+        recipe?.let { forceCompleteRecipe(it); return }
         val t = active
         if (t == null) {
             if (isTransitioning) cancelCurrentTransition()
@@ -1876,6 +2364,12 @@ class TransitionManager(
     }
 
     private fun syncTempo(oldPlayer: ExoPlayer, oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis, newPlayer: ExoPlayer) {
+        val gridA = PhaseAlignment.gridOf(oldAnalysis.bpmPrecise, oldAnalysis.firstDownbeatMs, oldAnalysis.beatsPerBar)
+        val gridB = PhaseAlignment.gridOf(newAnalysis.bpmPrecise, newAnalysis.firstDownbeatMs, newAnalysis.beatsPerBar)
+        if (gridA != null && gridB != null) {
+            syncTempoWithDownbeats(oldPlayer, gridA, newPlayer, gridB)
+            return
+        }
         try {
             // 1. Cálculo de velocidad base (Igual que antes)
             val speedAdjustment = (oldAnalysis.bpmNormalized / newAnalysis.bpmNormalized).toFloat()
@@ -1920,6 +2414,25 @@ class TransitionManager(
         }
     }
 
+    /**
+     * Beatmatch con fase real (Fase 4): B se mueve, antes de sonar, al mismo punto de su compás que A,
+     * y su velocidad se ajusta con el BPM preciso de ambas si la diferencia es corregible (±8 %).
+     */
+    private fun syncTempoWithDownbeats(oldPlayer: ExoPlayer, gridA: PhaseAlignment.Grid, newPlayer: ExoPlayer, gridB: PhaseAlignment.Grid) {
+        try {
+            val correction = PhaseAlignment.entryCorrectionMs(oldPlayer.currentPosition, gridA, newPlayer.currentPosition, gridB)
+            if (abs(correction) > PHASE_TOLERANCE_MS) {
+                newPlayer.seekTo((newPlayer.currentPosition + correction).coerceAtLeast(0L))
+            }
+            val ratio = (gridA.bpm / gridB.bpm).toFloat()
+            val speed = if (ratio in 0.92f..1.08f) ratio else 1.0f
+            newPlayer.playbackParameters = PlaybackParameters(speed)
+            Log.d("IntelligentCrossfade", "⏱️ Fase por downbeats: corrección ${correction}ms, velocidad ${"%.3f".format(speed)}x")
+        } catch (e: Exception) {
+            Log.e("IntelligentCrossfade", "Error alineando la fase por downbeats", e)
+        }
+    }
+
     private fun parseKeyToNumeric(key: String): Int {
         val keyMap = mapOf(
             "C" to 0, "B#" to 0, "C#" to 1, "Db" to 1, "D" to 2, "D#" to 3, "Eb" to 3,
@@ -1944,6 +2457,11 @@ class TransitionManager(
      */
     fun release() {
         active?.let { detachTransition(it) }
+        recipe?.let { detachRecipe(it) }
+        rendered?.let { run ->
+            detachRendered(run)
+            runCatching { run.clipPlayer.stop(); run.clipPlayer.release() }
+        }
         mainHandler.removeCallbacksAndMessages(null)
         isTransitioning = false
         transitionProgress = 0f

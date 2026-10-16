@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.aria.AriaScreenContextHolder
 import com.example.resonant.live.LiveScreenButton
 import com.example.resonant.live.LiveScreenState
 import com.example.resonant.live.LiveScreenStateBuilder
@@ -52,6 +53,10 @@ class LiveChannelFragment : Fragment() {
     private lateinit var upNext: TextView
     private lateinit var actionButton: MaterialButton
     private var shownImageUrl: String? = null
+    private var autoStartPending = false
+    private var slug: String? = null
+    /** Channel name last published to Aria's screen context (avoids doing it on every tick). */
+    private var reportedChannelName: String? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         inflater.inflate(R.layout.fragment_live_channel, container, false)
@@ -71,9 +76,17 @@ class LiveChannelFragment : Fragment() {
             findNavController().popBackStack()
             return
         }
+        this.slug = slug
         viewModel.open(slug)
+        // Widget quick access: start listening once, after the first successful load.
+        // The argument is consumed so going back to this screen does not ask again.
+        autoStartPending = savedInstanceState == null && requireArguments().getBoolean(ARG_AUTO_START, false)
+        requireArguments().putBoolean(ARG_AUTO_START, false)
 
-        viewModel.screen.observe(viewLifecycleOwner) { state -> state?.let(::render) }
+        viewModel.screen.observe(viewLifecycleOwner) { state ->
+            state?.let(::render)
+            state?.let(::maybeAutoStart)
+        }
         viewModel.message.observe(viewLifecycleOwner) { text ->
             if (text != null) {
                 showResonantSnackbar(text, R.color.errorColor, R.drawable.ic_error)
@@ -91,6 +104,23 @@ class LiveChannelFragment : Fragment() {
                 while (true) {
                     viewModel.render()
                     delay(TICK_MS)
+                }
+            }
+        }
+        bindDjSubtitle(view)
+    }
+
+    /** Aria DJ: card ✦ with the intro being read; hidden when there is none. */
+    private fun bindDjSubtitle(view: View) {
+        val card = view.findViewById<View>(R.id.liveDjSubtitleCard)
+        val text = view.findViewById<TextView>(R.id.liveDjSubtitle)
+        view.findViewById<View>(R.id.liveDjBadge).findViewById<TextView>(R.id.ariaBadgeLabel)
+            ?.setText(R.string.live_dj_badge)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.djSubtitle.collect { subtitle ->
+                    text.text = subtitle.orEmpty()
+                    card.isVisible = !subtitle.isNullOrBlank()
                 }
             }
         }
@@ -113,7 +143,26 @@ class LiveChannelFragment : Fragment() {
         actionButton = view.findViewById(R.id.liveActionButton)
     }
 
+    override fun onPause() {
+        reportedChannelName = null
+        AriaScreenContextHolder.clearEntity(this)
+        super.onPause()
+    }
+
+    /** Aria sees `visible_entity = { type: "live_channel", id: slug, name }` on this screen. */
+    private fun reportVisibleChannel(name: String) {
+        val slug = slug ?: return
+        if (name.isBlank() || name == reportedChannelName || !isResumed) return
+        reportedChannelName = name
+        AriaScreenContextHolder.update(
+            screen = "live_channel",
+            entity = AriaScreenContextHolder.VisibleEntity("live_channel", slug, name),
+            source = this
+        )
+    }
+
     private fun render(state: LiveScreenState) {
+        reportVisibleChannel(state.channelName)
         channelName.text = state.channelName
         badge.isVisible = state.onAir
         blockTitle.text = state.blockTitle.orEmpty()
@@ -157,6 +206,13 @@ class LiveChannelFragment : Fragment() {
         }
     }
 
+    /** Same path as the button, so the "Saldrás de la sala" confirmation and errors are reused. */
+    private fun maybeAutoStart(state: LiveScreenState) {
+        if (!autoStartPending) return
+        autoStartPending = false
+        if (state.button == LiveScreenButton.LISTEN && !viewModel.isListeningHere()) onActionClick()
+    }
+
     private fun onActionClick() {
         if (viewModel.isListeningHere()) {
             viewModel.leave()
@@ -183,6 +239,9 @@ class LiveChannelFragment : Fragment() {
 
     companion object {
         const val ARG_SLUG = "slug"
+
+        /** Start listening after the first load (widget quick access). */
+        const val ARG_AUTO_START = "autoStart"
         private const val TICK_MS = 500L
     }
 }

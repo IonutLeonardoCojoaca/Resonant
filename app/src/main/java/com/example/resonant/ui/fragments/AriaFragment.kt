@@ -35,7 +35,13 @@ import android.animation.ValueAnimator
 import androidx.core.graphics.ColorUtils
 import com.example.resonant.explore.ExploreGreeting
 import com.example.resonant.ui.components.ResonantMotion
+import com.example.resonant.ui.views.AriaAgentOrbView
+import com.example.resonant.ui.views.AriaAmbientView
 import com.example.resonant.ui.views.AriaConversationMotifView
+import androidx.core.widget.NestedScrollView
+import com.example.resonant.managers.AlbumManager
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import java.util.Calendar
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.managers.PlaylistManager
@@ -95,9 +101,14 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private lateinit var userProfile: ShapeableImageView
     private lateinit var ariaOptionsButton: ImageButton
 
-    // ── Welcome decorative views
-    private lateinit var welcomeBg: View
-    private lateinit var glowTop: View
+    // ── Capas y presencia del agente
+    private lateinit var ambientView: AriaAmbientView
+    private lateinit var toolbarOrb: AriaAgentOrbView
+    private lateinit var statusDot: View
+    private lateinit var toolbarSubtitle: TextView
+    private lateinit var composerRing: View
+    private lateinit var inputContainer: View
+    private lateinit var toolbar: View
     private lateinit var chatTopFade: View
 
     // ── Voice Mode Views
@@ -107,13 +118,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private lateinit var ariaVoiceRecordButton: ImageButton
     private lateinit var ariaSpectrumView: VoiceSpectrumSphereView
     private lateinit var ariaVoiceText: TextView
-
-    // ── Ambient spectrum orbs (always visible)
-    private lateinit var ambientOrb1: View
-    private lateinit var ambientOrb2: View
-    private lateinit var ambientOrb3: View
-    private lateinit var ambientOrb4: View
-    private lateinit var ambientOrb5: View
 
     // ── Voice Recognition State
     private var speechRecognizer: SpeechRecognizer? = null
@@ -141,10 +145,13 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     private var displayedText = StringBuilder()
 
     // ── Animations ────────────────────────────────────────────────────────────
-    private var parallaxAnimator: ObjectAnimator? = null
-    private var glow2Animator: ObjectAnimator? = null
-    private val orbAnimators = mutableListOf<ObjectAnimator>()
+    private var statusDotAnimator: ObjectAnimator? = null
+    private var lastStatus: String? = null
     private val fetchedPlaylistImageIds = mutableSetOf<String>()
+
+    // Portadas de álbum / fotos de artista para los resultados (deduplicadas por id; solo Main).
+    private val albumCoverRequests = mutableMapOf<String, Deferred<String?>>()
+    private val artistImageRequests = mutableMapOf<String, Deferred<String?>>()
 
     // ── Keyboard avoidance for the input bar ─────────────────────────────
     private var baseInputBottomMargin = 0
@@ -162,9 +169,12 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
         bindViews(view)
         setupWelcomeHero()
+        setupCapabilityCards()
+        setupWelcomeParallax()
         setupRecyclerView()
+        setupChatInsets()
         setupSendButton()
-        setupOrbitalChips()
+        setupComposerFocus()
         setupPromptChips()
         viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfile) }
         applyBottomOffset()
@@ -199,9 +209,14 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
         userProfile          = view.findViewById(R.id.userProfile)
         ariaOptionsButton    = view.findViewById(R.id.ariaOptionsButton)
-        welcomeBg            = view.findViewById(R.id.ariaWelcomeBg)
-        glowTop              = view.findViewById(R.id.ariaGlowTop)
         chatTopFade          = view.findViewById(R.id.ariaChatTopFade)
+        ambientView          = view.findViewById(R.id.ariaAmbient)
+        toolbarOrb           = view.findViewById(R.id.ariaToolbarOrb)
+        statusDot            = view.findViewById(R.id.ariaStatusDot)
+        toolbarSubtitle      = view.findViewById(R.id.tvToolbarSubtitle)
+        composerRing         = view.findViewById(R.id.ariaComposerRing)
+        inputContainer       = view.findViewById(R.id.ariaInputContainer)
+        toolbar              = view.findViewById(R.id.superiorToolbar)
         
         // New Voice Mode Views
         ariaMicButton        = view.findViewById(R.id.ariaMicButton)
@@ -210,12 +225,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         ariaVoiceRecordButton= view.findViewById(R.id.ariaVoiceRecordButton)
         ariaSpectrumView     = view.findViewById(R.id.ariaSpectrumView)
         ariaVoiceText        = view.findViewById(R.id.ariaVoiceText)
-
-        ambientOrb1          = view.findViewById(R.id.ariaAmbientOrb1)
-        ambientOrb2          = view.findViewById(R.id.ariaAmbientOrb2)
-        ambientOrb3          = view.findViewById(R.id.ariaAmbientOrb3)
-        ambientOrb4          = view.findViewById(R.id.ariaAmbientOrb4)
-        ambientOrb5          = view.findViewById(R.id.ariaAmbientOrb5)
     }
 
     private fun setupRecyclerView() {
@@ -239,13 +248,102 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             },
             onSuggestedFollowupClick = { prompt ->
                 submitSuggestedFollowup(prompt)
-            }
+            },
+            loadAlbumCover = { albumId, target -> loadAlbumCover(albumId, target) },
+            loadArtistImage = { artistId, target -> loadArtistImage(artistId, target) }
         )
         val layoutManager = LinearLayoutManager(requireContext())
         layoutManager.stackFromEnd = false
         chatRecyclerView.layoutManager = layoutManager
         chatRecyclerView.adapter = chatAdapter
         chatRecyclerView.itemAnimator = null
+        chatRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                ambientView.onScrollBy(dy)
+                applyCardParallax()
+            }
+        })
+        chatRecyclerView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyCardParallax() }
+    }
+
+    /**
+     * Parallax interno de las tarjetas de entidad: la portada desenfocada de fondo se
+     * desplaza más despacio que la tarjeta según su posición en pantalla.
+     */
+    private fun applyCardParallax() {
+        val rvHeight = chatRecyclerView.height.takeIf { it > 0 } ?: return
+        val range = 26 * resources.displayMetrics.density
+        for (i in 0 until chatRecyclerView.childCount) {
+            val child = chatRecyclerView.getChildAt(i)
+            val backdrop = child.findViewById<View>(R.id.ariaCardBackdrop) ?: continue
+            val card = child.findViewById<View>(R.id.ariaPlaylistCard) ?: continue
+            if (card.visibility != View.VISIBLE) continue
+            val cardCenter = child.top + card.top + card.height / 2f
+            val f = ((cardCenter / rvHeight) - 0.5f).coerceIn(-1f, 1f)
+            backdrop.translationY = -f * range
+        }
+    }
+
+    /** El chat ocupa toda la pantalla: reserva arriba la toolbar y abajo el composer. */
+    private fun setupChatInsets() {
+        val update = {
+            val root = view
+            if (root != null && inputContainer.height > 0) {
+                val top = toolbar.bottom + dpToPx(8)
+                val bottom = (root.height - inputContainer.top) + dpToPx(4)
+                if (chatRecyclerView.paddingTop != top || chatRecyclerView.paddingBottom != bottom) {
+                    val wasAtBottom = !chatRecyclerView.canScrollVertically(1)
+                    chatRecyclerView.setPadding(0, top, 0, bottom)
+                    if (wasAtBottom) scrollToBottom()
+                }
+            }
+        }
+        inputContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> update() }
+        toolbar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> update() }
+    }
+
+    private fun loadAlbumCover(albumId: String, target: ImageView) {
+        target.tag = albumId
+        val request = albumCoverRequests.getOrPut(albumId) {
+            viewLifecycleOwner.lifecycleScope.async {
+                AlbumManager.getAlbumById(requireContext(), albumId)?.url
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            val url = runCatching { request.await() }.getOrNull()
+            if (url.isNullOrBlank()) {
+                albumCoverRequests.remove(albumId)
+                return@launch
+            }
+            if (target.tag != albumId) return@launch
+            Glide.with(target)
+                .load(ImageRequestHelper.buildGlideModel(target.context, url))
+                .centerCrop()
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(220))
+                .into(target)
+        }
+    }
+
+    private fun loadArtistImage(artistId: String, target: ImageView) {
+        target.tag = artistId
+        val request = artistImageRequests.getOrPut(artistId) {
+            viewLifecycleOwner.lifecycleScope.async {
+                ApiClient.getArtistService(requireContext()).getArtistById(artistId).url
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            val url = runCatching { request.await() }.getOrNull()
+            if (url.isNullOrBlank()) {
+                artistImageRequests.remove(artistId)
+                return@launch
+            }
+            if (target.tag != artistId) return@launch
+            Glide.with(target)
+                .load(ImageRequestHelper.buildGlideModel(target.context, url))
+                .centerCrop()
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(220))
+                .into(target)
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -276,6 +374,91 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         v.findViewById<TextView>(R.id.ariaGreeting).text = greetingForNow()
     }
 
+    /** Tarjetas informativas de lo que sabe hacer el agente; al tocarlas preparan su ejemplo. */
+    private data class AriaCapability(
+        val iconRes: Int,
+        val color: Int,
+        val tool: String,
+        val title: String,
+        val description: String,
+        val example: String
+    )
+
+    private fun setupCapabilityCards() {
+        val row = view?.findViewById<ViewGroup>(R.id.ariaCapabilitiesRow) ?: return
+        row.removeAllViews()
+        val inflater = LayoutInflater.from(requireContext())
+        listOf(
+            AriaCapability(
+                R.drawable.ic_playlist_stack, Color.parseColor("#FF3B55"), "PLAYLISTS",
+                "Crea playlists al momento",
+                "Por mood, género, plan o artistas. Las guardo en tu biblioteca.",
+                "Crea una playlist para correr con rock enérgico"
+            ),
+            AriaCapability(
+                R.drawable.ic_search_small, Color.parseColor("#FF2E8A"), "CATÁLOGO",
+                "Busca y recomienda",
+                "Canciones y artistas parecidos a lo que te gusta, con su ficha.",
+                "Recomiéndame canciones parecidas a las que más escucho"
+            ),
+            AriaCapability(
+                R.drawable.ic_trending_up, Color.parseColor("#F21FD8"), "TUS DATOS",
+                "Analiza lo que escuchas",
+                "Top artistas y géneros, historial, horas de escucha y tu mood.",
+                "¿Cuáles son mis artistas más escuchados?"
+            ),
+            AriaCapability(
+                R.drawable.ic_play, Color.parseColor("#B65CFF"), "REPRODUCCIÓN",
+                "Controla la música",
+                "Pon, pausa, salta o encola canciones solo con pedirlo.",
+                "Pon algo tranquilo para concentrarme"
+            )
+        ).forEach { cap ->
+            val card = inflater.inflate(R.layout.item_aria_capability_card, row, false)
+            card.findViewById<View>(R.id.capabilityBadge).background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(ColorUtils.setAlphaComponent(cap.color, 0x2E))
+            }
+            card.findViewById<ImageView>(R.id.capabilityIcon).apply {
+                setImageResource(cap.iconRes)
+                imageTintList = ColorStateList.valueOf(cap.color)
+            }
+            card.findViewById<TextView>(R.id.capabilityTool).text = cap.tool
+            card.findViewById<TextView>(R.id.capabilityTitle).text = cap.title
+            card.findViewById<TextView>(R.id.capabilityDescription).text = cap.description
+            card.findViewById<TextView>(R.id.capabilityExample).text = "“${cap.example}”"
+            card.setOnClickListener {
+                inputField.setText(cap.example)
+                inputField.setSelection(inputField.text.length)
+                inputField.requestFocus()
+                val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(inputField, InputMethodManager.SHOW_IMPLICIT)
+            }
+            row.addView(card)
+        }
+    }
+
+    /**
+     * Parallax de la bienvenida: la tarjeta de marca se queda atrás y se desvanece
+     * mientras el contenido sube; el fondo ambiental se mueve a su propia velocidad.
+     */
+    private fun setupWelcomeParallax() {
+        val scroll = welcomeContainer as? NestedScrollView ?: return
+        val hero = view?.findViewById<View>(R.id.ariaHeroCard) ?: return
+        val motif = view?.findViewById<View>(R.id.ariaHeroMotif) ?: return
+        scroll.setOnScrollChangeListener(NestedScrollView.OnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            ambientView.onScrollBy(scrollY - oldScrollY)
+            val h = hero.height.takeIf { it > 0 } ?: return@OnScrollChangeListener
+            val progress = (scrollY.toFloat() / h).coerceIn(0f, 1f)
+            hero.translationY = scrollY * 0.45f
+            hero.alpha = 1f - progress * 0.85f
+            hero.scaleX = 1f - progress * 0.06f
+            hero.scaleY = hero.scaleX
+            // Capa interior: el motivo se desplaza más que la tarjeta (profundidad).
+            motif.translationY = scrollY * 0.12f
+        })
+    }
+
     /** "Buenas tardes, Ana" según la hora local (mismo formato que el saludo de Explorar). */
     private fun greetingForNow(): String {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -301,7 +484,8 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         hero.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(600)
             .setInterpolator(ResonantMotion.expoOut).start()
         listOf(
-            R.id.ariaGreeting, R.id.ariaTitleText, R.id.ariaWelcomeSubtitle, R.id.ariaPromptLabel,
+            R.id.ariaGreeting, R.id.ariaTitleText, R.id.ariaWelcomeSubtitle,
+            R.id.ariaCapabilitiesLabel, R.id.ariaCapabilitiesScroll, R.id.ariaPromptLabel,
             R.id.ariaPromptRow1, R.id.ariaPromptRow2
         ).forEachIndexed { i, id ->
             v.findViewById<View>(id).apply {
@@ -311,10 +495,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
                     .setInterpolator(ResonantMotion.expoOut).start()
             }
         }
-    }
-
-    private fun setupOrbitalChips() {
-        // Orbital chips were unified into the centered quick suggestions
     }
 
     private fun setupPromptChips() {
@@ -342,10 +522,9 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         chatTopFade.visibility = View.GONE
         welcomeContainer.visibility = View.VISIBLE
         welcomeContainer.alpha = 1f
-        welcomeBg.animate().cancel()
-        welcomeBg.alpha = 1f
-        glowTop.animate().cancel()
-        glowTop.alpha = 0.28f
+        (welcomeContainer as? NestedScrollView)?.scrollTo(0, 0)
+        view?.findViewById<View>(R.id.ariaHeroCard)?.translationY = 0f
+        view?.findViewById<View>(R.id.ariaHeroMotif)?.translationY = 0f
         animateWelcomeIn()
     }
 
@@ -353,24 +532,25 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         chatRecyclerView.visibility = View.VISIBLE
         chatTopFade.visibility = View.VISIBLE
         welcomeContainer.visibility = View.GONE
-        welcomeBg.alpha = 0f
-        glowTop.alpha = 0f
     }
 
     private fun transitionToChatState() {
         if (!isFirstMessage) return
         isFirstMessage = false
 
-        welcomeContainer.animate().alpha(0f).setDuration(300).withEndAction {
-            welcomeContainer.visibility = View.GONE
-        }.start()
-
-        welcomeBg.animate().alpha(0f).setDuration(400).start()
-        glowTop.animate().alpha(0f).setDuration(350).start()
+        // La bienvenida se aleja hacia arriba y el chat entra desde abajo (cambio de capa).
+        val density = resources.displayMetrics.density
+        welcomeContainer.animate().alpha(0f).translationY(-24 * density).setDuration(320)
+            .setInterpolator(ResonantMotion.expoOut).withEndAction {
+                welcomeContainer.visibility = View.GONE
+                welcomeContainer.translationY = 0f
+            }.start()
 
         chatRecyclerView.visibility = View.VISIBLE
         chatRecyclerView.alpha = 0f
-        chatRecyclerView.animate().alpha(1f).setStartDelay(150).setDuration(300).start()
+        chatRecyclerView.translationY = 32 * density
+        chatRecyclerView.animate().alpha(1f).translationY(0f).setStartDelay(140).setDuration(520)
+            .setInterpolator(ResonantMotion.expoOut).start()
 
         chatTopFade.visibility = View.VISIBLE
         chatTopFade.alpha = 0f
@@ -505,6 +685,8 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
                 } else {
                     ariaViewModel.removeStatusMessage()
                 }
+                lastStatus = status
+                updatePresence()
             }
         }
 
@@ -582,6 +764,65 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             inputField.alpha = 1f
             ariaViewModel.removeStatusMessage()
         }
+
+        toolbarOrb.setThinking(streaming)
+        ambientView.setEnergy(if (streaming) 1f else 0f)
+        updateComposerRing()
+        updatePresence()
+    }
+
+    /** Línea de presencia de la toolbar: "En línea" en reposo, el paso actual mientras trabaja. */
+    private fun updatePresence() {
+        val text = when {
+            !isStreaming -> "En línea · Agente musical"
+            !lastStatus.isNullOrBlank() -> lastStatus!!
+            else -> "Pensando…"
+        }
+        if (toolbarSubtitle.text.toString() != text) {
+            toolbarSubtitle.animate().cancel()
+            toolbarSubtitle.animate().alpha(0f).setDuration(120).withEndAction {
+                toolbarSubtitle.text = text
+                toolbarSubtitle.animate().alpha(1f).setDuration(180).start()
+            }.start()
+        }
+
+        val dotColor = ContextCompat.getColor(
+            requireContext(),
+            if (isStreaming) R.color.aria_accent_text else R.color.aria_live
+        )
+        statusDot.backgroundTintList = ColorStateList.valueOf(dotColor)
+        if (isStreaming && ValueAnimator.areAnimatorsEnabled()) {
+            if (statusDotAnimator == null) {
+                statusDotAnimator = ObjectAnimator.ofFloat(statusDot, View.ALPHA, 1f, 0.25f).apply {
+                    duration = 650
+                    repeatCount = ObjectAnimator.INFINITE
+                    repeatMode = ObjectAnimator.REVERSE
+                    start()
+                }
+            }
+        } else {
+            statusDotAnimator?.cancel()
+            statusDotAnimator = null
+            statusDot.alpha = 1f
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Composer: el anillo degradado se intensifica al escribir o mientras Aria trabaja
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private fun setupComposerFocus() {
+        inputField.setOnFocusChangeListener { _, _ -> updateComposerRing() }
+    }
+
+    private fun updateComposerRing() {
+        val target = when {
+            isStreaming -> 1f
+            inputField.hasFocus() -> 0.9f
+            else -> 0.35f
+        }
+        composerRing.animate().cancel()
+        composerRing.animate().alpha(target).setDuration(260).start()
     }
 
     private fun scrollToBottom() {
@@ -705,52 +946,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         } catch (e: Exception) {
             Log.e(TAG, "Snackbar error: $e")
         }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Ambient spectrum orb animation (always running)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private fun driftOrb(
-        orb: View,
-        fromXdp: Float, toXdp: Float,
-        fromYdp: Float, toYdp: Float,
-        durationX: Long, durationY: Long,
-        delayX: Long = 0L, delayY: Long = 0L
-    ) {
-        val density = resources.displayMetrics.density
-        fun dp(v: Float) = v * density
-
-        ObjectAnimator.ofFloat(orb, View.TRANSLATION_X, dp(fromXdp), dp(toXdp)).apply {
-            duration = durationX
-            startDelay = delayX
-            repeatCount = ObjectAnimator.INFINITE
-            repeatMode = ObjectAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
-        }.also { orbAnimators.add(it) }
-
-        ObjectAnimator.ofFloat(orb, View.TRANSLATION_Y, dp(fromYdp), dp(toYdp)).apply {
-            duration = durationY
-            startDelay = delayY
-            repeatCount = ObjectAnimator.INFINITE
-            repeatMode = ObjectAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
-        }.also { orbAnimators.add(it) }
-    }
-
-    private fun startAmbientGlowAnimation() {
-        // Orb A: top-left, drifts right and slightly downward
-        driftOrb(ambientOrb1, -20f, 55f,  0f, 35f,  8500, 10000, 0,    1500)
-        // Orb B: top-right, drifts left and downward
-        driftOrb(ambientOrb2,  20f, -50f,  0f, 45f,  9500, 11500, 900,  0   )
-        // Orb C: center-left, broad horizontal sweep
-        driftOrb(ambientOrb3, -15f, 60f, 10f, -30f, 11000,  9500, 2200, 700 )
-        // Orb D: bottom-right, drifts left and upward
-        driftOrb(ambientOrb4,  15f, -55f,  0f, -40f, 10000,  8500, 500, 1800)
-        // Orb E: bottom-center, slow wide sweep
-        driftOrb(ambientOrb5, -35f,  35f,  0f, -22f, 13000, 10500, 1600, 1000)
     }
 
     private fun setupAriaOptions() {
@@ -950,10 +1145,10 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        parallaxAnimator?.cancel()
-        glow2Animator?.cancel()
-        orbAnimators.forEach { it.cancel() }
-        orbAnimators.clear()
+        statusDotAnimator?.cancel()
+        statusDotAnimator = null
+        albumCoverRequests.clear()
+        artistImageRequests.clear()
         handler.removeCallbacksAndMessages(null)
         typingQueue.clear()
         isTypingRunning = false

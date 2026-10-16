@@ -23,7 +23,9 @@ data class ExploreSectionDTO(
     val reason: ExploreReasonDTO? = null,
     /** Null when the section is loaded later through `api/v2/explore/sections/{id}`. */
     val items: List<JsonElement>? = null,
-    val error: ApiErrorDTO? = null
+    val error: ApiErrorDTO? = null,
+    /** Secciones `songs` y `aria_picks` con la telemetría activa: se envía como `recommendationRequestId`. */
+    val requestId: String? = null
 )
 
 data class ExploreReasonDTO(

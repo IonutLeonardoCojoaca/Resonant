@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resumen mensual (add-monthly-recap). Los textos con datos se construyen en recap/RecapTexts.kt
+     para poder testearlos sin Context. Las historias usan siempre fondo oscuro, también en tema claro. -->
+<resources>
+    <color name="recap_background">#FF101014</color>
+    <color name="recap_card_start">#FF2A0F14</color>
+    <color name="recap_card_end">#FF101014</color>
+    <color name="recap_text_primary">#FFFFFFFF</color>
+    <color name="recap_text_secondary">#B3FFFFFF</color>
+    <color name="recap_accent">#FFE21616</color>
+    <color name="recap_progress_track">#4DFFFFFF</color>
+    <color name="recap_progress_indicator">#FFFFFFFF</color>
+
+    <string name="recap_banner_subtitle">Tus minutos, tus tops y lo que opina Aria de tu mes</string>
+    <string name="recap_banner_dismiss">Ocultar el resumen</string>
+    <string name="recap_close">Cerrar</string>
+    <string name="recap_share">Compartir</string>
+    <string name="recap_share_failed">No se ha podido preparar la imagen</string>
+    <string name="recap_load_failed">No se ha podido cargar el resumen</string>
+    <string name="recap_minutes_title">Minutos escuchados</string>
+    <string name="recap_top_songs_title">Tus canciones del mes</string>
+    <string name="recap_top_artists_title">Tus artistas del mes</string>
+    <string name="recap_new_artist_label">Descubrimiento del mes</string>
+    <string name="recap_genres_title">Tu género</string>
+    <string name="recap_rising_genre_label">El que más ha crecido</string>
+    <string name="recap_streak_title">Tu racha más larga del mes</string>
+    <string name="recap_unisound_title">Unisound</string>
+    <string name="recap_unisound_subtitle">Música compartida este mes</string>
+    <string name="recap_aria_title">Aria dice</string>
+    <string name="recap_playlist_title">Tu mes en una playlist</string>
+    <string name="recap_playlist_save">Guardar playlist</string>
+    <string name="recap_playlist_open">Abrir playlist</string>
+    <string name="recap_playlist_saved">Playlist guardada</string>
+    <string name="recap_playlist_empty">Ya no queda ninguna canción de este resumen en el catálogo</string>
+    <string name="recap_playlist_failed">No se ha podido guardar la playlist</string>
+    <string name="recap_history_title">Tus resúmenes</string>
+    <string name="recap_history_settings_subtitle">Tu mes en historias: minutos, tops y Aria</string>
+    <string name="recap_history_empty">Aún no tienes resúmenes. El primero llegará el día 1 del mes que viene.</string>
+    <string name="recap_history_unseen">Nuevo</string>
+</resources>

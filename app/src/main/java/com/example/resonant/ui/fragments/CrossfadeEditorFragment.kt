@@ -781,6 +781,10 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                     songA.durationMs, songB.durationMs,
                     songA.beatGrid, songB.beatGrid
                 )
+                b.waveformView.setStructureGrids(
+                    songA.downbeatGrid, songA.phrases?.map { it.startMs },
+                    songB.downbeatGrid, songB.phrases?.map { it.startMs }
+                )
                 updateWaveformMarkers()
             }
         }

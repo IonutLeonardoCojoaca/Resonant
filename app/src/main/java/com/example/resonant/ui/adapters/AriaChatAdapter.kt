@@ -1,29 +1,54 @@
 package com.example.resonant.ui.adapters
 
-import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.graphics.Typeface
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.cardview.widget.CardView
+import androidx.annotation.ColorInt
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
+import com.example.resonant.aria.AriaFeatureCards
+import com.example.resonant.aria.AriaPickExplanationCard
+import com.example.resonant.aria.AriaStreakCard
+import com.example.resonant.ui.bottomsheets.StreakDetailsBottomSheet
+import com.example.resonant.ui.components.ResonantMotion
 import com.example.resonant.ui.viewmodels.AriaAction
 import com.example.resonant.ui.viewmodels.AriaMessage
 import com.example.resonant.ui.viewmodels.AriaMessageRole
 import com.example.resonant.ui.viewmodels.AriaNamePlays
-import com.example.resonant.ui.viewmodels.AriaSongDisambiguationChoice
+import com.example.resonant.ui.viewmodels.AriaRelatedArtist
 import com.example.resonant.ui.viewmodels.AriaSongCard
+import com.example.resonant.ui.viewmodels.AriaSongDisambiguationChoice
+import com.example.resonant.ui.views.AriaAgentOrbView
 import com.example.resonant.utils.ImageRequestHelper
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.shape.CornerFamily
@@ -51,13 +76,57 @@ internal object AriaSongDisambiguationUi {
         ?.let { String.format(Locale.ROOT, "%d:%02d", it / 60, it % 60) }
 }
 
+/**
+ * Chip de agente de cada respuesta: qué ha hecho Aria (la "herramienta" que ha usado)
+ * y cómo ha terminado. Hace que el chat se lea como un agente que actúa, no solo
+ * como un bot que contesta.
+ */
+internal object AriaAgentTraceUi {
+    enum class Tone { DONE, NEEDS_INPUT, FAILED }
+
+    data class Trace(val label: String, @DrawableRes val icon: Int, val tone: Tone)
+
+    fun traceFor(action: AriaAction?): Trace? {
+        if (action == null) return null
+        val tone = when {
+            action.success == false || action.executionStatus == "failed" -> Tone.FAILED
+            action.executionStatus == "needs_input" || action.entityKind == "song_disambiguation" -> Tone.NEEDS_INPUT
+            else -> Tone.DONE
+        }
+        val type = action.type
+        val (label, icon) = when {
+            action.entityKind == "song_disambiguation" -> "Necesita tu elección" to R.drawable.ic_song
+            type == "crear_playlist" -> "Playlist creada" to R.drawable.ic_playlist_stack
+            type == "añadir_canciones" -> "Canciones añadidas" to R.drawable.ic_queue_add
+            type == "recomendar_cancion" -> "Buscó en el catálogo" to R.drawable.ic_search_small
+            type == "recomendar_artista" || !action.relatedArtists.isNullOrEmpty() ->
+                "Artistas encontrados" to R.drawable.ic_artist_person
+            type == "descubrir" -> "Descubrimientos" to R.drawable.ic_star_ai
+            type == "consulta_usuario" -> "Analizó tu perfil" to R.drawable.ic_trending_up
+            type == "crear_sesion_dj" -> "Sesión DJ lista" to R.drawable.ic_playmix
+            type == "streak_status" -> "Consultó tu racha" to R.drawable.ic_streak_flame
+            type == "explain_pick" -> "Explicó la recomendación" to R.drawable.ic_star_ai
+            type == "live_tune_in" || type == "live_leave" -> "Controló Live" to R.drawable.ic_play
+            type == "flow_feedback" || type == "flow_set_preferences" -> "Ajustó Flow" to R.drawable.ic_star_ai
+            !action.playbackCommand.isNullOrBlank() -> "Controló la reproducción" to R.drawable.ic_play
+            type == "consulta" -> "Consultó el catálogo" to R.drawable.ic_search_small
+            type == "recomendacion" || type == "proactive_recommendation" ->
+                "Recomendación" to R.drawable.ic_star_ai
+            else -> return null
+        }
+        return Trace(if (tone == Tone.FAILED) "No se pudo completar" else label, icon, tone)
+    }
+}
+
 class AriaChatAdapter(
     private val onFeedback: (messageId: String, rating: Int) -> Unit,
     private val onActionCardClick: (actionPayload: String) -> Unit,
     private val onSongCardClick: (songId: String) -> Unit = {},
     private val onSongDisambiguationChoiceClick: (prompt: String) -> Unit = {},
     private val onArtistCardClick: (artistId: String) -> Unit = {},
-    private val onSuggestedFollowupClick: (prompt: String) -> Unit = {}
+    private val onSuggestedFollowupClick: (prompt: String) -> Unit = {},
+    private val loadAlbumCover: (albumId: String, target: ImageView) -> Unit = { _, _ -> },
+    private val loadArtistImage: (artistId: String, target: ImageView) -> Unit = { _, _ -> }
 ) : ListAdapter<AriaMessage, RecyclerView.ViewHolder>(AriaDiffCallback()) {
 
     companion object {
@@ -65,7 +134,12 @@ class AriaChatAdapter(
         private const val VIEW_TYPE_ARIA = 1
         private const val VIEW_TYPE_STATUS = 2
         const val STATUS_INTENT = "__status__"
+
+        /** Solo se anima la entrada de resultados recién llegados, no al restaurar historial. */
+        private const val REVEAL_WINDOW_MS = 120_000L
     }
+
+    private val revealedIds = HashSet<String>()
 
     override fun getItemViewType(position: Int): Int {
         val item = getItem(position)
@@ -90,15 +164,46 @@ class AriaChatAdapter(
         when (holder) {
             is UserViewHolder -> holder.bind(message)
             is StatusViewHolder -> holder.bind(message)
-            is AriaViewHolder -> holder.bind(
-                message,
-                onFeedback,
-                onActionCardClick,
-                onSongCardClick,
-                onSongDisambiguationChoiceClick,
-                onArtistCardClick,
-                onSuggestedFollowupClick
-            )
+            is AriaViewHolder -> {
+                holder.bind(
+                    message,
+                    onFeedback,
+                    onActionCardClick,
+                    onSongCardClick,
+                    onSongDisambiguationChoiceClick,
+                    onArtistCardClick,
+                    onSuggestedFollowupClick,
+                    loadAlbumCover,
+                    loadArtistImage
+                )
+                logFeatureCardShown(holder.itemView.context, message)
+                val isFresh = System.currentTimeMillis() - message.timestamp < REVEAL_WINDOW_MS
+                if (message.isComplete && message.actionData != null && isFresh && revealedIds.add(message.id)) {
+                    holder.revealResults()
+                }
+            }
+        }
+    }
+
+    private val loggedCardIds = HashSet<String>()
+
+    /** Firebase `aria_card_shown`, once per message, for the streak and "why this pick" cards. */
+    private fun logFeatureCardShown(context: Context, message: AriaMessage) {
+        if (!message.isComplete) return
+        val action = message.actionData ?: return
+        val kind = when {
+            action.streakCard != null -> AriaFeatureCards.KIND_STREAK
+            action.pickExplanation != null -> AriaFeatureCards.KIND_PICK_EXPLANATION
+            else -> return
+        }
+        if (!loggedCardIds.add(message.id)) return
+        runCatching {
+            com.google.firebase.analytics.FirebaseAnalytics.getInstance(context.applicationContext)
+                .logEvent("aria_card_shown", android.os.Bundle().apply {
+                    putString("kind", kind)
+                    action.pickExplanation?.sourceLabel?.let { putString("source", it) }
+                    action.logId?.let { putString("log_id", it.take(100)) }
+                })
         }
     }
 
@@ -118,14 +223,17 @@ class AriaChatAdapter(
     }
 
     class AriaViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val ariaBubble: LinearLayout = view.findViewById(R.id.ariaBubble)
         private val ariaMessage: TextView = view.findViewById(R.id.ariaMessage)
         private val ariaIntentText: TextView = view.findViewById(R.id.ariaIntentText)
-        private val ariaPlaylistCard: CardView = view.findViewById(R.id.ariaPlaylistCard)
+
+        // Tarjeta de entidad
+        private val ariaPlaylistCard: View = view.findViewById(R.id.ariaPlaylistCard)
+        private val ariaCardBackdrop: ImageView = view.findViewById(R.id.ariaCardBackdrop)
         private val ariaCardCover: ShapeableImageView = view.findViewById(R.id.ariaCardCover)
         private val ariaCardKindLabel: TextView = view.findViewById(R.id.ariaCardKindLabel)
         private val ariaPlaylistCardTitle: TextView = view.findViewById(R.id.ariaPlaylistCardTitle)
         private val ariaPlaylistCardSub: TextView = view.findViewById(R.id.ariaPlaylistCardSub)
+        private val ariaCardOpenButton: TextView = view.findViewById(R.id.ariaCardOpenButton)
         private val ariaCardDivider: View = view.findViewById(R.id.ariaCardDivider)
         private val ariaCardGenresScroll: View = view.findViewById(R.id.ariaCardGenresScroll)
         private val ariaCardGenresRow: LinearLayout = view.findViewById(R.id.ariaCardGenresRow)
@@ -133,13 +241,14 @@ class AriaChatAdapter(
         private val ariaCardTrack1: TextView = view.findViewById(R.id.ariaCardTrack1)
         private val ariaCardTrack2: TextView = view.findViewById(R.id.ariaCardTrack2)
         private val ariaCardTrack3: TextView = view.findViewById(R.id.ariaCardTrack3)
+
         private val feedbackRow: LinearLayout = view.findViewById(R.id.ariaFeedbackRow)
         private val ariaTimestamp: TextView = view.findViewById(R.id.ariaTimestamp)
         private val likeButton: ImageButton = view.findViewById(R.id.ariaLikeButton)
         private val dislikeButton: ImageButton = view.findViewById(R.id.ariaDislikeButton)
 
-        // User stats card views
-        private val userStatsCard: CardView = view.findViewById(R.id.ariaUserStatsCard)
+        // Estadísticas del usuario
+        private val userStatsCard: View = view.findViewById(R.id.ariaUserStatsCard)
         private val userStatsKindLabel: TextView = view.findViewById(R.id.userStatsKindLabel)
         private val userStatsTitle: TextView = view.findViewById(R.id.userStatsTitle)
         private val userStatsGridContainer: LinearLayout = view.findViewById(R.id.userStatsGridContainer)
@@ -171,17 +280,61 @@ class AriaChatAdapter(
         private val userStatsHistoryContainer: LinearLayout = view.findViewById(R.id.userStatsHistoryContainer)
         private val userStatsHistoryList: LinearLayout = view.findViewById(R.id.userStatsHistoryList)
 
-        // Song recommendation card views
+        // Racha y motivo de una recomendación (add-aria-context-v2)
+        private val streakCard: View = view.findViewById(R.id.ariaStreakCard)
+        private val streakDays: TextView = view.findViewById(R.id.ariaStreakDays)
+        private val streakLongest: TextView = view.findViewById(R.id.ariaStreakLongest)
+        private val streakToday: TextView = view.findViewById(R.id.ariaStreakToday)
+        private val streakProgress: android.widget.ProgressBar = view.findViewById(R.id.ariaStreakProgress)
+        private val streakFreezes: TextView = view.findViewById(R.id.ariaStreakFreezes)
+        private val streakMilestone: TextView = view.findViewById(R.id.ariaStreakMilestone)
+        private val pickCard: View = view.findViewById(R.id.ariaPickCard)
+        private val pickSource: TextView = view.findViewById(R.id.ariaPickSource)
+        private val pickSongRow: View = view.findViewById(R.id.ariaPickSongRow)
+        private val pickCover: ImageView = view.findViewById(R.id.ariaPickCover)
+        private val pickTitle: TextView = view.findViewById(R.id.ariaPickTitle)
+        private val pickArtist: TextView = view.findViewById(R.id.ariaPickArtist)
+        private val pickReason: TextView = view.findViewById(R.id.ariaPickReason)
+        private val pickEvidenceScroll: View = view.findViewById(R.id.ariaPickEvidenceScroll)
+        private val pickEvidenceRow: LinearLayout = view.findViewById(R.id.ariaPickEvidenceRow)
+
+        // Panel de canciones
         private val songCardsContainer: LinearLayout = view.findViewById(R.id.ariaSongCardsContainer)
+        private val songCardsIcon: ImageView = view.findViewById(R.id.songCardsIcon)
         private val songCardsKindLabel: TextView = view.findViewById(R.id.songCardsKindLabel)
         private val songCardsArtistName: TextView = view.findViewById(R.id.songCardsArtistName)
         private val songCardsCatalogCount: TextView = view.findViewById(R.id.songCardsCatalogCount)
+        private val songCardsCountPill: TextView = view.findViewById(R.id.songCardsCountPill)
         private val songCardsList: LinearLayout = view.findViewById(R.id.songCardsList)
+        private val songCardsMoreButton: TextView = view.findViewById(R.id.songCardsMoreButton)
+
+        // Artistas relacionados y siguientes pasos
         private val relatedArtistsContainer: LinearLayout = view.findViewById(R.id.ariaRelatedArtistsContainer)
         private val relatedArtistsLabel: TextView = view.findViewById(R.id.relatedArtistsLabel)
         private val relatedArtistsList: LinearLayout = view.findViewById(R.id.relatedArtistsList)
-        private val followupsContainer: View = view.findViewById(R.id.ariaFollowupsContainer)
+        private val followupsBlock: View = view.findViewById(R.id.ariaFollowupsBlock)
         private val followupsRow: LinearLayout = view.findViewById(R.id.ariaFollowupsRow)
+
+        private val context: Context get() = itemView.context
+        private val density = view.resources.displayMetrics.density
+        private val isDark = (view.resources.configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+        private val fontBold: Typeface? by lazy { ResourcesCompat.getFont(context, R.font.unageo_bold) }
+        private val fontSemiBold: Typeface? by lazy { ResourcesCompat.getFont(context, R.font.unageo_semi_bold) }
+        private val fontMedium: Typeface? by lazy { ResourcesCompat.getFont(context, R.font.unageo_medium) }
+        private val fontRegular: Typeface? by lazy { ResourcesCompat.getFont(context, R.font.unageo_regular) }
+
+        private val resultViews: List<View>
+            get() = listOf(
+                ariaPlaylistCard, userStatsCard, streakCard, pickCard,
+                songCardsContainer, relatedArtistsContainer, followupsBlock
+            )
+
+        init {
+            // Portada desenfocada como capa de fondo de la tarjeta de entidad.
+            ariaCardBackdrop.setRenderEffect(RenderEffect.createBlurEffect(36f, 36f, Shader.TileMode.CLAMP))
+        }
 
         fun bind(
             message: AriaMessage,
@@ -190,23 +343,21 @@ class AriaChatAdapter(
             onSongCardClick: (String) -> Unit,
             onSongDisambiguationChoiceClick: (String) -> Unit,
             onArtistCardClick: (String) -> Unit,
-            onSuggestedFollowupClick: (String) -> Unit
+            onSuggestedFollowupClick: (String) -> Unit,
+            loadAlbumCover: (String, ImageView) -> Unit = { _, _ -> },
+            loadArtistImage: (String, ImageView) -> Unit = { _, _ -> }
         ) {
             ariaMessage.text = message.text
-            ariaBubble.background = null
-            ariaMessage.setTextColor(Color.parseColor("#E8E8E8"))
+            ariaMessage.visibility = if (message.text.isBlank()) View.GONE else View.VISIBLE
 
-            // FIX 3: Hide intent label completely
-            ariaIntentText.visibility = View.GONE
+            val action = message.actionData
+            bindAgentTrace(if (message.isComplete) AriaAgentTraceUi.traceFor(action) else null)
 
-            // Action card
-            val CARD_VISIBLE_TYPES = setOf(
+            val cardVisibleTypes = setOf(
                 "crear_playlist", "recomendacion", "recomendar_cancion",
                 "recomendar_artista", "consulta", "crear_sesion_dj",
                 "añadir_canciones", "descubrir", "usuario", "proactive_recommendation"
             )
-
-            val action = message.actionData
             val isConsultaUsuario = action?.type == "consulta_usuario"
             val isSongRecs = !action?.songRecommendations.isNullOrEmpty() ||
                 !action?.previewSongs.isNullOrEmpty()
@@ -215,51 +366,52 @@ class AriaChatAdapter(
             val hasRelatedArtists = !action?.relatedArtists.isNullOrEmpty()
             val shouldShowCard = action != null &&
                 message.isComplete &&
-                (message.intentType in CARD_VISIBLE_TYPES || action.type in CARD_VISIBLE_TYPES ||
+                (message.intentType in cardVisibleTypes || action.type in cardVisibleTypes ||
                     isConsultaUsuario || isSongDisambiguation)
 
-            // Reset all card containers
-            ariaPlaylistCard.visibility = View.GONE
-            userStatsCard.visibility = View.GONE
-            songCardsContainer.visibility = View.GONE
-            relatedArtistsContainer.visibility = View.GONE
-            followupsContainer.visibility = View.GONE
+            // Reset de contenedores (y de cualquier animación de entrada a medias)
+            resultViews.forEach {
+                it.animate().cancel()
+                it.alpha = 1f
+                it.translationY = 0f
+                it.visibility = View.GONE
+            }
+            songCardsMoreButton.visibility = View.GONE
             Glide.with(itemView).clear(ariaCardCover)
+            Glide.with(itemView).clear(ariaCardBackdrop)
+            Glide.with(itemView).clear(pickCover)
 
-            if (shouldShowCard && isSongDisambiguation) {
-                bindSongDisambiguation(
-                    action = action!!,
-                    context = itemView.context,
-                    onChoiceClick = onSongDisambiguationChoiceClick
-                )
+            if (message.isComplete && bindFeatureCard(action, onSongCardClick)) {
+                // Tarjeta de racha o de motivo ya pintada.
+            } else if (shouldShowCard && isSongDisambiguation) {
+                bindSongDisambiguation(action!!, onSongDisambiguationChoiceClick)
                 songCardsContainer.visibility = View.VISIBLE
             } else if (shouldShowCard && isConsultaUsuario) {
-                bindUserStatsCard(action!!, itemView.context)
+                bindUserStatsCard(action!!)
                 userStatsCard.visibility = View.VISIBLE
             } else if (shouldShowCard) {
                 if (action?.type != "recomendar_cancion" || !isSongRecs) {
-                    bindRichCard(action!!, itemView.context)
+                    bindRichCard(action!!)
                     ariaPlaylistCard.visibility = View.VISIBLE
-                    ariaPlaylistCard.setOnClickListener {
-                        message.actionPayload?.let { onActionCardClick(it) }
-                    }
+                    val open = View.OnClickListener { message.actionPayload?.let { onActionCardClick(it) } }
+                    ariaPlaylistCard.setOnClickListener(open)
+                    ariaCardOpenButton.setOnClickListener(open)
                 }
                 if (isSongRecs) {
-                    bindSongRecommendations(action!!, itemView.context, onSongCardClick)
+                    bindSongRecommendations(action!!, onSongCardClick, loadAlbumCover)
                     songCardsContainer.visibility = View.VISIBLE
                 }
                 if (hasRelatedArtists) {
-                    bindRelatedArtists(action!!, itemView.context, onArtistCardClick)
+                    bindRelatedArtists(action!!, onArtistCardClick, loadArtistImage)
                     relatedArtistsContainer.visibility = View.VISIBLE
                 }
             }
 
             if (message.isComplete && !action?.suggestedFollowups.isNullOrEmpty()) {
-                bindSuggestedFollowups(action!!.suggestedFollowups!!, itemView.context, onSuggestedFollowupClick)
-                followupsContainer.visibility = View.VISIBLE
+                bindSuggestedFollowups(action!!.suggestedFollowups!!, onSuggestedFollowupClick)
+                followupsBlock.visibility = View.VISIBLE
             }
 
-            // Feedback row
             if (message.isComplete && message.text.isNotBlank()) {
                 feedbackRow.visibility = View.VISIBLE
                 ariaTimestamp.text = formatTime(message.timestamp)
@@ -275,53 +427,97 @@ class AriaChatAdapter(
             }
         }
 
-        private fun bindRichCard(action: com.example.resonant.ui.viewmodels.AriaAction, context: Context) {
+        /** Entrada escalonada de los resultados recién llegados (tarjetas y filas). */
+        fun revealResults() {
+            if (!ValueAnimator.areAnimatorsEnabled()) return
+            var delay = 60L
+            resultViews.filter { it.visibility == View.VISIBLE }.forEach { v ->
+                v.alpha = 0f
+                v.translationY = 22 * density
+                v.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(560)
+                    .setInterpolator(ResonantMotion.expoOut).start()
+                if (v === songCardsContainer) {
+                    for (i in 0 until songCardsList.childCount) {
+                        val row = songCardsList.getChildAt(i)
+                        row.alpha = 0f
+                        row.translationX = 18 * density
+                        row.animate().alpha(1f).translationX(0f).setStartDelay(delay + 120L + i * 55L)
+                            .setDuration(480).setInterpolator(ResonantMotion.expoOut).start()
+                    }
+                }
+                delay += 110L
+            }
+        }
+
+        // ── Chip de agente ──────────────────────────────────────────────────
+
+        private fun bindAgentTrace(trace: AriaAgentTraceUi.Trace?) {
+            if (trace == null) {
+                ariaIntentText.visibility = View.GONE
+                return
+            }
+            @ColorInt val tone = when (trace.tone) {
+                AriaAgentTraceUi.Tone.DONE -> color(R.color.aria_accent_text)
+                AriaAgentTraceUi.Tone.NEEDS_INPUT -> color(R.color.adviseColor)
+                AriaAgentTraceUi.Tone.FAILED -> color(R.color.errorColor)
+            }
+            ariaIntentText.text = trace.label
+            ariaIntentText.setTextColor(tone)
+            ariaIntentText.background = GradientDrawable().apply {
+                cornerRadius = 100 * density
+                setColor(ColorUtils.setAlphaComponent(tone, if (isDark) 0x2E else 0x1F))
+            }
+            val icon = ContextCompat.getDrawable(context, trace.icon)?.mutate()?.apply {
+                setTint(tone)
+                val s = (11 * density).toInt()
+                setBounds(0, 0, s, s)
+            }
+            ariaIntentText.setCompoundDrawablesRelative(icon, null, null, null)
+            ariaIntentText.visibility = View.VISIBLE
+        }
+
+        // ── Tarjeta de entidad (playlist / artista / álbum) ─────────────────
+
+        private fun bindRichCard(action: AriaAction) {
             val isArtist = action.entityKind?.contains("artist") == true || action.type == "recomendar_artista"
             val isPlaylist = action.entityKind?.contains("playlist") == true || action.type == "crear_playlist"
+            val isAlbum = action.entityKind?.contains("album") == true
 
-            // --- Cover shape: circle for artists, rounded rect for playlists/albums ---
-            val cornerRadiusPx = if (isArtist) Float.MAX_VALUE
-                                 else context.resources.displayMetrics.density * 8f
             ariaCardCover.shapeAppearanceModel = ShapeAppearanceModel.builder()
-                .setAllCorners(CornerFamily.ROUNDED, cornerRadiusPx)
+                .setAllCorners(CornerFamily.ROUNDED, if (isArtist) Float.MAX_VALUE else 14 * density)
                 .build()
 
-            // --- Cover image ---
             val imageUrl = action.entityImageUrl
-            Glide.with(context).clear(ariaCardCover)
             if (!imageUrl.isNullOrBlank()) {
                 val model = ImageRequestHelper.buildGlideModel(context, imageUrl)
-                Glide.with(context)
-                    .load(model)
-                    .centerCrop()
-                    .placeholder(if (isArtist) R.drawable.ic_user else R.drawable.ic_playlist_stack)
-                    .error(if (isArtist) R.drawable.ic_user else R.drawable.ic_playlist_stack)
-                    .into(ariaCardCover)
+                ariaCardCover.scaleType = ImageView.ScaleType.CENTER_CROP
+                ariaCardCover.imageTintList = null
+                Glide.with(itemView).load(model).centerCrop().into(ariaCardCover)
+                ariaCardBackdrop.alpha = if (isDark) 0.55f else 0.35f
+                Glide.with(itemView).load(model).centerCrop().into(ariaCardBackdrop)
             } else {
+                ariaCardCover.scaleType = ImageView.ScaleType.CENTER
                 ariaCardCover.setImageResource(
                     when {
-                        isArtist -> R.drawable.ic_user
+                        isArtist -> R.drawable.ic_artist_person
                         isPlaylist -> R.drawable.ic_playlist_stack
                         else -> R.drawable.ic_song
                     }
                 )
+                ariaCardCover.imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                ariaCardBackdrop.alpha = 0f
             }
 
-            // --- Kind label ---
             val kindText = when {
                 isArtist -> "Artista"
+                isPlaylist && action.type == "crear_playlist" -> "Playlist · creada por Aria"
                 isPlaylist -> "Playlist"
-                action.entityKind?.contains("album") == true -> "Álbum"
+                isAlbum -> "Álbum"
                 else -> null
             }
-            if (kindText != null) {
-                ariaCardKindLabel.text = kindText
-                ariaCardKindLabel.visibility = View.VISIBLE
-            } else {
-                ariaCardKindLabel.visibility = View.GONE
-            }
+            ariaCardKindLabel.text = kindText
+            ariaCardKindLabel.visibility = if (kindText != null) View.VISIBLE else View.GONE
 
-            // --- Title ---
             ariaPlaylistCardTitle.text = when {
                 !action.entityName.isNullOrBlank() -> action.entityName
                 action.type == "crear_playlist" -> "Playlist creada"
@@ -329,57 +525,50 @@ class AriaChatAdapter(
                 else -> action.type.replace("_", " ").replaceFirstChar { it.uppercase() }
             }
 
-            // --- Subtitle (stats line) ---
             val sub = buildSubtitle(action)
             ariaPlaylistCardSub.text = sub
             ariaPlaylistCardSub.visibility = if (sub.isNotBlank()) View.VISIBLE else View.GONE
 
-            // --- Genres ---
+            ariaCardOpenButton.text = when {
+                isArtist -> "Ver artista"
+                isPlaylist -> "Abrir playlist"
+                isAlbum -> "Ver álbum"
+                else -> "Ver detalles"
+            }
+
             val genres = action.topGenres
             if (!genres.isNullOrEmpty()) {
                 ariaCardGenresRow.removeAllViews()
-                genres.take(4).forEach { genre ->
-                    val chip = TextView(context).apply {
-                        text = genre
-                        setTextColor(Color.parseColor("#CCFFFFFF"))
-                        textSize = 10f
-                        typeface = android.graphics.Typeface.DEFAULT
-                        setPadding(16, 6, 16, 6)
-                        background = context.getDrawable(R.drawable.bg_aria_suggestion_chip)
-                        val lp = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        )
-                        lp.marginEnd = 6
-                        layoutParams = lp
-                    }
-                    ariaCardGenresRow.addView(chip)
-                }
-                ariaCardDivider.visibility = View.VISIBLE
+                genres.take(5).forEach { ariaCardGenresRow.addView(genreChip(it)) }
                 ariaCardGenresScroll.visibility = View.VISIBLE
             } else {
                 ariaCardGenresScroll.visibility = View.GONE
-                ariaCardDivider.visibility = View.GONE
             }
 
-            // --- Top tracks ---
             val tracks = action.topTracks
+            val trackViews = listOf(ariaCardTrack1, ariaCardTrack2, ariaCardTrack3)
             if (!tracks.isNullOrEmpty()) {
-                val trackViews = listOf(ariaCardTrack1, ariaCardTrack2, ariaCardTrack3)
+                val accent = color(R.color.aria_accent_text)
                 tracks.take(3).forEachIndexed { i, track ->
-                    trackViews[i].text = "  ${i + 1}.  ${track.title}"
+                    val number = String.format(Locale.ROOT, "%02d", i + 1)
+                    trackViews[i].text = SpannableStringBuilder().apply {
+                        append(number)
+                        setSpan(ForegroundColorSpan(accent), 0, number.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        append("   ")
+                        append(track.title)
+                    }
                     trackViews[i].visibility = View.VISIBLE
                 }
                 for (i in tracks.size until 3) trackViews[i].visibility = View.GONE
                 ariaCardTracksContainer.visibility = View.VISIBLE
-                ariaCardDivider.visibility = View.VISIBLE
             } else {
                 ariaCardTracksContainer.visibility = View.GONE
-                if (ariaCardGenresScroll.visibility == View.GONE) ariaCardDivider.visibility = View.GONE
             }
+            ariaCardDivider.visibility =
+                if (!genres.isNullOrEmpty() || !tracks.isNullOrEmpty()) View.VISIBLE else View.GONE
         }
 
-        private fun buildSubtitle(action: com.example.resonant.ui.viewmodels.AriaAction): String {
+        private fun buildSubtitle(action: AriaAction): String {
             val parts = mutableListOf<String>()
             if ((action.totalSongs ?: 0) > 0) parts.add("${action.totalSongs} canciones")
             if ((action.totalAlbums ?: 0) > 0) parts.add("${action.totalAlbums} álbumes")
@@ -388,67 +577,108 @@ class AriaChatAdapter(
             }
             if (parts.isEmpty()) {
                 if ((action.nCanciones ?: 0) > 0) parts.add("${action.nCanciones} canciones")
-                else parts.add("Ver detalles")
+                else if (!action.artistas.isNullOrEmpty()) parts.add(action.artistas.take(3).joinToString(", "))
             }
             return parts.joinToString("  ·  ")
         }
 
-        private fun bindUserStatsCard(action: AriaAction, context: Context) {
+        // ── Estadísticas del usuario ────────────────────────────────────────
+
+        /** Streak or "why this pick" card; false when the action has none (fields missing → text only). */
+        private fun bindFeatureCard(action: AriaAction?, onSongCardClick: (String) -> Unit): Boolean {
+            val streak = action?.streakCard
+            if (streak != null) {
+                bindStreakCard(streak)
+                streakCard.visibility = View.VISIBLE
+                return true
+            }
+            val pick = action?.pickExplanation ?: return false
+            bindPickCard(pick, onSongCardClick)
+            pickCard.visibility = View.VISIBLE
+            return true
+        }
+
+        private fun bindStreakCard(card: AriaStreakCard) {
+            streakDays.text = AriaFeatureCards.daysText(card.currentDays)
+            streakLongest.text = "Récord: ${AriaFeatureCards.daysText(card.longestDays)}"
+            streakToday.text = AriaFeatureCards.todayText(card)
+            streakProgress.progress = if (card.todayQualified) 100 else card.progressPercent
+            streakFreezes.text = AriaFeatureCards.freezesText(card)
+            val milestone = AriaFeatureCards.milestoneText(card)
+            streakMilestone.text = milestone.orEmpty()
+            streakMilestone.visibility = if (milestone != null) View.VISIBLE else View.GONE
+            streakCard.setOnClickListener { openStreakDetails(card) }
+        }
+
+        private fun openStreakDetails(card: AriaStreakCard) {
+            var current: Context? = context
+            while (current is android.content.ContextWrapper && current !is androidx.fragment.app.FragmentActivity) {
+                current = current.baseContext
+            }
+            val activity = current as? androidx.fragment.app.FragmentActivity ?: return
+            val manager = activity.supportFragmentManager
+            if (manager.isStateSaved || manager.findFragmentByTag(StreakDetailsBottomSheet.TAG) != null) return
+            StreakDetailsBottomSheet.newInstance(AriaFeatureCards.toStreakStatus(card))
+                .show(manager, StreakDetailsBottomSheet.TAG)
+        }
+
+        private fun bindPickCard(card: AriaPickExplanationCard, onSongCardClick: (String) -> Unit) {
+            pickSource.text = card.sourceLabel.orEmpty()
+            pickSource.visibility = if (card.sourceLabel != null) View.VISIBLE else View.GONE
+            pickTitle.text = card.title
+            pickArtist.text = card.artist.orEmpty()
+            pickArtist.visibility = if (card.artist != null) View.VISIBLE else View.GONE
+            card.coverUrl?.let { url -> Glide.with(itemView).load(url).centerCrop().into(pickCover) }
+            pickReason.text = card.reason.orEmpty()
+            pickReason.visibility = if (card.reason != null) View.VISIBLE else View.GONE
+            pickEvidenceRow.removeAllViews()
+            card.evidence.forEach { pickEvidenceRow.addView(genreChip(it)) }
+            pickEvidenceScroll.visibility = if (card.evidence.isNotEmpty()) View.VISIBLE else View.GONE
+            pickSongRow.setOnClickListener { onSongCardClick(card.songId) }
+        }
+
+        private fun bindUserStatsCard(action: AriaAction) {
             val kind = action.userStatsKind ?: "user_stats"
 
-            // Reset all sections to GONE
-            userStatsGridContainer.visibility = View.GONE
-            userStatsDivider1.visibility = View.GONE
-            userStatsFavRow.visibility = View.GONE
-            userStatsFavArtistCol.visibility = View.GONE
-            userStatsFavGenreCol.visibility = View.GONE
-            userStatsDivider2.visibility = View.GONE
-            userStatsTopArtistsContainer.visibility = View.GONE
-            userStatsTopGenresContainer.visibility = View.GONE
-            userStatsFavoritesContainer.visibility = View.GONE
-            userStatsMoodContainer.visibility = View.GONE
-            userStatsHistoryContainer.visibility = View.GONE
-            userStatsRow1.visibility = View.GONE
-            userStatsRow2.visibility = View.GONE
-            userStatsRow3.visibility = View.GONE
+            listOf(
+                userStatsGridContainer, userStatsDivider1, userStatsFavRow, userStatsFavArtistCol,
+                userStatsFavGenreCol, userStatsDivider2, userStatsTopArtistsContainer,
+                userStatsTopGenresContainer, userStatsFavoritesContainer, userStatsMoodContainer,
+                userStatsHistoryContainer, userStatsRow1, userStatsRow2, userStatsRow3
+            ).forEach { it.visibility = View.GONE }
 
-            // Kind label
-            val kindLabel = when (kind) {
+            userStatsKindLabel.text = when (kind) {
                 "user_stats" -> "TU PERFIL"
                 "user_top_artists" -> "TOP ARTISTAS"
-                "user_top_genres" -> "TOP GENEROS"
+                "user_top_genres" -> "TOP GÉNEROS"
                 "user_favorites" -> "FAVORITAS"
                 "user_history" -> "HISTORIAL"
                 "user_mood" -> "MOOD"
                 else -> "PERFIL"
             }
-            userStatsKindLabel.text = kindLabel
             userStatsKindLabel.visibility = View.VISIBLE
 
-            // Title
-            val title = when (kind) {
-                "user_stats" -> "Tus estadisticas"
+            userStatsTitle.text = when (kind) {
+                "user_stats" -> "Tus estadísticas"
                 "user_top_artists" -> "Tus artistas favoritos"
-                "user_top_genres" -> "Tus generos favoritos"
+                "user_top_genres" -> "Tus géneros favoritos"
                 "user_favorites" -> "Tus canciones favoritas"
                 "user_history" -> "Tu historial reciente"
                 "user_mood" -> "Tu mood actual"
                 else -> "Tu perfil"
             }
-            userStatsTitle.text = title
 
             when (kind) {
-                "user_stats" -> bindFullStats(action, context)
-                "user_top_artists" -> bindTopArtists(action, context)
-                "user_top_genres" -> bindTopGenres(action, context)
-                "user_favorites" -> bindFavorites(action, context)
-                "user_history" -> bindHistory(action, context)
+                "user_top_artists" -> bindTopArtists(action)
+                "user_top_genres" -> bindTopGenres(action)
+                "user_favorites" -> bindFavorites(action)
+                "user_history" -> bindHistory(action)
                 "user_mood" -> bindMood(action)
-                else -> bindFullStats(action, context)
+                else -> bindFullStats(action)
             }
         }
 
-        private fun bindFullStats(action: AriaAction, context: Context) {
+        private fun bindFullStats(action: AriaAction) {
             userStatsGridContainer.visibility = View.VISIBLE
 
             val hasPlays = action.totalPlays != null
@@ -474,7 +704,6 @@ class AriaChatAdapter(
                 userStatsLast7dValue.text = if (hasLast7) formatNumber(action.totalPlaysLast7Days!!) else "—"
             }
 
-            // Favorite artist / genre
             val hasFavArtist = !action.favoriteArtist.isNullOrBlank()
             val hasFavGenre = !action.favoriteGenre.isNullOrBlank()
             if (hasFavArtist || hasFavGenre) {
@@ -490,54 +719,59 @@ class AriaChatAdapter(
                 }
             }
 
-            // Top artists
             if (!action.topArtistsWithPlays.isNullOrEmpty()) {
                 userStatsDivider2.visibility = View.VISIBLE
                 userStatsTopArtistsContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopArtistsList, action.topArtistsWithPlays, context)
+                populateRankedList(userStatsTopArtistsList, action.topArtistsWithPlays)
             }
 
-            // Top genres
             if (!action.topGenresWithPlays.isNullOrEmpty()) {
-                if (userStatsDivider2.visibility != View.VISIBLE) userStatsDivider2.visibility = View.VISIBLE
+                userStatsDivider2.visibility = View.VISIBLE
                 userStatsTopGenresContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays, context)
+                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays)
             }
         }
 
-        private fun bindTopArtists(action: AriaAction, context: Context) {
+        private fun bindTopArtists(action: AriaAction) {
             if (!action.topArtistsWithPlays.isNullOrEmpty()) {
                 userStatsTopArtistsContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopArtistsList, action.topArtistsWithPlays, context)
+                populateRankedList(userStatsTopArtistsList, action.topArtistsWithPlays)
             }
         }
 
-        private fun bindTopGenres(action: AriaAction, context: Context) {
+        private fun bindTopGenres(action: AriaAction) {
             if (!action.topGenresWithPlays.isNullOrEmpty()) {
                 userStatsTopGenresContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays, context)
+                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays)
             }
         }
 
-        private fun bindFavorites(action: AriaAction, context: Context) {
+        private fun bindFavorites(action: AriaAction) {
             val favs = action.userFavorites
-            if (!favs.isNullOrEmpty()) {
-                userStatsFavoritesContainer.visibility = View.VISIBLE
-                userStatsFavoritesList.removeAllViews()
-                favs.take(10).forEachIndexed { i, track ->
-                    val row = TextView(context).apply {
-                        text = "  ${i + 1}.  ${track.title}"
-                        setTextColor(Color.parseColor(if (i < 3) "#CCFFFFFF" else "#88FFFFFF"))
-                        textSize = 12f
-                        typeface = android.graphics.Typeface.DEFAULT
-                        setPadding(0, 4, 0, 4)
+            if (favs.isNullOrEmpty()) return
+            userStatsFavoritesContainer.visibility = View.VISIBLE
+            userStatsFavoritesList.removeAllViews()
+            val accent = color(R.color.aria_accent_text)
+            favs.take(10).forEachIndexed { i, track ->
+                val number = String.format(Locale.ROOT, "%02d", i + 1)
+                userStatsFavoritesList.addView(TextView(context).apply {
+                    text = SpannableStringBuilder().apply {
+                        append(number)
+                        setSpan(ForegroundColorSpan(accent), 0, number.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        append("   ")
+                        append(track.title)
                     }
-                    userStatsFavoritesList.addView(row)
-                }
+                    setTextColor(color(if (i < 3) R.color.textEmphasisHigh else R.color.textSecondaryAlpha))
+                    textSize = 12.5f
+                    typeface = fontMedium
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    setPadding(0, dp(5f), 0, dp(5f))
+                })
             }
         }
 
-        private fun bindHistory(action: AriaAction, context: Context) {
+        private fun bindHistory(action: AriaAction) {
             val days = action.userHistoryDays
             if (!days.isNullOrEmpty()) {
                 userStatsHistoryContainer.visibility = View.VISIBLE
@@ -545,27 +779,25 @@ class AriaChatAdapter(
                 days.take(7).forEach { (date, plays) ->
                     val row = LinearLayout(context).apply {
                         orientation = LinearLayout.HORIZONTAL
-                        setPadding(0, 4, 0, 4)
+                        setPadding(0, dp(5f), 0, dp(5f))
                     }
-                    val dateView = TextView(context).apply {
+                    row.addView(TextView(context).apply {
                         text = date
-                        setTextColor(Color.parseColor("#88FFFFFF"))
+                        setTextColor(color(R.color.textSecondaryAlpha))
                         textSize = 12f
+                        typeface = fontRegular
                         layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    }
-                    val playsView = TextView(context).apply {
+                    })
+                    row.addView(TextView(context).apply {
                         text = "$plays plays"
-                        setTextColor(Color.parseColor("#CCFFFFFF"))
+                        setTextColor(color(R.color.textEmphasisHigh))
                         textSize = 12f
-                        typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    }
-                    row.addView(dateView)
-                    row.addView(playsView)
+                        typeface = fontBold
+                    })
                     userStatsHistoryList.addView(row)
                 }
             }
 
-            // Also show total plays if available
             if (action.totalPlays != null) {
                 userStatsGridContainer.visibility = View.VISIBLE
                 userStatsRow1.visibility = View.VISIBLE
@@ -580,226 +812,223 @@ class AriaChatAdapter(
             if (!action.userMoodTrend.isNullOrBlank()) {
                 userStatsMoodTrend.text = "Tendencia: ${action.userMoodTrend}"
                 userStatsMoodTrend.visibility = View.VISIBLE
+            } else {
+                userStatsMoodTrend.visibility = View.GONE
             }
-
-            // Show recent genres as chips if available
             if (!action.topGenresWithPlays.isNullOrEmpty()) {
                 userStatsDivider1.visibility = View.VISIBLE
                 userStatsTopGenresContainer.visibility = View.VISIBLE
-                val ctx = userStatsTopGenresList.context
-                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays, ctx)
+                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays)
             }
         }
 
-        private fun populateRankedList(container: LinearLayout, items: List<AriaNamePlays>, context: Context) {
+        /** Ranking con barra proporcional; el primero con el degradado de Aria. */
+        private fun populateRankedList(container: LinearLayout, items: List<AriaNamePlays>) {
             container.removeAllViews()
-            val maxPlays = items.maxOfOrNull { it.plays } ?: 1
+            val maxPlays = items.maxOfOrNull { it.plays }?.takeIf { it > 0 } ?: 1
             items.take(5).forEachIndexed { i, item ->
                 val row = LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setPadding(0, 5, 0, 5)
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(6f), 0, dp(6f))
                 }
-
-                val rank = TextView(context).apply {
+                row.addView(TextView(context).apply {
                     text = "${i + 1}"
-                    setTextColor(Color.parseColor("#55FFFFFF"))
-                    textSize = 11f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    val lp = LinearLayout.LayoutParams(
-                        (context.resources.displayMetrics.density * 18).toInt(),
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    layoutParams = lp
-                }
+                    setTextColor(color(if (i == 0) R.color.aria_accent_text else R.color.textTertiaryAlpha))
+                    textSize = 12f
+                    typeface = fontBold
+                    layoutParams = LinearLayout.LayoutParams(dp(20f), LinearLayout.LayoutParams.WRAP_CONTENT)
+                })
 
                 val nameCol = LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 }
-                val nameView = TextView(context).apply {
+                nameCol.addView(TextView(context).apply {
                     text = item.name
-                    setTextColor(Color.parseColor(if (i == 0) "#FFFFFF" else "#CCFFFFFF"))
-                    textSize = 12f
-                    typeface = if (i == 0) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                    setTextColor(color(if (i == 0) R.color.white else R.color.textEmphasisHigh))
+                    textSize = 12.5f
+                    typeface = if (i == 0) fontBold else fontMedium
                     maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+                val fraction = item.plays.toFloat() / maxPlays
+                val bar = LinearLayout(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(4f))
+                        .also { it.topMargin = dp(5f) }
+                    background = GradientDrawable().apply {
+                        cornerRadius = 4 * density
+                        setColor(color(R.color.dividerOverlay))
+                    }
                 }
-                // Mini bar
-                val barBg = LinearLayout(context).apply {
-                    val density = context.resources.displayMetrics.density
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        (density * 3).toInt()
-                    ).also { it.topMargin = (density * 3).toInt() }
-                    setBackgroundColor(Color.parseColor("#12FFFFFF"))
-                }
-                val barFill = View(context).apply {
-                    val fraction = if (maxPlays > 0) item.plays.toFloat() / maxPlays else 0f
-                    layoutParams = LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.MATCH_PARENT
-                    ).also { it.weight = fraction }
-                    setBackgroundColor(Color.parseColor(if (i == 0) "#E21616" else "#55FFFFFF"))
-                }
-                val barSpace = View(context).apply {
-                    val fraction = if (maxPlays > 0) 1f - (item.plays.toFloat() / maxPlays) else 1f
-                    layoutParams = LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.MATCH_PARENT
-                    ).also { it.weight = fraction }
-                }
-                barBg.addView(barFill)
-                barBg.addView(barSpace)
-                nameCol.addView(nameView)
-                nameCol.addView(barBg)
+                bar.addView(View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, fraction)
+                    background = if (i == 0) {
+                        GradientDrawable(
+                            GradientDrawable.Orientation.LEFT_RIGHT,
+                            intArrayOf(Color.parseColor("#FF1F3D"), Color.parseColor("#F21FD8"))
+                        ).apply { cornerRadius = 4 * density }
+                    } else {
+                        GradientDrawable().apply {
+                            cornerRadius = 4 * density
+                            setColor(color(R.color.textTertiaryAlpha))
+                        }
+                    }
+                })
+                bar.addView(View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f - fraction)
+                })
+                nameCol.addView(bar)
+                row.addView(nameCol)
 
-                val playsView = TextView(context).apply {
+                row.addView(TextView(context).apply {
                     text = formatNumber(item.plays)
-                    setTextColor(Color.parseColor("#66FFFFFF"))
+                    setTextColor(color(R.color.textSecondaryAlpha))
                     textSize = 11f
-                    val lp = LinearLayout.LayoutParams(
+                    typeface = fontMedium
+                    layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    lp.marginStart = (context.resources.displayMetrics.density * 8).toInt()
-                    layoutParams = lp
-                }
-
-                row.addView(rank)
-                row.addView(nameCol)
-                row.addView(playsView)
+                    ).also { it.marginStart = dp(10f) }
+                })
                 container.addView(row)
             }
         }
 
-        private fun formatNumber(n: Int): String {
-            return when {
-                n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000.0)
-                n >= 10_000 -> String.format("%.1fK", n / 1_000.0)
-                n >= 1_000 -> String.format("%,d", n)
-                else -> n.toString()
-            }
+        private fun formatNumber(n: Int): String = when {
+            n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000.0)
+            n >= 10_000 -> String.format("%.1fK", n / 1_000.0)
+            n >= 1_000 -> String.format("%,d", n)
+            else -> n.toString()
         }
 
-        private fun formatHours(h: Double): String {
-            return if (h >= 1.0) String.format("%.0f", h) else String.format("%.1f", h)
-        }
+        private fun formatHours(h: Double): String =
+            if (h >= 1.0) String.format("%.0f", h) else String.format("%.1f", h)
 
-        private fun bindSongDisambiguation(
-            action: AriaAction,
-            context: Context,
-            onChoiceClick: (String) -> Unit
-        ) {
+        // ── Desambiguación ("elige una versión") ────────────────────────────
+
+        private fun bindSongDisambiguation(action: AriaAction, onChoiceClick: (String) -> Unit) {
             songCardsList.removeAllViews()
+            songCardsList.dividerDrawable = ContextCompat.getDrawable(context, R.drawable.divider_aria_choice_row)
+            songCardsIcon.setImageResource(R.drawable.ic_song)
             songCardsKindLabel.text = AriaSongDisambiguationUi.CARD_TITLE
             songCardsArtistName.visibility = View.GONE
-            songCardsCatalogCount.visibility = View.GONE
+            songCardsCatalogCount.text = "Toca la que quieras y sigo"
+            songCardsCatalogCount.visibility = View.VISIBLE
 
-            val density = context.resources.displayMetrics.density
-            AriaSongDisambiguationUi.sortedChoices(action).forEachIndexed { index, choice ->
+            val choices = AriaSongDisambiguationUi.sortedChoices(action)
+            songCardsCountPill.text = "${choices.size} opciones"
+            songCardsCountPill.visibility = View.VISIBLE
+
+            choices.forEach { choice ->
+                // Estructura fija (número · info · metadatos): la usan los tests instrumentados.
                 val card = LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    background = context.getDrawable(R.drawable.bg_aria_action_card)
+                    gravity = Gravity.CENTER_VERTICAL
+                    foreground = selectableBackground()
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also {
-                        if (index > 0) it.topMargin = (density * 4).toInt()
-                    }
-                    setPadding(
-                        (density * 10).toInt(),
-                        (density * 10).toInt(),
-                        (density * 10).toInt(),
-                        (density * 10).toInt()
                     )
+                    setPadding(dp(14f), dp(11f), dp(14f), dp(11f))
                     tag = "aria_disambiguation_choice_${choice.choiceNumber}"
                     contentDescription = "Opción ${choice.choiceNumber}: ${choice.title}"
                     isClickable = true
                     isFocusable = true
                 }
 
-                val choiceNumber = TextView(context).apply {
+                card.addView(TextView(context).apply {
                     text = choice.choiceNumber.toString()
-                    setTextColor(Color.parseColor("#88FFFFFF"))
+                    gravity = Gravity.CENTER
+                    setTextColor(color(R.color.aria_accent_text))
                     textSize = 12f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    layoutParams = LinearLayout.LayoutParams(
-                        (density * 24).toInt(),
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                }
+                    typeface = fontBold
+                    background = ContextCompat.getDrawable(context, R.drawable.bg_aria_number_badge)
+                    layoutParams = LinearLayout.LayoutParams(dp(28f), dp(28f)).also { it.marginEnd = dp(12f) }
+                })
 
                 val infoColumn = LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        0,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        1f
-                    )
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 }
                 infoColumn.addView(TextView(context).apply {
                     text = choice.title
-                    setTextColor(Color.WHITE)
-                    textSize = 13f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(color(R.color.white))
+                    textSize = 13.5f
+                    typeface = fontSemiBold
                     maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    ellipsize = TextUtils.TruncateAt.END
                 })
                 val subtitle = AriaSongDisambiguationUi.subtitle(choice)
                 if (subtitle.isNotEmpty()) {
                     infoColumn.addView(TextView(context).apply {
                         text = subtitle
-                        setTextColor(Color.parseColor("#88FFFFFF"))
-                        textSize = 11f
+                        setTextColor(color(R.color.textTheme))
+                        textSize = 11.5f
+                        typeface = fontRegular
                         maxLines = 2
-                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        ellipsize = TextUtils.TruncateAt.END
                     })
                 }
 
                 val metadataColumn = LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
-                    gravity = android.view.Gravity.END
+                    gravity = Gravity.END
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.marginStart = (density * 8).toInt() }
+                    ).also { it.marginStart = dp(8f) }
                 }
                 AriaSongDisambiguationUi.duration(choice.durationSeconds)?.let { duration ->
                     metadataColumn.addView(TextView(context).apply {
                         text = duration
-                        setTextColor(Color.parseColor("#88FFFFFF"))
-                        textSize = 11f
+                        setTextColor(color(R.color.textSecondaryAlpha))
+                        textSize = 11.5f
+                        typeface = fontMedium
                     })
                 }
                 choice.releaseYear?.let { year ->
                     metadataColumn.addView(TextView(context).apply {
                         text = year.toString()
-                        setTextColor(Color.parseColor("#66FFFFFF"))
+                        setTextColor(color(R.color.textTertiaryAlpha))
                         textSize = 10f
+                        typeface = fontRegular
                     })
                 }
 
-                card.addView(choiceNumber)
                 card.addView(infoColumn)
                 card.addView(metadataColumn)
                 card.setOnClickListener {
-                    onChoiceClick(
-                        AriaSongDisambiguationUi.selectionPrompt(choice.choiceNumber)
-                    )
+                    onChoiceClick(AriaSongDisambiguationUi.selectionPrompt(choice.choiceNumber))
                 }
                 songCardsList.addView(card)
             }
         }
 
-        private fun bindSongRecommendations(action: AriaAction, context: Context, onSongCardClick: (String) -> Unit) {
+        // ── Canciones (recomendaciones / vista previa) ──────────────────────
+
+        private fun bindSongRecommendations(
+            action: AriaAction,
+            onSongCardClick: (String) -> Unit,
+            loadAlbumCover: (String, ImageView) -> Unit
+        ) {
             songCardsList.removeAllViews()
+            songCardsList.dividerDrawable = ContextCompat.getDrawable(context, R.drawable.divider_aria_result_row)
+            val isPreview = !action.previewSongs.isNullOrEmpty()
             songCardsKindLabel.text = when {
-                !action.previewSongs.isNullOrEmpty() && action.type == "crear_playlist" -> "VISTA PREVIA DE LA PLAYLIST"
-                !action.previewSongs.isNullOrEmpty() && action.type == "añadir_canciones" -> "CANCIONES AÑADIDAS"
-                !action.previewSongs.isNullOrEmpty() && action.type == "descubrir" -> "DESCUBRIMIENTOS"
+                isPreview && action.type == "crear_playlist" -> "VISTA PREVIA DE LA PLAYLIST"
+                isPreview && action.type == "añadir_canciones" -> "CANCIONES AÑADIDAS"
+                isPreview && action.type == "descubrir" -> "DESCUBRIMIENTOS"
                 else -> "CANCIONES RECOMENDADAS"
             }
+            songCardsIcon.setImageResource(
+                when {
+                    isPreview && action.type == "crear_playlist" -> R.drawable.ic_playlist_stack
+                    isPreview && action.type == "añadir_canciones" -> R.drawable.ic_queue_add
+                    else -> R.drawable.ic_song
+                }
+            )
 
-            // Header
             if (!action.songRecArtistName.isNullOrBlank()) {
                 songCardsArtistName.text = action.songRecArtistName
                 songCardsArtistName.visibility = View.VISIBLE
@@ -808,168 +1037,165 @@ class AriaChatAdapter(
             }
 
             if (action.songRecTotalInCatalog != null && action.songRecTotalInCatalog > 0) {
-                songCardsCatalogCount.text = "${action.songRecTotalInCatalog} canciones en catalogo"
+                songCardsCatalogCount.text = "${action.songRecTotalInCatalog} canciones en el catálogo"
                 songCardsCatalogCount.visibility = View.VISIBLE
             } else {
                 songCardsCatalogCount.visibility = View.GONE
             }
 
             val songs = action.songRecommendations ?: action.previewSongs ?: return
-            val density = context.resources.displayMetrics.density
+            songCardsCountPill.text = if (songs.size == 1) "1 canción" else "${songs.size} canciones"
+            songCardsCountPill.visibility = View.VISIBLE
 
-            songs.forEachIndexed { idx, song ->
-                val card = LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    background = context.getDrawable(R.drawable.bg_aria_action_card)
-                    val lp = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    if (idx > 0) lp.topMargin = (density * 4).toInt()
-                    layoutParams = lp
-                    setPadding(
-                        (density * 10).toInt(),
-                        (density * 10).toInt(),
-                        (density * 10).toInt(),
-                        (density * 10).toInt()
-                    )
-                }
-
-                // Track number
-                val rankView = TextView(context).apply {
-                    text = "${idx + 1}"
-                    setTextColor(Color.parseColor("#44FFFFFF"))
-                    textSize = 11f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    val lp = LinearLayout.LayoutParams(
-                        (density * 22).toInt(),
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    layoutParams = lp
-                }
-
-                // Middle column: title + artist + album
-                val infoCol = LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-                    )
-                }
-
-                val titleView = TextView(context).apply {
-                    text = song.title
-                    setTextColor(Color.parseColor("#FFFFFF"))
-                    textSize = 13f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                }
-
-                val subtitleParts = mutableListOf<String>()
-                if (song.artistNames.isNotBlank()) subtitleParts.add(song.artistNames)
-                if (!song.albumTitle.isNullOrBlank()) subtitleParts.add(song.albumTitle)
-                val subtitleView = TextView(context).apply {
-                    text = subtitleParts.joinToString(" · ")
-                    setTextColor(Color.parseColor("#88FFFFFF"))
-                    textSize = 11f
-                    maxLines = 1
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    if (subtitleParts.isEmpty()) visibility = View.GONE
-                }
-
-                // Genre chips row
-                val genresRow = LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    val lp = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    lp.topMargin = (density * 4).toInt()
-                    layoutParams = lp
-                }
-                song.genres.take(3).forEach { genre ->
-                    val chip = TextView(context).apply {
-                        text = genre
-                        setTextColor(Color.parseColor("#AAFFFFFF"))
-                        textSize = 9f
-                        setPadding(
-                            (density * 8).toInt(),
-                            (density * 2).toInt(),
-                            (density * 8).toInt(),
-                            (density * 2).toInt()
-                        )
-                        background = context.getDrawable(R.drawable.bg_aria_suggestion_chip)
-                        val chipLp = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        )
-                        chipLp.marginEnd = (density * 4).toInt()
-                        layoutParams = chipLp
+            // Colapsado: 5 filas + "ver N más" (no merece la pena esconder solo una).
+            val collapsed = if (songs.size > COLLAPSED_SONGS + 1) COLLAPSED_SONGS else songs.size
+            songs.take(collapsed).forEach {
+                songCardsList.addView(buildSongRow(it, onSongCardClick, loadAlbumCover))
+            }
+            val hidden = songs.drop(collapsed)
+            if (hidden.isNotEmpty()) {
+                songCardsMoreButton.text = "Ver ${hidden.size} canciones más"
+                songCardsMoreButton.visibility = View.VISIBLE
+                songCardsMoreButton.setOnClickListener {
+                    songCardsMoreButton.visibility = View.GONE
+                    hidden.forEachIndexed { i, song ->
+                        val row = buildSongRow(song, onSongCardClick, loadAlbumCover)
+                        songCardsList.addView(row)
+                        if (ValueAnimator.areAnimatorsEnabled()) {
+                            row.alpha = 0f
+                            row.translationY = -8 * density
+                            row.animate().alpha(1f).translationY(0f).setStartDelay(i * 40L)
+                                .setDuration(380).setInterpolator(ResonantMotion.expoOut).start()
+                        }
                     }
-                    genresRow.addView(chip)
                 }
-
-                infoCol.addView(titleView)
-                infoCol.addView(subtitleView)
-                if (song.genres.isNotEmpty()) infoCol.addView(genresRow)
-
-                // Right column: duration + year
-                val metaCol = LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = android.view.Gravity.END
-                    val lp = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    lp.marginStart = (density * 8).toInt()
-                    layoutParams = lp
-                }
-
-                if (song.durationSeconds > 0) {
-                    val mins = song.durationSeconds / 60
-                    val secs = song.durationSeconds % 60
-                    val durationView = TextView(context).apply {
-                        text = String.format("%d:%02d", mins, secs)
-                        setTextColor(Color.parseColor("#88FFFFFF"))
-                        textSize = 11f
-                        typeface = android.graphics.Typeface.DEFAULT
-                    }
-                    metaCol.addView(durationView)
-                }
-
-                if (song.releaseYear > 0) {
-                    val yearView = TextView(context).apply {
-                        text = song.releaseYear.toString()
-                        setTextColor(Color.parseColor("#55FFFFFF"))
-                        textSize = 10f
-                    }
-                    metaCol.addView(yearView)
-                }
-
-                if (song.streams > 0) {
-                    val streamsView = TextView(context).apply {
-                        text = formatNumber(song.streams)
-                        setTextColor(Color.parseColor("#44FFFFFF"))
-                        textSize = 9f
-                    }
-                    metaCol.addView(streamsView)
-                }
-
-                card.addView(rankView)
-                card.addView(infoCol)
-                card.addView(metaCol)
-
-                card.setOnClickListener { onSongCardClick(song.songId) }
-
-                songCardsList.addView(card)
             }
         }
 
+        private fun buildSongRow(
+            song: AriaSongCard,
+            onSongCardClick: (String) -> Unit,
+            loadAlbumCover: (String, ImageView) -> Unit
+        ): View {
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                foreground = selectableBackground()
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setPadding(dp(14f), dp(9f), dp(14f), dp(9f))
+                isClickable = true
+                isFocusable = true
+                contentDescription = listOf(song.title, song.artistNames).filter { it.isNotBlank() }.joinToString(", ")
+                setOnClickListener { onSongCardClick(song.songId) }
+            }
+
+            // Portada: hueco con degradado + icono, y la imagen del álbum encima cuando llega.
+            val coverFrame = FrameLayout(context).apply {
+                background = ContextCompat.getDrawable(context, R.drawable.bg_aria_cover_placeholder)
+                clipToOutline = true
+                layoutParams = LinearLayout.LayoutParams(dp(46f), dp(46f))
+            }
+            coverFrame.addView(ImageView(context).apply {
+                setImageResource(R.drawable.ic_song)
+                imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                alpha = 0.85f
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                layoutParams = FrameLayout.LayoutParams(dp(18f), dp(18f), Gravity.CENTER)
+            })
+            val cover = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+            coverFrame.addView(cover)
+            song.albumId?.takeIf { it.isNotBlank() }?.let { loadAlbumCover(it, cover) }
+            row.addView(coverFrame)
+
+            val infoCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .also { it.marginStart = dp(12f) }
+            }
+            infoCol.addView(TextView(context).apply {
+                text = song.title
+                setTextColor(color(R.color.white))
+                textSize = 13.5f
+                typeface = fontSemiBold
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
+            val subtitle = listOfNotNull(
+                song.artistNames.takeIf { it.isNotBlank() },
+                song.albumTitle?.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (subtitle.isNotEmpty()) {
+                infoCol.addView(TextView(context).apply {
+                    text = subtitle
+                    setTextColor(color(R.color.textTheme))
+                    textSize = 11.5f
+                    typeface = fontRegular
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+            }
+            if (song.genres.isNotEmpty()) {
+                infoCol.addView(TextView(context).apply {
+                    text = song.genres.take(3).joinToString(" · ")
+                    setTextColor(color(R.color.aria_accent_text))
+                    textSize = 10f
+                    typeface = fontMedium
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    setPadding(0, dp(2f), 0, 0)
+                })
+            }
+            row.addView(infoCol)
+
+            val metaCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.END
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).also { it.marginStart = dp(10f) }
+            }
+            if (song.durationSeconds > 0) {
+                metaCol.addView(TextView(context).apply {
+                    text = String.format(Locale.ROOT, "%d:%02d", song.durationSeconds / 60, song.durationSeconds % 60)
+                    setTextColor(color(R.color.textSecondaryAlpha))
+                    textSize = 11.5f
+                    typeface = fontMedium
+                })
+            }
+            val secondary = when {
+                song.releaseYear > 0 -> song.releaseYear.toString()
+                song.streams > 0 -> "${formatNumber(song.streams)} plays"
+                else -> null
+            }
+            secondary?.let {
+                metaCol.addView(TextView(context).apply {
+                    text = it
+                    setTextColor(color(R.color.textTertiaryAlpha))
+                    textSize = 10f
+                    typeface = fontRegular
+                })
+            }
+            if (metaCol.childCount > 0) row.addView(metaCol)
+            return row
+        }
+
+        // ── Artistas relacionados (carrusel) ────────────────────────────────
+
         private fun bindRelatedArtists(
             action: AriaAction,
-            context: Context,
-            onArtistCardClick: (String) -> Unit
+            onArtistCardClick: (String) -> Unit,
+            loadArtistImage: (String, ImageView) -> Unit
         ) {
             relatedArtistsList.removeAllViews()
             relatedArtistsLabel.text = if (action.seedSource == "perfil") {
@@ -979,74 +1205,71 @@ class AriaChatAdapter(
                 reference?.let { "PARECIDOS A ${it.uppercase()}" } ?: "ARTISTAS RELACIONADOS"
             }
 
-            val density = context.resources.displayMetrics.density
-            action.relatedArtists.orEmpty().forEachIndexed { index, artist ->
-                val row = LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    background = context.getDrawable(R.drawable.bg_aria_action_card)
-                    setPadding(
-                        (density * 12).toInt(),
-                        (density * 10).toInt(),
-                        (density * 12).toInt(),
-                        (density * 10).toInt()
-                    )
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also {
-                        if (index > 0) it.topMargin = (density * 5).toInt()
-                    }
-                    isClickable = true
-                    isFocusable = true
-                    setOnClickListener { onArtistCardClick(artist.id) }
-                }
-                row.addView(TextView(context).apply {
-                    text = artist.name
-                    setTextColor(Color.WHITE)
-                    textSize = 13f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                })
-                artist.reason?.takeIf { it.isNotBlank() }?.let { reason ->
-                    row.addView(TextView(context).apply {
-                        text = reason
-                        setTextColor(Color.parseColor("#99FFFFFF"))
-                        textSize = 11f
-                        maxLines = 2
-                        ellipsize = android.text.TextUtils.TruncateAt.END
-                        layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        ).also { it.topMargin = (density * 2).toInt() }
-                    })
-                }
-                relatedArtistsList.addView(row)
+            val inflater = LayoutInflater.from(context)
+            action.relatedArtists.orEmpty().forEach { artist ->
+                val tile = inflater.inflate(R.layout.item_aria_related_artist, relatedArtistsList, false)
+                bindArtistTile(tile, artist, loadArtistImage)
+                tile.setOnClickListener { onArtistCardClick(artist.id) }
+                relatedArtistsList.addView(tile)
             }
         }
 
-        private fun bindSuggestedFollowups(
-            followups: List<String>,
-            context: Context,
-            onSuggestedFollowupClick: (String) -> Unit
+        private fun bindArtistTile(
+            tile: View,
+            artist: AriaRelatedArtist,
+            loadArtistImage: (String, ImageView) -> Unit
         ) {
+            val (start, end) = ARTIST_GRADIENTS[Math.floorMod(artist.name.hashCode(), ARTIST_GRADIENTS.size)]
+            tile.findViewById<View>(R.id.relatedArtistAvatarFrame).background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.parseColor(start), Color.parseColor(end))
+            ).apply { shape = GradientDrawable.OVAL }
+            tile.findViewById<TextView>(R.id.relatedArtistInitials).text = initials(artist.name)
+            tile.findViewById<TextView>(R.id.relatedArtistName).text = artist.name
+            tile.findViewById<TextView>(R.id.relatedArtistReason).apply {
+                text = artist.reason
+                visibility = if (artist.reason.isNullOrBlank()) View.GONE else View.VISIBLE
+            }
+            tile.findViewById<TextView>(R.id.relatedArtistMatch).apply {
+                val score = artist.score
+                if (score != null && score > 0.0 && score <= 1.0) {
+                    text = "${(score * 100).toInt()}% afín"
+                    visibility = View.VISIBLE
+                } else {
+                    visibility = View.GONE
+                }
+            }
+            loadArtistImage(artist.id, tile.findViewById(R.id.relatedArtistImage))
+            tile.contentDescription = artist.name
+        }
+
+        private fun initials(name: String): String =
+            name.split(' ', '-', '_').filter { it.isNotBlank() }.take(2)
+                .joinToString("") { it.first().uppercaseChar().toString() }
+                .ifEmpty { "♪" }
+
+        // ── Siguientes pasos ────────────────────────────────────────────────
+
+        private fun bindSuggestedFollowups(followups: List<String>, onSuggestedFollowupClick: (String) -> Unit) {
             followupsRow.removeAllViews()
-            val density = context.resources.displayMetrics.density
             followups.take(3).forEach { prompt ->
                 followupsRow.addView(TextView(context).apply {
                     text = prompt
-                    setTextColor(Color.WHITE)
-                    textSize = 12f
-                    gravity = android.view.Gravity.CENTER
-                    background = context.getDrawable(R.drawable.bg_aria_prompt_chip)
-                    setPadding(
-                        (density * 14).toInt(),
-                        (density * 9).toInt(),
-                        (density * 14).toInt(),
-                        (density * 9).toInt()
-                    )
+                    setTextColor(color(R.color.white))
+                    textSize = 12.5f
+                    typeface = fontMedium
+                    gravity = Gravity.CENTER_VERTICAL
+                    background = ContextCompat.getDrawable(context, R.drawable.bg_aria_prompt_chip)
+                    setPadding(dp(12f), dp(9f), dp(14f), dp(9f))
+                    compoundDrawablePadding = dp(7f)
+                    val star = ContextCompat.getDrawable(context, R.drawable.ic_star_ai)?.mutate()?.apply {
+                        setBounds(0, 0, dp(12f), dp(12f))
+                    }
+                    setCompoundDrawablesRelative(star, null, null, null)
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).also { it.marginEnd = (density * 8).toInt() }
+                    ).also { it.marginEnd = dp(8f) }
                     isClickable = true
                     isFocusable = true
                     setOnClickListener { onSuggestedFollowupClick(prompt) }
@@ -1054,44 +1277,68 @@ class AriaChatAdapter(
             }
         }
 
+        // ── Utilidades ──────────────────────────────────────────────────────
+
+        private fun genreChip(genre: String): TextView = TextView(context).apply {
+            text = genre
+            setTextColor(color(R.color.textEmphasisHigh))
+            textSize = 11f
+            typeface = fontMedium
+            background = ContextCompat.getDrawable(context, R.drawable.bg_aria_genre_chip)
+            setPadding(dp(10f), dp(5f), dp(10f), dp(5f))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.marginEnd = dp(6f) }
+        }
+
+        private fun selectableBackground(): Drawable? {
+            val tv = TypedValue()
+            if (!context.theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) return null
+            return if (tv.resourceId != 0) ContextCompat.getDrawable(context, tv.resourceId) else null
+        }
+
         private fun updateFeedbackButtons(rating: Int?) {
-            val activeColor = Color.parseColor("#E21616")
-            val inactiveColor = Color.parseColor("#666666")
-            when (rating) {
-                1 -> { likeButton.setColorFilter(activeColor); dislikeButton.setColorFilter(inactiveColor) }
-                -1 -> { likeButton.setColorFilter(inactiveColor); dislikeButton.setColorFilter(activeColor) }
-                else -> { likeButton.setColorFilter(inactiveColor); dislikeButton.setColorFilter(inactiveColor) }
-            }
+            val activeColor = color(R.color.secondaryColorTheme)
+            val inactiveColor = color(R.color.textTertiaryAlpha)
+            likeButton.setColorFilter(if (rating == 1) activeColor else inactiveColor)
+            dislikeButton.setColorFilter(if (rating == -1) activeColor else inactiveColor)
+        }
+
+        @ColorInt
+        private fun color(@ColorRes id: Int): Int = ContextCompat.getColor(context, id)
+
+        private fun dp(value: Float): Int = (value * density).toInt()
+
+        private companion object {
+            const val COLLAPSED_SONGS = 5
+
+            /** Pares de color para el avatar de artistas sin foto (familia del degradado de Aria). */
+            val ARTIST_GRADIENTS = listOf(
+                "#FF1F3D" to "#F21FD8",
+                "#F21FD8" to "#7117FF",
+                "#7117FF" to "#2E6BFF",
+                "#FF2EA8" to "#FF8A3D",
+                "#E21616" to "#7117FF"
+            )
         }
     }
 
     class StatusViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val starIcon: ImageView = view.findViewById(R.id.statusStarIcon)
+        private val orb: AriaAgentOrbView = view.findViewById(R.id.statusOrb)
         private val messageText: TextView = view.findViewById(R.id.statusMessageText)
         private val handler = Handler(Looper.getMainLooper())
-        private var spinAnimator: ObjectAnimator? = null
         private var typingRunnable: Runnable? = null
 
         fun bind(message: AriaMessage) {
-            startAnimation()
-            typeText(message.text)
+            orb.setThinking(true)
+            if (messageText.text.toString() != message.text) typeText(message.text)
         }
 
         fun stopAnimation() {
-            spinAnimator?.cancel()
             typingRunnable?.let { handler.removeCallbacks(it) }
-            starIcon.rotation = 0f
-        }
-
-        private fun startAnimation() {
-            if (spinAnimator?.isRunning == true) return
-            spinAnimator = ObjectAnimator.ofFloat(starIcon, View.ROTATION, 0f, 360f).apply {
-                duration = 2000
-                interpolator = android.view.animation.LinearInterpolator()
-                repeatCount = ObjectAnimator.INFINITE
-                repeatMode = ObjectAnimator.RESTART
-                start()
-            }
+            typingRunnable = null
+            messageText.text = ""
         }
 
         private fun typeText(fullText: String) {
@@ -1106,7 +1353,7 @@ class AriaChatAdapter(
                         next()
                     }
                     typingRunnable = r
-                    handler.postDelayed(r, 28L)
+                    handler.postDelayed(r, 24L)
                 }
             }
             next()

@@ -60,7 +60,9 @@ data class RadioResponseDTO(
     /** radio-v3 | radio-v4. Opcional: servidores antiguos no lo envían. */
     val strategyVersion: String? = null,
     /** Motivo por canción (solo radio-v4), en el mismo orden que [songs]. */
-    val songReasons: List<RadioSongReasonDTO>? = null
+    val songReasons: List<RadioSongReasonDTO>? = null,
+    /** `requestId` de las impresiones de este lote; se envía como `recommendationRequestId` al reportar. */
+    val requestId: String? = null
 )
 
 data class RadioSongReasonDTO(

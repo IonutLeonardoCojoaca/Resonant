@@ -4,6 +4,9 @@ import com.example.resonant.data.network.ApplyPresetRequest
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.TransitionPresetPreviewDTO
+import com.example.resonant.data.network.TransitionSuggestRequest
+import com.example.resonant.data.network.TransitionSuggestionsDTO
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -36,4 +39,8 @@ interface TransitionPresetService {
         @Path("playmixId") playmixId: String,
         @Path("transitionId") transitionId: String
     ): PlaymixTransitionDTO
+
+    /** Presets v2 ordenados para una pareja (404 si el backend no tiene activadas las recetas). */
+    @POST("api/transitions/suggest")
+    suspend fun suggest(@Body body: TransitionSuggestRequest): Response<TransitionSuggestionsDTO>
 }

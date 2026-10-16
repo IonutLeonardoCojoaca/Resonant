@@ -305,7 +305,9 @@ class AriaFavoriteActionHandler(
         }
 
         val parsedTitle = (action.song?.title ?: action.clientSongTitle)?.trim()?.takeIf { it.isNotEmpty() }
-        val title = parsedTitle ?: com.example.resonant.playback.PlaybackStateRepository.currentSong?.title
+        // A resolved reference ("la de antes") is not the current song: never show the current title for it.
+        val title = parsedTitle ?: com.example.resonant.playback.PlaybackStateRepository.currentSong
+            ?.takeIf { it.id == songId }?.title
 
         if (success) {
             if (action.type == FAVORITE_ACTION_TYPE) {

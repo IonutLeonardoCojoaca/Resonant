@@ -60,6 +60,24 @@
                     app:layout_constraintEnd_toStartOf="@+id/playButton"
                     app:layout_constraintStart_toStartOf="parent" />
 
+                <!-- Descargas automáticas: único punto de alta; visible solo con la capacidad. -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/autoDownloadSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="15dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:text="@string/auto_download_artist_toggle"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:switchPadding="8dp"
+                    android:visibility="gone"
+                    app:thumbTint="@color/switch_thumb_selector"
+                    app:trackTint="@color/switch_track_selector"
+                    app:layout_constraintBottom_toTopOf="@id/artistName"
+                    app:layout_constraintStart_toStartOf="parent"
+                    tools:visibility="visible" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/playButton"
                     android:layout_width="54dp"

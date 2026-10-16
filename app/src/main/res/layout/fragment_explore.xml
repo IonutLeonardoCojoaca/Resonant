@@ -98,6 +98,9 @@
             <!-- ── Canción del día: solo visible con features.streaks ── -->
             <include layout="@layout/view_song_of_day_card" />
 
+            <!-- ── Resumen mensual sin ver: solo con features.monthlyRecap ── -->
+            <include layout="@layout/view_recap_banner" />
+
             <!-- ── Lo más top: cabecera de sección (título + subtítulo) ── -->
             <LinearLayout
                 android:id="@+id/quickActionsHeader"

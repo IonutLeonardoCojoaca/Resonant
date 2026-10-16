@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Descargas automáticas de lanzamientos nuevos (add-auto-downloads) -->
+    <string name="auto_download_channel_name">Descargas automáticas</string>
+    <string name="auto_download_notification_title">Lanzamientos nuevos descargados</string>
+    <string name="auto_download_artist_toggle">Descargar lanzamientos nuevos</string>
+    <string name="auto_download_paused_notice">Las descargas automáticas están en pausa en Ajustes</string>
+    <string name="auto_download_limit_reached">Has llegado al máximo de %1$d artistas con descargas automáticas</string>
+    <string name="auto_download_toggle_failed">No se pudo cambiar la descarga automática</string>
+    <string name="auto_download_settings_title">Descargas automáticas</string>
+    <string name="auto_download_settings_entry">Descargas automáticas de lanzamientos nuevos</string>
+    <string name="auto_download_pause">Pausar descargas automáticas</string>
+    <string name="auto_download_pause_hint">Suscríbete desde la página de cada artista con «Descargar lanzamientos nuevos».</string>
+    <string name="auto_download_wifi_only">Solo con Wi-Fi</string>
+    <string name="auto_download_charging_only">Solo mientras se carga</string>
+    <string name="auto_download_quota">Espacio máximo: %1$d MB</string>
+    <string name="auto_download_used">%1$s usados de %2$s</string>
+    <string name="auto_download_keep_days">Conservar: %1$s</string>
+    <string name="auto_download_keep_forever">siempre</string>
+    <string name="auto_download_keep_n_days">%1$d días</string>
+    <string name="auto_download_subscriptions">Artistas suscritos</string>
+    <string name="auto_download_no_subscriptions">Aún no descargas lanzamientos de ningún artista.</string>
+    <string name="auto_download_unsubscribe">Cancelar</string>
+    <string name="auto_download_recent_plans">Descargas recientes</string>
+    <string name="auto_download_no_plans">Sin descargas automáticas recientes.</string>
+    <string name="auto_download_disabled">Las descargas automáticas no están disponibles.</string>
+</resources>

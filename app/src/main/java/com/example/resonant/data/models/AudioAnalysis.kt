@@ -45,6 +45,14 @@ data class AudioAnalysis(
     val segmentsUrl: String? = null,
 
     @SerializedName("segmentsFileName")
-    val segmentsFileName: String? = null
+    val segmentsFileName: String? = null,
+
+    // ─── Análisis v2 y cue points (null con análisis v1) ───
+    val bpmPrecise: Double? = null,
+    val firstDownbeatMs: Int? = null,
+    val beatsPerBar: Int? = null,
+    val mixInMs: Int? = null,
+    val mixOutMs: Int? = null,
+    val dropMs: Int? = null
 
 ) : Parcelable

@@ -302,6 +302,43 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
     // endregion
 
+    // region Resumen mensual (solo con features.monthlyRecap)
+
+    private val recapManager = com.example.resonant.managers.RecapManager.get(application)
+
+    /** Null oculta el banner: función apagada, sin resumen nuevo, descartado o error. */
+    private val _recapBanner = MutableLiveData<com.example.resonant.data.network.RecapSummaryDTO?>(null)
+    val recapBanner: LiveData<com.example.resonant.data.network.RecapSummaryDTO?> get() = _recapBanner
+    private var recapJob: Job? = null
+
+    fun loadRecapBanner() {
+        if (recapJob?.isActive == true) return
+        recapJob = viewModelScope.launch {
+            if (!CapabilitiesManager.refresh(getApplication()).monthlyRecap) {
+                _recapBanner.value = null
+                return@launch
+            }
+            _recapBanner.value = when (val result = recapManager.list()) {
+                is com.example.resonant.managers.RecapResult.Ok -> com.example.resonant.recap.RecapBannerPolicy.bannerFor(
+                    result.value, System.currentTimeMillis(), recapManager.dismissedPeriods()
+                )
+                com.example.resonant.managers.RecapResult.Disabled -> {
+                    CapabilitiesManager.refresh(getApplication(), force = true)
+                    null
+                }
+                else -> null
+            }
+        }
+    }
+
+    fun dismissRecapBanner() {
+        val periodKey = _recapBanner.value?.periodKey ?: return
+        recapManager.dismiss(periodKey)
+        _recapBanner.value = null
+    }
+
+    // endregion
+
     fun loadPopularGenres() {
         if (_genres.value != null) return
         _isLoading.value = true

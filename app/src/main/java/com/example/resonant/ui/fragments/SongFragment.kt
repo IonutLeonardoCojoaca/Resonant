@@ -83,6 +83,7 @@ import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlaybackConnectRepository
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.data.models.Artist
 import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.tabs.TabLayout
@@ -182,6 +183,8 @@ class SongFragment : DialogFragment() {
     private lateinit var btnPlayRelated: ImageButton
     private var relatedSongsRequested = false
     private var relatedSongsSongId: String? = null
+    /** `requestId` de las relacionadas mostradas (impresiones `RELATED`). */
+    private var relatedRequestId: String? = null
 
     private val lyricsHandler = Handler(Looper.getMainLooper())
     private var lyricLines: List<LyricLine> = emptyList()
@@ -1286,7 +1289,9 @@ class SongFragment : DialogFragment() {
         relatedSongsShimmer.startShimmer()
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val related = SongManager(requireContext()).getRelatedSongs(song.id, limit = 20)
+            val result = SongManager(requireContext()).getRelatedSongsWithRequestId(song.id, limit = 20)
+            val related = result.songs
+            relatedRequestId = result.requestId
 
             relatedSongsShimmer.stopShimmer()
             relatedSongsShimmer.isVisible = false
@@ -1325,6 +1330,8 @@ class SongFragment : DialogFragment() {
                 putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
                 putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+                putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.RELATED)
+                relatedRequestId?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
             }
             requireContext().startService(playIntent)
         }
@@ -1343,6 +1350,8 @@ class SongFragment : DialogFragment() {
             putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedList)
             putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
             putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedSongId)
+            putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.RELATED)
+            relatedRequestId?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
         }
         requireContext().startService(playIntent)
     }

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget sin sesión (nada que reanudar o sin login): logo, "Abrir Resonant" y, con login, el acceso rápido. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_widget_resonant"
+    android:clipToOutline="true"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="@dimen/widget_padding">
+
+    <ImageView
+        android:id="@+id/widgetLogo"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:contentDescription="@string/widget_name"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_resonant_white" />
+
+    <TextView
+        android:id="@+id/widgetOpenButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/bg_widget_pill"
+        android:maxLines="1"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:text="@string/widget_open_app"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/widgetQuickAccess"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_widget_pill"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="12sp"
+        android:visibility="gone" />
+</LinearLayout>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botón de acción (CTA) de las tarjetas de resultado de Aria. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33FFFFFF">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="100dp" />
+            <gradient
+                android:angle="0"
+                android:endColor="#F21FD8"
+                android:startColor="#FF1F3D"
+                android:type="linear" />
+        </shape>
+    </item>
+</ripple>

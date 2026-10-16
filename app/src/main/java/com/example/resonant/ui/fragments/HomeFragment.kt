@@ -22,6 +22,7 @@ import androidx.transition.TransitionManager
 import com.google.android.material.button.MaterialButton
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.R
+import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.AlbumAdapter
@@ -40,6 +41,10 @@ import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.launch
 import com.example.resonant.ui.viewmodels.DownloadViewModel
+import androidx.core.view.isVisible
+import com.example.resonant.managers.CapabilitiesManager
+import com.example.resonant.managers.NotificationsManager
+import com.example.resonant.notifications.NotificationBadge
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
@@ -107,6 +112,10 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     private lateinit var userProfileImage: ImageView
 
+    // Campana de la bandeja de notificaciones (solo con features.notifications)
+    private lateinit var notificationBell: View
+    private lateinit var notificationBadge: TextView
+
     // ViewModels
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
@@ -133,6 +142,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     override fun onResume() {
         super.onResume()
         exitTransition = androidx.transition.Fade().apply { duration = 50L }
+        refreshNotificationBell()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -152,6 +162,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         // view.findViewById<View>(R.id.historyPrincipalContainer)?.visibility = View.GONE // Removed
 
         observeDownloadedSongIds()
+        observeNotificationBell()
     }
 
     private fun loadHomeContent() {
@@ -216,6 +227,41 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         view.findViewById<View>(R.id.searchButton).setOnClickListener {
             exitTransition = null
             findNavController().navigate(R.id.action_homeFragment_to_searchFragment)
+        }
+
+        notificationBell = view.findViewById(R.id.notificationBellButton)
+        notificationBadge = view.findViewById(R.id.notificationBellBadge)
+        notificationBell.setOnClickListener {
+            exitTransition = null
+            findNavController().navigate(R.id.action_global_to_notificationInbox)
+        }
+    }
+
+    /** Badge from the shared counter; the bell only shows with the capability and the server agreeing. */
+    private fun observeNotificationBell() {
+        val manager = NotificationsManager.get(requireContext())
+        manager.unreadCount.observe(viewLifecycleOwner) { unread ->
+            val text = NotificationBadge.format(unread ?: 0)
+            notificationBadge.text = text.orEmpty()
+            notificationBadge.isVisible = text != null
+        }
+        manager.featureAvailable.observe(viewLifecycleOwner) { renderNotificationBellVisibility() }
+    }
+
+    private fun renderNotificationBellVisibility() {
+        notificationBell.isVisible = CapabilitiesManager.isNotificationsEnabled() &&
+            NotificationsManager.get(requireContext()).featureAvailable.value != false
+    }
+
+    /** On resume (also when coming back from the inbox). With the capability off nothing is requested. */
+    private fun refreshNotificationBell() {
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            CapabilitiesManager.refresh(appContext)
+            renderNotificationBellVisibility()
+            if (CapabilitiesManager.isNotificationsEnabled()) {
+                NotificationsManager.get(appContext).refreshUnreadCount()
+            }
         }
     }
 
@@ -745,13 +791,24 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     private fun setupSongClickListeners() {
         val currentHomeQueueId = System.currentTimeMillis().toString()
-        setupAdapterListeners(historyAdapter, currentHomeQueueId)
-        setupAdapterListeners(recentFavoritesAdapter, currentHomeQueueId)
-        setupAdapterListeners(songAdapter, currentHomeQueueId)
-        setupAdapterListeners(topSongAdapter, currentHomeQueueId)
+        setupAdapterListeners(historyAdapter, currentHomeQueueId, PlaySourceMapper.HOME_HISTORY)
+        setupAdapterListeners(recentFavoritesAdapter, currentHomeQueueId, PlaySourceMapper.HOME_OTHER)
+        setupAdapterListeners(songAdapter, currentHomeQueueId, PlaySourceMapper.HOME_FOR_YOU) {
+            homeViewModel.songsRequestId
+        }
+        setupAdapterListeners(topSongAdapter, currentHomeQueueId, PlaySourceMapper.HOME_OTHER)
     }
 
-    private fun setupAdapterListeners(adapter: SongAdapter, queueId: String) {
+    /**
+     * [playSource] es el valor canónico con el que se reportan las escuchas de esta lista y
+     * [requestId] el `requestId` de la sección (solo "Canciones para ti"), que se lee al pulsar.
+     */
+    private fun setupAdapterListeners(
+        adapter: SongAdapter,
+        queueId: String,
+        playSource: String,
+        requestId: () -> String? = { null }
+    ) {
         adapter.onItemClick = { (song, bitmap) ->
             val currentIndex = adapter.currentList.indexOfFirst { it.id == song.id }
             val songList = ArrayList(adapter.currentList)
@@ -767,6 +824,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                     putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, songList)
                     putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.HOME)
                     putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, queueId)
+                    putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, playSource)
+                    requestId()?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
                 }
                 requireContext().startService(playIntent)
             }

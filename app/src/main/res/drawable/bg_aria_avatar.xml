@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Avatar de Aria en los mensajes: círculo con el degradado de marca. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:angle="315"
+        android:centerColor="#F21FD8"
+        android:endColor="#7117FF"
+        android:startColor="#FF1F3D"
+        android:type="linear" />
+</shape>

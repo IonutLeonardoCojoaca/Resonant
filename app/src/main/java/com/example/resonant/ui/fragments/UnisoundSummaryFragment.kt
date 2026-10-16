@@ -38,14 +38,28 @@ class UnisoundSummaryFragment : Fragment(R.layout.fragment_unisound_summary) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val summary = arguments?.getString(ARG_SUMMARY_JSON)
-            ?.let { runCatching { Gson().fromJson(it, UnisoundSessionSummaryDTO::class.java) }.getOrNull() }
-            ?: UnisoundSessionSummaryDTO()
-        val manager = UnisoundManager.get(requireContext())
-
         ariaLine = view.findViewById(R.id.unisoundSummaryAriaLine)
         openButton = view.findViewById(R.id.unisoundSummaryOpen)
         view.findViewById<View>(R.id.unisoundSummaryClose).setOnClickListener { findNavController().popBackStack() }
+
+        val summaryJson = arguments?.getString(ARG_SUMMARY_JSON)
+        val sessionId = arguments?.getString(ARG_SESSION_ID)?.takeIf(String::isNotBlank)
+        if (summaryJson == null && sessionId != null) {
+            // Opened from a notification (`/unisound/{id}/summary`): only the session id is known.
+            viewLifecycleOwner.lifecycleScope.launch {
+                val loaded = UnisoundManager.get(requireContext()).getSummary(sessionId)
+                render(view, loaded ?: UnisoundSessionSummaryDTO(sessionId = sessionId))
+            }
+            return
+        }
+        val summary = summaryJson
+            ?.let { runCatching { Gson().fromJson(it, UnisoundSessionSummaryDTO::class.java) }.getOrNull() }
+            ?: UnisoundSessionSummaryDTO()
+        render(view, summary)
+    }
+
+    private fun render(view: View, summary: UnisoundSessionSummaryDTO) {
+        val manager = UnisoundManager.get(requireContext())
         view.findViewById<TextView>(R.id.unisoundSummaryStats).text = statsText(summary)
         renderAriaLine(summary)
 
@@ -127,5 +141,7 @@ class UnisoundSummaryFragment : Fragment(R.layout.fragment_unisound_summary) {
 
     companion object {
         const val ARG_SUMMARY_JSON = "summaryJson"
+        /** Alternative to [ARG_SUMMARY_JSON]: the summary is loaded with `UnisoundManager.getSummary`. */
+        const val ARG_SESSION_ID = "sessionId"
     }
 }

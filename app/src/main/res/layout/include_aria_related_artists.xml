@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Artistas relacionados: carrusel horizontal que sangra hasta el borde de la pantalla. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/ariaRelatedArtistsContainer"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="12dp"
+    android:layout_marginTop="16dp"
+    android:clipChildren="false"
     android:orientation="vertical"
     android:visibility="gone">
 
@@ -11,17 +13,27 @@
         android:id="@+id/relatedArtistsLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_medium"
-        android:letterSpacing="0.1"
-        android:textColor="#66FFFFFF"
-        android:textSize="9sp"
-        android:textStyle="bold" />
+        android:fontFamily="@font/unageo_bold"
+        android:letterSpacing="0.14"
+        android:textColor="@color/aria_accent_text"
+        android:textSize="9.5sp" />
 
-    <LinearLayout
-        android:id="@+id/relatedArtistsList"
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="vertical" />
+        android:layout_marginStart="-16dp"
+        android:layout_marginEnd="-16dp"
+        android:layout_marginTop="10dp"
+        android:clipToPadding="false"
+        android:overScrollMode="never"
+        android:paddingHorizontal="16dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/relatedArtistsList"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
 
 </LinearLayout>

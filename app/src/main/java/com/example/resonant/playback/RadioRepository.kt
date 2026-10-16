@@ -44,7 +44,9 @@ data class RadioSession(
 /** Lote de Flow: canciones listas para la cola y su motivo por id de canción (vacío con radio-v3). */
 data class RadioBatch(
     val songs: List<Song>,
-    val reasonsBySongId: Map<String, String> = emptyMap()
+    val reasonsBySongId: Map<String, String> = emptyMap(),
+    /** `requestId` del lote (impresiones `RADIO`); `null` con la telemetría apagada o servidores antiguos. */
+    val requestId: String? = null
 ) {
     companion object {
         val EMPTY = RadioBatch(emptyList())
@@ -176,7 +178,7 @@ class RadioRepository private constructor(private val context: Context) {
                 reasonText = body.reasonText
             )
         }
-        RadioBatch(body.songs, reasonsOf(body.songReasons))
+        RadioBatch(body.songs, reasonsOf(body.songReasons), body.requestId)
     }
 
     private fun reasonsOf(reasons: List<RadioSongReasonDTO>?): Map<String, String> =

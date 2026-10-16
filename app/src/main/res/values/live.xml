@@ -14,4 +14,10 @@
     <string name="live_leave_room_message">Para escuchar esta emisión saldrás de la sala de Unisound.</string>
     <string name="live_leave_room_confirm">Salir y escuchar</string>
     <string name="live_card_description">%1$s. %2$s</string>
+    <!-- Aria DJ en Live (add-aria-dj) -->
+    <string name="live_dj_badge">Aria DJ</string>
+    <string name="live_dj_setting_label">Aria DJ en Live</string>
+    <string name="live_dj_mode_voice">Voz de Aria</string>
+    <string name="live_dj_mode_subtitles">Solo subtítulos</string>
+    <string name="live_dj_mode_off">Desactivado</string>
 </resources>

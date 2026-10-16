@@ -5,12 +5,13 @@ import com.example.resonant.R
 object AriaScreenMapper {
     fun fromDestinationId(destinationId: Int): String? = when (destinationId) {
         R.id.homeFragment -> "home"
-        R.id.searchFragment,
-        R.id.exploreFragment -> "search"
+        R.id.searchFragment -> "search"
+        R.id.exploreFragment -> "explore"
+        R.id.liveChannelFragment -> "live_channel"
+        R.id.unisoundRoomFragment -> "unisound_room"
         R.id.savedFragment,
         R.id.downloadedSongsFragment -> "library"
-        R.id.songFragment,
-        R.id.unisoundRoomFragment -> "player"
+        R.id.songFragment -> "player"
         R.id.playlistFragment,
         R.id.editPlaylistFragment -> "playlist_detail"
         R.id.artistFragment,

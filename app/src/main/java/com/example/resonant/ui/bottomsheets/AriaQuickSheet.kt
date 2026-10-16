@@ -826,7 +826,9 @@ class AriaQuickSheet : Fragment() {
         "album_detail" -> "Veo este álbum"
         "song_detail" -> "Veo esta canción"
         "library" -> "Veo tu biblioteca"
-        "search" -> "Veo lo que estás explorando"
+        "search", "explore" -> "Veo lo que estás explorando"
+        "live_channel" -> "Veo este canal de Live"
+        "unisound_room" -> "Veo tu sala de Escuchar juntos"
         "settings" -> "Puedo ayudarte sin salir de Ajustes"
         else -> "Veo tu pantalla y lo que estás escuchando"
     }

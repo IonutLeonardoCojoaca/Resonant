@@ -403,6 +403,39 @@
         app:thumbTint="@color/switch_thumb_selector"
         app:trackTint="@color/switch_track_selector" />
 
+    <!-- Aria DJ en Live (add-aria-dj): solo visible con features.ariaDj. Abre un diálogo de opción única. -->
+    <LinearLayout
+        android:id="@+id/live_dj_row"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:background="?attr/selectableItemBackground"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/subtitle_aria_wake_word"
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/live_dj_setting_label"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/live_dj_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="@color/white"
+            tools:text="Voz de Aria" />
+    </LinearLayout>
+
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/title_notifications"
         android:layout_width="0dp"
@@ -414,7 +447,7 @@
         android:textColor="@color/secondaryColorTheme"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/subtitle_aria_wake_word" />
+        app:layout_constraintTop_toBottomOf="@+id/live_dj_row" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/label_streak_reminder"
@@ -452,6 +485,133 @@
         app:thumbTint="@color/switch_thumb_selector"
         app:trackTint="@color/switch_track_selector" />
 
+    <!-- Bandeja de notificaciones (add-notifications): una categoría por interruptor, guardadas en el
+         servidor. Solo visible con features.notifications. -->
+    <LinearLayout
+        android:id="@+id/notification_categories_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/subtitle_streak_reminder"
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_subtitle"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="@color/white" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/notification_aria_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_aria"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:thumbTint="@color/switch_thumb_selector"
+            app:trackTint="@color/switch_track_selector" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/notification_unisound_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_unisound"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:thumbTint="@color/switch_thumb_selector"
+            app:trackTint="@color/switch_track_selector" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/notification_live_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_live"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:thumbTint="@color/switch_thumb_selector"
+            app:trackTint="@color/switch_track_selector" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/notification_streak_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_streak"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:thumbTint="@color/switch_thumb_selector"
+            app:trackTint="@color/switch_track_selector" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/notification_song_of_day_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_song_of_day"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:thumbTint="@color/switch_thumb_selector"
+            app:trackTint="@color/switch_track_selector" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/notification_app_update_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/notifications_settings_app_update"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            app:thumbTint="@color/switch_thumb_selector"
+            app:trackTint="@color/switch_track_selector" />
+    </LinearLayout>
+
+    <!-- Resumen mensual (add-monthly-recap): "Tus resúmenes", solo visible con features.monthlyRecap. -->
+    <LinearLayout
+        android:id="@+id/recap_history_row"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:background="?attr/selectableItemBackground"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/notification_categories_container"
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/recap_history_title"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/recap_history_settings_subtitle"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="@color/white" />
+    </LinearLayout>
+
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/title_appearance"
         android:layout_width="0dp"
@@ -463,7 +623,7 @@
         android:textColor="@color/secondaryColorTheme"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/subtitle_streak_reminder" />
+        app:layout_constraintTop_toBottomOf="@+id/recap_history_row" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/label_theme_mode"

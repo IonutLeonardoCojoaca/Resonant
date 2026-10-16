@@ -52,7 +52,7 @@ class SongManager(private val context: Context) {
             }
 
             val title = recommendations.firstOrNull()?.reason?.message ?: "Recomendado para ti"
-            return RecommendationResult(items = songs, title = title)
+            return RecommendationResult(items = songs, title = title, requestId = recommendations.firstOrNull()?.requestId)
 
         } catch (e: Exception) {
             Log.w("SongManager", "Fallo en recomendaciones o usuario nuevo. Error: ${e.message}")
@@ -61,20 +61,27 @@ class SongManager(private val context: Context) {
     }
 
     /** Reports a listen; returns the streak event it caused, if any. Never throws except on cancel. */
-    suspend fun addStream(streamData: AddStreamDTO): StreakEvent? {
+    suspend fun addStream(streamData: AddStreamDTO): StreakEvent? = sendStream(streamData).streakEvent
+
+    /**
+     * Reports a listen and says whether it must be retried: no response, `5xx`, `408` or `429` →
+     * [StreamSendOutcome.RETRY]; any other `4xx` → [StreamSendOutcome.DROP]. Never throws except on cancel.
+     */
+    suspend fun sendStream(streamData: AddStreamDTO): StreamSendResult {
         try {
             val response = songService.addStream(streamData)
-            if (!response.isSuccessful) {
-                Log.w("SongManager", "Error al añadir stream: HTTP ${response.code()}")
-                return null
+            val outcome = StreamOutboxPolicy.classify(response.code())
+            if (outcome != StreamSendOutcome.SENT) {
+                Log.w("SongManager", "Error al añadir stream: HTTP ${response.code()} ($outcome)")
+                return StreamSendResult(outcome)
             }
             Log.d("SongManager", "Stream añadido correctamente para: ${streamData.songId}")
-            return StreamResultParser.parse(response.body()?.string())
+            return StreamSendResult(StreamSendOutcome.SENT, StreamResultParser.parse(response.body()?.string()))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e("SongManager", "Error al añadir stream", e)
-            return null
+            return StreamSendResult(StreamOutboxPolicy.classify(null))
         }
     }
 
@@ -126,7 +133,13 @@ class SongManager(private val context: Context) {
                         bpmNormalized = if (effectiveBpm > 0.0) effectiveBpm
                                         else song.audioAnalysis?.bpmNormalized ?: 0.0,
                         musicalKey = playbackInfo.musicalKey ?: song.audioAnalysis?.musicalKey,
-                        loudnessLufs = playbackInfo.loudness?.toFloat() ?: song.audioAnalysis?.loudnessLufs ?: 0f
+                        loudnessLufs = playbackInfo.loudness?.toFloat() ?: song.audioAnalysis?.loudnessLufs ?: 0f,
+                        bpmPrecise = playbackInfo.bpmPrecise ?: song.audioAnalysis?.bpmPrecise,
+                        firstDownbeatMs = playbackInfo.firstDownbeatMs ?: song.audioAnalysis?.firstDownbeatMs,
+                        beatsPerBar = playbackInfo.beatsPerBar ?: song.audioAnalysis?.beatsPerBar,
+                        mixInMs = playbackInfo.mixInMs ?: song.audioAnalysis?.mixInMs,
+                        mixOutMs = playbackInfo.mixOutMs ?: song.audioAnalysis?.mixOutMs,
+                        dropMs = playbackInfo.dropMs ?: song.audioAnalysis?.dropMs
                     ) ?: AudioAnalysis(
                         id = song.id,
                         songId = song.id,
@@ -140,7 +153,13 @@ class SongManager(private val context: Context) {
                         audioStartMs = 0,
                         audioEndMs = playbackInfo.durationMs,
                         optimalStartPointMs = playbackInfo.introStartMs,
-                        optimalExitPointMs = playbackInfo.outroStartMs
+                        optimalExitPointMs = playbackInfo.outroStartMs,
+                        bpmPrecise = playbackInfo.bpmPrecise,
+                        firstDownbeatMs = playbackInfo.firstDownbeatMs,
+                        beatsPerBar = playbackInfo.beatsPerBar,
+                        mixInMs = playbackInfo.mixInMs,
+                        mixOutMs = playbackInfo.mixOutMs,
+                        dropMs = playbackInfo.dropMs
                     )
                     song.audioAnalysis = analysis
                 }
@@ -352,13 +371,28 @@ class SongManager(private val context: Context) {
         }
     }
 
-    suspend fun getRelatedSongs(songId: String, limit: Int = 20): List<Song> {
+    suspend fun getRelatedSongs(songId: String, limit: Int = 20): List<Song> =
+        getRelatedSongsWithRequestId(songId, limit).songs
+
+    /**
+     * Relacionadas de [songId] y el `requestId` de sus impresiones (cabecera `X-Recommendation-Request-Id`,
+     * `null` con la telemetría apagada o un servidor antiguo). Nunca lanza salvo cancelación.
+     */
+    suspend fun getRelatedSongsWithRequestId(songId: String, limit: Int = 20): RelatedSongsResult {
         return try {
-            val songs = songService.getRelatedSongs(songId, limit)
-            formatSongMetadata(songs)
+            val response = songService.getRelatedSongs(songId, limit)
+            if (!response.isSuccessful) {
+                Log.e("SongManager", "Error fetching related songs for $songId: HTTP ${response.code()}")
+                return RelatedSongsResult(emptyList(), null)
+            }
+            val songs = formatSongMetadata(response.body().orEmpty())
+            val requestId = response.headers()[RECOMMENDATION_REQUEST_ID_HEADER]?.takeIf { it.isNotBlank() }
+            RelatedSongsResult(songs, requestId)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("SongManager", "Error fetching related songs for $songId", e)
-            emptyList()
+            RelatedSongsResult(emptyList(), null)
         }
     }
 
@@ -372,3 +406,8 @@ class SongManager(private val context: Context) {
         return songs
     }
 }
+
+/** Canciones relacionadas y el `requestId` de sus impresiones `RELATED` (si el servidor lo envía). */
+data class RelatedSongsResult(val songs: List<Song>, val requestId: String?)
+
+const val RECOMMENDATION_REQUEST_ID_HEADER = "X-Recommendation-Request-Id"

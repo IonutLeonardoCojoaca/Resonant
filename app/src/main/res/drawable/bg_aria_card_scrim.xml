@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Velo sobre la portada desenfocada de la tarjeta de entidad. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="@color/aria_glass"
+        android:startColor="@color/aria_card_scrim_top"
+        android:type="linear" />
+</shape>

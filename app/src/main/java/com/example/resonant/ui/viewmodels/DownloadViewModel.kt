@@ -22,7 +22,9 @@ import com.example.resonant.managers.DownloadCollectionRef
 import com.example.resonant.managers.DownloadStatus
 import com.example.resonant.managers.MusicDownloadManager
 import com.example.resonant.managers.SettingsManager
+import com.example.resonant.playback.OfflineDownloadCleaner
 import com.example.resonant.playback.OfflineDownloadProvider
+import com.example.resonant.playback.OfflineMediaFiles
 import com.example.resonant.playback.PlaybackUrlResolver
 import com.example.resonant.services.ResonantDownloadService
 import kotlinx.coroutines.CancellationException
@@ -274,34 +276,8 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             val context = getApplication<Application>()
             val userId = getCurrentUserId()
             withContext(Dispatchers.IO) {
-                val songIds = dao.getCollectionSongIds(userId, ALBUM_TYPE, albumId)
-                dao.deleteCollectionAndSongRefs(userId, ALBUM_TYPE, albumId)
-
-                if (songIds.isNotEmpty()) {
-                    val entitiesById = dao.getByIds(userId, songIds).associateBy { it.songId }
-                    val referenceCounts = dao.countCollectionReferencesForSongs(userId, songIds)
-                        .associate { it.songId to it.count }
-
-                    val orphanedSongIds = songIds.filter { songId ->
-                        val entity = entitiesById[songId]
-                        entity != null &&
-                            !entity.isIndividuallySaved &&
-                            (referenceCounts[songId] ?: 0) == 0
-                    }
-
-                    if (orphanedSongIds.isNotEmpty()) {
-                        dao.deleteSongsByIds(userId, orphanedSongIds)
-                        val remainingGlobalCounts = dao.countBySongIds(orphanedSongIds)
-                            .associate { it.songId to it.count }
-                        orphanedSongIds.forEach { songId ->
-                            if ((remainingGlobalCounts[songId] ?: 0) == 0) {
-                                val entity = entitiesById.getValue(songId)
-                                removeOfflineAudio(context, songId, entity.localAudioPath)
-                                deleteCover(context, entity.localImagePath)
-                            }
-                        }
-                    }
-                }
+                OfflineDownloadCleaner(dao, OfflineMediaFiles.remover(context))
+                    .removeCollection(userId, ALBUM_TYPE, albumId)
             }
             _albumDownloadStates.value =
                 _albumDownloadStates.value - albumId
@@ -576,37 +552,12 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         context: Context,
         songId: String,
         storedPath: String
-    ) {
-        if (storedPath.isStablePlaybackUri()) {
-            DownloadService.sendRemoveDownload(
-                context,
-                ResonantDownloadService::class.java,
-                songId,
-                false
-            )
-            return
-        }
-        val audioFile = File(storedPath).takeIf { it.isAbsolute }
-            ?: File(context.filesDir, storedPath.removePrefix("/"))
-        if (audioFile.exists()) {
-            Log.d(TAG, "Archivo de audio borrado: ${audioFile.delete()}")
-        }
-    }
+    ) = OfflineMediaFiles.removeAudio(context, songId, storedPath)
 
-    private fun deleteCover(context: Context, path: String?) {
-        if (path.isNullOrBlank()) return
-        val file = File(path).takeIf { it.isAbsolute }
-            ?: File(context.filesDir, path.removePrefix("/"))
-        if (file.exists()) file.delete()
-    }
+    private fun deleteCover(context: Context, path: String?) =
+        OfflineMediaFiles.deleteCover(context, path)
 
-    private fun String.isStablePlaybackUri(): Boolean {
-        return startsWith(
-            "${PlaybackUrlResolver.STABLE_SCHEME}://" +
-                "${PlaybackUrlResolver.STABLE_AUTHORITY}/",
-            ignoreCase = true
-        )
-    }
+    private fun String.isStablePlaybackUri(): Boolean = OfflineMediaFiles.isStableUri(this)
 
     companion object {
         private const val TAG = "DownloadViewModel"

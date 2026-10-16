@@ -75,7 +75,26 @@ data class PlaymixTransitionDTO(
     val presetAppliedAt: String? = null,
     val isPresetModified: Boolean = false,
     val isActive: Boolean = false,
-    val gapMs: Int = 0
+    val gapMs: Int = 0,
+    // ─── Resonant Studio: clip renderizado en el servidor (null si no hay) ───
+    val render: PlaymixRenderDTO? = null
+)
+
+/**
+ * Clip de Resonant Studio. Con `status == "ready"` trae la URL firmada y los puntos de empalme:
+ * el inicio del clip coincide con [aStartMs] de A y su final con [bEndMs] de B.
+ */
+data class PlaymixRenderDTO(
+    val status: String,
+    val revision: Int? = null,
+    val url: String? = null,
+    val expiresAt: String? = null,
+    val aStartMs: Int? = null,
+    val bEndMs: Int? = null,
+    val prerollMs: Int? = null,
+    val postrollMs: Int? = null,
+    val durationMs: Int? = null,
+    val error: String? = null
 )
 
 data class EqSettingsDTO(
@@ -121,7 +140,21 @@ data class WaveformSongDTO(
     val musicalKey: String?,
     val loudnessLufs: Double?,
     val waveformUrl: String?,
-    val beatGrid: List<Int>?
+    val beatGrid: List<Int>?,
+    // ─── Análisis v2 y cue points (null con análisis v1) ───
+    val downbeatGrid: List<Int>? = null,
+    val phrases: List<PhraseDTO>? = null,
+    val bpmStability: Double? = null,
+    val beatsPerBar: Int? = null,
+    val mixInMs: Int? = null,
+    val mixOutMs: Int? = null,
+    val dropMs: Int? = null
+)
+
+/** Frase musical del análisis v2: inicio (downbeat) y número de compases. */
+data class PhraseDTO(
+    val startMs: Int,
+    val bars: Int
 )
 
 // ─── Request bodies ─────────────────────────

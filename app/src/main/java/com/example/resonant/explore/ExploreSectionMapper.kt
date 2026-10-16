@@ -33,7 +33,9 @@ sealed class ExploreSectionUi {
 
     data class Songs(
         override val id: String, override val title: String, override val subtitle: String?,
-        override val items: List<Song>?
+        override val items: List<Song>?,
+        /** `requestId` de las impresiones de la sección (telemetría); se envía al reproducir desde aquí. */
+        val requestId: String? = null
     ) : ExploreSectionUi()
 
     data class Albums(
@@ -63,7 +65,9 @@ sealed class ExploreSectionUi {
 
     data class AriaPicks(
         override val id: String, override val title: String, override val subtitle: String?,
-        override val items: List<AriaPick>?
+        override val items: List<AriaPick>?,
+        /** `requestId` de las impresiones `ARIA_PICK` de la sección. */
+        val requestId: String? = null
     ) : ExploreSectionUi()
 }
 
@@ -87,7 +91,7 @@ class ExploreSectionMapper(
         val subtitle = ExploreReasonFormatter.format(section.reason, title)
         return when {
             section.type == TYPE_SONGS ->
-                ExploreSectionUi.Songs(id, title, subtitle, raw?.let { decodeSongs(it) ?: return null })
+                ExploreSectionUi.Songs(id, title, subtitle, raw?.let { decodeSongs(it) ?: return null }, section.requestId)
             section.type == TYPE_ALBUMS ->
                 ExploreSectionUi.Albums(id, title, subtitle, raw?.let { decoder.decodeAlbums(home(it)) ?: return null })
             section.type == TYPE_ARTISTS && id == ID_COLLAB_FINDER ->
@@ -99,7 +103,7 @@ class ExploreSectionMapper(
             section.type == TYPE_GENRES ->
                 ExploreSectionUi.Genres(id, title, subtitle, raw?.let { decodeGenres(it) ?: return null })
             section.type == TYPE_ARIA_PICKS ->
-                ExploreSectionUi.AriaPicks(id, title, subtitle, raw?.let { decodeAriaPicks(it) ?: return null })
+                ExploreSectionUi.AriaPicks(id, title, subtitle, raw?.let { decodeAriaPicks(it) ?: return null }, section.requestId)
             else -> null
         }
     }

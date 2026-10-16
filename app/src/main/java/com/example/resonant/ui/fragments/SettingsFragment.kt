@@ -27,6 +27,7 @@ import com.example.resonant.R
 import com.example.resonant.managers.FlowPreferencesManager
 import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.SettingsManager
+import com.example.resonant.live.LiveDjMode
 import com.example.resonant.streak.StreakReminderScheduler
 import com.example.resonant.aria.ForegroundAriaWakeWordController
 import com.example.resonant.databinding.FragmentSettingsBinding
@@ -39,6 +40,11 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.core.view.isVisible
+import com.example.resonant.data.network.NotificationCategories
+import com.example.resonant.managers.NotificationsManager
+import com.example.resonant.managers.NotificationsResult
+import com.google.android.material.switchmaterial.SwitchMaterial
 
 class SettingsFragment : Fragment() {
 
@@ -98,6 +104,9 @@ class SettingsFragment : Fragment() {
         setupAriaFloatingAssistantSwitch()
         setupAriaWakeWordSwitch()
         setupStreakReminderSwitch()
+        setupLiveDjRow()
+        setupNotificationCategorySwitches()
+        setupRecapHistoryRow()
         setupThemeToggle()
         setupAudioQuality()
         setupEqualizer()
@@ -128,6 +137,126 @@ class SettingsFragment : Fragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 settingsManager.setAutomixEnabled(isChecked)
             }
+        }
+    }
+
+    // region Notificaciones (bandeja, add-notifications)
+
+    /** True while switches are set from server values, so their listeners do not send a PUT. */
+    private var applyingNotificationSettings = false
+
+    private fun notificationCategorySwitches(): Map<String, SwitchMaterial> = mapOf(
+        NotificationCategories.ARIA to binding.notificationAriaSwitch,
+        NotificationCategories.UNISOUND to binding.notificationUnisoundSwitch,
+        NotificationCategories.LIVE to binding.notificationLiveSwitch,
+        NotificationCategories.STREAK to binding.notificationStreakSwitch,
+        NotificationCategories.SONG_OF_DAY to binding.notificationSongOfDaySwitch,
+        NotificationCategories.APP_UPDATE to binding.notificationAppUpdateSwitch
+    )
+
+    /** Hidden unless the capability is on and `GET /settings` answered; the local streak reminder is separate. */
+    private fun setupNotificationCategorySwitches() {
+        notificationCategorySwitches().forEach { (category, switch) ->
+            switch.setOnCheckedChangeListener { _, isChecked ->
+                if (!applyingNotificationSettings) onNotificationCategoryToggled(category, isChecked)
+            }
+        }
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val enabled = CapabilitiesManager.refresh(appContext).notifications
+            val result = if (enabled) NotificationsManager.get(appContext).getSettings() else NotificationsResult.Disabled
+            val currentBinding = _binding ?: return@launch
+            if (result is NotificationsResult.Ok) {
+                applyNotificationSettings(result.value)
+                currentBinding.notificationCategoriesContainer.isVisible = true
+            } else {
+                currentBinding.notificationCategoriesContainer.isVisible = false
+            }
+        }
+    }
+
+    /** Sends only [category]; on failure the switch goes back and a short message is shown. */
+    private fun onNotificationCategoryToggled(category: String, enabled: Boolean) {
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = NotificationsManager.get(appContext).setCategoryEnabled(category, enabled)
+            val currentBinding = _binding ?: return@launch
+            when (result) {
+                is NotificationsResult.Ok -> applyNotificationSettings(result.value)
+                NotificationsResult.Disabled -> {
+                    currentBinding.notificationCategoriesContainer.isVisible = false
+                }
+                NotificationsResult.Failed -> {
+                    applyNotificationSettings(mapOf(category to !enabled), onlyGiven = true)
+                    Toast.makeText(appContext, R.string.notifications_settings_save_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets the switches without triggering a PUT. A missing category counts as enabled, as on the
+     * server, unless [onlyGiven] (reverting a single switch) leaves the others untouched.
+     */
+    private fun applyNotificationSettings(categories: Map<String, Boolean>, onlyGiven: Boolean = false) {
+        if (_binding == null) return
+        applyingNotificationSettings = true
+        try {
+            notificationCategorySwitches().forEach { (category, switch) ->
+                val value = categories[category] ?: if (onlyGiven) return@forEach else true
+                if (switch.isChecked != value) switch.isChecked = value
+            }
+        } finally {
+            applyingNotificationSettings = false
+        }
+    }
+
+    // endregion
+
+    /** "Aria DJ en Live": voz, solo subtítulos o desactivado. Visible solo con `features.ariaDj`. */
+    private fun setupLiveDjRow() {
+        val modes = listOf(
+            LiveDjMode.VOICE to getString(R.string.live_dj_mode_voice),
+            LiveDjMode.SUBTITLES to getString(R.string.live_dj_mode_subtitles),
+            LiveDjMode.OFF to getString(R.string.live_dj_mode_off)
+        )
+        val row = binding.liveDjRow
+        row.isVisible = CapabilitiesManager.isAriaDjEnabled()
+        viewLifecycleOwner.lifecycleScope.launch {
+            row.isVisible = CapabilitiesManager.refresh(requireContext().applicationContext).ariaDj
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            settingsManager.liveDjModeFlow.collect { mode ->
+                binding.liveDjValue.text = modes.first { it.first == mode }.second
+            }
+        }
+        row.setOnClickListener {
+            viewLifecycleOwner.lifecycleScope.launch {
+                val current = settingsManager.liveDjModeFlow.first()
+                android.app.AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.live_dj_setting_label)
+                    .setSingleChoiceItems(
+                        modes.map { it.second }.toTypedArray(),
+                        modes.indexOfFirst { it.first == current }
+                    ) { dialog, which ->
+                        viewLifecycleOwner.lifecycleScope.launch { settingsManager.setLiveDjMode(modes[which].first) }
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+    }
+
+    /** "Tus resúmenes" (add-monthly-recap): solo con features.monthlyRecap. */
+    private fun setupRecapHistoryRow() {
+        binding.recapHistoryRow.setOnClickListener {
+            androidx.navigation.fragment.NavHostFragment.findNavController(this).navigate(R.id.recapHistoryFragment)
+        }
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val enabled = CapabilitiesManager.refresh(appContext).monthlyRecap
+            _binding?.recapHistoryRow?.isVisible = enabled
         }
     }
 

@@ -10,5 +10,12 @@ data class RecommendationResponse<T>(
     val score: Double,
 
     @SerializedName("reason")
-    val reason: ReasonDTO?
+    val reason: ReasonDTO?,
+
+    /** `requestId` común de la respuesta (telemetría activa); se envía como `recommendationRequestId`. */
+    @SerializedName("requestId")
+    val requestId: String? = null,
+
+    @SerializedName("position")
+    val position: Int? = null
 )

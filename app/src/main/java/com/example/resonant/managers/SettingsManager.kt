@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.resonant.live.LiveDjMode
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -83,6 +84,7 @@ class SettingsManager(private val context: Context) {
         val ARIA_FLOATING_ASSISTANT_ENABLED_KEY = booleanPreferencesKey("aria_floating_assistant_enabled")
         val ARIA_FOREGROUND_WAKE_WORD_ENABLED_KEY = booleanPreferencesKey("aria_foreground_wake_word_enabled")
         val STREAK_REMINDER_ENABLED_KEY = booleanPreferencesKey("streak_reminder_enabled")
+        val LIVE_DJ_MODE_KEY = stringPreferencesKey("live_dj_mode")
         val EQUALIZER_ENABLED_KEY = booleanPreferencesKey("equalizer_enabled")
         val EQUALIZER_PRESET_KEY = stringPreferencesKey("equalizer_preset")
         private val EQUALIZER_BAND_KEYS = listOf(
@@ -193,6 +195,15 @@ class SettingsManager(private val context: Context) {
             it[FLOW_DISCOVERY_LEVEL_KEY] = discoveryLevel
             it[FLOW_PREFERENCES_PENDING_SYNC_KEY] = pendingSync
         }
+    }
+
+    /** Aria DJ en Live: voz (por defecto), solo subtítulos o desactivado. Un valor desconocido se lee como voz. */
+    val liveDjModeFlow: Flow<LiveDjMode> = context.dataStore.data.map { preferences ->
+        LiveDjMode.fromStored(preferences[LIVE_DJ_MODE_KEY])
+    }
+
+    suspend fun setLiveDjMode(mode: LiveDjMode) {
+        context.dataStore.edit { it[LIVE_DJ_MODE_KEY] = mode.name }
     }
 
     suspend fun setFlowPreferencesPendingSync(pending: Boolean) {

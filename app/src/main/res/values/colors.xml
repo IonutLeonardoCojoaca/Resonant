@@ -117,4 +117,14 @@
     <color name="collabButtonAccent">#B81414</color>
     <color name="genreMiniOverlay">#2C2C2C</color>
 
+
+    <!-- Aria (rediseño agente): superficies translúcidas sobre el fondo ambiental. -->
+    <color name="aria_glass">#EBFFFFFF</color>
+    <color name="aria_glass_stroke">#14000000</color>
+    <color name="aria_accent_soft">#26FF2EA8</color>
+    <color name="aria_accent_text">#E0127A</color>
+    <color name="aria_bg_clear">#00FFFFFF</color>
+    <color name="aria_card_scrim_top">#99F7F7F9</color>
+    <color name="aria_live">#1FB866</color>
+
 </resources>

@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Velo bajo la toolbar: el chat se desliza por detrás y se desvanece. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:type="linear"
         android:angle="270"
-        android:startColor="#E6000000"
-        android:endColor="#00000000"/>
+        android:centerColor="@color/primaryColorTheme"
+        android:centerY="0.5"
+        android:endColor="@color/aria_bg_clear"
+        android:startColor="@color/primaryColorTheme"
+        android:type="linear" />
 </shape>

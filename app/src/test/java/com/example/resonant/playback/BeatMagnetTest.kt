@@ -73,4 +73,35 @@ class BeatMagnetTest {
         assertFalse(BeatMagnet.snap(lastBeat + 5_000, grid120).snapped)
         assertEquals(lastBeat + 5_000, BeatMagnet.snap(lastBeat + 5_000, grid120).ms)
     }
+
+    // ── Niveles (Fase 4) ─────────────────────────────────────────────────────
+
+    private val beats = (0 until 64).map { 500 + it * 500 }                 // 120 BPM
+    private val downbeats = beats.filterIndexed { i, _ -> i % 4 == 0 }       // compás 2 000 ms
+    private val phrases = downbeats.filterIndexed { i, _ -> i % 8 == 0 }     // frase 16 000 ms
+
+    @Test
+    fun `phrase start wins over a closer beat`() {
+        // 16 500 es inicio de frase; 16 900 está a 400 ms de él y a 100 ms del beat 17 000.
+        val snap = BeatMagnet.snapLevels(16_900, beats, downbeats, phrases)
+        assertEquals(BeatMagnet.LevelSnap(16_500, BeatMagnet.Level.PHRASE), snap)
+    }
+
+    @Test
+    fun `downbeat when far from phrases`() {
+        // 8 500 es downbeat (no frase); 8 900 está a 400 ms (< 1/3 de compás).
+        assertEquals(BeatMagnet.LevelSnap(8_500, BeatMagnet.Level.BAR), BeatMagnet.snapLevels(8_900, beats, downbeats, phrases))
+    }
+
+    @Test
+    fun `beat when far from bars`() {
+        // 9 500 es beat; 9 600 está a 1 100 ms del downbeat 8 500 y a 900 del 10 500.
+        assertEquals(BeatMagnet.LevelSnap(9_500, BeatMagnet.Level.BEAT), BeatMagnet.snapLevels(9_600, beats, downbeats, phrases))
+    }
+
+    @Test
+    fun `without v2 data levels behave like the beat magnet`() {
+        assertEquals(BeatMagnet.LevelSnap(9_500, BeatMagnet.Level.BEAT), BeatMagnet.snapLevels(9_600, beats, emptyList(), emptyList()))
+        assertEquals(BeatMagnet.LevelSnap(9_750, BeatMagnet.Level.NONE), BeatMagnet.snapLevels(9_750, beats, emptyList(), emptyList()))
+    }
 }

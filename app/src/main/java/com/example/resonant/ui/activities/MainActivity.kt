@@ -83,6 +83,15 @@ import com.example.resonant.streak.StreakEvent
 import com.example.resonant.streak.StreakEventBus
 import com.example.resonant.streak.StreakReminderScheduler
 import com.example.resonant.streak.StreakTexts
+import com.example.resonant.managers.NotificationsManager
+import com.example.resonant.notifications.AppForegroundState
+import com.example.resonant.notifications.NotificationDeepLink
+import com.example.resonant.notifications.NotificationIntents
+import com.example.resonant.notifications.NotificationSyncScheduler
+import com.example.resonant.notifications.NotificationTarget
+import com.example.resonant.streak.StreakResult
+import com.example.resonant.ui.bottomsheets.StreakDetailsBottomSheet
+import com.example.resonant.utils.VersionProvider
 import com.example.resonant.managers.SessionManager
 import com.example.resonant.playback.UnisoundPlaybackBridge
 import com.example.resonant.ui.bottomsheets.UnisoundJoinBottomSheet
@@ -195,6 +204,47 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         PlaybackConnectRepository.get(applicationContext)
     }
 
+    /** Screens Aria can open with `open_screen`, `unisound_create` and `unisound_show_code`. */
+    private val ariaFeatureNavigator = object : com.example.resonant.aria.AriaFeatureNavigator {
+        override fun openExplore() {
+            if (::navController.isInitialized) navigateToTopLevelDestination(R.id.exploreFragment)
+        }
+
+        override fun openLiveChannel(slug: String) = this@MainActivity.openLiveChannel(slug)
+
+        override fun openUnisoundRoom(showShare: Boolean) = this@MainActivity.openUnisoundRoom(showShare)
+
+        override fun showUnisoundShare() {
+            val tag = com.example.resonant.ui.bottomsheets.UnisoundShareBottomSheet.TAG
+            if (supportFragmentManager.isStateSaved || supportFragmentManager.findFragmentByTag(tag) != null) return
+            com.example.resonant.ui.bottomsheets.UnisoundShareBottomSheet().show(supportFragmentManager, tag)
+        }
+
+        override fun showStreakDetails(status: com.example.resonant.data.network.StreakStatusDTO) {
+            val tag = com.example.resonant.ui.bottomsheets.StreakDetailsBottomSheet.TAG
+            if (supportFragmentManager.isStateSaved || supportFragmentManager.findFragmentByTag(tag) != null) return
+            com.example.resonant.ui.bottomsheets.StreakDetailsBottomSheet.newInstance(status)
+                .show(supportFragmentManager, tag)
+        }
+
+        override fun openListeningStats(): Boolean {
+            if (!::navController.isInitialized) return false
+            if (navController.currentDestination?.id != R.id.listeningStatsFragment) {
+                navController.navigate(R.id.listeningStatsFragment)
+            }
+            return true
+        }
+
+        override fun openRecap(periodKey: String): Boolean {
+            if (!::navController.isInitialized) return false
+            navController.navigate(
+                R.id.recapStoriesFragment,
+                bundleOf(com.example.resonant.ui.fragments.RecapStoriesFragment.ARG_PERIOD_KEY to periodKey)
+            )
+            return true
+        }
+    }
+
     private val ariaClientActionExecutor by lazy {
         AriaClientActionExecutor(
             context = this,
@@ -202,6 +252,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             onFavoriteStateChanged = {
                 favoritesViewModel.loadFavoriteSongs(forceRefresh = true)
             },
+            featureNavigator = ariaFeatureNavigator,
             onFeedback = { message, success ->
                 ariaViewModel.updateLastAriaMessage(message, isComplete = true)
                 showResonantSnackbar(
@@ -556,14 +607,16 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             R.id.crossfadeEditorFragment,
             R.id.collabBubbleFragment,
             R.id.collabDetailFragment,
-            R.id.collabPathFragment
+            R.id.collabPathFragment,
+            R.id.notificationInboxFragment
         )
 
         val fragmentsNoToolbarNoBottomNav = setOf(
             R.id.songFragment,
             R.id.collabSearchFragment,
             R.id.unisoundRoomFragment,
-            R.id.unisoundSummaryFragment
+            R.id.unisoundSummaryFragment,
+            R.id.recapStoriesFragment
         )
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
@@ -773,6 +826,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         // common case when a user taps a shared song link. That silently
         // dropped the link and opened straight to Home instead of the song.
         handleDeepLink(intent)
+        if (savedInstanceState == null) handleWidgetIntent(intent)
         val pendingUnisoundLink = UnisoundPendingLink.consume()
         pendingUnisoundLink?.let(::handleUnisoundLink)
 
@@ -1018,9 +1072,41 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         super.onNewIntent(intent)
         this.intent = intent
         handleDeepLink(intent)
+        handleWidgetIntent(intent)
+    }
+
+    /** Widget quick access: Live channel (auto-start) or "Volver a mi sala". Logged out: ignored. */
+    private fun handleWidgetIntent(intent: Intent?) {
+        val action = intent?.action
+        if (!com.example.resonant.widget.WidgetLaunchDecision.isWidgetAction(action)) return
+        val slug = intent?.getStringExtra(com.example.resonant.widget.ResonantWidgetActions.EXTRA_LIVE_SLUG)
+        if (!SessionManager.getInstance(this).hasLocalCredentials()) return
+        lifecycleScope.launch {
+            CapabilitiesManager.refresh(this@MainActivity)
+            val unisound = UnisoundManager.get(this@MainActivity)
+            if (action == com.example.resonant.widget.ResonantWidgetActions.ACTION_OPEN_ROOM && unisound.state.value == null) {
+                unisound.restore()
+            }
+            val decision = com.example.resonant.widget.WidgetLaunchDecision.decide(
+                action = action,
+                liveSlug = slug,
+                loggedIn = true,
+                liveEnabled = CapabilitiesManager.isLiveEnabled(),
+                inRoom = unisound.state.value != null
+            )
+            when (decision) {
+                is com.example.resonant.widget.WidgetLaunchAction.OpenLive -> openLiveChannel(decision.slug, autoStart = true)
+                com.example.resonant.widget.WidgetLaunchAction.LiveUnavailable ->
+                    showUnisoundMessage(com.example.resonant.live.LiveErrors.MESSAGE_DISABLED)
+                com.example.resonant.widget.WidgetLaunchAction.OpenRoom -> openUnisoundRoom()
+                com.example.resonant.widget.WidgetLaunchAction.RoomGone -> showUnisoundMessage(getString(R.string.widget_room_gone))
+                com.example.resonant.widget.WidgetLaunchAction.None -> Unit
+            }
+        }
     }
 
     private fun handleDeepLink(intent: Intent) {
+        if (handleNotificationIntent(intent)) return
         val data: Uri = intent.data ?: return
         UnisoundJoinCode.fromLink(data.host, data.path)?.let { code ->
             handleUnisoundLink(code)
@@ -1303,9 +1389,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
-    fun openLiveChannel(slug: String) {
+    /** [autoStart]: the channel screen starts listening once loaded (widget quick access). */
+    fun openLiveChannel(slug: String, autoStart: Boolean = false) {
         if (!::navController.isInitialized) return
-        navController.navigate(R.id.action_global_to_liveChannel, bundleOf(LiveChannelFragment.ARG_SLUG to slug))
+        navController.navigate(
+            R.id.action_global_to_liveChannel,
+            bundleOf(LiveChannelFragment.ARG_SLUG to slug, LiveChannelFragment.ARG_AUTO_START to autoStart)
+        )
     }
 
     /** While listening to Live the mini-player opens the broadcast screen instead of the player. */
@@ -1313,6 +1403,182 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val slug = LiveManager.activeSlugOrNull() ?: return false
         openLiveChannel(slug)
         return true
+    }
+
+    // endregion
+
+    // region Notificaciones
+
+    /** Schedules the background inbox sync with the capability on and cancels it otherwise. */
+    /** Descargas automáticas: periódico cada 6 h más una ejecución al abrir, solo con la capacidad activa. */
+    private fun refreshAutoDownloadsOnStart() {
+        val appContext = applicationContext
+        lifecycleScope.launch {
+            val userId = getSharedPreferences("user_data", MODE_PRIVATE).getString("USER_ID", null)
+            if (CapabilitiesManager.refresh(appContext).autoDownloads && !userId.isNullOrBlank()) {
+                com.example.resonant.autodownload.AutoDownloadScheduler.schedule(appContext, userId, runNow = true)
+            } else {
+                com.example.resonant.autodownload.AutoDownloadScheduler.cancel(appContext)
+            }
+        }
+    }
+
+    private fun refreshNotificationsOnStart() {
+        val appContext = applicationContext
+        lifecycleScope.launch {
+            if (CapabilitiesManager.refresh(appContext).notifications) {
+                NotificationSyncScheduler.schedule(appContext)
+            } else {
+                NotificationSyncScheduler.cancel(appContext)
+                NotificationsManager.get(appContext).reset()
+            }
+        }
+    }
+
+    /**
+     * Tap on a local notification (extras set by `NotificationSyncWorker`): marks it as read without
+     * waiting and opens its destination, or the inbox when this version does not know it.
+     */
+    private fun handleNotificationIntent(intent: Intent): Boolean {
+        val id = intent.getStringExtra(NotificationIntents.EXTRA_NOTIFICATION_ID) ?: return false
+        val deepLink = intent.getStringExtra(NotificationIntents.EXTRA_DEEP_LINK)
+        val wasUnread = intent.getBooleanExtra(NotificationIntents.EXTRA_WAS_UNREAD, true)
+        // Consumed once, so a recreated activity does not navigate again.
+        intent.removeExtra(NotificationIntents.EXTRA_NOTIFICATION_ID)
+        intent.removeExtra(NotificationIntents.EXTRA_DEEP_LINK)
+        intent.removeExtra(NotificationIntents.EXTRA_WAS_UNREAD)
+
+        val appContext = applicationContext
+        lifecycleScope.launch {
+            // On a cold start the capabilities are not loaded yet and the manager would skip the call.
+            if (CapabilitiesManager.refresh(appContext).notifications) {
+                NotificationsManager.get(appContext).markRead(id, wasUnread)
+            }
+        }
+        if (!openNotificationTarget(NotificationDeepLink.parse(deepLink))) openNotificationInbox()
+        return true
+    }
+
+    private fun openNotificationInbox() {
+        lifecycleScope.launch {
+            if (CapabilitiesManager.refresh(this@MainActivity).notifications && ::navController.isInitialized &&
+                navController.currentDestination?.id != R.id.notificationInboxFragment
+            ) {
+                navController.navigate(R.id.action_global_to_notificationInbox)
+            }
+        }
+    }
+
+    /**
+     * Opens what a notification's `deepLink` points to. Returns false when there is nothing to open
+     * here ([NotificationTarget.None] or a destination this version lacks), so the caller stays put.
+     */
+    fun openNotificationTarget(target: NotificationTarget): Boolean {
+        if (!::navController.isInitialized) return false
+        return try {
+            when (target) {
+                is NotificationTarget.Song -> {
+                    navController.navigate(R.id.detailedSongFragment, bundleOf("songId" to target.songId))
+                    true
+                }
+                is NotificationTarget.Playlist -> {
+                    navController.navigate(R.id.action_global_to_playlistFragment, bundleOf("playlistId" to target.playlistId))
+                    true
+                }
+                is NotificationTarget.Artist -> {
+                    navController.navigate(R.id.artistFragment, bundleOf("artistId" to target.artistId))
+                    true
+                }
+                is NotificationTarget.Album -> {
+                    navController.navigate(R.id.albumFragment, bundleOf("albumId" to target.albumId))
+                    true
+                }
+                is NotificationTarget.Live -> {
+                    openLiveChannel(target.slug)
+                    true
+                }
+                is NotificationTarget.UnisoundSummary -> {
+                    navController.navigate(
+                        R.id.action_global_to_unisoundSummary,
+                        bundleOf(UnisoundSummaryFragment.ARG_SESSION_ID to target.sessionId)
+                    )
+                    true
+                }
+                is NotificationTarget.Recap -> openRecapFromNotification(target.periodKey)
+                is NotificationTarget.Update -> {
+                    openUpdateFromNotification(target.version)
+                    true
+                }
+                NotificationTarget.Streak -> {
+                    openStreakFromNotification()
+                    true
+                }
+                NotificationTarget.None -> false
+            }
+        } catch (e: Exception) {
+            Log.w("Notifications", "cannot open target: ${e.javaClass.simpleName}")
+            false
+        }
+    }
+
+    /**
+     * The monthly recap screen belongs to `add-monthly-recap` (`recapStoriesFragment`, argument
+     * `periodKey`). It is looked up by name so this compiles before that screen exists; without it
+     * the user stays in the inbox.
+     */
+    @SuppressLint("DiscouragedApi")
+    private fun openRecapFromNotification(periodKey: String): Boolean {
+        val destinationId = resources.getIdentifier("recapStoriesFragment", "id", packageName)
+        if (destinationId == 0 || navController.graph.findNode(destinationId) == null) return false
+        navController.navigate(destinationId, bundleOf("periodKey" to periodKey))
+        return true
+    }
+
+    /** `/update/{v}`: already installed → says so; otherwise the usual update dialog and download. */
+    private fun openUpdateFromNotification(version: String) {
+        val current = VersionProvider.appVersionName(this).trim()
+        if (Utils.compareSemver(version.trim(), current) <= 0) {
+            showResonantSnackbar(
+                text = getString(R.string.notifications_update_installed, current),
+                colorRes = R.color.successColor,
+                iconRes = R.drawable.ic_success
+            )
+            return
+        }
+        lifecycleScope.launch {
+            when (val decision = updateManager.checkForUpdate()) {
+                is UpdateDecision.Forced -> showUpdateDialog(
+                    title = decision.latest.title ?: "Actualización obligatoria",
+                    message = decision.latest.description ?: "Hay una nueva versión ${decision.latest.version}. Debes actualizar para continuar.",
+                    forced = true,
+                    downloadUrl = decision.downloadUrl,
+                    version = decision.latest.version
+                )
+                is UpdateDecision.Optional -> showUpdateDialog(
+                    title = decision.latest.title ?: "Actualización disponible",
+                    message = decision.latest.description ?: "Nueva versión ${decision.latest.version} disponible. ¿Deseas actualizar ahora?",
+                    forced = false,
+                    downloadUrl = decision.downloadUrl,
+                    version = decision.latest.version
+                )
+                is UpdateDecision.NoUpdate -> showResonantSnackbar(
+                    text = getString(R.string.notifications_update_unavailable),
+                    colorRes = R.color.secondaryColorTheme,
+                    iconRes = R.drawable.ic_warning
+                )
+            }
+        }
+    }
+
+    private fun openStreakFromNotification() {
+        lifecycleScope.launch {
+            if (!CapabilitiesManager.refresh(this@MainActivity).streaks) return@launch
+            val result = StreakManager.get(this@MainActivity).getStatus()
+            if (result !is StreakResult.Ok) return@launch
+            val tag = StreakDetailsBottomSheet.TAG
+            if (supportFragmentManager.isStateSaved || supportFragmentManager.findFragmentByTag(tag) != null) return@launch
+            StreakDetailsBottomSheet.newInstance(result.status).show(supportFragmentManager, tag)
+        }
     }
 
     // endregion
@@ -1610,9 +1876,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         playbackConnectRepository.refreshAsync()
         refreshUnisoundOnStart()
         refreshStreaksOnStart()
+        AppForegroundState.isInForeground = true
+        refreshNotificationsOnStart()
+        refreshAutoDownloadsOnStart()
     }
 
     override fun onStop() {
+        AppForegroundState.isInForeground = false
         lastStoppedAtMs = System.currentTimeMillis()
         ariaWakeWordController.stop()
         super.onStop()

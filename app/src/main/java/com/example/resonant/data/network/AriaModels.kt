@@ -43,7 +43,40 @@ data class AriaSongDisambiguationDTO(
 
 data class AriaActionContentDTO(
     @SerializedName("kind") val kind: String? = null,
-    @SerializedName("songs") val songs: List<AriaSongDisambiguationDTO>? = null
+    @SerializedName("songs") val songs: List<AriaSongDisambiguationDTO>? = null,
+    // content.kind = "streak" (same fields as the action's `streak`)
+    @SerializedName("current_days") val currentDays: Int? = null,
+    @SerializedName("longest_days") val longestDays: Int? = null,
+    @SerializedName("today_qualified") val todayQualified: Boolean? = null,
+    @SerializedName("today_seconds") val todaySeconds: Int? = null,
+    @SerializedName("goal_seconds") val goalSeconds: Int? = null,
+    @SerializedName("freezes_available") val freezesAvailable: Int? = null,
+    @SerializedName("next_milestone") val nextMilestone: Int? = null,
+    // content.kind = "pick_explanation"
+    @SerializedName("song") val song: AriaPickSongDTO? = null,
+    @SerializedName("source") val source: String? = null,
+    @SerializedName("reason") val reason: String? = null,
+    /** Already formatted sentences for the card chips. */
+    @SerializedName("evidence") val evidence: List<String>? = null
+)
+
+/** `streak` of a `streak_status` action (add-aria-context-v2). */
+data class AriaStreakDTO(
+    @SerializedName("current_days") val currentDays: Int? = null,
+    @SerializedName("longest_days") val longestDays: Int? = null,
+    @SerializedName("today_qualified") val todayQualified: Boolean? = null,
+    @SerializedName("today_seconds") val todaySeconds: Int? = null,
+    @SerializedName("goal_seconds") val goalSeconds: Int? = null,
+    @SerializedName("freezes_available") val freezesAvailable: Int? = null,
+    @SerializedName("next_milestone") val nextMilestone: Int? = null
+)
+
+/** Song of a `pick_explanation` card. */
+data class AriaPickSongDTO(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("artist") val artist: String? = null,
+    @SerializedName("cover_url") val coverUrl: String? = null
 )
 
 /**
@@ -78,7 +111,22 @@ data class AriaClientActionDTO(
     val clientArtistName: String? = null,
     /** Present on transport orders given inside a Unisound room: they go to the room. */
     @SerializedName("unisound_session_id")
-    val unisoundSessionId: String? = null
+    val unisoundSessionId: String? = null,
+    // add-aria-context-v2: Live, navigation, streak, explain_pick and Flow feedback.
+    @SerializedName("live_channel_slug") val liveChannelSlug: String? = null,
+    @SerializedName("live_channel_name") val liveChannelName: String? = null,
+    /** `open_screen`: explore, streak, live_channel, unisound_room, aria_picks, stats or recap. */
+    @SerializedName("destination") val destination: String? = null,
+    @SerializedName("streak") val streak: AriaStreakDTO? = null,
+    /** Raw facts of `explain_pick` (`{type, ...}`); the card uses `content.evidence`. */
+    @SerializedName("evidence") val evidence: List<Map<String, Any?>>? = null,
+    @SerializedName("target_type") val targetType: String? = null,
+    @SerializedName("target_name") val targetName: String? = null,
+    /** `flow_feedback`: less, never or undone. */
+    @SerializedName("feedback") val feedback: String? = null,
+    @SerializedName("source") val source: String? = null,
+    @SerializedName("reason") val reason: String? = null,
+    @SerializedName("suggested_followups") val suggestedFollowups: List<String>? = null
 )
 
 data class AriaFeedbackStats(

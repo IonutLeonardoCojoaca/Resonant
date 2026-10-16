@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.data.models.Song
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.HeaderViewAdapter
@@ -106,6 +107,18 @@ class HistoryFragment : Fragment() {
         btnBack = view.findViewById(R.id.btnBack)
 
         btnBack.setOnClickListener { findNavController().navigateUp() }
+
+        // "Tus estadísticas" solo si el servidor la ofrece; sin ella, Historial queda como siempre.
+        // Historial no ofrece borrar escuchas (el historial es inmutable por decisión de producto).
+        val btnListeningStats = view.findViewById<View>(R.id.btnListeningStats)
+        btnListeningStats.isVisible = CapabilitiesManager.isListeningStatsEnabled()
+        btnListeningStats.setOnClickListener {
+            findNavController().navigate(R.id.action_historyFragment_to_listeningStatsFragment)
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            val enabled = CapabilitiesManager.refresh(requireContext()).listeningStats
+            btnListeningStats.isVisible = enabled
+        }
     }
 
     private fun setupHero(view: View) {

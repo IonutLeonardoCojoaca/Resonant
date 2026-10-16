@@ -8,6 +8,7 @@ import com.example.resonant.live.LiveMirrorPlan
 import com.example.resonant.live.LivePlayerSnapshot
 import com.example.resonant.live.LiveSessionState
 import com.example.resonant.live.LiveSlot
+import com.example.resonant.live.LiveSyncLog
 import com.example.resonant.live.LiveTickAction
 import com.example.resonant.unisound.ServerClock
 import com.example.resonant.unisound.UnisoundDriftAction
@@ -37,7 +38,9 @@ class LivePlaybackAdapter(
     private val reportDrift: (UnisoundDriftReport) -> Unit,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val deviceNowMs: () -> Long = System::currentTimeMillis,
-    private val log: (String) -> Unit = {}
+    private val log: (String) -> Unit = {},
+    /** Drift lines for verification (`LiveSync`); only set in debug builds, null in release. */
+    private val syncLog: ((String) -> Unit)? = null
 ) {
     interface Host {
         fun applyLiveState(state: LiveSessionState?, change: LiveMirrorChange)
@@ -49,10 +52,14 @@ class LivePlaybackAdapter(
         fun liveQueuedKeys(): List<String>
 
         fun applyLiveTick(action: LiveTickAction)
+
+        /** What the schedule says on every tick while listening (Aria DJ intros). */
+        fun onLiveCursor(cursor: LiveCursor) = Unit
     }
 
     private val driftPolicy = UnisoundDriftPolicy()
     private val driftStats = UnisoundDriftStats()
+    private val syncLimiter = LiveSyncLog()
     private var mirror: LiveMirror? = null
     private var scope: CoroutineScope? = null
     private var collectJob: Job? = null
@@ -111,6 +118,7 @@ class LivePlaybackAdapter(
         if (current.status != LiveListenStatus.LISTENING) return
         val snapshot = host.livePlayerSnapshot() ?: return
         val cursor = current.timeline.at(clock.now())
+        host.onLiveCursor(cursor)
         val queued = host.liveQueuedKeys()
         val now = deviceNowMs()
         val action = LiveMirrorPlan.tick(cursor, queued, snapshot, driftPolicy, now)
@@ -141,6 +149,12 @@ class LivePlaybackAdapter(
     ) {
         if (cursor !is LiveCursor.Playing || snapshot.isBuffering || !snapshot.isPlaying) return
         if (snapshot.index != queued.indexOf(cursor.slot.key)) return
+        syncLog?.let { write ->
+            val slug = state.value?.slug.orEmpty()
+            syncLimiter.lineOrNull(
+                slug, cursor.slot.blockId, cursor.positionMs, snapshot.positionMs - cursor.positionMs, now
+            )?.let(write)
+        }
         val seeked = action is LiveTickAction.Drift && action.action is UnisoundDriftAction.Seek
         driftStats.record(abs(snapshot.positionMs - cursor.positionMs), seeked, now)?.let(reportDrift)
     }
@@ -160,6 +174,7 @@ class LivePlaybackAdapter(
         tickJob?.cancel()
         tickJob = null
         driftStats.reset()
+        syncLimiter.reset()
     }
 
     companion object {

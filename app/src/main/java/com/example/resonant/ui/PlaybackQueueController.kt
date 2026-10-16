@@ -5,15 +5,20 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.CompoundButton
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
+import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.session.SessionResult
+import androidx.navigation.findNavController
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -34,6 +39,7 @@ import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.QueueCommands
 import com.example.resonant.playback.QueueSnapshot
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.PlaybackQueueAdapter
 import com.example.resonant.ui.adapters.SongAdapter
@@ -79,6 +85,8 @@ class PlaybackQueueController(
     private var dragFromQueueIndex: Int? = null
     private var dragToQueueIndex: Int? = null
     private var relatedSeedSongId: String? = null
+    /** `requestId` de las relacionadas mostradas (impresiones `RELATED`). */
+    private var relatedRequestId: String? = null
     private var flowV2Enabled = false
     private var saveSessionButton: View? = null
     private val swipeBackground = ColorDrawable(Color.parseColor("#B3261E"))
@@ -206,6 +214,7 @@ class PlaybackQueueController(
         if (songIds.isEmpty()) return
         button.isEnabled = false
         val context = fragment.requireContext().applicationContext
+        val activity = fragment.requireActivity()
         fragment.viewLifecycleOwner.lifecycleScope.launch {
             val saved = runCatching {
                 ApiClient.getRadioService(context)
@@ -213,11 +222,15 @@ class PlaybackQueueController(
                     .takeIf { it.isSuccessful }?.body()
             }.getOrNull()
             button.isEnabled = true
+            if (!fragment.isAdded) return@launch
             if (saved != null) {
+                val playlistId = saved.playlistId?.takeIf(String::isNotBlank)
                 fragment.showResonantSnackbar(
-                    fragment.getString(R.string.flow_save_session_done, saved.name.orEmpty()),
-                    R.color.successColor,
-                    R.drawable.ic_success
+                    text = fragment.getString(R.string.flow_save_session_done, saved.name.orEmpty()),
+                    colorRes = R.color.successColor,
+                    iconRes = R.drawable.ic_success,
+                    actionText = playlistId?.let { fragment.getString(R.string.flow_save_session_open) },
+                    onAction = playlistId?.let { id -> { openSavedPlaylist(activity, id) } }
                 )
             } else {
                 fragment.showResonantSnackbar(
@@ -227,6 +240,20 @@ class PlaybackQueueController(
                 )
             }
         }
+    }
+
+    /**
+     * Abre la playlist recién guardada. La cola vive en una hoja o en el reproductor a pantalla
+     * completa (diálogos sobre la actividad): se cierran para que se vea la playlist.
+     */
+    private fun openSavedPlaylist(activity: FragmentActivity, playlistId: String) {
+        runCatching {
+            (fragment as? DialogFragment)?.takeIf { it.isAdded }?.dismissAllowingStateLoss()
+            (activity.supportFragmentManager.findFragmentByTag(SONG_FRAGMENT_TAG) as? DialogFragment)
+                ?.dismissAllowingStateLoss()
+            activity.findNavController(R.id.nav_host_fragment)
+                .navigate(R.id.action_global_to_playlistFragment, bundleOf("playlistId" to playlistId))
+        }.onFailure { Log.w(TAG, "No se pudo abrir la playlist guardada", it) }
     }
 
     private fun render(value: QueueSnapshot?) {
@@ -295,8 +322,10 @@ class PlaybackQueueController(
         relatedSeedSongId = currentSong.id
 
         fragment.viewLifecycleOwner.lifecycleScope.launch {
-            val related = songManager.getRelatedSongs(currentSong.id, limit = 10)
+            val result = songManager.getRelatedSongsWithRequestId(currentSong.id, limit = 10)
+            val related = result.songs
             if (!fragment.isAdded || relatedSeedSongId != currentSong.id) return@launch
+            relatedRequestId = result.requestId
             if (related.isEmpty()) {
                 section.visibility = View.GONE
             } else {
@@ -317,6 +346,8 @@ class PlaybackQueueController(
             putParcelableArrayListExtra(MusicPlaybackService.Companion.SONG_LIST, relatedSongs)
             putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE, QueueSource.RELATED_SONGS)
             putExtra(MusicPlaybackService.Companion.EXTRA_QUEUE_SOURCE_ID, seedId)
+            putExtra(MusicPlaybackService.Companion.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.RELATED)
+            relatedRequestId?.let { putExtra(MusicPlaybackService.Companion.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
         }
         fragment.requireContext().startService(playIntent)
     }
@@ -488,6 +519,9 @@ class PlaybackQueueController(
     }
 
     private companion object {
+        const val TAG = "PlaybackQueue"
+        /** Etiqueta con la que MainActivity muestra el reproductor a pantalla completa. */
+        const val SONG_FRAGMENT_TAG = "SongFragment"
         /** Botón del deslizador por nivel: 0 familiar, 1 equilibrado, 2 descubrir. */
         val LEVEL_BUTTONS = listOf(R.id.flow_level_familiar, R.id.flow_level_balanced, R.id.flow_level_discover)
     }

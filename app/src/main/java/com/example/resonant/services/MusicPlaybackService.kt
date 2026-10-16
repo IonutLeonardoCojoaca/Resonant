@@ -10,6 +10,7 @@ import android.graphics.drawable.Drawable
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioAttributes as AndroidAudioAttributes
+import android.os.SystemClock
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -35,11 +36,14 @@ import com.example.resonant.data.network.ClientCompatibilityInterceptor
 import com.example.resonant.managers.CrossfadeMode
 import com.example.resonant.managers.AudioQuality
 import com.example.resonant.playback.AudioEqualizerController
+import com.example.resonant.playback.ListenClock
 import com.example.resonant.playback.PlaybackCache
 import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.playback.PlaybackQueueEnricher
 import com.example.resonant.playback.RadioRepository
 import com.example.resonant.playback.RadioBatch
+import com.example.resonant.playback.StreamAttribution
+import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.playback.FlowSessionSnapshot
 import com.example.resonant.playback.flow.FlowQueuePolicy
 import com.example.resonant.playback.PlaybackMediaItemFactory
@@ -48,6 +52,7 @@ import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlaybackStateStore
 import com.example.resonant.playback.PlaybackUrlResolver
 import com.example.resonant.playback.TransitionTiming
+import com.example.resonant.playback.RenderedTransition
 import com.example.resonant.playback.PlaybackQoeTracker
 import com.example.resonant.playback.FirebasePlaybackQoeSink
 import com.example.resonant.playback.BackendPlaybackQoeSink
@@ -59,6 +64,8 @@ import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.data.network.PlaymixTransitionDTO
+import com.example.resonant.data.network.TransitionSuggestRequest
+import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.data.network.PlaybackConnectCommandDTO
 import com.example.resonant.data.network.PlaybackConnectQueueItemDTO
 import com.example.resonant.data.network.PlaybackConnectStateDTO
@@ -68,6 +75,8 @@ import com.example.resonant.managers.FlowPreferencesManager
 import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.TransitionManager
 import com.example.resonant.managers.UserManager
+import com.example.resonant.managers.StreamReporter
+import kotlinx.coroutines.CancellationException
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.managers.SongManager
@@ -101,6 +110,11 @@ import com.example.resonant.live.LiveMirrorChange
 import com.example.resonant.live.LivePlayerSnapshot
 import com.example.resonant.live.LiveRoute
 import com.example.resonant.live.LiveSessionState
+import com.example.resonant.live.LiveSyncLog
+import com.example.resonant.live.LiveDjDuckRamp
+import com.example.resonant.live.LiveDjMode
+import com.example.resonant.playback.LiveDjController
+import com.example.resonant.playback.LiveDjPlayer
 import com.example.resonant.live.LiveTickAction
 import com.example.resonant.playback.UnisoundAwarePlayer
 import com.example.resonant.playback.UnisoundPlaybackAdapter
@@ -129,6 +143,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         const val ACTION_REQUEST_STATE = "com.resonant.ACTION_REQUEST_STATE"
         const val EXTRA_QUEUE_SOURCE = "com.resonant.EXTRA_QUEUE_SOURCE"
         const val EXTRA_QUEUE_SOURCE_ID = "com.resonant.EXTRA_QUEUE_SOURCE_ID"
+        /** `requestId` de la superficie de recomendación desde la que se lanza [ACTION_PLAY] (opcional). */
+        const val EXTRA_RECOMMENDATION_REQUEST_ID = "com.resonant.EXTRA_RECOMMENDATION_REQUEST_ID"
+        /** `playSource` canónico (ver [PlaySourceMapper]) para las entradas de [ACTION_PLAY] (opcional). */
+        const val EXTRA_PLAY_SOURCE_CANONICAL = "com.resonant.EXTRA_PLAY_SOURCE_CANONICAL"
         const val ACTION_START_SEEK = "com.resonant.ACTION_START_SEEK"
         const val ACTION_STOP_SEEK = "com.resonant.ACTION_STOP_SEEK"
         const val ACTION_SHUTDOWN = "com.resonant.ACTION_SHUTDOWN"
@@ -164,6 +182,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         const val ACTION_CONNECT_SYNC = "com.resonant.ACTION_CONNECT_SYNC"
         private const val AUDIO_DUCK_VOLUME_MULTIPLIER = 0.2f
         private const val PREVIOUS_RESTART_THRESHOLD_MS = 3_000L
+        private const val PLAYMIX_REFRESH_MIN_INTERVAL_MS = 60_000L
+        private const val RECIPE_LEAD_MS = 3_000L
         private const val PLAYBACK_STATE_SAVE_INTERVAL_MS = 5_000L
         // Shortened from 10s: this is also the maximum window during which the
         // device that just lost playback could still be audible alongside the
@@ -178,6 +198,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         private const val UNISOUND_MAX_ANCHOR_WAIT_MS = 2_000L
         private const val UNISOUND_LEAVE_TO_PLAY_MESSAGE = "Sal de la sala para reproducir tu música"
         private const val LIVE_TAG = "Live"
+        private const val LIVE_DJ_TAG = "LiveDj"
         private val LEGACY_CUSTOM_ACTIONS = setOf(
             ACTION_PLAY,
             ACTION_PAUSE,
@@ -259,6 +280,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private var hasAudioFocus: Boolean = false
     private var resumeOnAudioFocusGain: Boolean = false
     private var duckedByAudioFocus: Boolean = false
+    // Aria DJ en Live: la música baja con este multiplicador mientras suena la voz (1.0 sin intro).
+    // Es independiente de duckedByAudioFocus para que un evento no restaure el volumen del otro.
+    private var djDuckMultiplier: Float = 1.0f
+    private var djDuckJob: kotlinx.coroutines.Job? = null
+    @Volatile private var liveDjMode: LiveDjMode = LiveDjMode.VOICE
+    private lateinit var liveDj: LiveDjController
     private var noisyReceiverRegistered: Boolean = false
     private var automixEnabled: Boolean = false
     private var crossfadeDurationMs: Long = 5000L
@@ -280,7 +307,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private var streamingQuality: AudioQuality = AudioQuality.AUTO
     private val TARGET_LOUDNESS_LUFS = -14.0f  // Referencia estándar de streaming
 
+    private val listenClock = ListenClock()
+    // Reasignarlo marca el inicio de una canción y reinicia el descuento de pausas.
     private var currentSongStartTimeMs: Long = 0L
+        set(value) {
+            field = value
+            listenClock.restart(value, PlaybackStateRepository.isPlaying)
+        }
     private var lastPlaybackStateSaveAtMs: Long = 0L
     private var clearPlaybackStateOnDestroy: Boolean = false
     private var originalQueueSongs: List<Song>? = null
@@ -817,7 +850,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         serviceScope.launch {
             settingsManager.flowDiscoveryLevelFlow.collect { level -> flowDiscoveryLevel = level }
         }
+        serviceScope.launch {
+            settingsManager.liveDjModeFlow.collect { mode -> liveDjMode = mode }
+        }
         serviceScope.launch { FlowPreferencesManager.syncOnStart(applicationContext) }
+        // Escuchas que quedaron pendientes (sin red, proceso muerto…): se reenvían al arrancar.
+        serviceScope.launch { runCatching { StreamReporter.flush(applicationContext) } }
         observeSettings() // <-- Movido aquí
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -897,7 +935,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             onTransitionAudible = ::handleTransitionAudible,
             onTransitionProgress = { position, duration ->
                 PlaybackStateRepository.updatePlaybackPosition(position, duration.toInt())
-            }
+            },
+            recipeProvider = { from, to -> recipeFor(from, to) }
         )
 
         setupPlayerListener()
@@ -941,7 +980,18 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             host = liveHost,
             onScheduleEnded = liveManager::onScheduleEnded,
             reportDrift = ::reportLiveDrift,
-            log = { Log.d(LIVE_TAG, it) }
+            log = { Log.d(LIVE_TAG, it) },
+            syncLog = if (BuildConfig.DEBUG) { line -> Log.d(LiveSyncLog.TAG, line) } else null
+        )
+        liveDj = LiveDjController(
+            speaker = LiveDjPlayer(applicationContext),
+            duck = ::setDjDuck,
+            mode = { liveDjMode },
+            featureOn = CapabilitiesManager::isAriaDjEnabled,
+            scope = CoroutineScope(serviceScope.coroutineContext + Dispatchers.Main),
+            log = { Log.d(LIVE_DJ_TAG, it) },
+            onPresented = { mode -> logLiveDjEvent("live_dj_presented", "mode", mode) },
+            onInterrupted = { reason -> logLiveDjEvent("live_dj_interrupted", "reason", reason) }
         )
         mediaLibrarySession = MediaLibrarySession.Builder(
             this,
@@ -977,6 +1027,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         unisoundAdapter.start(serviceScope)
         liveAdapter.start(serviceScope)
         serviceScope.launch { unisoundManager.restore() }
+        com.example.resonant.widget.WidgetUpdateCoordinator.attach(this)
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
@@ -986,6 +1037,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         stopSelf()
     }
     override fun onDestroy() {
+        // Before PlaybackStateRepository.reset(): the widget stops observing and is repainted paused.
+        com.example.resonant.widget.WidgetUpdateCoordinator.detach()
         if (::playbackStateStore.isInitialized) {
             if (clearPlaybackStateOnDestroy) {
                 playbackStateStore.clear()
@@ -997,6 +1050,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         stopConnectHeartbeats()
         if (::unisoundAdapter.isInitialized) unisoundAdapter.stop()
         if (::liveAdapter.isInitialized) liveAdapter.stop()
+        if (::liveDj.isInitialized) liveDj.release()
         unisoundApplyRunnable?.let(unisoundHandler::removeCallbacks)
 
         if (::transitionManager.isInitialized) {
@@ -1113,6 +1167,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
                 Log.d("PlayerListener", "onIsPlayingChanged: $isPlayingUpdate")
 
+                listenClock.onPlayingChanged(isPlayingUpdate, System.currentTimeMillis())
                 PlaybackStateRepository.setIsPlaying(isPlayingUpdate)
                 updateUiAndSystem()
                 syncPlaybackConnect()
@@ -1540,6 +1595,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         if (isPlaymixMode) {
             val transition = playmixTransitions["${song.id}:${nextSong.id}"]
             if (transition != null) {
+                // Resonant Studio: con clip renderizado se dispara antes para precargar clip y B.
+                val nowMs = System.currentTimeMillis()
+                RenderedTransition.planFor(transition, nowMs)?.let { plan ->
+                    return RenderedTransition.triggerPositionMs(plan)
+                }
+                if (RenderedTransition.needsRefresh(transition, nowMs)) refreshPlaymixTransitions()
+
                 val exitMs = transition.exitPointMs.toLong()
                 val crossfadeMs = transition.crossfadeDurationMs.toLong()
                 val gapMs = transition.gapMs.toLong()
@@ -1563,6 +1625,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         if (TransitionTiming.effectiveDurationMs(exoDurationMs, analysisDurationMs) <= 0) return -1L
 
         if (isAlbumMode) return -1L  // album non-automix: handled elsewhere
+
+        // Presets v2: con receta del backend, la transición empieza unos segundos antes de a.startMs.
+        if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) {
+            recipeFor(song, nextSong)?.let { doc -> return (doc.a.startMs - RECIPE_LEAD_MS).coerceAtLeast(0L) }
+        }
 
         val actualMixDuration: Long = if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) {
             // Intelligent mode always picks its own duration, regardless of the slider.
@@ -1942,6 +2009,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         override fun applyLiveTick(action: LiveTickAction) =
             this@MusicPlaybackService.applyLiveTick(action)
+
+        override fun onLiveCursor(cursor: LiveCursor) {
+            if (!::liveDj.isInitialized || !isLiveMode) return
+            when (cursor) {
+                is LiveCursor.Playing -> liveDj.onTick(cursor.slot, cursor.positionMs)
+                else -> liveDj.onTick(null, 0L)
+            }
+        }
     }
 
     private fun inLive(): Boolean = ::liveManager.isInitialized && liveManager.state.value != null
@@ -1950,6 +2025,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     /** Pause only this device (focus loss, noisy output, Connect); the room or the broadcast goes on. */
     private fun holdSharedLocally() {
+        if (::liveDj.isInitialized) liveDj.stop("hold")
         holdUnisoundLocally()
         if (inLive()) liveManager.hold()
     }
@@ -2013,6 +2089,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun applyLiveState(state: LiveSessionState?, change: LiveMirrorChange) {
+        applyLiveDjChange(change)
         when (change) {
             LiveMirrorChange.NONE -> Unit
             LiveMirrorChange.ENTER, LiveMirrorChange.REJOIN -> rebuildLiveQueue(requireNotNull(state))
@@ -2149,6 +2226,52 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         abandonAudioFocus()
         PlaybackStateRepository.reset()
         updateUiAndSystem()
+    }
+
+    /** Aria DJ follows the broadcast: any change of channel, hold or exit cuts the voice. */
+    private fun applyLiveDjChange(change: LiveMirrorChange) {
+        if (!::liveDj.isInitialized) return
+        when (change) {
+            LiveMirrorChange.ENTER, LiveMirrorChange.REJOIN -> {
+                liveDj.stop("channel_changed")
+                liveDj.prepare()
+            }
+            LiveMirrorChange.HOLD -> liveDj.stop("hold")
+            LiveMirrorChange.EXIT -> {
+                liveDj.release()
+                resetDjDuck()
+            }
+            LiveMirrorChange.APPEND, LiveMirrorChange.NONE -> Unit
+        }
+    }
+
+    /** Ramps the music to 30 % (or back to 100 %) for the Aria DJ voice, on Main. Never pauses. */
+    private fun setDjDuck(active: Boolean) {
+        djDuckJob?.cancel()
+        val steps = LiveDjDuckRamp.steps(djDuckMultiplier, if (active) LiveDjDuckRamp.DUCKED else LiveDjDuckRamp.FULL)
+        djDuckJob = serviceScope.launch(Dispatchers.Main) {
+            for (value in steps) {
+                djDuckMultiplier = value
+                applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+                kotlinx.coroutines.delay(LiveDjDuckRamp.STEP_MS)
+            }
+        }
+    }
+
+    /** Leaving Live: no voice and full volume, right away. */
+    private fun resetDjDuck() {
+        djDuckJob?.cancel()
+        djDuckJob = null
+        if (djDuckMultiplier != LiveDjDuckRamp.FULL) {
+            djDuckMultiplier = LiveDjDuckRamp.FULL
+            applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+        }
+    }
+
+    private fun logLiveDjEvent(name: String, key: String, value: String) {
+        runCatching {
+            FirebaseAnalytics.getInstance(applicationContext).logEvent(name, Bundle().apply { putString(key, value) })
+        }
     }
 
     private fun reportLiveDrift(report: UnisoundDriftReport) {
@@ -2444,6 +2567,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         if (needsSecondPlayer && nextSong != null) {
             transitionManager.preloadNextSong(nextSong, resolveNextEntryPointMs(queue, currentQueueIndex, nextSong))
+            queue.songs.getOrNull(currentQueueIndex)?.let { current -> prefetchRecipe(queue, current, nextSong) }
         } else {
             cancelCurrentTransitionAndRestoreEffects()
         }
@@ -2573,6 +2697,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         val hadNextSong = queue.currentIndex < queue.songs.lastIndex
         queue.appendFlowSongs(toAppend, batch.reasonsBySongId)
+        // Las canciones de radio se reportan como RADIO con el requestId de su lote, aunque la cola
+        // conserve su QueueSource original.
+        queue.attributeLast(toAppend.size, StreamAttribution(batch.requestId, PlaySourceMapper.RADIO))
         PlaybackStateRepository.publishQueue()
         PlaybackStateRepository.setRadioSession(radioRepository.currentSession)
 
@@ -2801,11 +2928,17 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             Log.d("StreamAPI", "Sesión restaurada sin tiempo activo; no se reporta stream.")
             return
         }
-        val playSource = PlaybackStateRepository.activeQueue?.sourceType?.name ?: "UNKNOWN"
+        val activeQueue = PlaybackStateRepository.activeQueue
+        val attribution = activeQueue?.attributionForSong(songToReport.id, activeQueue.currentIndex)
+        val playSource = attribution?.playSource ?: PlaySourceMapper.canonical(activeQueue?.sourceType)
 
-        // 2. Calculamos la duración
-        val endTime = System.currentTimeMillis()
-        val durationInSeconds = ((endTime - startTime) / 1000).toInt()
+        // 2. Calculamos la duración escuchada (sin pausas, nunca más que la canción)
+        val songDurationSeconds = (songToReport.audioAnalysis?.durationMs ?: 0) / 1000
+        val durationInSeconds = listenClock.listenedSeconds(
+            startTime,
+            System.currentTimeMillis(),
+            songDurationSeconds
+        )
 
         // 3. Seguridad: No reportar si se escuchó muy poco (ej. < 5 seg)
         if (durationInSeconds < 5) {
@@ -2819,13 +2952,22 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             songId = songToReport.id,
             durationInSeconds = durationInSeconds,
             wasSkipped = wasSkipped,
-            playSource = playSource
+            playSource = playSource,
+            recommendationRequestId = attribution?.requestId
         )
 
         // 5. Marcamos como reportada para evitar duplicados
         PlaybackStateRepository.streamReported = true
     }
-    private fun reportStream(songId: String, durationInSeconds: Int, wasSkipped: Boolean, playSource: String) {
+    private fun reportStream(
+        songId: String,
+        durationInSeconds: Int,
+        wasSkipped: Boolean,
+        playSource: String,
+        recommendationRequestId: String? = null
+    ) {
+        // El id y la hora se fijan al terminar la escucha: un reintento desde la bandeja reutiliza ambos.
+        val playedAtMs = System.currentTimeMillis()
         serviceScope.launch {
             try {
                 val userManager = UserManager(applicationContext)
@@ -2836,22 +2978,21 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     return@launch // Abortar la corrutina si no hay UserId
                 }
 
-                // 2. Construir el objeto DTO (¡Añadiendo el userId!)
-                val streamData = AddStreamDTO(
+                val pending = StreamReporter.newPending(
+                    userId = userId,
                     songId = songId,
-                    userId = userId, // 🔥 ¡NUEVA LÍNEA!
                     listenDurationInSeconds = durationInSeconds,
                     wasSkipped = wasSkipped,
-                    playSource = playSource
+                    playSource = playSource,
+                    playedAtMs = playedAtMs,
+                    recommendationRequestId = recommendationRequestId
                 )
 
-                Log.i("StreamAPI", "Reportando stream: $streamData")
+                Log.i("StreamAPI", "Reportando stream: $songId (${durationInSeconds}s, $playSource)")
+                StreamReporter.report(applicationContext, pending)
 
-                val songManager = SongManager(applicationContext)
-                songManager.addStream(streamData)?.let { StreakEventBus.publish(it) }
-
-                Log.d("StreamAPI", "✅ Stream reportado para $songId")
-
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("StreamAPI", "❌ Error al reportar stream", e)
             }
@@ -2859,6 +3000,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
     private fun updateUiAndSystem() {
         triggerNotificationUpdate()
+        com.example.resonant.widget.WidgetUpdateCoordinator.requestUpdate()
 
         // Su única responsabilidad ahora es el estado de reproducción (Play/Pause y posición)
 
@@ -2891,36 +3033,22 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             currentIndex = index,
             sourceId = sourceId,
             sourceType = sourceType
-        )
+        ).also { queue ->
+            // Atribución de recomendación (solo en memoria). Sin extras, la cola se reporta como siempre,
+            // con la fuente canónica de su QueueSource.
+            val requestId = originalIntent.getStringExtra(EXTRA_RECOMMENDATION_REQUEST_ID)?.takeIf { it.isNotBlank() }
+            val canonicalSource = originalIntent.getStringExtra(EXTRA_PLAY_SOURCE_CANONICAL)?.takeIf { it.isNotBlank() }
+            if (requestId != null || canonicalSource != null) {
+                queue.attributeAll(
+                    StreamAttribution(requestId, canonicalSource ?: PlaySourceMapper.canonical(sourceType))
+                )
+            }
+        }
 
         if (sourceType == QueueSource.PLAYMIX && sourceId.isNotBlank()) {
             playmixTransitions = emptyMap()
             playmixSongIdMap   = emptyMap()
-            serviceScope.launch(Dispatchers.IO) {
-                try {
-                    val detail = PlaymixManager(applicationContext).getPlaymixDetail(sourceId)
-                    val songIdToPlaymixId = detail.songs.associate { it.songId to it.playmixSongId }
-                    val transitionMap = mutableMapOf<String, PlaymixTransitionDTO>()
-                    for (t in detail.transitions) {
-                        val fromSongId = detail.songs.firstOrNull {
-                            it.playmixSongId == t.fromPlaymixSongId
-                        }?.songId
-                        val toSongId   = detail.songs.firstOrNull {
-                            it.playmixSongId == t.toPlaymixSongId
-                        }?.songId
-                        if (fromSongId != null && toSongId != null) {
-                            transitionMap["$fromSongId:$toSongId"] = t
-                        }
-                    }
-                    withContext(Dispatchers.Main) {
-                        playmixSongIdMap   = songIdToPlaymixId
-                        playmixTransitions = transitionMap
-                        Log.d("MusicService", "🔌 PlayMix transitions loaded: ${transitionMap.size}")
-                    }
-                } catch (e: Exception) {
-                    Log.e("MusicService", "Failed to load PlayMix transitions", e)
-                }
-            }
+            loadPlaymixTransitions(sourceId)
         } else {
             playmixTransitions = emptyMap()
             playmixSongIdMap   = emptyMap()
@@ -3037,6 +3165,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 if (::playbackStateStore.isInitialized) {
                     playbackStateStore.clear()
                 }
+                // Logout (both paths send this): the widget forgets the user's music.
+                com.example.resonant.widget.WidgetStateStore.get(applicationContext).clearUserState()
+                com.example.resonant.widget.ResonantWidgetProvider.refreshAll(applicationContext)
                 stop()
             }
             ACTION_REQUEST_STATE -> {
@@ -3667,6 +3798,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         return (
             getNormalizedVolume(song) *
                 focusMultiplier *
+                djDuckMultiplier *
                 audioEqualizerController.headroomMultiplier
             ).coerceIn(0.0f, 1.0f)
     }
@@ -3752,6 +3884,87 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 Log.e("MusicService", "Failed to preload metadata for index $index: ${e.message}")
             }
         }
+    }
+
+    // ── Presets v2: recetas sugeridas por el backend para el modo inteligente ──────────────────
+
+    private val recipeDocuments = java.util.concurrent.ConcurrentHashMap<String, MixDocumentDTO>()
+    private val recipeMisses: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    @Volatile
+    private var recipesUnavailable = false
+
+    private fun recipeKey(from: Song, to: Song) = "${from.id}:${to.id}"
+
+    fun recipeFor(from: Song, to: Song): MixDocumentDTO? = recipeDocuments[recipeKey(from, to)]
+
+    /** Pide al backend la mejor receta para la pareja; un 404 (flag apagado) desactiva las peticiones en la sesión. */
+    private fun prefetchRecipe(queue: PlaybackQueue, from: Song, to: Song) {
+        if (recipesUnavailable || crossfadeMode != CrossfadeMode.INTELLIGENT_EQ) return
+        if (queue.sourceType == QueueSource.PLAYMIX || queue.sourceType == QueueSource.ALBUM) return
+        val key = recipeKey(from, to)
+        if (recipeDocuments.containsKey(key) || !recipeMisses.add(key)) return
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val response = ApiClient.getTransitionPresetService(applicationContext)
+                    .suggest(TransitionSuggestRequest(fromSongId = from.id, toSongId = to.id, limit = 1))
+                if (response.code() == 404) {
+                    recipesUnavailable = true
+                    return@launch
+                }
+                response.body()?.suggestions?.firstOrNull()?.document?.let { doc ->
+                    recipeDocuments[key] = doc
+                    recipeMisses.remove(key)
+                    Log.d("MusicService", "🧩 Receta para ${from.title} → ${to.title}: ${doc.durationMs}ms")
+                }
+            } catch (e: Exception) {
+                Log.w("MusicService", "Sin receta para la pareja: ${e.message}")
+            }
+        }
+    }
+
+    /** Carga las transiciones de la Playmix (con sus clips de Studio) en segundo plano. */
+    private fun loadPlaymixTransitions(playmixId: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val detail = PlaymixManager(applicationContext).getPlaymixDetail(playmixId)
+                val songIdToPlaymixId = detail.songs.associate { it.songId to it.playmixSongId }
+                val transitionMap = mutableMapOf<String, PlaymixTransitionDTO>()
+                for (t in detail.transitions) {
+                    val fromSongId = detail.songs.firstOrNull {
+                        it.playmixSongId == t.fromPlaymixSongId
+                    }?.songId
+                    val toSongId   = detail.songs.firstOrNull {
+                        it.playmixSongId == t.toPlaymixSongId
+                    }?.songId
+                    if (fromSongId != null && toSongId != null) {
+                        transitionMap["$fromSongId:$toSongId"] = t
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    // La cola puede haber cambiado mientras se cargaba.
+                    if (PlaybackStateRepository.activeQueue?.sourceId != playmixId) return@withContext
+                    playmixSongIdMap   = songIdToPlaymixId
+                    playmixTransitions = transitionMap
+                    Log.d("MusicService", "🔌 PlayMix transitions loaded: ${transitionMap.size}")
+                }
+            } catch (e: Exception) {
+                Log.e("MusicService", "Failed to load PlayMix transitions", e)
+            }
+        }
+    }
+
+    private var lastPlaymixRefreshUptime = 0L
+
+    /** Las URL firmadas de los clips caducan: se vuelve a pedir el detalle, como mucho una vez por minuto. */
+    private fun refreshPlaymixTransitions() {
+        val queue = PlaybackStateRepository.activeQueue ?: return
+        if (queue.sourceType != QueueSource.PLAYMIX || queue.sourceId.isBlank()) return
+        val now = SystemClock.uptimeMillis()
+        if (lastPlaymixRefreshUptime != 0L && now - lastPlaymixRefreshUptime < PLAYMIX_REFRESH_MIN_INTERVAL_MS) return
+        lastPlaymixRefreshUptime = now
+        Log.d("MusicService", "🔄 URL de clip de Studio caducada: refrescando transiciones")
+        loadPlaymixTransitions(queue.sourceId)
     }
 
     private fun handleTransitionTrigger() {

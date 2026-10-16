@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta "moment" del resumen mensual. recapCardRoot es lo que se comparte como imagen. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/recapCardRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_recap_card"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:padding="28dp">
+
+    <TextView
+        android:id="@+id/recapCardValue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="0dp"
+        android:fontFamily="@font/unageo_bold"
+        android:textColor="@color/recap_text_primary"
+        android:textSize="34sp"
+        tools:text="Tu momento: la noche" />
+
+    <TextView
+        android:id="@+id/recapCardSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:fontFamily="@font/unageo_medium"
+        android:textColor="@color/recap_text_secondary"
+        android:textSize="16sp"
+        tools:text="41 % de tu tiempo" />
+</LinearLayout>

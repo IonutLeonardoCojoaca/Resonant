@@ -112,9 +112,10 @@ interface SongService {
         @Query("limit") limit: Int = 20
     ): List<Song>
 
+    /** El `requestId` de las impresiones `RELATED` llega en la cabecera `X-Recommendation-Request-Id`. */
     @GET("api/songs/{id}/related")
     suspend fun getRelatedSongs(
         @Path("id") songId: String,
         @Query("limit") limit: Int = 20
-    ): List<Song>
+    ): Response<List<Song>>
 }

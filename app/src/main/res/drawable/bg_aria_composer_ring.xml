@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Va detrás del composer, 1.5dp más grande: se ve como un borde con degradado. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="28dp" />
+    <gradient
+        android:angle="0"
+        android:centerColor="#F21FD8"
+        android:endColor="#7117FF"
+        android:startColor="#FF1F3D"
+        android:type="linear" />
+</shape>

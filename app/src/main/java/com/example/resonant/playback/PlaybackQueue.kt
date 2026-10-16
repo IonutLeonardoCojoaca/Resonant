@@ -43,6 +43,51 @@ class PlaybackQueue(
     var flowSeedSourceType: QueueSource = sourceType
     var flowSeedSourceId: String = sourceId
 
+    /**
+     * Atribución de recomendación por entrada (`entryId`), solo en memoria: sigue a la entrada al reordenar
+     * o quitar otras y nunca se persiste (una sesión restaurada se reporta sin `requestId`).
+     */
+    private val attributions: MutableMap<String, StreamAttribution> = HashMap()
+    private val attributionSongIds: MutableMap<String, String> = HashMap()
+
+    /** Asigna [attribution] a todas las entradas actuales (reproducción iniciada desde una superficie). */
+    fun attributeAll(attribution: StreamAttribution) {
+        ensureEntryIds()
+        attributions.clear()
+        attributionSongIds.clear()
+        entryIds.forEachIndexed { index, entryId -> putAttribution(entryId, songs[index].id, attribution) }
+    }
+
+    /** Asigna [attribution] a las últimas [count] entradas (p. ej. un lote de radio recién añadido). */
+    fun attributeLast(count: Int, attribution: StreamAttribution) {
+        if (count <= 0) return
+        ensureEntryIds()
+        val start = (entryIds.size - count).coerceAtLeast(0)
+        for (index in start until entryIds.size) {
+            putAttribution(entryIds[index], songs[index].id, attribution)
+        }
+    }
+
+    /** Atribución de la entrada en [index], o `null` si no tiene. */
+    fun attributionAt(index: Int): StreamAttribution? =
+        entryIds.getOrNull(index)?.let { attributions[it] }
+
+    /**
+     * Atribución de la canción [songId]: la de la entrada [preferredIndex] si es esa canción; si no, la de su
+     * primera aparición en la cola.
+     */
+    fun attributionForSong(songId: String, preferredIndex: Int): StreamAttribution? {
+        if (attributions.isEmpty()) return null
+        if (songs.getOrNull(preferredIndex)?.id == songId) return attributionAt(preferredIndex)
+        val index = indexOfSongId(songId)
+        return if (index >= 0) attributionAt(index) else null
+    }
+
+    private fun putAttribution(entryId: String, songId: String, attribution: StreamAttribution) {
+        attributions[entryId] = attribution
+        attributionSongIds[entryId] = songId
+    }
+
     /** Lazily built, invalidated automatically whenever [songs] is reassigned. */
     private var songIndexById: Map<String, Int>? = null
 
@@ -67,7 +112,20 @@ class PlaybackQueue(
     }
 
     fun resetEntriesForSongs() {
+        // Las entradas se recrean (aleatorio, resincronizar): la atribución pasa a la nueva entrada de la
+        // misma canción.
+        val bySong = HashMap<String, StreamAttribution>()
+        for ((entryId, attribution) in attributions) {
+            attributionSongIds[entryId]?.let { songId -> bySong.putIfAbsent(songId, attribution) }
+        }
+        attributions.clear()
+        attributionSongIds.clear()
         entryIds = songs.map { UUID.randomUUID().toString() }
+        if (bySong.isNotEmpty()) {
+            entryIds.forEachIndexed { index, entryId ->
+                bySong[songs[index].id]?.let { putAttribution(entryId, songs[index].id, it) }
+            }
+        }
     }
 
     fun ensureEntryIds() {

@@ -1,58 +1,123 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Panel agrupado de canciones: una sola superficie con filas separadas por divisores
+     (sin huecos entre tarjetas). Lo usan recomendaciones, vista previa de playlist y
+     la desambiguación "elige una versión". -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/ariaSongCardsContainer"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginTop="14dp"
+    android:background="@drawable/bg_aria_glass_panel"
+    android:clipToOutline="true"
     android:orientation="vertical"
-    android:layout_marginTop="12dp"
+    android:paddingBottom="6dp"
     android:visibility="gone">
 
-    <!-- Header row: artist name + catalog count -->
     <LinearLayout
         android:id="@+id/songCardsHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginBottom="8dp">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="10dp">
+
+        <FrameLayout
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_aria_brand_tile">
+
+            <ImageView
+                android:id="@+id/songCardsIcon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_song"
+                app:tint="@android:color/white" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/songCardsKindLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:letterSpacing="0.14"
+                android:text="CANCIONES RECOMENDADAS"
+                android:textColor="@color/aria_accent_text"
+                android:textSize="9.5sp" />
+
+            <TextView
+                android:id="@+id/songCardsArtistName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/unageo_bold"
+                android:maxLines="1"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/songCardsCatalogCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:fontFamily="@font/unageo_regular"
+                android:textColor="@color/textTheme"
+                android:textSize="11sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/songCardsKindLabel"
+            android:id="@+id/songCardsCountPill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="CANCIONES RECOMENDADAS"
-            android:textColor="#55FFFFFF"
-            android:textSize="9sp"
-            android:fontFamily="@font/unageo_medium"
-            android:textAllCaps="true"
-            android:letterSpacing="0.1"/>
-
-        <TextView
-            android:id="@+id/songCardsArtistName"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_aria_genre_chip"
             android:fontFamily="@font/unageo_bold"
-            android:layout_marginTop="2dp"
-            android:visibility="gone"/>
-
-        <TextView
-            android:id="@+id/songCardsCatalogCount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#66FFFFFF"
-            android:textSize="11sp"
-            android:fontFamily="@font/unageo_regular"
-            android:layout_marginTop="1dp"
-            android:visibility="gone"/>
+            android:paddingHorizontal="9dp"
+            android:paddingVertical="4dp"
+            android:textColor="@color/textSecondaryAlpha"
+            android:textSize="10sp"
+            android:visibility="gone" />
     </LinearLayout>
 
-    <!-- Scrollable song list -->
     <LinearLayout
         android:id="@+id/songCardsList"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"/>
+        android:divider="@drawable/divider_aria_result_row"
+        android:orientation="vertical"
+        android:showDividers="middle" />
+
+    <TextView
+        android:id="@+id/songCardsMoreButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:drawableEnd="@drawable/ic_keyboard_arrow_down"
+        android:drawableTint="@color/textSecondaryAlpha"
+        android:fontFamily="@font/unageo_semi_bold"
+        android:gravity="center_vertical"
+        android:paddingStart="72dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="8dp"
+        android:textColor="@color/textSecondaryAlpha"
+        android:textSize="12sp"
+        android:visibility="gone" />
 
 </LinearLayout>

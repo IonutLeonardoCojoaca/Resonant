@@ -6,6 +6,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.resonant.data.network.StudioErrors
 import com.example.resonant.data.network.BandFadeTypesDTO
 import com.example.resonant.data.network.EqBandDTO
 import com.example.resonant.data.network.EqSettingsDTO
@@ -80,6 +81,10 @@ class CrossfadeEditorViewModel(
         val fadeCurveType: String,
         val bandFadeTypes: BandFadeTypesDTO
     )
+
+    /** Mensaje de error de una edición; las transiciones de Resonant Studio no se editan aquí. */
+    private fun editError(error: Throwable, fallback: String): String =
+        if (StudioErrors.isStudioManaged(error)) StudioErrors.STUDIO_MANAGED_MESSAGE else fallback
 
     private fun logError(message: String, throwable: Throwable) {
         runCatching { Log.e("CrossfadeEditorVM", message, throwable) }
@@ -233,7 +238,7 @@ class CrossfadeEditorViewModel(
                 logError("Error applying preset", e)
                 _state.value = _state.value?.copy(
                     presetsLoading = false,
-                    error = "Error al aplicar el preset."
+                    error = editError(e, "Error al aplicar el preset.")
                 )
             }
         }
@@ -263,7 +268,7 @@ class CrossfadeEditorViewModel(
                 logError("Error resetting preset", e)
                 _state.value = _state.value?.copy(
                     presetsLoading = false,
-                    error = "Error al resetear el preset."
+                    error = editError(e, "Error al resetear el preset.")
                 )
             }
         }
@@ -456,7 +461,7 @@ class CrossfadeEditorViewModel(
                 _state.value = _state.value?.copy(isSaving = false, savedSuccess = true, error = null)
             } catch (e: Exception) {
                 logError("Error saving transition", e)
-                _state.value = stateToSave.copy(isSaving = false, error = "Error al guardar: ${e.message}")
+                _state.value = stateToSave.copy(isSaving = false, error = editError(e, "Error al guardar: ${e.message}"))
             }
         }
     }

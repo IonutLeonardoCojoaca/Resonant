@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Separador entre filas de los paneles de resultados (alineado con el texto, no con la portada). -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="72dp"
+    android:insetRight="14dp">
+    <shape android:shape="rectangle">
+        <size android:height="1dp" />
+        <solid android:color="@color/dividerOverlay" />
+    </shape>
+</inset>

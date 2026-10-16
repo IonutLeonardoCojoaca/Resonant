@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bandeja de notificaciones: campana de Inicio, pantalla de bandeja, ajustes por categoría
+     y canales del sistema de los avisos locales. -->
+<resources>
+    <string name="notifications_bell_description">Notificaciones</string>
+    <string name="notifications_inbox_title">Notificaciones</string>
+    <string name="notifications_inbox_empty">No tienes notificaciones</string>
+    <string name="notifications_mark_all_read">Marcar todo como leído</string>
+    <string name="notifications_load_failed">No se han podido cargar las notificaciones</string>
+    <string name="notifications_retry">Reintentar</string>
+    <string name="notifications_update_installed">Ya tienes la versión %1$s</string>
+    <string name="notifications_update_unavailable">Esta versión ya no está disponible</string>
+
+    <string name="notifications_channel_aria">Aria</string>
+    <string name="notifications_channel_unisound">Unisound</string>
+    <string name="notifications_channel_live">Especiales de Live</string>
+    <string name="notifications_channel_general">General</string>
+
+    <string name="notifications_settings_aria">Aria</string>
+    <string name="notifications_settings_unisound">Unisound</string>
+    <string name="notifications_settings_live">Especiales de Live</string>
+    <string name="notifications_settings_streak">Racha</string>
+    <string name="notifications_settings_song_of_day">Canción del día</string>
+    <string name="notifications_settings_app_update">Actualizaciones</string>
+    <string name="notifications_settings_subtitle">Qué guarda Resonant en tu bandeja</string>
+    <string name="notifications_settings_save_failed">No se ha podido guardar el cambio</string>
+</resources>

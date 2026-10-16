@@ -13,6 +13,7 @@ import com.example.resonant.data.network.services.GenreService
 import com.example.resonant.data.network.services.HomeService
 import com.example.resonant.data.network.services.LiveService
 import com.example.resonant.data.network.services.LyricsService
+import com.example.resonant.data.network.services.NotificationService
 import com.example.resonant.data.network.services.PlaybackAnalyticsService
 import com.example.resonant.data.network.services.PlaybackConnectService
 import com.example.resonant.data.network.services.PlatformService
@@ -149,6 +150,22 @@ object ApiClient {
 
     fun getStreakService(context: Context): StreakService {
         return getRetrofitInstance(context).create(StreakService::class.java)
+    }
+
+    fun getAutoDownloadService(context: Context): com.example.resonant.data.network.services.AutoDownloadService {
+        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.AutoDownloadService::class.java)
+    }
+
+    fun getNotificationService(context: Context): NotificationService {
+        return getRetrofitInstance(context).create(NotificationService::class.java)
+    }
+
+    fun getListeningStatsService(context: Context): com.example.resonant.data.network.services.ListeningStatsService {
+        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.ListeningStatsService::class.java)
+    }
+
+    fun getRecapService(context: Context): com.example.resonant.data.network.services.RecapService {
+        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.RecapService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

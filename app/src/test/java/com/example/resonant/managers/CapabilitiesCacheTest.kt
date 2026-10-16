@@ -51,6 +51,24 @@ class CapabilitiesCacheTest {
     }
 
     @Test
+    fun `aria dj flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(ariaDj = true) }.refresh().ariaDj)
+        assertFalse(cache { PlatformFeaturesDTO() }.refresh().ariaDj)
+    }
+
+    @Test
+    fun `aria dj flag missing from the server json is off`() = runTest {
+        val features = Gson().fromJson("{\"live\": true}", PlatformFeaturesDTO::class.java)
+
+        assertFalse(cache { features }.refresh().ariaDj)
+    }
+
+    @Test
+    fun `failure turns aria dj off`() = runTest {
+        assertFalse(cache { throw IOException("offline") }.refresh().ariaDj)
+    }
+
+    @Test
     fun `streaks flag is exposed and defaults to off`() = runTest {
         assertTrue(cache { PlatformFeaturesDTO(streaks = true) }.refresh().streaks)
         assertFalse(cache { PlatformFeaturesDTO() }.refresh().streaks)
@@ -134,6 +152,24 @@ class CapabilitiesCacheTest {
         assertTrue(cache.refresh().exploreV2)
         assertFalse(cache.refresh(force = true).exploreV2)
         assertFalse(cache.features.exploreV2)
+    }
+
+    @Test
+    fun `monthly recap flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(monthlyRecap = true) }.refresh().monthlyRecap)
+        assertFalse(cache { PlatformFeaturesDTO(monthlyRecap = false) }.refresh().monthlyRecap)
+    }
+
+    @Test
+    fun `monthly recap flag missing from the server json is off`() = runTest {
+        val features = Gson().fromJson("{\"streaks\": true}", PlatformFeaturesDTO::class.java)
+
+        assertFalse(cache { features }.refresh().monthlyRecap)
+    }
+
+    @Test
+    fun `failure turns monthly recap off`() = runTest {
+        assertFalse(cache { throw IOException("offline") }.refresh().monthlyRecap)
     }
 
     @Test

@@ -134,4 +134,53 @@ interface DownloadedSongDao {
         deleteCollectionSongs(userId, type, collectionId)
         deleteCollection(userId, type, collectionId)
     }
+
+    // ── Descargas automáticas (colección `auto_artist`) ──
+    // "Solo automática" = no guardada a mano, con referencia de :autoType y sin referencias
+    // de otro tipo (p. ej. un álbum descargado). Misma regla que AutoDownloadStorageRules.
+
+    @Query(
+        "SELECT COALESCE(SUM(d.sizeBytes), 0) FROM downloaded_songs AS d " +
+            "WHERE d.userId = :userId AND d.isIndividuallySaved = 0 " +
+            "AND EXISTS (SELECT 1 FROM download_collection_songs AS r " +
+            "WHERE r.userId = d.userId AND r.songId = d.songId AND r.collectionType = :autoType) " +
+            "AND NOT EXISTS (SELECT 1 FROM download_collection_songs AS o " +
+            "WHERE o.userId = d.userId AND o.songId = d.songId AND o.collectionType <> :autoType)"
+    )
+    suspend fun getAutoOnlyUsedBytes(userId: String, autoType: String): Long
+
+    @Query(
+        "SELECT d.songId FROM downloaded_songs AS d " +
+            "WHERE d.userId = :userId AND d.isIndividuallySaved = 0 AND d.downloadDate < :cutoffEpochMs " +
+            "AND EXISTS (SELECT 1 FROM download_collection_songs AS r " +
+            "WHERE r.userId = d.userId AND r.songId = d.songId AND r.collectionType = :autoType) " +
+            "AND NOT EXISTS (SELECT 1 FROM download_collection_songs AS o " +
+            "WHERE o.userId = d.userId AND o.songId = d.songId AND o.collectionType <> :autoType)"
+    )
+    suspend fun getAutoOnlyCleanupCandidates(userId: String, autoType: String, cutoffEpochMs: Long): List<String>
+
+    /** Tipos de colección que referencian la canción para el usuario (vacío si ninguna). */
+    @Query("SELECT collectionType FROM download_collection_songs WHERE userId = :userId AND songId = :songId")
+    suspend fun getCollectionTypesForSong(userId: String, songId: String): List<String>
+
+    @Query(
+        "DELETE FROM download_collection_songs " +
+            "WHERE userId = :userId AND collectionType = :type AND songId IN (:songIds)"
+    )
+    suspend fun deleteCollectionSongRefsByType(userId: String, type: String, songIds: List<String>)
+
+    @Query(
+        "DELETE FROM download_collections WHERE userId = :userId AND collectionType = :type " +
+            "AND NOT EXISTS (SELECT 1 FROM download_collection_songs AS r " +
+            "WHERE r.userId = download_collections.userId " +
+            "AND r.collectionType = download_collections.collectionType " +
+            "AND r.collectionId = download_collections.collectionId)"
+    )
+    suspend fun deleteEmptyCollections(userId: String, type: String)
+
+    @Transaction
+    suspend fun removeSongsFromCollectionType(userId: String, type: String, songIds: List<String>) {
+        deleteCollectionSongRefsByType(userId, type, songIds)
+        deleteEmptyCollections(userId, type)
+    }
 }

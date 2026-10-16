@@ -4,5 +4,7 @@ import com.example.resonant.data.models.Song
 
 data class RecommendationResult<T>(
     val items: List<T>,
-    val title: String? // Aquí vendrá el texto "Porque escuchaste..."
+    val title: String?, // Aquí vendrá el texto "Porque escuchaste..."
+    /** `requestId` de las impresiones (solo recomendaciones de canciones con la telemetría activa). */
+    val requestId: String? = null
 )

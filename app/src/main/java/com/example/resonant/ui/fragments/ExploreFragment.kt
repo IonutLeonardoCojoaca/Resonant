@@ -36,6 +36,7 @@ import com.example.resonant.explore.ExploreMode
 import com.example.resonant.explore.ExploreSectionUi
 import com.example.resonant.live.LiveCardUi
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.ExploreAlbumAdapter
 import com.example.resonant.ui.adapters.ExploreArtistAdapter
@@ -106,6 +107,8 @@ class ExploreFragment : Fragment() {
     private var defaultHeroTitle: CharSequence = ""
 
     private lateinit var streakChip: TextView
+    private lateinit var recapBanner: View
+    private lateinit var recapBannerTitle: TextView
     private lateinit var songOfDayCard: View
     private lateinit var songOfDayContent: View
     private lateinit var songOfDayShimmer: ShimmerFrameLayout
@@ -199,6 +202,7 @@ class ExploreFragment : Fragment() {
         super.onResume()
         viewModel.loadLiveChannels()
         viewModel.loadStreak()
+        viewModel.loadRecapBanner()
     }
 
     override fun onStop() {
@@ -250,6 +254,7 @@ class ExploreFragment : Fragment() {
         heroTitle = view.findViewById(R.id.exploreHeroTitle)
         defaultHeroTitle = heroTitle.text
         initStreakViews(view)
+        initRecapBanner(view)
         legacyContainer = view.findViewById(R.id.exploreLegacyContainer)
         dynamicContainer = view.findViewById(R.id.exploreDynamicContainer)
         sectionsRenderer = ExploreSectionsRenderer(dynamicContainer, sectionCallbacks)
@@ -437,6 +442,7 @@ class ExploreFragment : Fragment() {
         viewModel.mode.observe(viewLifecycleOwner, ::applyMode)
         viewModel.streak.observe(viewLifecycleOwner, ::renderStreakChip)
         viewModel.songOfDay.observe(viewLifecycleOwner, ::renderSongOfDay)
+        viewModel.recapBanner.observe(viewLifecycleOwner, ::renderRecapBanner)
         viewModel.liveChannels.observe(viewLifecycleOwner, ::renderLiveCards)
 
         viewModel.ariaMessage.observe(viewLifecycleOwner) { message ->
@@ -620,6 +626,7 @@ class ExploreFragment : Fragment() {
                 dynamicContainer.isVisible = true
                 heroTitle.text = mode.greeting ?: defaultHeroTitle
                 val sections = mode.state.visibleSections
+                renderedSections = sections
                 sectionsRenderer?.render(sections, interleavedBlocks(sections))
                 scrollView.post { loadVisibleSections() }
             }
@@ -628,10 +635,10 @@ class ExploreFragment : Fragment() {
 
     private val sectionCallbacks = object : ExploreSectionsRenderer.Callbacks {
         override fun onSongClick(sectionId: String, songs: List<Song>, index: Int) =
-            playFromExplore(songs, index, QueueSource.EXPLORE, sectionId)
+            playFromExplore(songs, index, QueueSource.EXPLORE, sectionId, sectionRequestId(sectionId))
 
         override fun onAriaPickClick(sectionId: String, picks: List<AriaPick>, index: Int) =
-            playFromExplore(picks.map { it.song }, index, QueueSource.ARIA_PICK, sectionId)
+            playFromExplore(picks.map { it.song }, index, QueueSource.ARIA_PICK, sectionId, sectionRequestId(sectionId))
 
         override fun onAriaPickLongClick(pick: AriaPick, anchor: View) = showAriaPickMenu(pick, anchor)
         override fun onAlbumClick(album: Album) = navigateToAlbum(album)
@@ -660,8 +667,27 @@ class ExploreFragment : Fragment() {
         }.show()
     }
 
-    /** Plays [songs] as the queue starting at [index], like Home does with its rows. */
-    private fun playFromExplore(songs: List<Song>, index: Int, source: QueueSource, sectionId: String) {
+    /** Secciones dinámicas pintadas por última vez (para leer el `requestId` de la sección pulsada). */
+    private var renderedSections: List<ExploreSectionUi> = emptyList()
+
+    private fun sectionRequestId(sectionId: String): String? =
+        when (val section = renderedSections.firstOrNull { it.id == sectionId }) {
+            is ExploreSectionUi.Songs -> section.requestId
+            is ExploreSectionUi.AriaPicks -> section.requestId
+            else -> null
+        }
+
+    /**
+     * Plays [songs] as the queue starting at [index], like Home does with its rows. [requestId] es el de la
+     * sección (telemetría de recomendaciones) y se reporta con el `playSource` canónico de [source].
+     */
+    private fun playFromExplore(
+        songs: List<Song>,
+        index: Int,
+        source: QueueSource,
+        sectionId: String,
+        requestId: String? = null
+    ) {
         val song = songs.getOrNull(index) ?: return
         val playIntent = Intent(context, MusicPlaybackService::class.java).apply {
             action = MusicPlaybackService.ACTION_PLAY
@@ -670,11 +696,31 @@ class ExploreFragment : Fragment() {
             putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(songs))
             putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, source)
             putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "explore:$sectionId")
+            putExtra(MusicPlaybackService.EXTRA_PLAY_SOURCE_CANONICAL, PlaySourceMapper.canonical(source))
+            requestId?.let { putExtra(MusicPlaybackService.EXTRA_RECOMMENDATION_REQUEST_ID, it) }
         }
         requireContext().startService(playIntent)
     }
 
     // region Racha y canción del día
+
+    private fun initRecapBanner(view: View) {
+        recapBanner = view.findViewById(R.id.recapBanner)
+        recapBannerTitle = view.findViewById(R.id.recapBannerTitle)
+        view.findViewById<View>(R.id.recapBannerContent).setOnClickListener {
+            val periodKey = viewModel.recapBanner.value?.periodKey ?: return@setOnClickListener
+            findNavController().navigate(
+                R.id.recapStoriesFragment,
+                Bundle().apply { putString(RecapStoriesFragment.ARG_PERIOD_KEY, periodKey) }
+            )
+        }
+        view.findViewById<View>(R.id.recapBannerDismiss).setOnClickListener { viewModel.dismissRecapBanner() }
+    }
+
+    private fun renderRecapBanner(recap: com.example.resonant.data.network.RecapSummaryDTO?) {
+        recapBanner.isVisible = recap != null
+        if (recap != null) recapBannerTitle.text = com.example.resonant.recap.RecapTexts.bannerTitle(recap.periodKey)
+    }
 
     private fun initStreakViews(view: View) {
         streakChip = view.findViewById(R.id.streakChip)
@@ -742,7 +788,7 @@ class ExploreFragment : Fragment() {
 
     private fun playSongOfDay() {
         val ready = viewModel.songOfDay.value as? SongOfDayUi.Ready ?: return
-        playFromExplore(listOf(ready.song), 0, QueueSource.SONG_OF_DAY, SONG_OF_DAY_SECTION_ID)
+        playFromExplore(listOf(ready.song), 0, QueueSource.SONG_OF_DAY, SONG_OF_DAY_SECTION_ID, ready.requestId)
     }
 
     // endregion

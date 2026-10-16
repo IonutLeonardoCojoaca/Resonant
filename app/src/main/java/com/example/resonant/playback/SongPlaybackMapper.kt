@@ -17,6 +17,12 @@ fun Song.withPlaybackInfo(playback: SongPlaybackDTO): Song {
         audioEndMs = audioAnalysis?.audioEndMs?.takeIf { it > 0 } ?: effectiveDurationMs,
         optimalStartPointMs = playback.introStartMs ?: audioAnalysis?.optimalStartPointMs,
         optimalExitPointMs = playback.outroStartMs ?: audioAnalysis?.optimalExitPointMs,
+        bpmPrecise = playback.bpmPrecise ?: audioAnalysis?.bpmPrecise,
+        firstDownbeatMs = playback.firstDownbeatMs ?: audioAnalysis?.firstDownbeatMs,
+        beatsPerBar = playback.beatsPerBar ?: audioAnalysis?.beatsPerBar,
+        mixInMs = playback.mixInMs ?: audioAnalysis?.mixInMs,
+        mixOutMs = playback.mixOutMs ?: audioAnalysis?.mixOutMs,
+        dropMs = playback.dropMs ?: audioAnalysis?.dropMs,
         bpm = effectiveBpm,
         bpmNormalized = effectiveBpm.takeIf { it > 0.0 }
             ?: audioAnalysis?.bpmNormalized
@@ -36,7 +42,13 @@ fun Song.withPlaybackInfo(playback: SongPlaybackDTO): Song {
         bpmNormalized = effectiveBpm,
         musicalKey = playback.musicalKey,
         optimalStartPointMs = playback.introStartMs,
-        optimalExitPointMs = playback.outroStartMs
+        optimalExitPointMs = playback.outroStartMs,
+        bpmPrecise = playback.bpmPrecise,
+        firstDownbeatMs = playback.firstDownbeatMs,
+        beatsPerBar = playback.beatsPerBar,
+        mixInMs = playback.mixInMs,
+        mixOutMs = playback.mixOutMs,
+        dropMs = playback.dropMs
     )
 
     return copy(

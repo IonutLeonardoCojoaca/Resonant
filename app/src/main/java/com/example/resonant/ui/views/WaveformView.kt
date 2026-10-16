@@ -73,6 +73,11 @@ class WaveformView @JvmOverloads constructor(
     private var durationB: Int = 0
     private var beatGridA: List<Int> = emptyList()
     private var beatGridB: List<Int> = emptyList()
+    // Fase 4: compases y frases (vacíos sin análisis v2) para el imán por niveles
+    private var downbeatsA: List<Int> = emptyList()
+    private var downbeatsB: List<Int> = emptyList()
+    private var phrasesA: List<Int> = emptyList()
+    private var phrasesB: List<Int> = emptyList()
 
     // ── Shared scroll offset ──────────────────────────────────────────────────
     // sharedOffsetMs: ms offset (negative = marker is to the RIGHT of left edge).
@@ -287,6 +292,14 @@ class WaveformView @JvmOverloads constructor(
         entryPointMsF = entryPointMs.toFloat()
         recenterOffsets()
         invalidate()
+    }
+
+    /** Compases y frases de cada canción (análisis v2). Sin ellos el imán solo usa beats. */
+    fun setStructureGrids(downA: List<Int>?, phraseStartsA: List<Int>?, downB: List<Int>?, phraseStartsB: List<Int>?) {
+        downbeatsA = downA ?: emptyList()
+        phrasesA = phraseStartsA ?: emptyList()
+        downbeatsB = downB ?: emptyList()
+        phrasesB = phraseStartsB ?: emptyList()
     }
 
     fun setTransitionPoints(exitMs: Int, entryMs: Int, crossfadeMs: Int) {
@@ -615,8 +628,13 @@ class WaveformView @JvmOverloads constructor(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /** Beat capturado por el imán si está dentro del umbral local; si no, el propio instante. */
-    private fun magnetize(ms: Int, beatGrid: List<Int>): Int =
-        if (snapToBeatEnabled) BeatMagnet.snap(ms, beatGrid).ms else ms
+    private fun magnetize(ms: Int, beatGrid: List<Int>): Int {
+        if (!snapToBeatEnabled) return ms
+        val isA = beatGrid === beatGridA
+        val downbeats = if (isA) downbeatsA else downbeatsB
+        val phrases = if (isA) phrasesA else phrasesB
+        return BeatMagnet.snapLevels(ms, beatGrid, downbeats, phrases).ms
+    }
 
     private fun snapToNearestBeat(ms: Int, beatGrid: List<Int>): Int = magnetize(ms, beatGrid)
 

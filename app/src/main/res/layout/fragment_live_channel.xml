@@ -162,6 +162,34 @@
                 tools:text="Empieza en 01:30"
                 tools:visibility="visible" />
 
+            <!-- Aria DJ: intro que se está leyendo (o subtítulo unos segundos). Oculta sin intro. -->
+            <LinearLayout
+                android:id="@+id/liveDjSubtitleCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_explore_quick_card"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <com.example.resonant.ui.views.AriaBadgeView
+                    android:id="@+id/liveDjBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:id="@+id/liveDjSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:textColor="@color/textTheme"
+                    android:textSize="14sp"
+                    tools:text="Viernes noche en Resonant Rock. Abrimos con The Killers." />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/liveUpNextLabel"
                 android:layout_width="match_parent"

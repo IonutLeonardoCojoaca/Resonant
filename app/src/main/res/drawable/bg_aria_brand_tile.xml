@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono de cabecera de los paneles de resultados. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="11dp" />
+    <gradient
+        android:angle="315"
+        android:centerColor="#F21FD8"
+        android:endColor="#7117FF"
+        android:startColor="#FF1F3D"
+        android:type="linear" />
+</shape>

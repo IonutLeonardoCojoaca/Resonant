@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Tu {mes} ya está aquí" en Explorar, tras la canción del día. Solo con features.monthlyRecap y un
+     resumen sin ver de los últimos 31 días que no se haya descartado. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/recapBanner"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="13dp"
+    android:layout_marginBottom="12dp"
+    android:visibility="gone"
+    tools:visibility="visible">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/recapBannerContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_recap_card"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/recapBannerTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:fontFamily="@font/unageo_bold"
+            android:includeFontPadding="false"
+            android:textColor="@color/recap_text_primary"
+            android:textSize="18sp"
+            app:layout_constraintEnd_toStartOf="@id/recapBannerDismiss"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="Tu septiembre ya está aquí" />
+
+        <TextView
+            android:id="@+id/recapBannerSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:text="@string/recap_banner_subtitle"
+            android:textColor="@color/recap_text_secondary"
+            android:textSize="13sp"
+            app:layout_constraintEnd_toEndOf="@id/recapBannerTitle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/recapBannerTitle" />
+
+        <ImageButton
+            android:id="@+id/recapBannerDismiss"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/recap_banner_dismiss"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_close"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@color/recap_text_secondary" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

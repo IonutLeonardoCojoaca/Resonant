@@ -10,7 +10,8 @@ import kotlin.math.abs
  * beats, así funciona igual a 70 que a 170 BPM. Fuera del umbral (o fuera de la rejilla) el
  * instante se devuelve tal cual, para que el dedo nunca se quede "pegado".
  *
- * Cuando existan downbeats y frases (Fase 4) se añadirán niveles con prioridad sobre el beat.
+ * Con downbeats y frases (Fase 4, `add-transition-cue-points`), [snapLevels] prueba primero frases,
+ * después compases y por último beats.
  */
 object BeatMagnet {
 
@@ -71,5 +72,48 @@ object BeatMagnet {
         if (index < 0) return Snap(ms, false)
         val beat = grid[index]
         return if (abs(beat - ms) <= captureThresholdMs(index, grid)) Snap(beat, true) else Snap(ms, false)
+    }
+
+    // ── Niveles: frase > compás > beat ───────────────────────────────────────
+
+    enum class Level { PHRASE, BAR, BEAT, NONE }
+
+    data class LevelSnap(val ms: Int, val level: Level)
+
+    /** Fracción de compás dentro de la cual se engancha a un inicio de frase. */
+    const val PHRASE_CAPTURE_BARS = 0.5f
+
+    /** Fracción de compás dentro de la cual se engancha a un downbeat. */
+    const val BAR_CAPTURE_BARS = 1f / 3f
+
+    /**
+     * Engancha [ms] al inicio de frase, al downbeat o al beat más cercano, en ese orden de prioridad,
+     * usando el primer nivel cuyo candidato esté dentro de su umbral. Sin downbeats ni frases se
+     * comporta como [snap].
+     */
+    fun snapLevels(ms: Int, beats: List<Int>, downbeats: List<Int>, phraseStarts: List<Int>): LevelSnap {
+        val bar = barLengthMs(ms, beats, downbeats)
+        if (bar > 0) {
+            nearestWithin(ms, phraseStarts, (bar * PHRASE_CAPTURE_BARS).toInt())?.let { return LevelSnap(it, Level.PHRASE) }
+            nearestWithin(ms, downbeats, (bar * BAR_CAPTURE_BARS).toInt())?.let { return LevelSnap(it, Level.BAR) }
+        }
+        val beat = snap(ms, beats)
+        return if (beat.snapped) LevelSnap(beat.ms, Level.BEAT) else LevelSnap(ms, Level.NONE)
+    }
+
+    /** Duración del compás alrededor de [ms]: entre downbeats vecinos o, sin ellos, cuatro beats. 0 si no se sabe. */
+    fun barLengthMs(ms: Int, beats: List<Int>, downbeats: List<Int>): Int {
+        val index = nearestIndex(ms, downbeats)
+        val local = localIntervalMs(index, downbeats)
+        if (local > 0) return local
+        val beatIndex = nearestIndex(ms, beats)
+        val beat = localIntervalMs(beatIndex, beats)
+        return if (beat > 0) beat * 4 else 0
+    }
+
+    private fun nearestWithin(ms: Int, grid: List<Int>, thresholdMs: Int): Int? {
+        val index = nearestIndex(ms, grid)
+        if (index < 0) return null
+        return grid[index].takeIf { abs(it - ms) <= thresholdMs }
     }
 }

@@ -68,6 +68,24 @@
             tools:text="12,4 GB libres en tu dispositivo" />
     </LinearLayout>
 
+    <!-- Acceso a los ajustes de descargas automáticas (solo con la capacidad del servidor) -->
+    <TextView
+        android:id="@+id/autoDownloadSettingsEntry"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="6dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_surface_panel"
+        android:drawableEnd="@drawable/ic_download_done"
+        android:drawablePadding="8dp"
+        android:fontFamily="@font/unageo_medium"
+        android:padding="16dp"
+        android:text="@string/auto_download_settings_entry"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
     <!-- Consejo de modo sin conexión (una vez cerrado no vuelve a salir) -->
     <LinearLayout
         android:id="@+id/tipCard"

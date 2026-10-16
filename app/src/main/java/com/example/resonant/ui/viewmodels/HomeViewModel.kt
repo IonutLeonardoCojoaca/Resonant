@@ -46,6 +46,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // --- SECCIÓN CANCIONES ---
     private val _songs = MutableLiveData<List<Song>?>()
     val songs: LiveData<List<Song>?> get() = _songs
+
+    /**
+     * `requestId` de "Canciones para ti" (sección `recommended-songs` o `GET api/songs/recommendations`), para
+     * atribuir las escuchas que empiezan ahí. `null` con la telemetría apagada o un servidor antiguo.
+     */
+    var songsRequestId: String? = null
+        private set
     private val _songsTitle = MutableLiveData<String>()
     val songsTitle: LiveData<String> get() = _songsTitle
     private val _songsLoading = MutableLiveData<Boolean>()
@@ -181,6 +188,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun clearHomeForOwnerChange() {
+        songsRequestId = null
         _songs.value = null
         _history.value = null
         _artists.value = null
@@ -208,6 +216,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             if (kind in populated) return@forEach
             val applied = when (kind) {
                 HomeSectionKind.RECOMMENDED_SONGS -> homeItemDecoder.decodeSongs(section)?.let {
+                    songsRequestId = section.requestId
                     _songs.value = it
                     _songsTitle.value = section.title.ifBlank { "Recomendado para ti" }
                     _songsError.value = null
@@ -345,6 +354,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (result != null && result.items.isNotEmpty()) {
                     _songsTitle.value = result.title ?: "Recomendado para ti"
+                    songsRequestId = result.requestId
                     _songs.value = result.items
                     lastSongsFetchTime = System.currentTimeMillis()
                 } else {

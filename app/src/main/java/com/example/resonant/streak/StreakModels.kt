@@ -19,7 +19,14 @@ sealed class StreakResult {
 }
 
 sealed class SongOfDayResult {
-    data class Ready(val song: Song, val reason: String, val isAria: Boolean, val date: String) : SongOfDayResult()
+    data class Ready(
+        val song: Song,
+        val reason: String,
+        val isAria: Boolean,
+        val date: String,
+        /** `requestId` de la impresión `SONG_OF_DAY` (estable durante el día); `null` sin telemetría. */
+        val requestId: String? = null
+    ) : SongOfDayResult()
     /** 202 while Aria prepares today's picks. */
     data class Pending(val retryAfterSeconds: Int?) : SongOfDayResult()
     /** 204 or an unusable song: nothing to show today for now. */

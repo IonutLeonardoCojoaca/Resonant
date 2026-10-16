@@ -131,6 +131,7 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
 
         setupTip()
         setupSearchLogic()
+        setupAutoDownloadEntry()
 
         deleteAllButton.setOnClickListener { showDeleteConfirmationDialog() }
         view.findViewById<View>(R.id.btnBack).setOnClickListener { findNavController().navigateUp() }
@@ -142,6 +143,18 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
         if (!heroAnimated) {
             ChartHero.animateIn(hero)
             heroAnimated = true
+        }
+    }
+
+    /** Entrada a «Descargas automáticas», visible solo con `features.autoDownloads`. */
+    private fun setupAutoDownloadEntry() {
+        val entry = header.findViewById<View>(R.id.autoDownloadSettingsEntry)
+        entry.setOnClickListener { findNavController().navigate(R.id.autoDownloadSettingsFragment) }
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                entry.isVisible = com.example.resonant.managers.CapabilitiesManager.refresh(appContext).autoDownloads
+            }
         }
     }
 

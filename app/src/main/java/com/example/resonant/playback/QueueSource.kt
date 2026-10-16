@@ -22,4 +22,6 @@ enum class QueueSource {
     LIVE,
     /** "Tu canción del día" card in Explore; reported as `playSource = "SONG_OF_DAY"`. */
     SONG_OF_DAY,
+    /** "Tus estadísticas" (tops y "Hoy hace un año"); reported as `playSource = "STATS"`. */
+    STATS,
     UNKNOWN }

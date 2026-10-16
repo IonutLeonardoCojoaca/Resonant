@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fondo de las tarjetas del resumen: también es lo que sale en la imagen compartida. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="270"
+        android:endColor="@color/recap_card_end"
+        android:startColor="@color/recap_card_start" />
+    <corners android:radius="24dp" />
+</shape>
