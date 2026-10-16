@@ -9,13 +9,19 @@ import kotlin.math.pow
 /**
  * Único ecualizador persistente de usuario asociado al reproductor principal.
  *
- * TransitionManager usa efectos temporales para las mezclas. El servicio llama
- * a [suspendForTransition] antes de una mezcla y vuelve a enlazar este
+ * TransitionManager usa efectos temporales para las mezclas con EQ propio. Antes de
+ * esas mezclas el servicio llama a [suspendForTransition] y vuelve a enlazar este
  * controlador al hacer el handoff, evitando dos Equalizer sobre la misma sesión.
+ *
+ * En un fundido sin EQ propio la curva del usuario se mantiene en A y se copia al
+ * player entrante en cuanto suena ([mirrorOnTransitionSession]); en el handoff esa
+ * copia pasa a ser el efecto principal, sin saltos de timbre ni de volumen.
  */
 class AudioEqualizerController {
     private var effect: Equalizer? = null
     private var audioSessionId: Int = 0
+    private var transitionEffect: Equalizer? = null
+    private var transitionSessionId: Int = 0
     private var suspendedForTransition = false
     private var settings = UserEqualizerSettings()
 
@@ -30,9 +36,11 @@ class AudioEqualizerController {
     fun updateSettings(value: UserEqualizerSettings) {
         settings = value
         if (!value.enabled) {
+            releaseTransitionEffect()
             releaseEffect()
             return
         }
+        transitionEffect?.let { applySettingsTo(it) }
         if (!suspendedForTransition && audioSessionId != 0) {
             ensureEffectAndApply()
         }
@@ -55,8 +63,34 @@ class AudioEqualizerController {
         releaseEffect(clearSession = false)
     }
 
+    /** Copia la curva del usuario al player entrante de un fundido sin EQ propio. */
+    fun mirrorOnTransitionSession(sessionId: Int) {
+        releaseTransitionEffect()
+        if (sessionId == 0 || sessionId == audioSessionId || suspendedForTransition || !settings.enabled || effect == null) return
+        transitionEffect = try {
+            Equalizer(0, sessionId)
+        } catch (error: Exception) {
+            Log.w(TAG, "El dispositivo no permite crear Equalizer para el player entrante", error)
+            null
+        }
+        transitionSessionId = if (transitionEffect != null) sessionId else 0
+        if (transitionEffect?.let { applySettingsTo(it) } == false) releaseTransitionEffect()
+    }
+
     fun resumeAfterTransition(sessionId: Int) {
         suspendedForTransition = false
+        val mirrored = transitionEffect
+        if (mirrored != null && transitionSessionId == sessionId) {
+            // Handoff de un fundido sin EQ propio: la copia ya suena en B; pasa a ser la principal.
+            transitionEffect = null
+            transitionSessionId = 0
+            releaseEffect(clearSession = false)
+            effect = mirrored
+            audioSessionId = sessionId
+            applySettings()
+            return
+        }
+        releaseTransitionEffect()
         audioSessionId = sessionId
         if (sessionId != 0 && settings.enabled) {
             ensureEffectAndApply()
@@ -65,6 +99,7 @@ class AudioEqualizerController {
 
     fun release() {
         suspendedForTransition = false
+        releaseTransitionEffect()
         releaseEffect()
     }
 
@@ -82,6 +117,11 @@ class AudioEqualizerController {
 
     private fun applySettings() {
         val equalizer = effect ?: return
+        if (!applySettingsTo(equalizer)) releaseEffect(clearSession = false)
+    }
+
+    /** Aplica la curva del usuario a [equalizer]. Devuelve false si el dispositivo la rechaza. */
+    private fun applySettingsTo(equalizer: Equalizer): Boolean {
         try {
             val range = equalizer.bandLevelRange
             val minLevel = range[0].toInt()
@@ -96,10 +136,20 @@ class AudioEqualizerController {
                 equalizer.setBandLevel(index.toShort(), levelMb)
             }
             equalizer.enabled = settings.enabled
+            return true
         } catch (error: Exception) {
             Log.w(TAG, "No se pudo aplicar la curva del ecualizador", error)
-            releaseEffect(clearSession = false)
+            return false
         }
+    }
+
+    private fun releaseTransitionEffect() {
+        runCatching {
+            transitionEffect?.enabled = false
+            transitionEffect?.release()
+        }
+        transitionEffect = null
+        transitionSessionId = 0
     }
 
     private fun interpolateGain(frequencyHz: Float, gainsDb: List<Float>): Float {

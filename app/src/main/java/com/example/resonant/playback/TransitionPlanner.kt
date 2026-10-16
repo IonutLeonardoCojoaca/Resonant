@@ -1,0 +1,237 @@
+package com.example.resonant.playback
+
+import com.example.resonant.data.models.AudioAnalysis
+import com.example.resonant.data.network.MixDocumentDTO
+import com.example.resonant.data.network.MixLanePointDTO
+import com.example.resonant.data.network.MixSideADTO
+import com.example.resonant.data.network.MixSideBDTO
+import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.roundToInt
+
+/**
+ * Planificador de las transiciones automáticas (fuera de Playmix y álbum). Lógica pura.
+ * Design: openspec/changes/unify-transition-engine.
+ *
+ * Todos los modos producen un documento de mezcla v1 (el mismo formato que Studio y las recetas)
+ * que ejecuta un único motor. Las ganancias usan siempre curvas de potencia constante
+ * (`equalPower`): la suma de energía de A y B se mantiene y no hay bajadas a mitad del fundido.
+ *
+ * - Suave: fundido de la duración elegida que termina donde acaba el audio de A; B entra
+ *   donde empieza su audio. Con rejilla, el fundido empieza en un compás de A.
+ * - Corte: corte casi instantáneo (empalme de [CUT_SPLICE_MS]) al final de A. Con rejilla en las
+ *   dos, el primer downbeat de B cae justo en el compás siguiente de A.
+ * - Inteligente: con rejilla en las dos y BPM compatibles, mezcla de DJ en compases enteros
+ *   sobre el outro de A, con intercambio de graves y sincronía de tempo; si no, fundido de
+ *   [SMART_BLEND_MS] con un traspaso suave de graves. Una receta del servidor tiene prioridad.
+ */
+object TransitionPlanner {
+
+    enum class Mode { SOFT, CUT, SMART }
+
+    /** Tiempos útiles de una canción, en ms de su propio audio. */
+    data class Track(
+        val durationMs: Long,
+        val audioStartMs: Long,
+        val audioEndMs: Long,
+        val mixInMs: Long?,
+        val mixOutMs: Long?,
+        val grid: PhaseAlignment.Grid?
+    )
+
+    /**
+     * @param beatSync B debe sonar al tempo de A durante la mezcla (y volver a su tempo al final).
+     * @param bpmRatio velocidad de B durante la mezcla (`bpmA / bpmB`); 1 si no hay sincronía.
+     */
+    data class Plan(
+        val doc: MixDocumentDTO,
+        val label: String,
+        val beatSync: Boolean = false,
+        val bpmRatio: Double = 1.0
+    ) {
+        val hasEq: Boolean get() = doc.lanes?.keys?.any { it.contains(".eq.") } == true
+    }
+
+    const val CUT_SPLICE_MS = 120L
+    const val SMART_BLEND_MS = 8_000L
+    const val SMART_MIN_BLEND_MS = 6_000L
+    const val SMART_MAX_BLEND_MS = 12_000L
+    const val MAX_BEATMATCH_MS = 40_000L
+    const val BEATMATCH_TOLERANCE = 0.06
+    /** Atenuación de graves que se pide al EQ del dispositivo (suele admitir hasta −15 dB). */
+    const val BASS_KILL_DB = -15.0
+    const val BASS_SOFT_DB = -6.0
+
+    fun trackOf(analysis: AudioAnalysis?, exoDurationMs: Long): Track? {
+        val analysisDuration = (analysis?.durationMs ?: 0).toLong()
+        val duration = TransitionTiming.effectiveDurationMs(exoDurationMs, analysisDuration)
+        if (duration <= 0) return null
+        val end = TransitionTiming.audioEndMs(exoDurationMs, analysisDuration, (analysis?.audioEndMs ?: 0).toLong())
+        val start = (analysis?.audioStartMs ?: 0).toLong().coerceIn(0L, (end - 1).coerceAtLeast(0L))
+        fun inside(v: Int?): Long? = v?.toLong()?.takeIf { it in (start + 1) until end }
+        return Track(
+            durationMs = duration,
+            audioStartMs = start,
+            audioEndMs = end,
+            mixInMs = inside(analysis?.mixInMs),
+            mixOutMs = inside(analysis?.mixOutMs),
+            grid = PhaseAlignment.gridOf(analysis?.bpmPrecise, analysis?.firstDownbeatMs, analysis?.beatsPerBar)
+        )
+    }
+
+    /** Plan para la pareja, o null si no se puede (fundido 0 = sin transición, sin audio suficiente). */
+    fun plan(mode: Mode, a: Track, b: Track, fadeMs: Long): Plan? = when (mode) {
+        Mode.SOFT -> soft(a, b, fadeMs)
+        Mode.CUT -> cut(a, b)
+        Mode.SMART -> beatmatch(a, b) ?: blend(a, b)
+    }
+
+    // ── Suave ──────────────────────────────────────────────────────────────────────────────
+
+    private fun soft(a: Track, b: Track, fadeMs: Long): Plan? {
+        if (fadeMs <= 0) return null
+        val fade = fadeMs.coerceAtMost(a.audioEndMs - a.audioStartMs)
+        if (fade < TransitionTiming.MIN_FADE_MS) return null
+        var start = a.audioEndMs - fade
+        a.grid?.let { grid ->
+            val bar = downbeatAtOrBefore(grid, start.toDouble()).toLong()
+            if (bar >= 0 && start - bar <= fade / 4) start = bar
+        }
+        val duration = a.audioEndMs - start
+        return Plan(
+            doc = document(start, b.audioStartMs, duration, crossfadeLanes(duration)),
+            label = "soft"
+        )
+    }
+
+    // ── Corte ──────────────────────────────────────────────────────────────────────────────
+
+    private fun cut(a: Track, b: Track): Plan? {
+        val half = CUT_SPLICE_MS / 2
+        var cutAt = a.audioEndMs
+        var label = "cut"
+        val gridA = a.grid
+        val gridB = b.grid
+        if (gridA != null && gridB != null) {
+            val firstDownbeatB = downbeatAtOrAfter(gridB, b.audioStartMs.toDouble())
+            val lead = firstDownbeatB - b.audioStartMs
+            if (lead >= 0 && lead <= PhaseAlignment.barMs(gridB)) {
+                // El downbeat de B cae en el compás de A más cercano al final de su audio.
+                val target = nearestDownbeat(gridA, a.audioEndMs.toDouble())
+                val candidate = (target - lead).roundToInt().toLong()
+                if (candidate > a.audioStartMs + half && candidate <= a.durationMs - half) {
+                    cutAt = candidate
+                    label = "cut-beat"
+                }
+            }
+        }
+        if (cutAt - half < 0) return null
+        val bStart = (b.audioStartMs - half).coerceAtLeast(0L)
+        return Plan(
+            doc = document(cutAt - half, bStart, CUT_SPLICE_MS, crossfadeLanes(CUT_SPLICE_MS)),
+            label = label
+        )
+    }
+
+    // ── Inteligente ────────────────────────────────────────────────────────────────────────
+
+    /** Velocidad de B para igualar el tempo de A, o null si la diferencia no es corregible. */
+    fun beatmatchRatio(a: Track, b: Track): Double? {
+        val gridA = a.grid ?: return null
+        val gridB = b.grid ?: return null
+        val ratio = gridA.bpm / gridB.bpm
+        return ratio.takeIf { abs(it - 1.0) <= BEATMATCH_TOLERANCE }
+    }
+
+    private fun beatmatch(a: Track, b: Track): Plan? {
+        val ratio = beatmatchRatio(a, b) ?: return null
+        val gridA = a.grid!!
+        val gridB = b.grid!!
+        val barA = PhaseAlignment.barMs(gridA)
+        val outro = a.mixOutMs?.takeIf { a.audioEndMs - it >= 8 * barA }
+        var bars = if (outro != null && a.audioEndMs - outro >= 16 * barA) 16 else 8
+        while (bars > 4 && bars * barA > MAX_BEATMATCH_MS) bars /= 2
+        val blend = bars * barA
+
+        val aStart = outro?.toDouble() ?: downbeatAtOrBefore(gridA, a.audioEndMs - blend)
+        if (aStart < a.audioStartMs || aStart + blend > a.durationMs) return null
+
+        // B avanza `blend * ratio` de su propio audio durante la mezcla: su entrada (mixIn) llega al final.
+        val firstB = downbeatAtOrAfter(gridB, b.audioStartMs.toDouble())
+        val bStart = b.mixInMs
+            ?.let { downbeatAtOrBefore(gridB, it - blend * ratio) }
+            ?.takeIf { it >= firstB }
+            ?: firstB
+
+        val duration = blend.roundToInt().toLong()
+        val half = (blend / 2).roundToInt()
+        val beat = (barA / gridA.beatsPerBar).roundToInt()
+        val swapFrom = (half - beat).coerceAtLeast(0)
+        val lanes = mapOf(
+            "a.gain" to listOf(point(0, 1.0, "hold"), point(half, 1.0, "equalPower"), point(duration.toInt(), 0.0)),
+            "b.gain" to listOf(point(0, 0.0, "equalPower"), point(half, 1.0)),
+            "a.eq.low" to listOf(point(0, 0.0, "hold"), point(swapFrom, 0.0, "linear"), point(half, BASS_KILL_DB)),
+            "b.eq.low" to listOf(point(0, BASS_KILL_DB, "hold"), point(swapFrom, BASS_KILL_DB, "linear"), point(half, 0.0))
+        )
+        return Plan(
+            doc = document(aStart.roundToInt().toLong(), bStart.roundToInt().toLong().coerceAtLeast(0L), duration, lanes),
+            label = "smart-beatmatch-${bars}bars",
+            beatSync = true,
+            bpmRatio = ratio
+        )
+    }
+
+    private fun blend(a: Track, b: Track): Plan? {
+        val end = a.audioEndMs
+        val outroLength = a.mixOutMs?.let { end - it }
+        val duration = outroLength?.takeIf { it in SMART_MIN_BLEND_MS..SMART_MAX_BLEND_MS } ?: SMART_BLEND_MS
+        var start = end - duration
+        if (start < a.audioStartMs) return soft(a, b, end - a.audioStartMs)
+        a.grid?.let { grid ->
+            val bar = downbeatAtOrBefore(grid, start.toDouble()).toLong()
+            if (bar >= a.audioStartMs && start - bar <= duration / 4) start = bar
+        }
+        val length = end - start
+        val bStart = b.mixInMs?.takeIf { it <= TransitionTiming.MAX_INTELLIGENT_ENTRY_MS } ?: b.audioStartMs
+        val bassIn = (length * 0.6).roundToInt()
+        val lanes = crossfadeLanes(length) + mapOf(
+            "a.eq.low" to listOf(point(0, 0.0, "smooth"), point(length.toInt(), BASS_SOFT_DB)),
+            "b.eq.low" to listOf(point(0, BASS_SOFT_DB, "smooth"), point(bassIn, 0.0))
+        )
+        return Plan(doc = document(start, bStart, length, lanes), label = "smart-blend")
+    }
+
+    // ── Utilidades ─────────────────────────────────────────────────────────────────────────
+
+    private fun crossfadeLanes(durationMs: Long): Map<String, List<MixLanePointDTO>> = mapOf(
+        "a.gain" to listOf(point(0, 1.0, "equalPower"), point(durationMs.toInt(), 0.0)),
+        "b.gain" to listOf(point(0, 0.0, "equalPower"), point(durationMs.toInt(), 1.0))
+    )
+
+    private fun document(aStartMs: Long, bStartMs: Long, durationMs: Long, lanes: Map<String, List<MixLanePointDTO>>) =
+        MixDocumentDTO(
+            version = 1,
+            durationMs = durationMs.toInt(),
+            a = MixSideADTO(startMs = aStartMs.toInt()),
+            b = MixSideBDTO(startMs = bStartMs.toInt(), offsetMs = 0),
+            lanes = lanes
+        )
+
+    private fun point(t: Int, v: Double, curve: String? = null) = MixLanePointDTO(t = t, v = v, curve = curve)
+
+    fun downbeatAtOrBefore(grid: PhaseAlignment.Grid, t: Double): Double {
+        val bar = PhaseAlignment.barMs(grid)
+        return grid.firstDownbeatMs + floor((t - grid.firstDownbeatMs) / bar) * bar
+    }
+
+    fun downbeatAtOrAfter(grid: PhaseAlignment.Grid, t: Double): Double {
+        val before = downbeatAtOrBefore(grid, t)
+        return if (before >= t - 0.5) before else before + PhaseAlignment.barMs(grid)
+    }
+
+    fun nearestDownbeat(grid: PhaseAlignment.Grid, t: Double): Double {
+        val before = downbeatAtOrBefore(grid, t)
+        val after = before + PhaseAlignment.barMs(grid)
+        return if (t - before <= after - t) before else after
+    }
+}

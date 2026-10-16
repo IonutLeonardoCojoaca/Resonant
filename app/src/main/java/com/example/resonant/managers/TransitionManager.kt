@@ -18,21 +18,17 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
-import com.example.resonant.playback.IntelligentEffectsState
 import com.example.resonant.playback.MixLanes
-import com.example.resonant.playback.MixStrategy
 import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.playback.PlaybackUrlResolver
 import com.example.resonant.playback.RenderedTransition
+import com.example.resonant.playback.TransitionPlanner
 import com.example.resonant.playback.TransitionTiming
-import com.example.resonant.data.models.AudioAnalysis
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -66,9 +62,7 @@ class TransitionManager(
     private val onTransitionComplete: (newPlayer: ExoPlayer, oldPlayer: ExoPlayer) -> Unit,
     private val onTransitionFailed: (oldPlayer: ExoPlayer, oldSong: Song?, nextSong: Song?, wasAudible: Boolean) -> Unit,
     private val onTransitionAudible: ((nextSong: Song, nextIndex: Int) -> Unit)? = null,
-    private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null,
-    /** Presets v2: documento de mezcla sugerido por el backend para la pareja, si lo hay (modo inteligente). */
-    private val recipeProvider: ((oldSong: Song, newSong: Song) -> MixDocumentDTO?)? = null
+    private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null
 ) {
 
     private val musicAudioAttributes = AudioAttributes.Builder()
@@ -78,7 +72,6 @@ class TransitionManager(
 
     companion object {
         private const val TAG = "TransitionManager"
-        private const val BEATMATCH_BPM_TOLERANCE = 0.06
         private const val ANIMATION_FRAME_DELAY_MS = 16L
         private const val GAP_FADE_OUT_MS = 300L
         private const val EQ_MAX_ATTENUATION: Short = -1500
@@ -87,6 +80,11 @@ class TransitionManager(
         private const val RENDERED_TICK_MS = 10L
         private const val SPLICE_SEEK_TOLERANCE_MS = 20L
         private const val PHASE_TOLERANCE_MS = 15L
+        private const val PHASE_CHECK_MS = 250L
+        private const val PHASE_CORRECTION_WINDOW_MS = 1_000.0
+        private const val MAX_PHASE_NUDGE = 0.03
+        private const val TEMPO_RIDE_FROM = 0.75
+        private const val LATE_TOLERANCE_MS = 30.0
     }
 
     private fun createTransitionPlayer(): ExoPlayer {
@@ -116,6 +114,11 @@ class TransitionManager(
     @Volatile
     var transitionProgress: Float = 0f
         private set
+
+    /** Sesión de audio del player entrante durante una transición (0 si no hay o aún no tiene). */
+    val transitionPlayerSessionId: Int
+        @OptIn(UnstableApi::class)
+        get() = if (isTransitioning) runCatching { nextPlayer?.audioSessionId ?: 0 }.getOrDefault(0) else 0
     private var currentPlayer: ExoPlayer? = null // El 'oldPlayer'
     private var currentSong: Song? = null
 
@@ -512,17 +515,20 @@ class TransitionManager(
     // ===                                  API PÚBLICA                                              ===
     // =================================================================================================
 
+    /**
+     * Transición automática (fuera de Playmix). [plan] lo calcula el servicio con
+     * [com.example.resonant.playback.TransitionPlanner] o es la receta del servidor; sin plan,
+     * A termina de forma natural. En modo álbum se hace un corte sobre la precarga.
+     */
     fun startTransition(oldPlayer: ExoPlayer,
                         oldSong: Song,
                         nextSong: Song,
                         nextSongIndex: Int,
-                        crossfadeMode: CrossfadeMode,
+                        plan: TransitionPlanner.Plan?,
                         isAlbumMode: Boolean,
                         automixEnabled: Boolean,
-                        crossfadeDurationMs: Long,
                         oldSongTargetVolume: Float = 1.0f,
                         nextSongTargetVolume: Float = 1.0f,
-                        nextSongStartPositionMs: Long = 0L,
                         playmixTransition: PlaymixTransitionDTO? = null
     ) {
         Log.d(TAG, "🎯 startTransition - nextSong: ${nextSong.title}")
@@ -532,11 +538,7 @@ class TransitionManager(
             return
         }
 
-        val shouldTransition = when {
-            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> true
-            isAlbumMode -> automixEnabled
-            else -> crossfadeDurationMs > 0
-        }
+        val shouldTransition = if (isAlbumMode) automixEnabled else plan != null
         if (!shouldTransition) {
             Log.d(TAG, "❌ Transición desactivada. A termina de forma natural.")
             onTransitionFailed(oldPlayer, oldSong, nextSong, false)
@@ -550,10 +552,10 @@ class TransitionManager(
         targetOldPlayerVolume = oldSongTargetVolume
         targetNewPlayerVolume = nextSongTargetVolume
 
-        when {
-            isAlbumMode -> beginAlbumCut(oldPlayer, oldSong, nextSong, nextSongIndex)
-            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> beginIntelligentMix(oldPlayer, oldSong, nextSong, nextSongIndex)
-            else -> beginSimpleCrossfade(oldPlayer, oldSong, nextSong, nextSongIndex, crossfadeMode, crossfadeDurationMs, nextSongStartPositionMs)
+        if (isAlbumMode || plan == null) {
+            beginAlbumCut(oldPlayer, oldSong, nextSong, nextSongIndex)
+        } else {
+            beginPlanned(oldPlayer, oldSong, nextSong, nextSongIndex, plan)
         }
     }
 
@@ -935,40 +937,56 @@ class TransitionManager(
     }
 
     // =================================================================================================
-    // ===            PRESETS V2: RECETA (DOCUMENTO DE MEZCLA) EN EL MODO INTELIGENTE                  ===
+    // ===        TRANSICIÓN AUTOMÁTICA: DOCUMENTO DE MEZCLA (SUAVE, CORTE, INTELIGENTE, RECETA)      ===
     // =================================================================================================
 
     /**
-     * Ejecuta un documento de mezcla sugerido por el backend: la línea de tiempo sigue a la posición de A,
-     * B entra en `b.offsetMs`, los volúmenes siguen los carriles de ganancia y el EQ del dispositivo
-     * aproxima los carriles de EQ (bandas agrupadas en graves, medios y agudos).
+     * Ejecuta un plan de [TransitionPlanner] o una receta del servidor (unify-transition-engine).
+     * La línea de tiempo sigue a la posición de A desde `a.startMs`; B entra en `b.offsetMs` desde
+     * `b.startMs`; los volúmenes siguen los carriles de ganancia y el EQ del dispositivo aproxima los
+     * carriles de EQ. Un plan sin carriles de EQ no crea ecualizadores.
+     *
+     * Si B tarda en estar lista, A se queda en su volumen de entrada y la línea de tiempo se desplaza lo
+     * que tarde B ([PlannedRun.lagMs]): la mezcla nunca avanza con B en silencio.
+     *
+     * Con `beatSync`, B suena al tempo de A, corrige la fase con pequeños ajustes de velocidad mientras
+     * entra y vuelve a su tempo en el último cuarto, cuando A ya se está yendo.
      */
-    private inner class RecipeRun(
+    private inner class PlannedRun(
         val oldPlayer: ExoPlayer,
         val oldSong: Song,
         val nextSong: Song,
         val nextIndex: Int,
-        val doc: MixDocumentDTO,
+        val plan: TransitionPlanner.Plan,
         val bPlayer: ExoPlayer,
         val volumeA: Float,
         val volumeB: Float
     ) {
+        val doc: MixDocumentDTO get() = plan.doc
+        val gridA: PhaseAlignment.Grid? = oldSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
+        val gridB: PhaseAlignment.Grid? = nextSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
         var started = false
         var audible = false
         var aEndedUptime = -1L
         var timelineAtAEnd = 0.0
         var lastProgressReportUptime = 0L
+        /** Retraso acumulado de B: la línea de tiempo se desplaza para que B entre donde marca el documento. */
+        var lagMs = 0.0
+        var waitStartUptime = -1L
+        var lastPhaseCheckUptime = 0L
+        var speed = 1f
         val listeners = mutableListOf<Pair<ExoPlayer, Player.Listener>>()
     }
 
-    private var recipe: RecipeRun? = null
-    private var recipeRunnable: Runnable? = null
+    private var planned: PlannedRun? = null
+    private var plannedRunnable: Runnable? = null
 
-    private fun beginRecipe(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextIndex: Int, doc: MixDocumentDTO) {
-        Log.i(TAG, "🧩 Receta v2: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, cruce=${doc.durationMs}ms)")
+    private fun beginPlanned(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextIndex: Int, plan: TransitionPlanner.Plan) {
+        val doc = plan.doc
+        Log.i(TAG, "🎚️ Mezcla ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, sync=${plan.beatSync})")
         val bPlayer = acquireTransitionPlayer(newSong, doc.b.startMs.toLong())
-        val job = RecipeRun(oldPlayer, oldSong, newSong, nextIndex, doc, bPlayer, targetOldPlayerVolume, targetNewPlayerVolume)
-        recipe = job
+        val job = PlannedRun(oldPlayer, oldSong, newSong, nextIndex, plan, bPlayer, targetOldPlayerVolume, targetNewPlayerVolume)
+        planned = job
         isTransitioning = true
         transitionProgress = 0f
         currentPlayer = oldPlayer
@@ -977,43 +995,50 @@ class TransitionManager(
 
         val aListener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED && job.aEndedUptime < 0) {
-                    job.aEndedUptime = SystemClock.uptimeMillis()
-                    job.timelineAtAEnd = recipeTimeline(job)
-                }
+                if (playbackState == Player.STATE_ENDED) markAEnded(job)
             }
+
+            // Un error de A (red) congela su posición: se trata como el final de A y la mezcla sigue con el reloj.
+            override fun onPlayerError(error: PlaybackException) = markAEnded(job)
         }
         val bListener = object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) = failRecipe(job, "B: ${error.errorCodeName}")
+            override fun onPlayerError(error: PlaybackException) = failPlanned(job, "B: ${error.errorCodeName}")
         }
         oldPlayer.addListener(aListener); job.listeners += oldPlayer to aListener
         bPlayer.addListener(bListener); job.listeners += bPlayer to bListener
 
         val runnable = object : Runnable {
             override fun run() {
-                if (recipe !== job) return
+                if (planned !== job) return
                 try {
-                    tickRecipe(job)
+                    tickPlanned(job)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error en la receta", e)
-                    failRecipe(job, "excepción: ${e.message}")
+                    Log.e(TAG, "Error en la mezcla", e)
+                    failPlanned(job, "excepción: ${e.message}")
                     return
                 }
-                if (recipe === job) mainHandler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
+                if (planned === job) mainHandler.postDelayed(this, ANIMATION_FRAME_DELAY_MS)
             }
         }
-        recipeRunnable = runnable
+        plannedRunnable = runnable
         mainHandler.post(runnable)
     }
 
-    /** Instante de la línea de tiempo: posición de A menos `a.startMs`; si A ya terminó, sigue con el reloj. */
-    private fun recipeTimeline(job: RecipeRun): Double =
+    /** A terminó (o falló): la línea de tiempo sigue desde su última posición con el reloj. */
+    private fun markAEnded(job: PlannedRun) {
+        if (job.aEndedUptime >= 0) return
+        job.timelineAtAEnd = (job.oldPlayer.currentPosition - job.doc.a.startMs).toDouble()
+        job.aEndedUptime = SystemClock.uptimeMillis()
+    }
+
+    /** Posición de A menos `a.startMs`; si A ya terminó, sigue con el reloj. Sin descontar el retraso de B. */
+    private fun rawTimeline(job: PlannedRun): Double =
         if (job.aEndedUptime >= 0) job.timelineAtAEnd + (SystemClock.uptimeMillis() - job.aEndedUptime)
         else (job.oldPlayer.currentPosition - job.doc.a.startMs).toDouble()
 
-    private fun tickRecipe(job: RecipeRun) {
+    private fun tickPlanned(job: PlannedRun) {
         val doc = job.doc
-        val t = recipeTimeline(job)
+        var t = rawTimeline(job) - job.lagMs
         val now = SystemClock.uptimeMillis()
         if (!job.started) {
             if (now - job.lastProgressReportUptime >= 250 && job.oldPlayer.duration > 0) {
@@ -1022,15 +1047,35 @@ class TransitionManager(
             }
             if (t < 0) return
             job.started = true
-            initializeIntelligentEQ(job.oldPlayer, job.bPlayer)
+            if (job.plan.hasEq) initializeIntelligentEQ(job.oldPlayer, job.bPlayer)
         }
 
         if (!job.audible && t >= doc.b.offsetMs) {
             if (job.bPlayer.playbackState != Player.STATE_READY) {
-                if (t > doc.b.offsetMs + TransitionTiming.HANDOFF_TIMEOUT_MS) failRecipe(job, "B no estuvo lista")
+                // El plazo cuenta desde que se empieza a esperar a B, no desde la posición de A: si la
+                // transición arranca tarde (seek, disparo tardío) B tiene su margen completo.
+                if (job.waitStartUptime < 0) job.waitStartUptime = now
+                if (now - job.waitStartUptime > TransitionTiming.HANDOFF_TIMEOUT_MS) {
+                    failPlanned(job, "B no estuvo lista")
+                    return
+                }
+                // Mientras B no suena, A se queda en el volumen del instante de entrada (sin bajadas).
+                job.oldPlayer.volume = (job.volumeA * MixLanes.gain(doc, 'a', doc.b.offsetMs.toDouble())).toFloat().coerceIn(0f, 1f)
                 return
             }
+            val late = t - doc.b.offsetMs
+            val barA = job.gridA?.let { PhaseAlignment.barMs(it) }
+            if (job.plan.beatSync && barA != null && late > LATE_TOLERANCE_MS) {
+                // Con beatmatch B no puede entrar a destiempo: espera al siguiente compás de A.
+                job.lagMs += kotlin.math.ceil(late / barA) * barA
+                job.oldPlayer.volume = (job.volumeA * MixLanes.gain(doc, 'a', doc.b.offsetMs.toDouble())).toFloat().coerceIn(0f, 1f)
+                return
+            }
+            // B entra ahora: lo que se haya retrasado desplaza la línea de tiempo.
+            job.lagMs += late
+            t = doc.b.offsetMs.toDouble()
             job.bPlayer.volume = 0f
+            if (job.plan.beatSync) setSpeed(job, job.plan.bpmRatio.toFloat())
             job.bPlayer.play()
             job.audible = true
             try { onTransitionAudible?.invoke(job.nextSong, job.nextIndex) } catch (e: Exception) { Log.e(TAG, "onTransitionAudible", e) }
@@ -1038,18 +1083,54 @@ class TransitionManager(
 
         job.oldPlayer.volume = (job.volumeA * MixLanes.gain(doc, 'a', t)).toFloat().coerceIn(0f, 1f)
         if (job.audible) job.bPlayer.volume = (job.volumeB * MixLanes.gain(doc, 'b', t)).toFloat().coerceIn(0f, 1f)
-        applyRecipeEq(oldPlayerEq, doc, 'a', t)
-        if (job.audible) applyRecipeEq(newPlayerEq, doc, 'b', t)
+        if (job.plan.hasEq) {
+            applyDocumentEq(oldPlayerEq, doc, 'a', t)
+            if (job.audible) applyDocumentEq(newPlayerEq, doc, 'b', t)
+        }
+        if (job.audible && job.plan.beatSync) adjustTempo(job, t, now)
         transitionProgress = if (doc.durationMs > 0) (t / doc.durationMs).toFloat().coerceIn(0f, 1f) else 1f
 
         if (job.audible && now - job.lastProgressReportUptime >= 500 && job.bPlayer.duration > 0) {
             job.lastProgressReportUptime = now
             onTransitionProgress?.invoke(job.bPlayer.currentPosition, job.bPlayer.duration)
         }
-        if (job.audible && t >= doc.durationMs) completeRecipe(job)
+        if (job.audible && t >= doc.durationMs) completePlanned(job)
     }
 
-    private fun applyRecipeEq(eq: Equalizer?, doc: MixDocumentDTO, side: Char, t: Double) {
+    /**
+     * Tempo de B durante la mezcla: el de A con un ajuste fino de fase (±[MAX_PHASE_NUDGE]) mientras
+     * entra, y vuelta lineal a su tempo propio en el último cuarto.
+     */
+    private fun adjustTempo(job: PlannedRun, t: Double, now: Long) {
+        val ratio = job.plan.bpmRatio
+        val duration = job.doc.durationMs.toDouble()
+        val rideFrom = duration * TEMPO_RIDE_FROM
+        if (t >= rideFrom) {
+            val p = if (duration > rideFrom) ((t - rideFrom) / (duration - rideFrom)).coerceIn(0.0, 1.0) else 1.0
+            setSpeed(job, (ratio + (1.0 - ratio) * p).toFloat())
+            return
+        }
+        val gridA = job.gridA ?: return
+        val gridB = job.gridB ?: return
+        if (now - job.lastPhaseCheckUptime < PHASE_CHECK_MS) return
+        job.lastPhaseCheckUptime = now
+        val correction = PhaseAlignment.entryCorrectionMs(job.oldPlayer.currentPosition, gridA, job.bPlayer.currentPosition, gridB)
+        val nudge = if (abs(correction) <= PHASE_TOLERANCE_MS) 0.0
+        else (correction / PHASE_CORRECTION_WINDOW_MS).coerceIn(-MAX_PHASE_NUDGE, MAX_PHASE_NUDGE)
+        setSpeed(job, (ratio * (1.0 + nudge)).toFloat())
+    }
+
+    private fun setSpeed(job: PlannedRun, speed: Float) {
+        if (abs(speed - job.speed) < 0.001f) return
+        job.speed = speed
+        try {
+            job.bPlayer.playbackParameters = PlaybackParameters(speed)
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo ajustar el tempo de B", e)
+        }
+    }
+
+    private fun applyDocumentEq(eq: Equalizer?, doc: MixDocumentDTO, side: Char, t: Double) {
         eq ?: return
         try {
             for (i in 0 until eq.numberOfBands) {
@@ -1058,32 +1139,35 @@ class TransitionManager(
                 setSafeBandLevel(eq, i, (db * 100).toFloat())
             }
         } catch (e: Exception) {
-            Log.w(TAG, "No se pudo aplicar el EQ de la receta", e)
+            Log.w(TAG, "No se pudo aplicar el EQ de la mezcla", e)
         }
     }
 
-    private fun detachRecipe(job: RecipeRun) {
-        recipeRunnable?.let { mainHandler.removeCallbacks(it) }
-        recipeRunnable = null
+    private fun detachPlanned(job: PlannedRun) {
+        plannedRunnable?.let { mainHandler.removeCallbacks(it) }
+        plannedRunnable = null
         job.listeners.forEach { (player, listener) -> runCatching { player.removeListener(listener) } }
         job.listeners.clear()
-        if (recipe === job) recipe = null
+        if (planned === job) planned = null
     }
 
-    private fun completeRecipe(job: RecipeRun) {
-        if (recipe !== job) return
-        detachRecipe(job)
+    private fun completePlanned(job: PlannedRun) {
+        if (planned !== job) return
+        detachPlanned(job)
         releaseTransitionEqs()
         resetState()
-        runCatching { job.bPlayer.volume = job.volumeB }
+        runCatching {
+            if (abs(job.bPlayer.playbackParameters.speed - 1f) > 0.001f) job.bPlayer.playbackParameters = PlaybackParameters(1f)
+            job.bPlayer.volume = job.volumeB
+        }
         onTransitionComplete(job.bPlayer, job.oldPlayer)
-        Log.d(TAG, "🎉 Receta completada: ${job.nextSong.title}")
+        Log.d(TAG, "🎉 Mezcla completada (${job.plan.label}): ${job.nextSong.title}")
     }
 
-    private fun failRecipe(job: RecipeRun, reason: String) {
-        if (recipe !== job) return
-        Log.e(TAG, "❌ Receta fallida: $reason. A recupera su estado.")
-        detachRecipe(job)
+    private fun failPlanned(job: PlannedRun, reason: String) {
+        if (planned !== job) return
+        Log.e(TAG, "❌ Mezcla fallida (${job.plan.label}): $reason. A recupera su estado.")
+        detachPlanned(job)
         releaseTransitionEqs()
         runCatching { job.bPlayer.stop(); job.bPlayer.release() }
         runCatching { job.oldPlayer.volume = job.volumeA }
@@ -1092,23 +1176,24 @@ class TransitionManager(
         onTransitionFailed(job.oldPlayer, job.oldSong, job.nextSong, wasAudible)
     }
 
-    private fun cancelRecipe(job: RecipeRun, reason: String) {
-        Log.w(TAG, "🛑 Receta $reason")
-        detachRecipe(job)
+    private fun cancelPlanned(job: PlannedRun, reason: String) {
+        Log.w(TAG, "🛑 Mezcla $reason")
+        detachPlanned(job)
         releaseTransitionEqs()
         runCatching { job.bPlayer.stop(); job.bPlayer.release() }
         runCatching { job.oldPlayer.volume = job.volumeA }
         resetState()
     }
 
-    /** Buscar o forzar durante la receta: si B ya suena se completa; si no, se vuelve a A. */
-    private fun forceCompleteRecipe(job: RecipeRun) {
+    /** Buscar o forzar durante la mezcla: si B ya suena se completa; si no, se vuelve a A. */
+    private fun forceCompletePlanned(job: PlannedRun) {
         if (!job.audible) {
-            cancelRecipe(job, "abandonada antes de entrar B")
+            // Por el camino de fallo: el servicio restaura EQ, loudness y seekbar y A sigue sonando.
+            failPlanned(job, "abandonada antes de entrar B")
             return
         }
         runCatching { job.bPlayer.volume = job.volumeB; if (!job.bPlayer.isPlaying) job.bPlayer.play() }
-        completeRecipe(job)
+        completePlanned(job)
     }
 
     private fun beginAlbumCut(oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextSongIndex: Int) {
@@ -1124,77 +1209,9 @@ class TransitionManager(
         )
     }
 
-    private fun beginSimpleCrossfade(
-        oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextSongIndex: Int,
-        crossfadeMode: CrossfadeMode, crossfadeDurationMs: Long, nextSongStartPositionMs: Long
-    ) {
-        val entryMs = if (nextSongStartPositionMs > 0L) nextSongStartPositionMs else TransitionTiming.resolveEntryPointMs(
-            TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
-        )
-        val newPlayer = acquireTransitionPlayer(nextSong, entryMs)
-        beginTransition(
-            ActiveTransition(
-                oldPlayer, oldSong, nextSong, nextSongIndex, newPlayer, entryMs,
-                desiredFadeMs = crossfadeDurationMs, gapMs = 0L, label = "simple-${crossfadeMode.name}",
-                onBeforePlayB = {},
-                applyFrame = { progress ->
-                    val (oldVol, newVol) = when (crossfadeMode) {
-                        CrossfadeMode.DIRECT_CUT -> {
-                            val smooth = 0.5f * (1 - cos(progress * Math.PI.toFloat()))
-                            Pair(1 - smooth, smooth)
-                        }
-                        else -> Pair(sqrt(1 - progress), sqrt(progress)) // SOFT_MIX y fallback
-                    }
-                    oldPlayer.volume = oldVol * targetOldPlayerVolume
-                    newPlayer.volume = newVol * targetNewPlayerVolume
-                }
-            )
-        )
-    }
-
-    private fun beginIntelligentMix(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextSongIndex: Int) {
-        recipeProvider?.invoke(oldSong, newSong)?.let { doc ->
-            beginRecipe(oldPlayer, oldSong, newSong, nextSongIndex, doc)
-            return
-        }
-        val strategy = calculateAutomixStrategy(oldSong, newSong)
-        val mixDuration = calculateFullyIntelligentDuration(oldSong, newSong, strategy)
-        val optimalOutPoint = findOptimalOutPoint(oldSong.audioAnalysis)
-        val entryMs = intelligentEntryPointMs(newSong).toLong()
-
-        Log.i("IntelligentCrossfade", "🧠 Estrategia ${strategy.name}, duración ${mixDuration}ms, salida=${optimalOutPoint}ms, entrada=${entryMs}ms")
-
-        val newPlayer = acquireTransitionPlayer(newSong, entryMs)
-        val effectsState = IntelligentEffectsState()
-        beginTransition(
-            ActiveTransition(
-                oldPlayer, oldSong, newSong, nextSongIndex, newPlayer, entryMs,
-                desiredFadeMs = mixDuration, gapMs = 0L, label = "intelligent-${strategy.name}",
-                onBeforePlayB = {
-                    if (strategy == MixStrategy.BEATMATCH_MIX) {
-                        oldSong.audioAnalysis?.let { oldA ->
-                            newSong.audioAnalysis?.let { newA -> syncTempo(oldPlayer, oldA, newA, newPlayer) }
-                        }
-                    }
-                    initializeIntelligentEQ(oldPlayer, newPlayer)
-                },
-                applyFrame = { progress ->
-                    val (oldVol, newVol) = getEnhancedIntelligentVolumeCurve(progress, strategy)
-                    applyVolumeSmoothly(oldPlayer, newPlayer, oldVol, newVol)
-                    applyEnhancedIntelligentEq(oldPlayerEq, newPlayerEq, progress, strategy, oldSong, newSong)
-                    applyIntelligentEffects(progress, strategy, effectsState)
-                }
-            )
-        )
-    }
-
-    /** Punto de entrada del modo inteligente, ya acotado (design D9). */
-    fun intelligentEntryPointMs(song: Song): Int =
-        TransitionTiming.clampIntelligentEntry(findOptimalInPoint(song.audioAnalysis))
-
     fun cancelCurrentTransition() {
         rendered?.let { cancelRendered(it, "cancelada"); return }
-        recipe?.let { cancelRecipe(it, "cancelada"); return }
+        planned?.let { cancelPlanned(it, "cancelada"); return }
         val t = active
         if (t == null) {
             releasePreload()
@@ -1211,7 +1228,7 @@ class TransitionManager(
     /** Completa la transición ya, con B sonando a su volumen objetivo. */
     fun forceCompleteTransition() {
         rendered?.let { forceCompleteRendered(it); return }
-        recipe?.let { forceCompleteRecipe(it); return }
+        planned?.let { forceCompletePlanned(it); return }
         val t = active
         if (t == null) {
             if (isTransitioning) cancelCurrentTransition()
@@ -1483,23 +1500,8 @@ class TransitionManager(
     }
 
     // =================================================================================================
-    // ===                           CROSSFADE INTELIGENTE (MOTOR DE DJ)                             ===
+    // ===                       EQ TEMPORAL DE LA TRANSICIÓN (DOS PLAYERS)                          ===
     // =================================================================================================
-
-    private fun applyIntelligentEffects(progress: Float, strategy: MixStrategy, effectsState: IntelligentEffectsState) {
-        when (strategy) {
-            MixStrategy.BEATMATCH_MIX -> applyBeatmatchEffects(progress, effectsState)
-            MixStrategy.HARMONIC_BLEND -> applyHarmonicEffects(progress, effectsState)
-            MixStrategy.RHYTHMIC_FADE -> applyRhythmicEffects(progress, effectsState)
-            MixStrategy.STEM_SWAP_MIX -> {
-                if (progress >= 0.5f && !effectsState.bassSwapped) {
-                    Log.i("IntelligentCrossfade", "👑 STEM SWAP - Fase de Bass Swap completada")
-                    effectsState.bassSwapped = true
-                }
-            }
-            else -> applyStandardEffects(progress, effectsState)
-        }
-    }
 
     @OptIn(UnstableApi::class)
     private fun initializeIntelligentEQ(oldPlayer: ExoPlayer, newPlayer: ExoPlayer) {
@@ -1533,931 +1535,13 @@ class TransitionManager(
         }
     }
 
-    private fun applyBeatmatchEffects(progress: Float, effectsState: IntelligentEffectsState) {
-        // ✅ BASS SWAP MEJORADO
-        if (progress >= 0.5f && !effectsState.bassSwapped) {
-            Log.i("IntelligentCrossfade", "🎛️ BASS SWAP INTELIGENTE ACTIVADO!")
-            effectsState.bassSwapped = true
-
-            // Efecto adicional: pequeño ajuste de EQ para enfatizar el swap
-            newPlayerEq?.let { eq ->
-                val bands = shortArrayOf(0, 1)
-                bands.forEach { band ->
-                    val currentLevel = eq.getBandLevel(band)
-                    val boostedLevel = (currentLevel * 1.2f).toInt().toShort().coerceAtMost(
-                        EQ_MAX_ATTENUATION
-                    )
-                    setSafeBandLevel(eq, (band).toInt(), (boostedLevel).toFloat())
-                }
-            }
-        }
-
-        // ✅ EFECTO DE GROOVE SYNC
-        if (progress >= 0.7f && !effectsState.rhythmicSync) {
-            Log.i("IntelligentCrossfade", "🥁 GROOVE SYNC ACTIVADO!")
-            effectsState.rhythmicSync = true
-        }
-    }
-
-    private fun applyHarmonicEffects(progress: Float, effectsState: IntelligentEffectsState) {
-        // ✅ TRANSICIÓN ARMÓNICA PROGRESIVA
-        if (progress >= 0.3f && !effectsState.harmonicTransition) {
-            Log.i("IntelligentCrossfade", "🎵 TRANSICIÓN ARMÓNICA INICIADA")
-            effectsState.harmonicTransition = true
-        }
-
-        // ✅ EFECTO DE RESONANCIA ARMÓNICA
-        if (progress >= 0.6f && !effectsState.rhythmicSync) {
-            Log.i("IntelligentCrossfade", "🌈 RESONANCIA ARMÓNICA ACTIVADA")
-            effectsState.rhythmicSync = true
-        }
-    }
-
-    private fun applyRhythmicEffects(progress: Float, effectsState: IntelligentEffectsState) {
-        // ✅ SINCRONIZACIÓN RÍTMICA
-        if (progress >= 0.4f && !effectsState.rhythmicSync) {
-            Log.i("IntelligentCrossfade", "🎯 SINCRONIZACIÓN RÍTMICA ACTIVADA")
-            effectsState.rhythmicSync = true
-        }
-    }
-
-    private fun getEnhancedIntelligentVolumeCurve(progress: Float, strategy: MixStrategy): Pair<Float, Float> {
-        val p = progress.coerceIn(0f, 1f)
-
-        return when (strategy) {
-            MixStrategy.STEM_SWAP_MIX -> getStemSwapVolumeCurve(p)
-            MixStrategy.BEATMATCH_MIX -> {
-                // ✅ CURVA BEATMATCH MEJORADA - PRECISA PERO SUAVE
-                val oldVol = when {
-                    p < 0.3f -> 1f - (p / 0.3f).pow(1.8f) * 0.2f  // Bajada muy suave inicial
-                    p < 0.7f -> 0.8f - ((p - 0.3f) / 0.4f).pow(1.2f) * 0.5f  // Bajada controlada
-                    else -> 0.3f - ((p - 0.7f) / 0.3f).pow(0.8f) * 0.3f  // Bajada final suave
-                }
-
-                val newVol = when {
-                    p < 0.2f -> (p / 0.2f).pow(2.2f) * 0.3f  // Entrada muy suave
-                    p < 0.6f -> 0.3f + ((p - 0.2f) / 0.4f).pow(1.1f) * 0.5f  // Subida progresiva
-                    else -> 0.8f + ((p - 0.6f) / 0.4f).pow(0.9f) * 0.2f  // Subida final
-                }
-
-                Pair(oldVol.coerceIn(0f, 1f), newVol.coerceIn(0f, 1f))
-            }
-
-            MixStrategy.HARMONIC_BLEND -> {
-                // Curva de "potencia constante" (Equal Power Crossfade) para la máxima suavidad.
-                // Garantiza que la energía total percibida se mantiene constante durante la mezcla.
-                val smoothP = 0.5f * (1 - cos(p * Math.PI.toFloat())) // Curva sinusoidal para más suavidad
-                val oldVol = sqrt(1.0f - smoothP)
-                val newVol = sqrt(smoothP)
-                Pair(oldVol, newVol)
-            }
-
-            MixStrategy.RHYTHMIC_FADE -> {
-                // ✅ CURVA DE VOLUMEN MEJORADA PARA UNA MEZCLA MÁS LARGA
-                // La canción que se va se mantiene casi al máximo volumen durante la primera
-                // mitad de la mezcla y luego cae bruscamente al final.
-                val oldVol = 1f - p.pow(3f)
-
-                // La canción que entra sube de forma más constante desde el principio,
-                // asegurando que ambas conviven a buen volumen.
-                val newVol = p.pow(0.6f)
-
-                Pair(oldVol.coerceIn(0f, 1f), newVol.coerceIn(0f, 1f))
-            }
-
-            else -> {
-                // ✅ CURVA ESTÁNDAR MEJORADA
-                val oldVol = (1 - p).pow(1.4f)
-                val newVol = p.pow(0.9f)
-                Pair(oldVol, newVol)
-            }
-        }
-    }
-
-    private fun applyStandardEffects(progress: Float, effectsState: IntelligentEffectsState) {
-        // ✅ EFECTOS ESTÁNDAR MINIMALISTAS
-        if (progress >= 0.8f && !effectsState.finalFadeStarted) {
-            Log.i("IntelligentCrossfade", "🔚 FASE FINAL DE TRANSICIÓN")
-            effectsState.finalFadeStarted = true
-        }
-    }
-
-    private fun applyEnhancedIntelligentEq(oldEq: Equalizer?, newEq: Equalizer?, progress: Float, strategy: MixStrategy, oldSong: Song?, newSong: Song?) {
-        if (oldEq == null || newEq == null) return
-
-        val bands = shortArrayOf(0, 1, 2, 3, 4)
-
-        // ✅ CORRECCIÓN: Estrategias con lógica de EQ por fases (Stem Swap, Rhythmic Fade)
-        // deben ejecutarse desde el principio (progress 0.0) y usar el 'progress' principal,
-        // no el 'musicalCurve' derivado.
-
-        if (strategy == MixStrategy.STEM_SWAP_MIX) {
-            applyStemSwapEq(oldEq, newEq, progress, bands)
-            return // Salir
-        }
-
-        // 🔥 ESTA ES LA LÍNEA CLAVE AÑADIDA
-        if (strategy == MixStrategy.RHYTHMIC_FADE) {
-            applyEnhancedRhythmicEq(oldEq, newEq, progress, bands, oldSong, newSong)
-            return // Salir
-        }
-
-        // --- Lógica de EQ estándar (para BEATMATCH, HARMONIC, STANDARD) ---
-
-        // ✅ INICIO DINÁMICO BASADO EN ESTRATEGIA Y PROGRESO
-        val eqStartPoint = calculateDynamicEqStartPoint(strategy, progress)
-
-        if (progress < eqStartPoint) {
-            // ✅ ¡AQUÍ ESTÁ LA CORRECCIÓN!
-            // La canción antigua se mantiene plana.
-            resetEqToFlat(oldEq, bands)
-            // La canción nueva se mantiene CORTADA (en -1500) hasta que le toque entrar.
-            resetEqToCut(newEq, bands)
-            return
-        }
-
-        // ✅ CURVA MEJORADA CON CRITERIOS MUSICALES
-        val eqProgress = ((progress - eqStartPoint) / (1 - eqStartPoint)).coerceIn(0f, 1f)
-        val musicalCurve = calculateMusicalCurve(eqProgress, strategy, oldSong, newSong)
-
-        // ✅ APLICAR ESTRATEGIA ESPECÍFICA CON CURVA MUSICAL
-        when (strategy) {
-            MixStrategy.BEATMATCH_MIX -> applyEnhancedBeatmatchEq(oldEq, newEq, musicalCurve, bands, oldSong, newSong)
-            MixStrategy.HARMONIC_BLEND -> applyEnhancedHarmonicEq(oldEq, newEq, musicalCurve, bands, oldSong, newSong)
-            // RHYTHMIC_FADE y STEM_SWAP ya se han manejado arriba
-            else -> applyEnhancedStandardEq(oldEq, newEq, musicalCurve, bands)
-        }
-
-        Log.d("ProfessionalEQ", "🎚️ ${strategy.name} - Musical Curve: ${"%.2f".format(musicalCurve)}")
-    }
-
-    private fun applyEnhancedBeatmatchEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray, oldSong: Song?, newSong: Song?, maxAttenuation: Short = EQ_MEDIUM_ATTENUATION) {
-        // Calcula el progreso para cada rango de frecuencia
-        val bassProgress = (progress / 0.5f).coerceIn(0f, 1f)
-        val midProgress = ((progress - 0.3f) / 0.5f).coerceIn(0f, 1f)
-        val highProgress = ((progress - 0.6f) / 0.4f).coerceIn(0f, 1f)
-
-        // Aplica el EQ a cada banda individualmente
-        // BASS (Banda 0)
-        setSafeBandLevel(oldEq, (bands[0]).toInt(), (maxAttenuation * bassProgress))
-        setSafeBandLevel(newEq, (bands[0]).toInt(), (maxAttenuation * (1 - bassProgress)))
-
-        // MIDS (Bandas 1, 2, 3)
-        for (i in 1..3) {
-            setSafeBandLevel(oldEq, (bands[i]).toInt(), (maxAttenuation * midProgress))
-            setSafeBandLevel(newEq, (bands[i]).toInt(), (maxAttenuation * (1 - midProgress)))
-        }
-
-        // HIGHS (Banda 4)
-        setSafeBandLevel(oldEq, (bands[4]).toInt(), (maxAttenuation * highProgress))
-        setSafeBandLevel(newEq, (bands[4]).toInt(), (maxAttenuation * (1 - highProgress)))
-    }
-
-    private fun applyEnhancedHarmonicEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray, oldSong: Song?, newSong: Song?) {
-        // Usamos una atenuación muy ligera, el objetivo es esculpir, no cortar.
-        val maxAttenuation = EQ_LIGHT_ATTENUATION// -400, muy sutil
-
-        // Curva de progreso extra suave, ideal para disolver sonidos.
-        val curve = 0.5f * (1 - cos(progress * Math.PI.toFloat()))
-
-        // --- Lógica para la canción que SALE (oldEq) ---
-        // El objetivo es "ahuecar" suavemente el centro para hacer sitio a la nueva canción.
-        val midScoop = (maxAttenuation * curve * 0.8f).toInt().toShort()      // Un "valle" más pronunciado en los medios
-        val highReduction = (maxAttenuation * curve * 0.4f).toInt().toShort() // Reducción ligera de agudos para quitar "brillo"
-
-        // Bajos casi intactos para mantener el "cuerpo" de la canción que se va.
-        setSafeBandLevel(oldEq, (bands[0]).toInt(), (maxAttenuation * curve * 0.1f))
-        setSafeBandLevel(oldEq, (bands[1]).toInt(), (midScoop).toFloat())
-        setSafeBandLevel(oldEq, (bands[2]).toInt(), (midScoop).toFloat())
-        setSafeBandLevel(oldEq, (bands[3]).toInt(), (highReduction).toFloat())
-        setSafeBandLevel(oldEq, (bands[4]).toInt(), (highReduction).toFloat())
-
-        // --- Lógica para la canción que ENTRA (newEq) ---
-        // Empieza con un sonido "filtrado" y termina en plano (natural).
-        val initialMidScoop = (maxAttenuation * (1 - curve) * 0.8f).toInt().toShort()
-        val initialHighReduction = (maxAttenuation * (1 - curve) * 0.4f).toInt().toShort()
-
-        setSafeBandLevel(newEq, (bands[0]).toInt(), (maxAttenuation * (1 - curve) * 0.1f))
-        setSafeBandLevel(newEq, (bands[1]).toInt(), (initialMidScoop).toFloat())
-        setSafeBandLevel(newEq, (bands[2]).toInt(), (initialMidScoop).toFloat())
-        setSafeBandLevel(newEq, (bands[3]).toInt(), (initialHighReduction).toFloat())
-        setSafeBandLevel(newEq, (bands[4]).toInt(), (initialHighReduction).toFloat())
-    }
-
-    private fun applyEnhancedRhythmicEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray, oldSong: Song?, newSong: Song?) {
-        // Definimos las bandas: graves (el beat), medios (voces, melodías) y agudos.
-        val bassBand = bands[0]
-        val midBands = bands.sliceArray(1..3)
-        val highBands = bands.sliceArray(4..4) // O la última banda que tengas
-
-        // FASE 1: Introducir la nueva canción sin su bajo (progreso 0% -> 50%)
-        if (progress < 0.5f) {
-            // Calculamos el progreso dentro de esta fase (de 0.0 a 1.0)
-            val stageProgress = progress / 0.5f
-
-            // Canción que SALE (oldEq):
-            // Mantenemos su bajo intacto (plano) y empezamos a cortar suavemente los medios y agudos.
-            setSafeBandLevel(oldEq, (bassBand).toInt(), (0).toFloat())
-            midBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), (EQ_MEDIUM_ATTENUATION * stageProgress * 0.5f)) }
-            highBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), (EQ_MEDIUM_ATTENUATION * stageProgress)) }
-
-            // Canción que ENTRA (newEq):
-            // Mantenemos su bajo COMPLETAMENTE CORTADO e introducimos sus medios y agudos.
-            setSafeBandLevel(newEq, (bassBand).toInt(), (EQ_MAX_ATTENUATION).toFloat())
-            midBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (EQ_MAX_ATTENUATION * (1 - stageProgress))) }
-            highBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (EQ_MAX_ATTENUATION * (1 - stageProgress))) }
-
-            // FASE 2: Intercambiar los bajos (Bass Swap) (progreso 50% -> 100%)
-        } else {
-            // Calculamos el progreso dentro de esta fase (de 0.0 a 1.0)
-            val stageProgress = (progress - 0.5f) / 0.5f
-
-            // Canción que SALE (oldEq):
-            // Ahora sí, cortamos su bajo y terminamos de eliminar los medios/agudos.
-            setSafeBandLevel(oldEq, (bassBand).toInt(), (EQ_MAX_ATTENUATION * stageProgress))
-            midBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), ((EQ_MEDIUM_ATTENUATION * 0.5f) + (EQ_MEDIUM_ATTENUATION * 0.5f * stageProgress))) }
-            highBands.forEach { band -> setSafeBandLevel(oldEq, (band).toInt(), (EQ_MEDIUM_ATTENUATION).toFloat()) } // Ya cortados
-
-            // Canción que ENTRA (newEq):
-            // Sus medios y agudos ya están presentes (planos). AHORA introducimos su bajo.
-            setSafeBandLevel(newEq, (bassBand).toInt(), (EQ_MAX_ATTENUATION * (1 - stageProgress)))
-            midBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (0).toFloat()) }
-            highBands.forEach { band -> setSafeBandLevel(newEq, (band).toInt(), (0).toFloat()) }
-        }
-    }
-
-    private fun applyEnhancedStandardEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray) {
-        val enhancedCurve = 0.5f * (1 - cos(progress * Math.PI.toFloat()))
-        val superSmoothCurve = enhancedCurve.pow(0.8f)
-
-        bands.forEach { band ->
-            // ✅ CORRECCIÓN APLICADA
-            setSafeBandLevel(oldEq, (band).toInt(), (EQ_MAX_ATTENUATION * superSmoothCurve))
-            setSafeBandLevel(newEq, (band).toInt(), (EQ_MAX_ATTENUATION * (1 - superSmoothCurve)))
-        }
-    }
-
-    private fun applyStemSwapEq(oldEq: Equalizer, newEq: Equalizer, progress: Float, bands: ShortArray) {
-        val bassBands = shortArrayOf(0)
-        val midBands = shortArrayOf(1, 2)
-        val highBands = shortArrayOf(3, 4)
-
-        val MAX_ATT = EQ_MAX_ATTENUATION
-        val FLAT: Short = 0
-
-        // Fase 1 (0% -> 25%): Introducir agudos de la nueva canción
-        if (progress < 0.25f) {
-            val stageProgress = (progress / 0.25f)
-
-            // oldEq: Sigue sonando normal
-            bassBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
-            midBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
-            highBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
-
-            // newEq: Entra solo con agudos (Graves y Medios cortados)
-            bassBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (MAX_ATT).toFloat()) }
-            midBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (MAX_ATT).toFloat()) }
-            highBands.forEach { band ->
-                setSafeBandLevel(newEq, (band).toInt(), (MAX_ATT * (1 - stageProgress)))
-            }
-        }
-        // Fase 2 (25% -> 50%): Intercambiar los bajos (Bass Swap)
-        else if (progress < 0.5f) {
-            val stageProgress = ((progress - 0.25f) / 0.25f)
-
-            // oldEq: Empieza a perder sus bajos
-            bassBands.forEach { band ->
-                setSafeBandLevel(oldEq, (band).toInt(), (MAX_ATT * stageProgress))
-            }
-            midBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
-            highBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
-
-            // newEq: Introduce sus bajos, mantiene agudos, medios siguen cortados
-            bassBands.forEach { band ->
-                setSafeBandLevel(newEq, (band).toInt(), (MAX_ATT * (1 - stageProgress)))
-            }
-            midBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (MAX_ATT).toFloat()) }
-            highBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) } // Agudos ya entraron
-        }
-        // Fase 3 (50% -> 75%): Intercambiar los medios (Mid Swap)
-        else if (progress < 0.75f) {
-            val stageProgress = ((progress - 0.5f) / 0.25f)
-
-            // oldEq: Bajos cortados, empieza a perder medios
-            bassBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (MAX_ATT).toFloat()) }
-            midBands.forEach { band ->
-                setSafeBandLevel(oldEq, (band).toInt(), (MAX_ATT * stageProgress))
-            }
-            highBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (FLAT).toFloat()) }
-
-            // newEq: Bajos y agudos presentes, introduce medios
-            bassBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
-            midBands.forEach { band ->
-                setSafeBandLevel(newEq, (band).toInt(), (MAX_ATT * (1 - stageProgress)))
-            }
-            highBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
-        }
-        // Fase 4 (75% -> 100%): Limpiar agudos de la canción antigua
-        else {
-            val stageProgress = ((progress - 0.75f) / 0.25f)
-
-            // oldEq: Bajos y medios cortados, pierde agudos
-            bassBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (MAX_ATT).toFloat()) }
-            midBands.forEach { setSafeBandLevel(oldEq, (it).toInt(), (MAX_ATT).toFloat()) }
-            highBands.forEach { band ->
-                setSafeBandLevel(oldEq, (band).toInt(), (MAX_ATT * stageProgress))
-            }
-
-            // newEq: Todo presente (plano)
-            bassBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
-            midBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
-            highBands.forEach { setSafeBandLevel(newEq, (it).toInt(), (FLAT).toFloat()) }
-        }
-    }
-
-    private fun getStemSwapVolumeCurve(progress: Float): Pair<Float, Float> {
-        val p = progress.coerceIn(0f, 1f)
-
-        // La canción antigua se mantiene fuerte durante más tiempo para que su melodía se escuche sobre el nuevo beat
-        val oldVol = 1.0f - p.pow(3) // Cae muy bruscamente al final
-
-        // La nueva canción entra de forma más controlada y gradual
-        val newVol = p.pow(0.8f)
-
-        return Pair(oldVol.coerceIn(0f, 1f), newVol.coerceIn(0f, 1f))
-    }
-
-    private fun calculateDynamicEqStartPoint(strategy: MixStrategy, progress: Float): Float {
-        // ✅ CORRECCIÓN: El punto de inicio del EQ ahora es un valor FIJO por estrategia.
-        // Ya no depende de 'progress', eliminando el efecto "on-off-on".
-        return when (strategy) {
-            // Las mezclas armónicas deben empezar su EQ muy sutilmente y muy pronto.
-            MixStrategy.HARMONIC_BLEND -> 0.10f // Empieza al 10% de la mezcla
-
-            // Las mezclas por beat pueden esperar un poco más para que el beat se asiente.
-            MixStrategy.BEATMATCH_MIX -> 0.20f // Empieza al 20%
-
-            // Stem Swap tiene su propia lógica interna, este valor no le afecta.
-            MixStrategy.STEM_SWAP_MIX -> 0.0f
-
-            // El resto empieza un poco antes de la mitad.
-            else -> 0.25f
-        }
-    }
-
-    private fun calculateMusicalCurve(progress: Float, strategy: MixStrategy, oldSong: Song?, newSong: Song? ): Float {
-        val baseCurve = 0.5f * (1 - cos(progress * Math.PI.toFloat()))
-
-        // ✅ MODIFICAR CURVA SEGÚN CRITERIOS MUSICALES
-        return when (strategy) {
-            MixStrategy.BEATMATCH_MIX -> {
-                val bpmFactor = calculateBpmFactor(oldSong, newSong)
-                baseCurve.pow(0.8f + bpmFactor * 0.2f)
-            }
-            MixStrategy.HARMONIC_BLEND -> {
-                val harmonicFactor = calculateHarmonicFactor(oldSong, newSong)
-                baseCurve.pow(0.7f + harmonicFactor * 0.3f)
-            }
-            MixStrategy.RHYTHMIC_FADE -> {
-                val rhythmicFactor = calculateRhythmicFactor(oldSong, newSong)
-                baseCurve.pow(0.9f + rhythmicFactor * 0.1f)
-            }
-            else -> baseCurve.pow(0.85f)
-        }
-    }
-
-    private fun calculateBpmFactor(oldSong: Song?, newSong: Song?): Float {
-        val oldBpm = oldSong?.audioAnalysis?.bpmNormalized ?: 120.0
-        val newBpm = newSong?.audioAnalysis?.bpmNormalized ?: 120.0
-
-        // ✅ Comprobación de robustez
-        if (oldBpm <= 0 || newBpm <= 0) return 0.5f // Devuelve un valor neutro
-
-        val bpmDiff = abs(oldBpm - newBpm)
-        return when {
-            bpmDiff < 5 -> 1.0f
-            bpmDiff < 15 -> 0.7f
-            bpmDiff < 30 -> 0.4f
-            else -> 0.2f
-        }
-    }
-
-    private fun calculateHarmonicFactor(oldSong: Song?, newSong: Song?): Float {
-        val oldKey = oldSong?.audioAnalysis?.musicalKey
-        val newKey = newSong?.audioAnalysis?.musicalKey
-        return calculateHarmonicCompatibility(oldKey, newKey)
-    }
-
-    private fun calculateRhythmicFactor(oldSong: Song?, newSong: Song?): Float {
-        val oldBpm = oldSong?.audioAnalysis?.bpmNormalized ?: 120.0
-        val newBpm = newSong?.audioAnalysis?.bpmNormalized ?: 120.0
-        return calculateRhythmicCompatibility(oldBpm, newBpm)
-    }
-
-    private fun applyVolumeSmoothly(oldPlayer: ExoPlayer, newPlayer: ExoPlayer, oldVol: Float, newVol: Float) {
-        try {
-            // Utilizamos el volumen normalizado absoluto objetivo para multiplicar la curva suavizada
-            val smoothedOldVol = smoothVolumeCurve(oldVol) * targetOldPlayerVolume
-            val smoothedNewVol = smoothVolumeCurve(newVol) * targetNewPlayerVolume
-
-            // [CAMBIO CLAVE] Usamos la propiedad `.volume` de ExoPlayer, que es más simple.
-            oldPlayer.volume = smoothedOldVol
-            newPlayer.volume = smoothedNewVol
-
-            // [MANTENIDO] Tu log de depuración es útil y se queda.
-            if ((oldVol * 10).toInt() % 2 == 0) {
-                Log.d("IntelligentCrossfade", "🔊 Volumen - Old: ${"%.2f".format(smoothedOldVol)}, New: ${"%.2f".format(smoothedNewVol)}")
-            }
-        } catch (e: Exception) {
-            // [MANTENIDO] El manejo de errores y el re-lanzamiento son cruciales para que
-            // el bucle de animación principal se detenga y llame a `handleMixFailure`.
-            Log.e("IntelligentCrossfade", "❌ Error al ajustar volumen de ExoPlayer", e)
-            throw e // Re-lanzar para manejo superior
-        }
-    }
-
-    private fun smoothVolumeCurve(volume: Float): Float {
-        // Aplicar curva de ease-in-out adicional para mayor suavidad
-        return if (volume <= 0.5f) {
-            2 * volume * volume
-        } else {
-            1 - 2 * (1 - volume) * (1 - volume)
-        }
-    }
-
-    private fun calculateFullyIntelligentDuration(oldSong: Song, newSong: Song, strategy: MixStrategy): Long {
-        val oldAnalysis = oldSong.audioAnalysis
-        val newAnalysis = newSong.audioAnalysis
-
-        if (oldAnalysis == null || newAnalysis == null) {
-            Log.w("IntelligentCrossfade", "⚠️ Sin análisis, usando duración inteligente predeterminada")
-            return getDefaultDurationByStrategy(strategy)
-        }
-
-        val duration = when (strategy) {
-            MixStrategy.BEATMATCH_MIX -> calculateBeatmatchDurationAdvanced(oldAnalysis, newAnalysis)
-            MixStrategy.HARMONIC_BLEND -> calculateHarmonicDuration(oldAnalysis, newAnalysis)
-            MixStrategy.RHYTHMIC_FADE -> calculateRhythmicDuration(oldAnalysis, newAnalysis)
-            else -> calculateStandardDuration(oldAnalysis, newAnalysis)
-        }
-
-        // ✅ LOG DETALLADO
-        logDurationCalculation(strategy, oldSong, newSong, duration)
-
-        return duration
-    }
-
-    private fun calculateStandardDuration(oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis): Long {
-        Log.d("IntelligentCrossfade", "📏 Calculando duración estándar inteligente")
-
-        val oldBpm = oldAnalysis.bpmNormalized
-        val newBpm = newAnalysis.bpmNormalized
-        val oldKey = oldAnalysis.musicalKey
-        val newKey = newAnalysis.musicalKey
-
-        // ✅ FACTOR DE COMPATIBILIDAD GENERAL
-        val bpmCompatibility = calculateRhythmicCompatibility(oldBpm, newBpm)
-        val harmonicCompatibility = calculateHarmonicCompatibility(oldKey, newKey)
-        val overallCompatibility = (bpmCompatibility + harmonicCompatibility) / 2.0f
-
-        Log.d("IntelligentCrossfade", "🎵 Compatibilidad - BPM: ${"%.2f".format(bpmCompatibility)}, Armónica: ${"%.2f".format(harmonicCompatibility)}, General: ${"%.2f".format(overallCompatibility)}")
-
-        // ✅ DURACIÓN BASADA EN COMPATIBILIDAD
-        val baseDuration = when {
-            overallCompatibility >= 0.8 -> 10000L  // Alta compatibilidad - mezcla más larga
-            overallCompatibility >= 0.6 -> 8000L   // Compatibilidad media - duración media
-            overallCompatibility >= 0.4 -> 6000L   // Compatibilidad baja - mezcla más corta
-            else -> 5000L                          // Muy baja compatibilidad - mezcla mínima
-        }
-
-        // ✅ AJUSTE POR BPM (canciones rápidas necesitan más tiempo)
-        val bpmAdjustment = when {
-            oldBpm > 140 || newBpm > 140 -> 1.3f   // Música rápida - +30%
-            oldBpm > 120 || newBpm > 120 -> 1.15f  // Música media-rápida - +15%
-            oldBpm < 80 || newBpm < 80 -> 0.9f     // Música lenta - -10%
-            else -> 1.0f                           // Sin ajuste
-        }
-
-        // ✅ AJUSTE POR DURACIÓN DE LAS CANCIONES
-        val oldDuration = oldAnalysis.durationMs
-        val newDuration = newAnalysis.durationMs
-        val avgDuration = (oldDuration + newDuration) / 2.0
-
-        val durationAdjustment = when {
-            avgDuration > 300000 -> 1.2f   // Canciones largas (>5min) - +20%
-            avgDuration > 240000 -> 1.1f   // Canciones medias-largas (>4min) - +10%
-            avgDuration < 120000 -> 0.8f   // Canciones cortas (<2min) - -20%
-            else -> 1.0f                   // Sin ajuste
-        }
-
-        val calculatedDuration = (baseDuration * bpmAdjustment * durationAdjustment).toLong()
-        val finalDuration = calculatedDuration.coerceIn(4000L, 15000L)
-
-        Log.d("IntelligentCrossfade", "⏱️ Duración estándar calculada: ${finalDuration}ms (Base: ${baseDuration}ms, BPM x${"%.2f".format(bpmAdjustment)}, Duración x${"%.2f".format(durationAdjustment)})")
-
-        return finalDuration
-    }
-
-    private fun calculateRhythmicDuration(oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis): Long {
-        Log.d("IntelligentCrossfade", "🥁 Calculando duración rítmica inteligente")
-
-        val oldBpm = oldAnalysis.bpmNormalized
-        val newBpm = newAnalysis.bpmNormalized
-        val bpmDiff = abs(oldBpm - newBpm)
-        val avgBpm = (oldBpm + newBpm) / 2.0
-
-        // ✅ COMPATIBILIDAD RÍTMICA DETALLADA
-        val rhythmicCompatibility = calculateRhythmicCompatibility(oldBpm, newBpm)
-
-        Log.d("IntelligentCrossfade", "🎵 Análisis rítmico - BPM: $oldBpm->$newBpm, Diff: ${"%.1f".format(bpmDiff)}, Compat: ${"%.2f".format(rhythmicCompatibility)}")
-
-        // ✅ DURACIÓN BASE SEGÚN COMPATIBILIDAD RÍTMICA
-        val baseDuration = when {
-            rhythmicCompatibility >= 0.9 -> 9000L   // Rítmicamente idénticas
-            rhythmicCompatibility >= 0.8 -> 8000L   // Muy similares
-            rhythmicCompatibility >= 0.7 -> 7000L   // Similares
-            rhythmicCompatibility >= 0.6 -> 6000L   // Moderadamente similares
-            else -> 5000L                           // Poco similares
-        }
-
-        // ✅ AJUSTE POR DIFERENCIA DE BPM ESPECÍFICA
-        val bpmDiffAdjustment = when {
-            bpmDiff < 2 -> 1.3f    // BPM casi idénticos - mezcla más larga
-            bpmDiff < 5 -> 1.1f    // BPM muy similares - mezcla ligeramente más larga
-            bpmDiff < 10 -> 1.0f   // BPM similares - duración estándar
-            bpmDiff < 20 -> 0.9f   // BPM diferentes - mezcla más corta
-            else -> 0.8f           // BPM muy diferentes - mezcla mínima
-        }
-
-        // ✅ AJUSTE POR VELOCIDAD ABSOLUTA (BPM promedio)
-        val speedAdjustment = when {
-            avgBpm > 160 -> 0.7f   // Muy rápido - mezcla más corta (Techno, Drum & Bass)
-            avgBpm > 140 -> 0.8f   // Rápido - mezcla corta (House, EDM)
-            avgBpm > 120 -> 0.9f   // Medio-rápido - mezcla media (Pop, Rock)
-            avgBpm > 100 -> 1.0f   // Medio - duración estándar
-            avgBpm > 80 -> 1.1f    // Medio-lento - mezcla más larga
-            else -> 1.2f           // Lento - mezcla más larga (Baladas, Ambient)
-        }
-
-        val rhythmicComplexity = when {
-            avgBpm > 170 -> 1.2f  // Drum & Bass / Hardcore (Mucha info rítmica)
-            avgBpm > 135 -> 1.1f  // Dubstep / Techno rápido
-            avgBpm > 115 -> 1.0f  // House / Pop estándar
-            avgBpm > 90  -> 0.9f  // Hip Hop / Reggaeton (Beats más espaciados)
-            else -> 0.85f         // R&B / Baladas (Poca complejidad rítmica)
-        }
-
-        // Calculamos duración final
-        val calculatedDuration = (baseDuration * bpmDiffAdjustment * speedAdjustment * rhythmicComplexity).toLong()
-        return calculatedDuration.coerceIn(4000L, 12000L)
-    }
-
-    private fun calculateBeatmatchDurationAdvanced(oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis): Long {
-        val bpm1 = oldAnalysis.bpmNormalized
-        val bpm2 = newAnalysis.bpmNormalized
-
-        // ✅ DURACIÓN BASADA EN COMPASES PARA BEATMATCHING
-        val avgBpm = (bpm1 + bpm2) / 2.0
-        val bpmDiff = abs(bpm1 - bpm2)
-
-        val beatsNeeded = when {
-            bpmDiff < 2 -> 32  // BPM muy similares - mezcla larga
-            bpmDiff < 5 -> 24  // BPM similares - mezcla media
-            bpmDiff < 10 -> 16 // BPM diferentes - mezcla más corta
-            else -> 8          // BPM muy diferentes - mezcla corta
-        }
-
-        val durationFromBeats = ((60000.0 / avgBpm) * beatsNeeded).toLong()
-        val structureDuration = calculateStructureBasedDuration(oldAnalysis, newAnalysis)
-
-        // Usar la mayor duración entre estructura y beatmatching
-        return max(durationFromBeats, structureDuration).coerceIn(8000L, 20000L)
-    }
-
-    private fun calculateHarmonicDuration(oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis): Long {
-        val compatibility = calculateHarmonicCompatibility(oldAnalysis.musicalKey, newAnalysis.musicalKey)
-
-        // ✅ MEJORA: Las mezclas armónicas ahora son más largas y majestuosas.
-        return when {
-            compatibility >= 0.9 -> 16000L // Compatibilidad casi perfecta -> mezcla muy larga y cinematográfica
-            compatibility >= 0.7 -> 12000L // Buena compatibilidad -> mezcla larga estándar
-            else -> 9000L                  // Compatibilidad decente -> mezcla de duración media
-        }.coerceIn(8000L, 20000L) // Aseguramos que NUNCA sea menor de 8 segundos.
-    }
-
-    private fun getDefaultDurationByStrategy(strategy: MixStrategy): Long {
-        return when (strategy) {
-            MixStrategy.BEATMATCH_MIX -> 12000L
-            MixStrategy.HARMONIC_BLEND -> 10000L
-            MixStrategy.RHYTHMIC_FADE -> 8000L
-            else -> 8000L
-        }
-    }
-
-    private fun calculateStructureBasedDuration(oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis): Long {
-        Log.d("IntelligentCrossfade", "🏗️ Calculando duración basada en estructura")
-
-        // Usar puntos óptimos existentes en tu AudioAnalysis
-        val oldOutPoint = oldAnalysis.optimalExitPointMs ?: (oldAnalysis.durationMs - 8000).coerceAtLeast(0)
-        val newInPoint = newAnalysis.optimalStartPointMs ?: newAnalysis.audioStartMs
-
-        // Calcular duración basada en la posición de los puntos óptimos
-        val oldRemaining = oldAnalysis.durationMs - oldOutPoint
-        val newIntro = newInPoint
-
-        // La duración debe cubrir ambos segmentos
-        val calculatedDuration = max(oldRemaining, newIntro).toLong()
-        val finalDuration = calculatedDuration.coerceIn(6000L, 12000L)
-
-        Log.d("IntelligentCrossfade", "📍 Puntos estructurales - Salida: ${oldOutPoint}ms, Entrada: ${newInPoint}ms")
-        Log.d("IntelligentCrossfade", "⏱️ Duración estructural: ${finalDuration}ms")
-
-        return finalDuration
-    }
-
-    private fun logDurationCalculation(strategy: MixStrategy, oldSong: Song, newSong: Song, finalDuration: Long) {
-        val oldAnalysis = oldSong.audioAnalysis
-        val newAnalysis = newSong.audioAnalysis
-
-        if (oldAnalysis != null && newAnalysis != null) {
-            Log.i("IntelligentCrossfade", "🎯 RESUMEN DE DURACIÓN - ${strategy.name}")
-            Log.i("IntelligentCrossfade", "🎵 Canciones: ${oldSong.title} -> ${newSong.title}")
-            Log.i("IntelligentCrossfade", "🥁 BPM: ${oldAnalysis.bpmNormalized} -> ${newAnalysis.bpmNormalized}")
-            Log.i("IntelligentCrossfade", "🎼 Tonalidad: ${oldAnalysis.musicalKey} -> ${newAnalysis.musicalKey}")
-            Log.i("IntelligentCrossfade", "⏱️ Duración final: ${finalDuration}ms")
-            Log.i("IntelligentCrossfade", "📍 Puntos óptimos - Salida: ${oldAnalysis.optimalExitPointMs ?: "Auto"}ms, Entrada: ${newAnalysis.optimalStartPointMs ?: "Auto"}ms")
-        }
-    }
-
-    private fun findOptimalOutPoint(analysis: AudioAnalysis?): Int {
-        if (analysis == null) return 0
-
-        analysis.optimalExitPointMs?.let { return it }
-
-        val duration = analysis.durationMs
-        val bpm = analysis.bpmNormalized
-
-        // Para canciones rápidas, salir antes; para lentas, salir más tarde
-        val baseOutPoint = when {
-            bpm > 140 -> duration - 12000 // EDM, Techno - transiciones más largas
-            bpm > 100 -> duration - 10000 // Pop, Rock - duración media
-            else -> duration - 8000       // Baladas, Jazz - transiciones cortas
-        }
-
-        return baseOutPoint.coerceAtLeast(duration - 16000).coerceAtLeast(0)
-    }
-
-    private fun findOptimalInPoint(analysis: AudioAnalysis?): Int {
-        if (analysis == null) return 0
-
-        // ✅ PRIORIDAD: Punto de entrada óptimo del análisis
-        analysis.optimalStartPointMs?.let { return it }
-
-        // ✅ CALCULAR BASADO EN ESTRUCTURA MUSICAL
-        val audioStart = analysis.audioStartMs
-        val bpm = analysis.bpmNormalized
-        val key = analysis.musicalKey
-
-        // Para diferentes géneros y tonalidades, ajustar punto de entrada
-        val calculatedInPoint = when {
-            // Canciones con intros largas (ambient, classical)
-            audioStart > 5000 -> audioStart
-            // Canciones rápidas - entrar en el primer beat fuerte
-            bpm > 120 -> max(audioStart, 2000)
-            // Canciones con tonalidades complejas - buscar punto armónico
-            key != null && key.contains("m") -> max(audioStart, 1500) // Menores - entrada más suave
-            else -> max(audioStart, 1000) // Entrada estándar
-        }
-
-        return calculatedInPoint.coerceAtMost(analysis.durationMs - 5000)
-    }
-
-    private fun calculateRhythmicCompatibility(bpm1: Double, bpm2: Double): Float {
-        val ratio = max(bpm1, bpm2) / min(bpm1, bpm2)
-
-        return when {
-            ratio < 1.1 -> 1.0f    // Muy similar
-            ratio < 1.25 -> 0.8f   // Similar
-            ratio < 1.5 -> 0.6f    // Moderado
-            ratio < 2.0 -> 0.4f    // Diferente
-            else -> 0.2f           // Muy diferente
-        }
-    }
-
-    private fun areGenresSimilar(bpm1: Double, bpm2: Double): Boolean {
-        val genre1 = detectGenreByBPM(bpm1)
-        val genre2 = detectGenreByBPM(bpm2)
-
-        return genre1 == genre2 || areGenresCompatible(genre1, genre2)
-    }
-
-    private fun areGenresCompatible(genre1: String, genre2: String): Boolean {
-        val compatiblePairs = setOf(
-            "HipHop" to "Pop",
-            "Rock" to "Pop",
-            "House" to "Techno",
-            "Pop" to "House"
-        )
-        return (genre1 to genre2) in compatiblePairs || (genre2 to genre1) in compatiblePairs
-    }
-
-    private fun detectGenreByBPM(bpm: Double): String {
-        return when {
-            bpm < 60 -> "Ambient"
-            bpm < 90 -> "HipHop"
-            bpm < 110 -> "Rock"
-            bpm < 130 -> "Pop"
-            bpm < 150 -> "House"
-            else -> "Techno"
-        }
-    }
-
-    private fun calculateHarmonicCompatibility(key1: String?, key2: String?): Float {
-        if (key1.isNullOrBlank() || key2.isNullOrBlank()) return 0f
-
-        val numKey1 = parseKeyToNumeric(key1)
-        val numKey2 = parseKeyToNumeric(key2)
-        if (numKey1 == -1 || numKey2 == -1) return 0f
-
-        val diff = abs(numKey1 - numKey2)
-
-        return when (diff) {
-            0 -> 1.0f    // Misma tonalidad
-            3, 9 -> 0.9f // Relativo menor/mayor
-            5, 7 -> 0.8f // 4ta/5ta justa
-            1, 11 -> 0.7f // Semitono arriba/abajo
-            2, 10 -> 0.6f // Tono arriba/abajo
-            else -> 0.3f  // Baja compatibilidad
-        }
-    }
-
-    private fun calculateAutomixStrategy(song1: Song, song2: Song): MixStrategy {
-        val analysis1 = song1.audioAnalysis
-        val analysis2 = song2.audioAnalysis
-        if (analysis1 == null || analysis2 == null) return MixStrategy.STANDARD_CROSSFADE
-
-        val bpm1 = analysis1.bpmNormalized
-        val bpm2 = analysis2.bpmNormalized
-        val key1 = analysis1.musicalKey
-        val key2 = analysis2.musicalKey
-
-        Log.d("IntelligentCrossfade", "🎵 Análisis - BPM: $bpm1->$bpm2, Key: $key1->$key2")
-
-        // ✅ CRITERIO 1: COMPATIBILIDAD DE BPM (BEATMATCH)
-        val bpmDiff = abs(bpm1 - bpm2)
-        val bpmRatio = bpmDiff / min(bpm1, bpm2)
-        val harmonicCompatibility = calculateHarmonicCompatibility(key1, key2)
-        val isBpmCompatible = bpmRatio < BEATMATCH_BPM_TOLERANCE
-        val isSimilarGenre = areGenresSimilar(bpm1, bpm2)
-
-        // ✅ CRITERIO 0 (MÁXIMA PRIORIDAD): STEM SWAP MIX
-        // Se activa solo si los BPM son casi idénticos Y la armonía es muy alta.
-        val isBpmPerfect = bpmRatio < (BEATMATCH_BPM_TOLERANCE / 2) // Tolerancia más estricta
-        if (isBpmPerfect && harmonicCompatibility >= 0.8f) {
-            Log.d("IntelligentCrossfade", "👑 STEM_SWAP_MIX seleccionado - Condiciones perfectas!")
-            return MixStrategy.STEM_SWAP_MIX
-        }
-
-        if (isBpmCompatible && isSimilarGenre) {
-            Log.d("IntelligentCrossfade", "🎯 BEATMATCH_MIX seleccionado - BPM compatibles")
-            return MixStrategy.BEATMATCH_MIX
-        }
-
-        // ✅ CRITERIO 2: COMPATIBILIDAD ARMÓNICA MEJORADA
-        if (harmonicCompatibility >= 0.7) {
-            Log.d("IntelligentCrossfade", "🎵 HARMONIC_BLEND seleccionado - Alta compatibilidad armónica: $harmonicCompatibility")
-            return MixStrategy.HARMONIC_BLEND
-        }
-
-        // ✅ CRITERIO 3: COMPATIBILIDAD RÍTMICA
-        val rhythmicCompatibility = calculateRhythmicCompatibility(bpm1, bpm2)
-        if (rhythmicCompatibility >= 0.6) {
-            Log.d("IntelligentCrossfade", "🥁 RHYTHMIC_FADE seleccionado - Compatibilidad rítmica: $rhythmicCompatibility")
-            return MixStrategy.RHYTHMIC_FADE
-        }
-
-        Log.d("IntelligentCrossfade", "🔄 STANDARD_CROSSFADE seleccionado - Baja compatibilidad musical")
-        return MixStrategy.STANDARD_CROSSFADE
-    }
-
-    private fun resetEqToFlat(eq: Equalizer, bands: ShortArray) {
-        bands.forEach { band ->
-            setSafeBandLevel(eq, (band).toInt(), (0).toFloat()) // Nivel plano
-        }
-    }
-
-    private fun resetEqToCut(eq: Equalizer, bands: ShortArray) {
-        bands.forEach { band ->
-            setSafeBandLevel(eq, (band).toInt(), (EQ_MAX_ATTENUATION).toFloat()) // Nivel cortado
-        }
-    }
-
-    private fun calculateBeatAlignment(oldBeats: List<Int>, newBeats: List<Int>, oldPlayerCurrentPosition: Long): Int {
-        if (oldBeats.isEmpty() || newBeats.isEmpty()) return 0
-
-        val currentTime = oldPlayerCurrentPosition.toInt()
-
-        val nextOldBeat = oldBeats.firstOrNull { it > currentTime } ?: oldBeats.last()
-        val closestNewBeat = newBeats.minByOrNull { abs(it - nextOldBeat) } ?: 0
-
-        return (closestNewBeat - nextOldBeat).coerceIn(-2000, 2000)
-    }
-
-    private fun syncTempo(oldPlayer: ExoPlayer, oldAnalysis: AudioAnalysis, newAnalysis: AudioAnalysis, newPlayer: ExoPlayer) {
-        val gridA = PhaseAlignment.gridOf(oldAnalysis.bpmPrecise, oldAnalysis.firstDownbeatMs, oldAnalysis.beatsPerBar)
-        val gridB = PhaseAlignment.gridOf(newAnalysis.bpmPrecise, newAnalysis.firstDownbeatMs, newAnalysis.beatsPerBar)
-        if (gridA != null && gridB != null) {
-            syncTempoWithDownbeats(oldPlayer, gridA, newPlayer, gridB)
-            return
-        }
-        try {
-            // 1. Cálculo de velocidad base (Igual que antes)
-            val speedAdjustment = (oldAnalysis.bpmNormalized / newAnalysis.bpmNormalized).toFloat()
-            val clampedSpeed = speedAdjustment.coerceIn(0.92f, 1.08f)
-            var finalSpeed = clampedSpeed
-
-            // 2. 🔥 NUEVA LÓGICA DE ALINEACIÓN DE FASE (Sin beatGridJson) 🔥
-            // Calculamos cuánto dura un beat en ms en la canción nueva
-            val newBeatDurationMs = 60000.0 / newAnalysis.bpmNormalized
-
-            // Obtenemos la posición actual
-            val currentPos = oldPlayer.currentPosition
-
-            // Calculamos dónde estamos dentro del "ciclo" del beat (0.0 a 1.0)
-            // Esto asume que el primer beat es en 0ms (o consistente).
-            // Para mayor precisión, necesitarías solo un valor: 'firstBeatOffset' del backend.
-            val phaseOffset = (currentPos % newBeatDurationMs)
-
-            // Si el desfase es grande (> 50% del beat), significa que estamos "adelantados" o "atrasados"
-            // Intentamos empujar la velocidad ligeramente para alinear el downbeat matemáticamente.
-            val phaseError = if (phaseOffset > (newBeatDurationMs / 2)) {
-                phaseOffset - newBeatDurationMs // Estamos adelantados, frenar
-            } else {
-                phaseOffset // Estamos atrasados, acelerar
-            }
-
-            // Aplicamos corrección solo si el error es perceptible (> 20ms) pero corregible (< 200ms)
-            if (abs(phaseError) > 20 && abs(phaseError) < 200) {
-                // Factor de corrección suave (0.01x a 0.05x)
-                val fineTune = (phaseError / 1000f).toFloat().coerceIn(-0.03f, 0.03f)
-                // Invertimos el signo: si estamos atrasados (+), necesitamos ir más rápido
-                finalSpeed -= fineTune
-                Log.d("IntelligentCrossfade", "⏱️ Ajuste matemático: ${"%.3f".format(fineTune)}x, PhaseError: ${phaseError.toLong()}ms")
-            }
-
-            val playbackParameters = PlaybackParameters(finalSpeed)
-            newPlayer.playbackParameters = playbackParameters
-            Log.d("IntelligentCrossfade", "⏱️ Sincronizando tempo. Ajuste final: ${"%.3f".format(finalSpeed)}x")
-
-        } catch (e: Exception) {
-            Log.e("IntelligentCrossfade", "Error al ajustar playback rate", e)
-        }
-    }
-
-    /**
-     * Beatmatch con fase real (Fase 4): B se mueve, antes de sonar, al mismo punto de su compás que A,
-     * y su velocidad se ajusta con el BPM preciso de ambas si la diferencia es corregible (±8 %).
-     */
-    private fun syncTempoWithDownbeats(oldPlayer: ExoPlayer, gridA: PhaseAlignment.Grid, newPlayer: ExoPlayer, gridB: PhaseAlignment.Grid) {
-        try {
-            val correction = PhaseAlignment.entryCorrectionMs(oldPlayer.currentPosition, gridA, newPlayer.currentPosition, gridB)
-            if (abs(correction) > PHASE_TOLERANCE_MS) {
-                newPlayer.seekTo((newPlayer.currentPosition + correction).coerceAtLeast(0L))
-            }
-            val ratio = (gridA.bpm / gridB.bpm).toFloat()
-            val speed = if (ratio in 0.92f..1.08f) ratio else 1.0f
-            newPlayer.playbackParameters = PlaybackParameters(speed)
-            Log.d("IntelligentCrossfade", "⏱️ Fase por downbeats: corrección ${correction}ms, velocidad ${"%.3f".format(speed)}x")
-        } catch (e: Exception) {
-            Log.e("IntelligentCrossfade", "Error alineando la fase por downbeats", e)
-        }
-    }
-
-    private fun parseKeyToNumeric(key: String): Int {
-        val keyMap = mapOf(
-            "C" to 0, "B#" to 0, "C#" to 1, "Db" to 1, "D" to 2, "D#" to 3, "Eb" to 3,
-            "E" to 4, "Fb" to 4, "F" to 5, "E#" to 5, "F#" to 6, "Gb" to 6, "G" to 7,
-            "G#" to 8, "Ab" to 8, "A" to 9, "A#" to 10, "Bb" to 10, "B" to 11, "Cb" to 11
-        )
-        val isMinor = key.endsWith("m")
-        val root = if (isMinor) key.dropLast(1) else key
-        val numericKey = keyMap[root] ?: return -1
-        return if (isMinor) (numericKey + 3) % 12 else numericKey
-    }
-
-    fun predictIntelligentMixDuration(currentSong: Song, nextSong: Song): Long {
-        // Reutiliza la misma lógica que el motor de mezcla para ser consistente.
-        val strategy = calculateAutomixStrategy(currentSong, nextSong)
-        return calculateFullyIntelligentDuration(currentSong, nextSong, strategy)
-    }
-
     /**
      * Releases both active transition resources and silent preloads. Unlike
      * [cancelCurrentTransition], this is safe to call during service teardown.
      */
     fun release() {
         active?.let { detachTransition(it) }
-        recipe?.let { detachRecipe(it) }
+        planned?.let { detachPlanned(it) }
         rendered?.let { run ->
             detachRendered(run)
             runCatching { run.clipPlayer.stop(); run.clipPlayer.release() }

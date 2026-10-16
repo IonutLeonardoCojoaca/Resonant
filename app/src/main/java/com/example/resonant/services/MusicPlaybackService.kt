@@ -51,6 +51,7 @@ import com.example.resonant.playback.PlaybackMediaSourceFactory
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlaybackStateStore
 import com.example.resonant.playback.PlaybackUrlResolver
+import com.example.resonant.playback.TransitionPlanner
 import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.playback.RenderedTransition
 import com.example.resonant.playback.PlaybackQoeTracker
@@ -183,7 +184,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         private const val AUDIO_DUCK_VOLUME_MULTIPLIER = 0.2f
         private const val PREVIOUS_RESTART_THRESHOLD_MS = 3_000L
         private const val PLAYMIX_REFRESH_MIN_INTERVAL_MS = 60_000L
-        private const val RECIPE_LEAD_MS = 3_000L
+        /** La transición se arma unos segundos antes de `a.startMs` del plan para preparar B. */
+        private const val TRANSITION_LEAD_MS = 3_000L
         private const val PLAYBACK_STATE_SAVE_INTERVAL_MS = 5_000L
         // Shortened from 10s: this is also the maximum window during which the
         // device that just lost playback could still be audible alongside the
@@ -293,8 +295,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private var isSeeking: Boolean = false
     private var lastManualChangeTimestamp: Long = 0L
     private val pendingDeletionSongIds = mutableSetOf<String>()
-    @Volatile
-    private var predictedIntelligentDuration: Long = -1L
 
     /**
      * Canción cuya transición automática ya falló en esta reproducción. Evita que el
@@ -446,6 +446,16 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             }
 
             if (duration <= 0) {
+                seekBarHandler.postDelayed(this, 200)
+                return
+            }
+
+            // Tras un cambio de canción el player puede seguir unos instantes en el item anterior
+            // (posición y duración viejas). Comparar esa posición con el disparo de la canción nueva
+            // lanzaba una transición al instante y se saltaba la canción.
+            val currentSongId = PlaybackStateRepository.currentSong?.id
+            val playerSongId = player.currentMediaItem?.mediaId
+            if (currentSongId != null && playerSongId != null && playerSongId != currentSongId) {
                 seekBarHandler.postDelayed(this, 200)
                 return
             }
@@ -935,8 +945,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             onTransitionAudible = ::handleTransitionAudible,
             onTransitionProgress = { position, duration ->
                 PlaybackStateRepository.updatePlaybackPosition(position, duration.toInt())
-            },
-            recipeProvider = { from, to -> recipeFor(from, to) }
+            }
         )
 
         setupPlayerListener()
@@ -1237,8 +1246,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
                         // Proactively preload the song after next to maintain seamless native gapless
                         prepareNextTransitionPlayer(newQueueIndex)
-                        // La duración inteligente cacheada era de otro par de canciones.
-                        updatePredictedDurationAsync()
                         if (isLiveMode) liveManager.onSongChanged()
                     } else {
                         Log.d("PlayerListener", "Transición de ExoPlayer a la misma canción (${newSong?.title}). Se ignora para evitar parpadeo.")
@@ -1626,36 +1633,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         if (isAlbumMode) return -1L  // album non-automix: handled elsewhere
 
-        // Presets v2: con receta del backend, la transición empieza unos segundos antes de a.startMs.
-        if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) {
-            recipeFor(song, nextSong)?.let { doc -> return (doc.a.startMs - RECIPE_LEAD_MS).coerceAtLeast(0L) }
-        }
-
-        val actualMixDuration: Long = if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) {
-            // Intelligent mode always picks its own duration, regardless of the slider.
-            val cached = predictedIntelligentDuration
-            if (cached > 0L) {
-                cached
-            } else if (analysis != null && nextSong.audioAnalysis != null) {
-                // Full analysis available — compute and CACHE the result.
-                val predicted = transitionManager.predictIntelligentMixDuration(song, nextSong)
-                predictedIntelligentDuration = predicted  // cache so next ticks are cheap
-                predicted
-            } else {
-                // Fallback when analysis is missing — use a sensible 8-second default.
-                8000L
-            }
-        } else {
-            crossfadeDurationMs
-        }
-
-        // Duración efectiva = la menor entre la real y la del análisis; se respeta el silencio final.
-        return TransitionTiming.computeTriggerPositionMs(
-            exoDurationMs = exoDurationMs,
-            analysisDurationMs = analysisDurationMs,
-            audioEndMs = (analysis?.audioEndMs ?: 0).toLong(),
-            mixDurationMs = actualMixDuration
-        )
+        // Suave, corte e inteligente (y recetas): el plan dice dónde empieza la mezcla sobre A.
+        val plan = transitionPlanFor(song, nextSong) ?: return -1L
+        return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L) // 0 = sin disparo para el seekbar
     }
 
 
@@ -2348,7 +2328,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
                 currentSongStartTimeMs = System.currentTimeMillis()
                 PlaybackStateRepository.streamReported = false
-                updatePredictedDurationAsync()
                 prepareNextTransitionPlayer(index)
                 recordRecentSong(enrichedCurrentSong.id)
                 maybePrefetchRadio()
@@ -2582,13 +2561,50 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 TransitionTiming.resolveEntryPointMs(TransitionTiming.EntryMode.PLAYMIX, transition?.entryPointMs, null, null)
             }
             queue.sourceType == QueueSource.ALBUM -> 0L
-            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> TransitionTiming.resolveEntryPointMs(
-                TransitionTiming.EntryMode.INTELLIGENT, null, transitionManager.intelligentEntryPointMs(nextSong), null
-            )
-            else -> TransitionTiming.resolveEntryPointMs(
-                TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
-            )
+            else -> currentSong?.let { transitionPlanFor(it, nextSong) }?.doc?.b?.startMs?.toLong()
+                ?: TransitionTiming.resolveEntryPointMs(
+                    TransitionTiming.EntryMode.SIMPLE, null, null, nextSong.audioAnalysis?.audioStartMs
+                )
         }
+    }
+
+    // ── Transiciones automáticas: un plan (documento de mezcla) por pareja (unify-transition-engine) ──
+
+    private var cachedPlanKey: String? = null
+    private var cachedPlan: TransitionPlanner.Plan? = null
+
+    /**
+     * Plan de la transición [from] → [to] con el modo y la duración de los ajustes. En modo inteligente
+     * la receta del servidor, si ya llegó, tiene prioridad. Se cachea: se consulta en cada tick del seekbar.
+     */
+    private fun transitionPlanFor(from: Song, to: Song): TransitionPlanner.Plan? {
+        val player = exoPlayer
+        val exoDurationMs = if (player != null && player.duration > 0 &&
+            player.currentMediaItem?.mediaId == from.id) player.duration else -1L
+        val recipe = if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ) recipeFor(from, to) else null
+        // La identidad del análisis entra en la clave: las canciones se sustituyen por copias enriquecidas.
+        val key = "${from.id}:${to.id}:$crossfadeMode:$crossfadeDurationMs:$exoDurationMs:${recipe != null}:" +
+            "${System.identityHashCode(from.audioAnalysis)}:${System.identityHashCode(to.audioAnalysis)}"
+        if (key == cachedPlanKey) return cachedPlan
+
+        val a = TransitionPlanner.trackOf(from.audioAnalysis, exoDurationMs)
+        val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
+            ?: TransitionPlanner.Track(Long.MAX_VALUE, 0L, Long.MAX_VALUE, null, null, null)
+        val plan = when {
+            a == null -> null
+            recipe != null -> {
+                val ratio = TransitionPlanner.beatmatchRatio(a, b)
+                TransitionPlanner.Plan(recipe, "recipe", beatSync = ratio != null, bpmRatio = ratio ?: 1.0)
+            }
+            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> TransitionPlanner.plan(TransitionPlanner.Mode.SMART, a, b, 0L)
+            crossfadeDurationMs <= 0L -> null // 0 s = transiciones desactivadas
+            crossfadeMode == CrossfadeMode.DIRECT_CUT -> TransitionPlanner.plan(TransitionPlanner.Mode.CUT, a, b, crossfadeDurationMs)
+            else -> TransitionPlanner.plan(TransitionPlanner.Mode.SOFT, a, b, crossfadeDurationMs)
+        }
+        cachedPlanKey = key
+        cachedPlan = plan
+        plan?.let { Log.d("MusicService", "🎚️ Plan ${it.label} ${from.title} → ${to.title}: A=${it.doc.a.startMs}ms, B=${it.doc.b.startMs}ms, ${it.doc.durationMs}ms") }
+        return plan
     }
 
     // ── Resonant Radio (autoplay at end of queue) ──────────────────────────
@@ -3579,7 +3595,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         serviceScope.launch {
             settingsManager.crossfadeModeFlow.collect { mode ->
                 crossfadeMode = mode
-                updatePredictedDurationAsync()
                 Log.d("MusicService", "Modo Crossfade: $mode")
             }
         }
@@ -3741,41 +3756,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         triggerNotificationUpdate()
         Log.d("MusicService", "🔄 Metadata de MediaSession y Notificación actualizada para ${song?.title}")
     }
-    private fun updatePredictedDurationAsync() {
-        predictedIntelligentDuration = -1L
-
-        serviceScope.launch {
-            val currentSong: Song?
-            val nextSong: Song?
-            withContext(Dispatchers.Main) {
-                currentSong = PlaybackStateRepository.currentSong
-                // Resolve the next song by ID in the logical queue, NOT by ExoPlayer's filtered
-                // index. When songs without URLs are filtered from ExoPlayer's queue, its index
-                // does not match the original queue position, causing getNextSong to return the
-                // wrong song (often the currently playing song itself).
-                val queue = PlaybackStateRepository.activeQueue
-                val currentQueueIndex = queue?.songs?.indexOfFirst { it.id == currentSong?.id } ?: -1
-                nextSong = if (currentQueueIndex >= 0) {
-                    queue?.songs?.getOrNull(currentQueueIndex + 1)
-                } else {
-                    null
-                }
-            }
-
-            if (crossfadeMode == CrossfadeMode.INTELLIGENT_EQ &&
-                currentSong != null &&
-                nextSong != null &&
-                currentSong.id != nextSong.id) {
-
-                val duration = transitionManager.predictIntelligentMixDuration(currentSong, nextSong)
-                predictedIntelligentDuration = duration
-                Log.d("MusicService", "🧠 Duración inteligente cacheada: ${duration}ms (${currentSong.title} -> ${nextSong.title})")
-            } else {
-                Log.d("MusicService", "🧠 updatePredictedDuration: condiciones no cumplidas (mode=$crossfadeMode, cur=${currentSong?.title}, next=${nextSong?.title})")
-            }
-        }
-    }
-
     /**
      * Aplica normalización de loudness al ExoPlayer.
      * Fórmula: gain (dB) = TARGET_LUFS - song.loudness
@@ -4037,7 +4017,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         // La UI y la cola cambian a B cuando B empieza a sonar (handleTransitionAudible, D6).
-        audioEqualizerController.suspendForTransition()
+        val plan = if (playmixTransition == null) transitionPlanFor(oldSong, nextSong) else null
+        // Un fundido sin EQ propio deja el ecualizador del usuario en A (y se copia a B al entrar):
+        // quitarlo de golpe al empezar la transición se oía como un salto de volumen y timbre.
+        if (playmixTransition != null || plan == null || plan.hasEq) {
+            audioEqualizerController.suspendForTransition()
+        }
         if (playmixTransition != null) {
             Log.d("MusicService", "🎹 PlayMix — using dedicated engine: exit=${playmixTransition.exitPointMs}ms, entry=${playmixTransition.entryPointMs}ms, crossfade=${playmixTransition.crossfadeDurationMs}ms, mixMode=${playmixTransition.mixMode}, curve=${playmixTransition.fadeCurveType}, gap=${playmixTransition.gapMs}ms")
             transitionManager.startPlaymixTransition(
@@ -4055,13 +4040,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 oldSong = oldSong,
                 nextSong = nextSong,
                 nextSongIndex = nextIndex,
-                crossfadeMode = crossfadeMode,
+                plan = plan,
                 isAlbumMode = queue.sourceType == QueueSource.ALBUM,
                 automixEnabled = automixEnabled,
-                crossfadeDurationMs = crossfadeDurationMs,
                 oldSongTargetVolume = getEffectivePlaybackVolume(oldSong),
-                nextSongTargetVolume = getEffectivePlaybackVolume(nextSong),
-                nextSongStartPositionMs = 0L
+                nextSongTargetVolume = getEffectivePlaybackVolume(nextSong)
             )
         }
     }
@@ -4157,7 +4140,6 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             startSeekBarUpdates()
         }
 
-        updatePredictedDurationAsync()
 
         // onMediaItemTransition se ignora durante el relevo: Flow se revisa aquí.
         recordRecentSong(completedSong.id)
@@ -4179,6 +4161,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         // A ha terminado de sonar a efectos de historial (se reporta mientras aún es la actual).
         reportCurrentSongFinished(wasSkipped = false)
+        // Si el EQ del usuario sigue activo (fundido sin EQ propio), B suena con él desde que entra.
+        audioEqualizerController.mirrorOnTransitionSession(transitionManager.transitionPlayerSessionId)
 
         PlaybackStateRepository.setCurrentSong(nextSong)
         loadArtworkForSong(nextSong)
