@@ -277,7 +277,7 @@ class MixEditorView @JvmOverloads constructor(
         }
     }
 
-    /** Carriles de una pista: volumen (0..1), graves en dB (−40..+6) y filtro bipolar (−1..+1, centro = neutro). */
+    /** Carriles de una pista: volumen (0..1), EQ en dB (−40..0) y filtro bipolar (−1..+1, centro = neutro). */
     private fun drawLanes(canvas: Canvas, doc: MixDocumentDTO, top: Float, side: Char) {
         val lanes = doc.lanes ?: return
         val pad = dp(4f)
@@ -395,7 +395,8 @@ class MixEditorView @JvmOverloads constructor(
         /** Con más zoom que esto el imán va al beat en lugar de al compás. */
         const val BEAT_SNAP_ZOOM = 2f
         private const val EQ_MIN_DB = MixComposer.KILL_DB
-        private const val EQ_MAX_DB = 6.0
+        /** Tope de la escala del EQ: 0 dB (la banda entera) arriba del todo; los realces, si los hay, se recortan. */
+        private const val EQ_MAX_DB = 0.0
 
         val COLOR_A = Color.parseColor("#B3FFFFFF")
         val COLOR_B = Color.parseColor("#B3B8C4FF")

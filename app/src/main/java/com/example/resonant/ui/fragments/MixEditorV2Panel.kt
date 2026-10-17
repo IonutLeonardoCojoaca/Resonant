@@ -98,8 +98,7 @@ class MixEditorV2Panel(
         val clash = MixComposer.tempoClash(state.songA, state.songB)
         binding.mixV2BeatSync.isEnabled = !clash
         binding.mixV2BeatSync.isChecked = !clash && state.document.beatSync == true
-        binding.mixV2BeatSyncHint.text = if (clash) "Tempos demasiado distintos: se mezclan sin cambiar su velocidad"
-            else "La segunda canción se ajusta al tempo de la primera"
+        binding.mixV2BeatSyncHint.text = beatSyncHint(state, clash)
 
         bindCamelot(binding.mixV2KeyA, state.songA.keyCamelot)
         bindCamelot(binding.mixV2KeyB, state.songB.keyCamelot)
@@ -107,6 +106,17 @@ class MixEditorV2Panel(
         LANES.forEach { (lane, _, _) ->
             val code = currentFor(state, lane)
             laneLabels[lane]?.text = optionsFor(state, lane).firstOrNull { it.code == code }?.name ?: code
+        }
+    }
+
+    /** Por qué no hay beatmatching, con la misma regla que [MixComposer.tempoClash]: distancia de tempo o estabilidad. */
+    private fun beatSyncHint(state: MixEditorV2State, clash: Boolean): String {
+        if (!clash) return "La segunda canción se ajusta al tempo de la primera"
+        val delta = MixComposer.bpmDeltaPct(state.songA.bpmPrecise ?: state.songA.bpm, state.songB.bpmPrecise ?: state.songB.bpm)
+        return when {
+            delta == null -> "Falta el tempo de alguna canción: se mezclan sin cambiar su velocidad"
+            delta > MixComposer.MAX_SYNC_DELTA_PCT -> "Tempos demasiado distintos: se mezclan sin cambiar su velocidad"
+            else -> "El análisis no ve estable el tempo de alguna canción: se mezclan sin cambiar su velocidad"
         }
     }
 

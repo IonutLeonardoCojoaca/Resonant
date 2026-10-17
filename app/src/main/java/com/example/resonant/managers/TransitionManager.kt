@@ -1236,7 +1236,7 @@ class TransitionManager(
     /**
      * Transición sobre [MixOutputEngine]: el motor empieza la mezcla en el frame exacto en que A llega a
      * `a.startMs`, aplica volumen, EQ, filtro, ruido, bucle y eco con [com.example.resonant.playback.dsp.MixDsp]
-     * y termina solo. Aquí solo se arma, se informa a la interfaz y se devuelve B a su tempo en el último compás:
+     * y termina solo. Aquí solo se arma, se informa a la interfaz y se devuelve B a su tempo al terminar:
      * no hay corrección de fase (un solo reloj) ni ecualizadores del sistema.
      */
     private inner class EngineRun(
@@ -1252,7 +1252,6 @@ class TransitionManager(
     ) {
         var session: MixSession? = null
         var audible = false
-        var speedRestored = false
         var lastProgressReportUptime = 0L
     }
 
@@ -1279,11 +1278,11 @@ class TransitionManager(
         currentPlayer = oldPlayer
         currentSong = oldSong
         nextPlayer = bPlayer
-        Log.i(TAG, "🎚️ Mezcla en el motor ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, v${doc.version}, sync=${plan.beatSync})")
+        Log.i(TAG, "🎚️ Mezcla en el motor ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, v${doc.version}, sync=${plan.beatSync}, velocidad B=${"%.4f".format(plan.bpmRatio)})")
 
         oldPlayer.volume = job.volumeA
         bPlayer.volume = job.volumeB
-        // B a tempo de A durante toda la ventana (Sonic en su salida); vuelve a 1 en el último compás.
+        // B a tempo de A durante toda la ventana (Sonic en su salida); vuelve a 1 al terminar la mezcla.
         if (plan.beatSync) runCatching { bPlayer.playbackParameters = PlaybackParameters(plan.bpmRatio.toFloat()) }
         // B llena su búfer; el motor no lo consume hasta que empiece la mezcla.
         bPlayer.play()
@@ -1317,11 +1316,6 @@ class TransitionManager(
         val doc = job.plan.doc
         val t = session.timelineMs
         transitionProgress = if (doc.durationMs > 0) (t / doc.durationMs).toFloat().coerceIn(0f, 1f) else 1f
-        val lastBar = job.barMs ?: (doc.durationMs * (1 - TEMPO_RIDE_FROM))
-        if (job.plan.beatSync && !job.speedRestored && job.audible && t >= doc.durationMs - lastBar) {
-            job.speedRestored = true
-            runCatching { job.bPlayer.playbackParameters = PlaybackParameters(1f) }
-        }
         val now = SystemClock.uptimeMillis()
         if (now - job.lastProgressReportUptime >= 250) {
             job.lastProgressReportUptime = now
@@ -1341,7 +1335,8 @@ class TransitionManager(
         detachEngineRun(job)
         resetState()
         runCatching {
-            if (!job.speedRestored) job.bPlayer.playbackParameters = PlaybackParameters(1f)
+            // B vuelve a su tempo cuando ya suena sola: dentro de la ventana A sigue sonando y se desfasarían.
+            if (job.plan.beatSync) job.bPlayer.playbackParameters = PlaybackParameters(1f)
             job.bPlayer.volume = job.volumeB
         }
         onTransitionComplete(job.bPlayer, job.oldPlayer)

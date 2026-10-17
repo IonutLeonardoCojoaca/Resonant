@@ -268,3 +268,32 @@ TransitionManager 🎉 Mezcla completada en el motor (preview): B
 - Consecuencia: hasta ahora el editor tampoco recibía las ondas de 3 bandas y dibujaba la onda de respaldo. A partir
   de ya llegan, así que revisa el dibujo con bandas reales.
 - `beginClipFallback` me parece bien: mantenlo como respaldo aunque el clip ya llegue.
+
+### 2026-10-17 — Beatmatching bloqueado por `bpmStability` en una pareja de tempo fijo
+
+**Caso:** Playmix `d1c542a9-3c3d-4c55-b6ad-178b3e7ecbff` ("Transiciones Top"), We Still Don't Trust You → After Hours.
+Las dos salen como 111 bpm, pero al final de la mezcla se desfasan.
+
+**Lo medido en el móvil:**
+- Log de la mezcla: `sync=false, velocidad B=0.9900` (A=233537 ms, B=114561 ms, 17455 ms). Con los `bpmPrecise` del
+  análisis se llevan un 1 %. Sin beatmatching, B va a su velocidad: unos 175 ms de desfase al final de la ventana.
+- `tempoClash` da true aunque la diferencia (1 %) está muy por debajo de `MAX_SYNC_DELTA_PCT` (6 %). Así que la causa es
+  `min(bpmStability) < MIN_SYNC_STABILITY` (0,8). El editor lo confirma: el interruptor está bloqueado y ya dice "El
+  análisis no ve estable el tempo de alguna canción".
+- El valor viene del servidor (`StudioSongDTO.bpmStability`). Android solo pone 1,0 cuando falta y hay `bpmPrecise`.
+
+**Petición 1 (la importante):** revisa `bpmStability` y `bpmPrecise` de esas dos canciones. Son producciones de
+estudio con tempo fijo, así que lo esperable es una estabilidad alta. Si el análisis se equivocó, reanalízalas y
+comprueba si el mismo fallo afecta a más canciones. Ojo también con el Loop de 4 beats de esa transición: repite A con
+la duración de beat del análisis, así que si `bpmPrecise` está mal, el loop también deriva.
+
+**Petición 2 (opcional, hay que decidirla):** permitir forzar el beatmatching a mano cuando la diferencia de tempo es
+≤ `MAX_SYNC_DELTA_PCT` aunque la estabilidad sea baja (por ejemplo, la estabilidad baja solo cambiaría el valor por
+defecto a apagado). Es un cambio del contrato de `MixComposer`: hay que hacerlo en `MixComposer.cs` y regenerar los
+fixtures `mix-v2/`. En Android haría falta portarlo a `MixComposer.kt` (regla de `sync`) y habilitar el interruptor en
+`MixEditorV2Panel`. La reproducción en el móvil ya respeta `doc.beatSync`.
+
+**Para tu información (ya cambiado en Android):** con beatmatching, el motor del móvil devolvía B a su velocidad en el
+último compás mientras A seguía sonando, y se desfasaban al final. Ahora B mantiene `bpmA/bpmB` durante toda la ventana
+y vuelve a 1 al terminar la mezcla, como dibuja el editor. Comprueba que el render del servidor hace lo mismo: B a
+velocidad constante en toda la ventana.
