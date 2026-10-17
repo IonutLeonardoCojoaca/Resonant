@@ -197,6 +197,40 @@ object MixEditorV2 {
         return state.copy(document = document)
     }
 
+    /** Opción elegida en un carril. */
+    fun optionOf(selection: MixSelectionDTO, lane: String): String = when (lane) {
+        LANE_VOLUME -> selection.volume
+        LANE_EQ -> selection.eq
+        LANE_FILTER -> selection.filter
+        LANE_FX -> selection.fx
+        else -> selection.loop
+    }
+
+    /**
+     * Estado de la mezcla para el editor: sin guardar, o guardada y su clip del servidor (que es lo que suena en
+     * la Playmix; mientras se renderiza suena la mezcla en directo del documento).
+     */
+    fun statusLabel(dirty: Boolean, renderStatus: String?): String = when {
+        dirty -> "● Cambios sin guardar"
+        renderStatus == "ready" -> "✓ Guardada · mezcla renderizada"
+        renderStatus == "pending" || renderStatus == "rendering" -> "◌ Guardada · renderizando la mezcla…"
+        renderStatus == "failed" -> "Guardada · el render falló, suena en directo"
+        else -> "Guardada · suena en directo"
+    }
+
+    /** Descripción del preset (la del servidor) o, sin ella, las opciones de los carriles que no son "Ninguno". */
+    fun describe(state: MixEditorV2State): String {
+        state.presets.firstOrNull { it.code == state.presetCode }?.description?.takeIf { it.isNotBlank() }?.let { return it }
+        if (state.presetCode == AUTOMATIC) return "Elegida para esta pareja: la intro de la segunda canción entra bajo el final de la primera."
+        val options = state.laneOptions
+        val names = listOf(
+            options.volume to state.selection.volume, options.eq to state.selection.eq,
+            options.filter to state.selection.filter, options.fx to state.selection.fx, options.loop to state.selection.loop
+        ).filter { it.second != MixComposer.NONE }
+            .map { (list, code) -> list.firstOrNull { it.code == code }?.name ?: code }
+        return if (names.isEmpty()) "Sin transición: la segunda canción entra al acabar la primera." else names.joinToString(" · ")
+    }
+
     /** Preset cuyas opciones son exactamente estas, o Personalizada. */
     private fun presetFor(presets: List<TransitionPresetDTO>, selection: MixSelectionDTO): String =
         presets.firstOrNull { it.selection == selection }?.code ?: CUSTOM

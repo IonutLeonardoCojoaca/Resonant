@@ -37,6 +37,13 @@ class MixEditorView @JvmOverloads constructor(
     var onDragA: ((aStartMs: Int, toBeat: Boolean) -> Unit)? = null
     var onDragB: ((bStartMs: Int, toBeat: Boolean) -> Unit)? = null
 
+    /** Sin edición (vista previa): las ondas no se arrastran; el pellizco sigue cambiando el zoom. */
+    var editable: Boolean = true
+
+    /** Posición de reproducción en ms de A o de B (−1 = esa canción no suena). */
+    private var playheadAMs = -1f
+    private var playheadBMs = -1f
+
     private var state: MixEditorV2State? = null
     private var coincident: List<Double> = emptyList()
     private var fallbackA: List<Float>? = null
@@ -51,8 +58,8 @@ class MixEditorView @JvmOverloads constructor(
     private fun dp(v: Float) = v * density
 
     private val minimapH = dp(18f)
-    private val rulerH = dp(16f)
-    private val trackH = dp(84f)
+    private val rulerH = dp(28f)
+    private var trackH = dp(84f)
     private val laneStripH = dp(10f)
     private val gap = dp(4f)
 
@@ -62,7 +69,16 @@ class MixEditorView @JvmOverloads constructor(
         style = Paint.Style.STROKE; strokeWidth = dp(2f); strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
     }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(170, 255, 255, 255); textSize = dp(9f) }
+    private val timeText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; textSize = dp(10f); isFakeBoldText = true
+        setShadowLayer(dp(2f), 0f, 0f, Color.BLACK)
+    }
     private val path = Path()
+
+    private fun clock(ms: Double): String {
+        val total = (max(0.0, ms) / 1000).toInt()
+        return "${total / 60}:${(total % 60).toString().padStart(2, '0')}"
+    }
     private val rect = RectF()
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -85,6 +101,21 @@ class MixEditorView @JvmOverloads constructor(
         fallbackA = a
         fallbackB = b
         invalidate()
+    }
+
+    /** Línea de reproducción: la canción que suena y su posición. */
+    fun setPlayhead(songAMs: Float, songBMs: Float) {
+        if (songAMs == playheadAMs && songBMs == playheadBMs) return
+        playheadAMs = songAMs
+        playheadBMs = songBMs
+        invalidate()
+    }
+
+    /** Con altura fija (el contenedor del editor) las pistas crecen para ocuparla. */
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        val fixed = minimapH + gap + rulerH + laneStripH + gap + laneStripH + rulerH
+        trackH = max(dp(84f), (h - fixed) / 2)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -131,6 +162,24 @@ class MixEditorView @JvmOverloads constructor(
         y += laneStripH
         drawRuler(canvas, doc, y, s.songB, aSide = false, s)
         drawWindow(canvas, doc, topA, topB + trackH)
+        drawPlayhead(canvas, s, doc, topA, topB + trackH)
+    }
+
+    /** Línea de reproducción sobre las dos pistas (B a su velocidad en la mezcla). */
+    private fun drawPlayhead(canvas: Canvas, s: MixEditorV2State, doc: MixDocumentDTO, top: Float, bottom: Float) {
+        val t = when {
+            playheadAMs >= 0 -> playheadAMs - doc.a.startMs.toDouble()
+            playheadBMs >= 0 -> (playheadBMs - doc.b.startMs) / s.rateB + doc.b.offsetMs
+            else -> return
+        }
+        val x = xOf(doc, t)
+        if (x < 0 || x > width) return
+        stroke.color = COLOR_PLAYHEAD
+        stroke.strokeWidth = dp(2f)
+        canvas.drawLine(x, top - rulerH, x, bottom + rulerH, stroke)
+        stroke.strokeWidth = dp(1f)
+        fill.color = COLOR_PLAYHEAD
+        canvas.drawCircle(x, top - rulerH, dp(4f), fill)
     }
 
     private fun drawMinimap(canvas: Canvas, s: MixEditorV2State, doc: MixDocumentDTO, top: Float) {
@@ -165,11 +214,18 @@ class MixEditorView @JvmOverloads constructor(
             val t = if (aSide) songT - aMs(doc, 0.0) else (songT - bMs(s, doc, 0.0)) / s.rateB
             val x = xOf(doc, t)
             if (x in 0f..width.toFloat() && k >= 0) {
-                canvas.drawLine(x, top + rulerH * 0.4f, x, top + rulerH, stroke)
-                canvas.drawText((k + 1).toString(), x + dp(2f), top + rulerH * 0.75f, text)
+                canvas.drawLine(x, top, x, top + rulerH * 0.5f, stroke)
+                canvas.drawText((k + 1).toString(), x + dp(2f), top + rulerH * 0.42f, text)
             }
             k++
         }
+        // Tiempos de la ventana en la canción: inicio y fin, la línea de tiempo de cada pista.
+        val startMs = if (aSide) aMs(doc, 0.0) else bMs(s, doc, 0.0)
+        val endMs = if (aSide) aMs(doc, doc.durationMs.toDouble()) else bMs(s, doc, doc.durationMs.toDouble())
+        timeText.textAlign = Paint.Align.RIGHT
+        canvas.drawText(clock(startMs), xOf(doc, 0.0) - dp(3f), top + rulerH * 0.92f, timeText)
+        timeText.textAlign = Paint.Align.LEFT
+        canvas.drawText(clock(endMs), xOf(doc, doc.durationMs.toDouble()) + dp(3f), top + rulerH * 0.92f, timeText)
         if (aSide) {
             fill.color = COLOR_COINCIDENT
             for (t in coincident) {
@@ -307,6 +363,7 @@ class MixEditorView @JvmOverloads constructor(
         val trackBTop = trackATop + trackH + laneStripH + gap
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                if (!editable) return true
                 dragTrack = when (event.y) {
                     in trackATop..(trackATop + trackH + laneStripH) -> TRACK_A
                     in trackBTop..(trackBTop + trackH + laneStripH + rulerH) -> TRACK_B
@@ -372,5 +429,6 @@ class MixEditorView @JvmOverloads constructor(
         val COLOR_LOOP = Color.parseColor("#FF9800")
         val COLOR_END = Color.parseColor("#FF5252")
         val COLOR_COINCIDENT = Color.parseColor("#69F0AE")
+        val COLOR_PLAYHEAD = Color.parseColor("#E21616")
     }
 }

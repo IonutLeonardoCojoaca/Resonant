@@ -2,6 +2,7 @@ package com.example.resonant.ui.adapters
 
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.playback.PlaymixMixMode
+import com.example.resonant.ui.viewmodels.MixEditorV2
 import kotlin.math.roundToInt
 
 /**
@@ -15,8 +16,21 @@ object PlaymixTransitionLabels {
     /** [transition] null = la pareja no tiene transición en el servidor: suena con blend automático. */
     fun summarize(transition: PlaymixTransitionDTO?, bpmA: Double?, bpmB: Double?): Summary {
         val render = transition?.render
+        val doc = transition?.mixDocument
+        if (doc != null && doc.isV2) {
+            // Motor v2: el preset del documento (Automática, Fundido…, o Personalizada si se ha tocado).
+            val code = doc.preset?.code
+            val name = MixEditorV2.DEFAULT_PRESETS.firstOrNull { it.code == code }?.name
+                ?: if (code == MixEditorV2.CUSTOM) "Personalizada" else "Mezcla"
+            val details = listOfNotNull(
+                doc.bars?.let { if (it == 1) "1 compás" else "$it compases" },
+                duration(doc.durationMs),
+                tempo(bpmA, bpmB)
+            )
+            return Summary("MEZCLA", name, details.joinToString(" · "))
+        }
         if (render != null && render.status == "ready" && !PlaymixMixMode.isSmart(transition)) {
-            val details = listOfNotNull(render.durationMs?.let { duration(it) }, "Editada en la web")
+            val details = listOfNotNull(render.durationMs?.let { duration(it) }, "Editada en el editor")
             return Summary("STUDIO", "Transición de Studio", details.joinToString(" · "))
         }
         if (PlaymixMixMode.isSmart(transition)) {

@@ -293,10 +293,10 @@
     "version": 2,
     "durationMs": 7619,
     "a": {
-      "startMs": 234785
+      "startMs": 229071
     },
     "b": {
-      "startMs": 435,
+      "startMs": 500,
       "offsetMs": 0
     },
     "bars": 4,
@@ -396,7 +396,7 @@
           "curve": "smooth"
         },
         {
-          "t": 4763,
+          "t": 4762,
           "v": 0,
           "curve": "linear"
         }
@@ -425,7 +425,7 @@
           "curve": "smooth"
         },
         {
-          "t": 4763,
+          "t": 4762,
           "v": 0,
           "curve": "linear"
         }

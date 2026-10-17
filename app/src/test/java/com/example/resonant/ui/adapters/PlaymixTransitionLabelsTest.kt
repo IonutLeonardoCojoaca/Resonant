@@ -1,5 +1,9 @@
 package com.example.resonant.ui.adapters
 
+import com.example.resonant.data.network.MixDocumentDTO
+import com.example.resonant.data.network.MixPresetRefDTO
+import com.example.resonant.data.network.MixSideADTO
+import com.example.resonant.data.network.MixSideBDTO
 import com.example.resonant.data.network.PlaymixRenderDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import org.junit.Assert.assertEquals
@@ -52,7 +56,27 @@ class PlaymixTransitionLabelsTest {
             transition(render = PlaymixRenderDTO(status = "ready", durationMs = 9_000)), null, null
         )
         assertEquals("STUDIO", s.eyebrow)
-        assertEquals("9 s · Editada en la web", s.details)
+        assertEquals("9 s · Editada en el editor", s.details)
+    }
+
+    @Test
+    fun `a v2 document shows its preset, bars and tempo`() {
+        val doc = MixDocumentDTO(
+            version = 2, durationMs = 7_600, a = MixSideADTO(160_000), b = MixSideBDTO(0),
+            preset = MixPresetRefDTO("automatica", 2), bars = 4
+        )
+        val s = PlaymixTransitionLabels.summarize(
+            transition(render = PlaymixRenderDTO(status = "ready", durationMs = 9_600)).copy(mixDocument = doc), 126.0, 126.0
+        )
+        assertEquals("MEZCLA", s.eyebrow)
+        assertEquals("Automática", s.title)
+        assertEquals("4 compases · 7,6 s · 126 → 126 BPM", s.details)
+
+        val custom = PlaymixTransitionLabels.summarize(
+            transition().copy(mixDocument = doc.copy(preset = MixPresetRefDTO("personalizada", 2), bars = 1)), null, null
+        )
+        assertEquals("Personalizada", custom.title)
+        assertEquals("1 compás · 7,6 s", custom.details)
     }
 
     @Test

@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -19,6 +20,11 @@ import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SessionManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.managers.StudioManager
+import com.example.resonant.playback.WaveformBands
+import com.example.resonant.ui.viewmodels.MixEditorV2
+import com.example.resonant.ui.viewmodels.MixEditorV2State
+import com.example.resonant.ui.views.MixEditorView
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
@@ -40,6 +46,9 @@ class WaveformPreviewBottomSheet(
     override fun getTheme(): Int = R.style.AppBottomSheetDialogTheme
 
     private var waveformData: WaveformResponseDTO? = null
+    /** Mezcla v2: misma vista que el editor, con las curvas reales del documento (null con mezclas antiguas). */
+    private var mixState: MixEditorV2State? = null
+    private var mixView: MixEditorView? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -77,14 +86,22 @@ class WaveformPreviewBottomSheet(
         PlaybackStateRepository.playbackPositionLiveData.observe(viewLifecycleOwner) { pos ->
             val data = waveformData ?: return@observe
             val posMs = pos.position.toFloat()
-            when (PlaybackStateRepository.currentSong?.id) {
+            val current = PlaybackStateRepository.currentSong?.id
+            when (current) {
                 data.songA.songId -> waveform.setPlaybackPosition(posMs, -1f)
                 data.songB.songId -> waveform.setPlaybackPosition(-1f, posMs)
                 else -> waveform.setPlaybackPosition(-1f, -1f)
             }
+            mixView?.setPlayhead(
+                if (current == data.songA.songId) posMs else -1f,
+                if (current == data.songB.songId) posMs else -1f
+            )
         }
         PlaybackStateRepository.isPlayingLiveData.observe(viewLifecycleOwner) { isPlaying ->
-            if (!isPlaying) waveform.setPlaybackPosition(-1f, -1f)
+            if (!isPlaying) {
+                waveform.setPlaybackPosition(-1f, -1f)
+                mixView?.setPlayhead(-1f, -1f)
+            }
         }
 
         // Load waveform data
@@ -137,8 +154,10 @@ class WaveformPreviewBottomSheet(
                     transition.crossfadeDurationMs
                 )
 
+                if (transition.mixDocument?.isV2 == true) showMixDocument(waveform, ampA, ampB)
+
                 loading.visibility = View.GONE
-                waveform.visibility = View.VISIBLE
+                waveform.visibility = if (mixView != null) View.GONE else View.VISIBLE
 
                 // Sync cursor if already playing
                 val currentId = PlaybackStateRepository.currentSong?.id
@@ -222,6 +241,35 @@ class WaveformPreviewBottomSheet(
         }
     }
 
+    /**
+     * Mezcla v2: sustituye la onda antigua (que solo sabe dibujar fundidos) por [MixEditorView] de solo lectura con
+     * el documento guardado, sus carriles y la línea de reproducción. Si Studio no responde, queda la onda antigua.
+     */
+    private suspend fun showMixDocument(waveform: WaveformView, ampA: List<Float>, ampB: List<Float>) {
+        val ctx = context ?: return
+        val state = runCatching {
+            withContext(Dispatchers.IO) {
+                val studio = StudioManager(ctx).get(playmixId, transition.id)
+                val initial = MixEditorV2.initial(studio) ?: return@withContext null
+                initial.copy(
+                    bandsA = studio.songA.waveformBandsUrl?.let { WaveformBands.download(it) },
+                    bandsB = studio.songB.waveformBandsUrl?.let { WaveformBands.download(it) }
+                )
+            }
+        }.onFailure { Log.w("WaveformPreview", "Mezcla v2 sin Studio", it) }.getOrNull() ?: return
+        if (!isAdded) return
+        val container = waveform.parent as? ViewGroup ?: return
+        container.layoutParams = container.layoutParams.apply { height = (300 * resources.displayMetrics.density).toInt() }
+        val view = MixEditorView(ctx).apply {
+            editable = false
+            setFallbackWaveforms(ampA, ampB)
+            setState(state, MixEditorV2.coincidentBeats(state))
+        }
+        container.addView(view, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        mixState = state
+        mixView = view
+    }
+
     private fun generatePlaceholder(durationMs: Int): List<Float> {
         val count = (durationMs / 50).coerceIn(10, 2000)
         return (0 until count).map { (Math.random() * 0.5 + 0.2).toFloat() }
@@ -229,7 +277,9 @@ class WaveformPreviewBottomSheet(
 
     private fun startPreview(playButton: TextView) {
         val data = waveformData ?: return
-        val startPositionMs = maxOf(0, transition.exitPointMs - 10_000)
+        // Mezcla v2: desde 2 compases antes de la ventana, como la escucha del editor.
+        val startPositionMs = mixState?.let { MixEditorV2.preview(it).startPositionMs }
+            ?: maxOf(0, transition.exitPointMs - 10_000)
         val songManager = SongManager(requireContext())
 
         playButton.isEnabled = false

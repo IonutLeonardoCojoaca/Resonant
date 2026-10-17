@@ -30,6 +30,8 @@ import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.TransitionPresetManager
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -78,8 +80,14 @@ data class CrossfadeEditorState(
     /** Studio apagado o inaccesible: el editor solo puede guardar puntos y el blend automático. */
     val studioUnavailable: Boolean = false,
     /** Editor v2 (carriles, ventana y presets estilo Spotify); null con el motor v1 o sin documento v2 posible. */
-    val v2: MixEditorV2State? = null
-)
+    val v2: MixEditorV2State? = null,
+    /** Documento v2 guardado en el servidor (null si aún no hay): distinto del de [v2] = cambios sin guardar. */
+    val v2Saved: MixDocumentDTO? = null
+) {
+    val v2Dirty: Boolean get() = v2 != null && v2.document != v2Saved
+    /** Estado del clip renderizado del servidor (pending, rendering, ready, failed…). */
+    val renderStatus: String? get() = studio?.render?.status
+}
 
 fun defaultEq() = EqSettingsDTO(
     bands = listOf(60, 250, 1000, 4000, 12000).map { EqBandDTO(it, 0.0) }
@@ -251,6 +259,7 @@ class CrossfadeEditorViewModel(
         val doc = v2?.document ?: studio.document
         _state.value = current.copy(
             v2 = v2,
+            v2Saved = studio.document.takeIf { it.isV2 },
             studio = studio,
             document = doc,
             revision = studio.revision,
@@ -264,6 +273,27 @@ class CrossfadeEditorViewModel(
                 else if (current.mixMode == PlaymixMixMode.SMART) PlaymixMixMode.DEFAULT_ADVANCED else current.mixMode
         )
         if (v2 != null && current.v2 == null) loadV2Extras(studio)
+        if (v2 != null && studio.render?.status in RENDERING) pollRender()
+    }
+
+    private var renderPoll: Job? = null
+
+    /** Tras guardar, el servidor renderiza el clip en segundos: se consulta hasta que termina para enseñarlo. */
+    private fun pollRender() {
+        val manager = studioManager ?: return
+        renderPoll?.cancel()
+        renderPoll = viewModelScope.launch {
+            repeat(RENDER_POLLS) {
+                delay(RENDER_POLL_MS)
+                val fresh = runCatching { withContext(ioDispatcher) { manager.get(playmixId, transitionId) } }.getOrNull()
+                    ?: return@repeat
+                val current = _state.value ?: return@launch
+                val studio = current.studio ?: return@launch
+                if (fresh.revision != studio.revision) return@launch
+                _state.value = current.copy(studio = studio.copy(render = fresh.render))
+                if (fresh.render?.status !in RENDERING) return@launch
+            }
+        }
     }
 
     // ─── Editor v2 ─────────────────────────
@@ -781,6 +811,10 @@ class CrossfadeEditorViewModel(
         _state.value = _state.value?.copy(savedSuccess = false, error = null)
     }
 }
+
+private val RENDERING = setOf("pending", "rendering")
+private const val RENDER_POLLS = 40
+private const val RENDER_POLL_MS = 3_000L
 
 class CrossfadeEditorViewModelFactory(
     private val playmixManager: PlaymixManager,

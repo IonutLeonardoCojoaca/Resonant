@@ -51,6 +51,8 @@ object MixComposer {
     const val MIN_SYNC_STABILITY = 0.8
     const val MAX_DROP_FROM_START_MS = 20_000
     private const val NOISE_STEP = 0.33
+    /** Profundidad inicial de los filtros de entrada de B: paso bajo ≈ 2 kHz, paso alto ≈ 300 Hz: B se oye amortiguado. */
+    const val IN_FILTER_DEPTH = 0.45
     private const val ECHO_DELAY_BEATS = 0.75
     const val NONE = "none"
     const val AUTOMATIC_CODE = "automatica"
@@ -109,20 +111,19 @@ object MixComposer {
             else -> DEFAULT_BARS
         }
 
+        // La mezcla termina en el último downbeat de A con audio (A suena toda la ventana) y el punto fuerte de B cae
+        // en el centro, donde se intercambian los graves (igual que el backend).
         val audioEndA = audioEnd(from)
-        val centerA = downbeatAtOrBefore(from, audioEndA.toDouble()) ?: audioEndA
+        val endA = downbeatAtOrBefore(from, audioEndA.toDouble()) ?: audioEndA
         val strongB = strongPointB(to)
         val rate = if (clash) 1.0 else rate(from, to)
-        val half = bars / 2.0 * bar
+        val length = bars * bar
 
-        var aStart = centerA - half
-        var bStart = strongB - half * rate
+        var aStart = endA - length
+        var bStart = strongB - length / 2 * rate
+        // B sin intro suficiente: B empieza en su primer downbeat con audio y A no se mueve.
         val audioStartB = max(0, to.audioStartMs)
-        if (bStart < audioStartB) {
-            val shiftBars = ceil((audioStartB - bStart) / (bar * rate))
-            bStart += shiftBars * bar * rate
-            aStart += shiftBars * bar
-        }
+        if (bStart < audioStartB) bStart = (downbeatAtOrAfter(to, audioStartB.toDouble()) ?: audioStartB).toDouble()
         if (aStart < 0) {
             val shiftBars = ceil(-aStart / bar)
             aStart += shiftBars * bar
@@ -240,7 +241,8 @@ object MixComposer {
         val d = t.duration.toDouble()
         val h = t.half
         fun out(to: Double) = Shape(0.0, 0.0).hold(h).line(d, to)
-        fun into(from: Double) = Shape(0.0, from).line(h, 0.0)
+        // B entra filtrado pero audible (igual que el backend: InFilterDepth).
+        fun into(from: Double) = Shape(0.0, from * IN_FILTER_DEPTH).line(h, 0.0)
         val (a, b) = when (option) {
             "lpf-out" -> out(-1.0) to null
             "lpf-in" -> null to into(-1.0)

@@ -142,4 +142,19 @@ class MixEditorV2Test {
         assertEquals(MixComposer.AUTOMATIC_CODE, codes.first())
         assertTrue(MixEditorV2.DEFAULT_LANE_OPTIONS.volume.any { it.code == "smooth-crossfade" })
     }
+
+    @Test
+    fun `status label tells unsaved changes and the render state apart`() {
+        assertEquals("● Cambios sin guardar", MixEditorV2.statusLabel(dirty = true, renderStatus = "ready"))
+        assertEquals("✓ Guardada · mezcla renderizada", MixEditorV2.statusLabel(false, "ready"))
+        assertEquals("◌ Guardada · renderizando la mezcla…", MixEditorV2.statusLabel(false, "pending"))
+        assertEquals("Guardada · suena en directo", MixEditorV2.statusLabel(false, null))
+    }
+
+    @Test
+    fun `custom mixes are described by their lane options`() {
+        val state = MixEditorV2.selectLaneOption(MixEditorV2.selectPreset(initial(), "corte"), MixEditorV2.LANE_FX, "echo-out")
+        assertEquals("Corte central · Eco de salida", MixEditorV2.describe(state))
+        assertEquals("cut-center", MixEditorV2.optionOf(state.selection, MixEditorV2.LANE_VOLUME))
+    }
 }

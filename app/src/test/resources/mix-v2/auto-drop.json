@@ -293,7 +293,7 @@
     "version": 2,
     "durationMs": 15238,
     "a": {
-      "startMs": 229071
+      "startMs": 221452
     },
     "b": {
       "startMs": 8211,
@@ -402,7 +402,7 @@
       "b.filter": [
         {
           "t": 0,
-          "v": 1,
+          "v": 0.45,
           "curve": "linear"
         },
         {

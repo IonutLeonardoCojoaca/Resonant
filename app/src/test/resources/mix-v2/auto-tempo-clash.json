@@ -267,7 +267,7 @@
     "version": 2,
     "durationMs": 3810,
     "a": {
-      "startMs": 234785
+      "startMs": 232880
     },
     "b": {
       "startMs": 30595,
@@ -314,12 +314,12 @@
           "curve": "hold"
         },
         {
-          "t": 1786,
+          "t": 1787,
           "v": 0,
           "curve": "smooth"
         },
         {
-          "t": 1905,
+          "t": 1906,
           "v": -40,
           "curve": "linear"
         }
@@ -331,12 +331,12 @@
           "curve": "hold"
         },
         {
-          "t": 1786,
+          "t": 1787,
           "v": -40,
           "curve": "smooth"
         },
         {
-          "t": 1905,
+          "t": 1906,
           "v": 0,
           "curve": "linear"
         }

@@ -55,6 +55,7 @@ import com.example.resonant.playback.PlaymixMixMode
 import com.example.resonant.playback.TransitionPreview
 import com.example.resonant.playback.engine.TransitionEngineFlag
 import com.example.resonant.ui.viewmodels.MixEditorV2
+import com.example.resonant.ui.views.MixEditorView
 import com.example.resonant.ui.components.ChartPeriodSelector
 import com.example.resonant.ui.components.ResonantAccent
 import java.util.Locale
@@ -84,6 +85,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     private val hiddenBySmartMode = mutableListOf<View>()
     /** Editor v2 (motor de salida único): sustituye a los bloques del editor antiguo. */
     private var v2Panel: MixEditorV2Panel? = null
+    private var mixEditorView: MixEditorView? = null
     private var amplitudesA: List<Float>? = null
     private var amplitudesB: List<Float>? = null
 
@@ -566,6 +568,10 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
 
             if (state.v2 != null) {
                 bindV2(state)
+                updatePointLabels(state)
+                binding.measureDropdownButton.text = "${barsLabel(state.v2.window.bars)} ▾"
+                updatePreviewToggleButton()
+                updateWaveformPlaybackCursor()
                 handleMessages(state)
                 return@observe
             }
@@ -796,6 +802,11 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     }
 
     private fun showMeasureMenu(anchor: View) {
+        viewModel.state.value?.v2?.let { v2 ->
+            val bars = MixEditorV2.BAR_OPTIONS.map { it.toString() to barsLabel(it) }
+            showStyledPopup(anchor, bars, v2.window.bars.toString()) { viewModel.v2SetBars(it.toInt()) }
+            return
+        }
         val options = listOf(
             "2" to "2 compases",
             "4" to "4 compases",
@@ -925,7 +936,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                 val b = _binding ?: return@withContext
                 amplitudesA = ampAResult
                 amplitudesB = ampBResult
-                v2Panel?.setFallbackWaveforms(ampAResult, ampBResult)
+                mixEditorView?.setFallbackWaveforms(ampAResult, ampBResult)
                 b.waveformView.setWaveformData(
                     ampAResult, ampBResult,
                     songA.durationMs, songB.durationMs,
@@ -1077,41 +1088,64 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             return
         }
 
-        startPreviewPlayback(state, data)
+        if (state.v2 != null) startV2Preview() else startPreviewPlayback(state, data)
     }
 
     // ═══════════════════════════════════════════════
     // EDITOR V2 (spotify-style-transition-engine D9)
     // ═══════════════════════════════════════════════
 
-    /** Al llegar el primer estado v2 oculta el editor antiguo (menos la cabecera) y monta el panel v2. */
+    /** Pinta el estado v2; la primera vez monta el editor v2 dentro del visualizador antiguo. */
     private fun bindV2(state: CrossfadeEditorState) {
         val v2 = state.v2 ?: return
-        val panel = v2Panel ?: createV2Panel()
-        panel.bind(v2, MixEditorV2.coincidentBeats(v2))
+        val panel = v2Panel ?: createV2Layout()
+        mixEditorView?.setState(v2, MixEditorV2.coincidentBeats(v2))
+        panel.bind(v2, state.v2Dirty, state.renderStatus)
     }
 
-    private fun createV2Panel(): MixEditorV2Panel {
+    /**
+     * Editor v2 sobre el diseño de siempre: cabecera de A, visualizador (la onda pasa a ser [MixEditorView], con el
+     * botón de escucha encima), tiempos de salida/entrada con el desplegable de compases y la tarjeta de B. Debajo,
+     * en lugar del modo de mezcla y las curvas por banda, los presets y los carriles. El selector blend/avanzada no
+     * aplica: Automática es un preset más.
+     */
+    private fun createV2Layout(): MixEditorV2Panel {
         val content = binding.editorContent
+        hiddenBySmartMode.clear()
         for (i in 0 until content.childCount) {
             val child = content.getChildAt(i)
-            if (child !== binding.songHeaderPanel) child.visibility = View.GONE
+            child.visibility = if (child === binding.songHeaderPanel || child === binding.visualizerPanel) View.VISIBLE else View.GONE
         }
+        listOf(
+            binding.transitionDurationPanel, binding.prelistenPanel, binding.advancedToggleButton,
+            binding.fadeCurvePanel, binding.bandFadePanel, binding.gapSliderPanel, binding.mixModePanel
+        ).forEach { it.visibility = View.GONE }
+
+        binding.waveformView.visibility = View.GONE
+        val editor = MixEditorView(requireContext()).apply {
+            onDragA = { ms, toBeat -> viewModel.v2DragA(ms, toBeat) }
+            onDragB = { ms, toBeat -> viewModel.v2DragB(ms, toBeat) }
+            setFallbackWaveforms(amplitudesA, amplitudesB)
+        }
+        binding.waveformContainer.addView(
+            editor, 0,
+            android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        mixEditorView = editor
+
         val panel = MixEditorV2Panel(requireContext(), object : MixEditorV2Panel.Actions {
             override fun selectPreset(code: String) = viewModel.v2SelectPreset(code)
             override fun selectLaneOption(lane: String, code: String) = viewModel.v2SelectLaneOption(lane, code)
-            override fun setBars(bars: Int) = viewModel.v2SetBars(bars)
             override fun moveWindow(deltaBars: Int) = viewModel.v2MoveWindow(deltaBars)
-            override fun dragA(aStartMs: Int, toBeat: Boolean) = viewModel.v2DragA(aStartMs, toBeat)
-            override fun dragB(bStartMs: Int, toBeat: Boolean) = viewModel.v2DragB(bStartMs, toBeat)
             override fun setBeatSync(enabled: Boolean) = viewModel.v2SetBeatSync(enabled)
-            override fun preview() = startV2Preview()
         }) { anchor, options, current, onSelected -> showStyledPopup(anchor, options, current, onSelected) }
-        content.addView(panel.root, content.indexOfChild(binding.songHeaderPanel) + 1)
-        panel.setFallbackWaveforms(amplitudesA, amplitudesB)
+        val visualizer = binding.visualizerPanel
+        visualizer.addView(panel.root, visualizer.indexOfChild(binding.mixModePanel))
         v2Panel = panel
         return panel
     }
+
+    private fun barsLabel(bars: Int) = if (bars == 1) "1 compás" else "$bars compases"
 
     /** Escucha el documento sin guardar: el servicio lo usa para esta pareja en lugar del guardado. */
     private fun startV2Preview() {
@@ -1555,6 +1589,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         }
         if (!PlaybackStateRepository.isPlaying) {
             b.waveformView.setPlaybackPosition(-1f, -1f)
+            mixEditorView?.setPlayhead(-1f, -1f)
             return
         }
         val currentSongId = PlaybackStateRepository.currentSong?.id
@@ -1564,6 +1599,11 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             data.songB.songId -> b.waveformView.setPlaybackPosition(-1f, positionMs)
             else -> b.waveformView.setPlaybackPosition(-1f, -1f)
         }
+        // Línea de reproducción del editor v2: la canción que suena y su posición.
+        mixEditorView?.setPlayhead(
+            if (currentSongId == data.songA.songId) positionMs else -1f,
+            if (currentSongId == data.songB.songId) positionMs else -1f
+        )
     }
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
@@ -1571,6 +1611,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     override fun onDestroyView() {
         TransitionPreview.clear()
         v2Panel = null
+        mixEditorView = null
         super.onDestroyView()
         _binding = null
     }

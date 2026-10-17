@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -128,6 +129,7 @@ class CrossfadeEditorViewModelV2Test {
 
         assertEquals(listOf(edited), studio.saved)
         assertTrue(vm.state.value!!.savedSuccess)
+        assertFalse(vm.state.value!!.v2Dirty)
         assertEquals("corte", vm.state.value!!.v2!!.presetCode)
     }
 
@@ -138,6 +140,7 @@ class CrossfadeEditorViewModelV2Test {
         advanceUntilIdle()
         vm.v2SelectLaneOption(MixEditorV2.LANE_FX, "echo-out")
 
+        assertTrue(vm.state.value!!.v2Dirty)
         val request = vm.v2PreviewRequest()!!
         val document = vm.state.value!!.document!!
         assertEquals(document, request.document)
