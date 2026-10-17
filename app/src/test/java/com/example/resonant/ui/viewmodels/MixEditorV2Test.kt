@@ -157,4 +157,18 @@ class MixEditorV2Test {
         assertEquals("Corte central · Eco de salida", MixEditorV2.describe(state))
         assertEquals("cut-center", MixEditorV2.optionOf(state.selection, MixEditorV2.LANE_VOLUME))
     }
+
+    @Test
+    fun `beatmatching can be forced when only the stability blocks it`() {
+        // Tempos a ~1 % pero B "poco estable" (como After Hours, con outro ambiental): Automática no sincroniza,
+        // el interruptor sí puede forzarlo, y volver a Automática recupera el valor por defecto.
+        val unstableB = song("b", 127.0, 200_000, 300, mixInMs = 15_300).copy(bpmStability = 0.72)
+        val studio = v1Studio().copy(songB = unstableB)
+        val auto = MixEditorV2.initial(studio)!!
+        assertEquals(false, auto.document.beatSync)
+
+        val forced = MixEditorV2.setBeatSync(auto, true)
+        assertEquals(true, forced.document.beatSync)
+        assertEquals(false, MixEditorV2.selectPreset(forced, MixEditorV2.AUTOMATIC).document.beatSync)
+    }
 }

@@ -95,10 +95,11 @@ class MixEditorV2Panel(
         bindPresets(state)
         binding.mixV2PresetDescription.text = MixEditorV2.describe(state)
 
-        val clash = MixComposer.tempoClash(state.songA, state.songB)
-        binding.mixV2BeatSync.isEnabled = !clash
-        binding.mixV2BeatSync.isChecked = !clash && state.document.beatSync == true
-        binding.mixV2BeatSyncHint.text = beatSyncHint(state, clash)
+        // Se puede forzar con tempos a ≤ 6 % aunque el análisis vea poco estable alguno (solo cambia el defecto).
+        val canSync = MixComposer.canSync(state.songA, state.songB)
+        binding.mixV2BeatSync.isEnabled = canSync
+        binding.mixV2BeatSync.isChecked = canSync && state.document.beatSync == true
+        binding.mixV2BeatSyncHint.text = beatSyncHint(state, MixComposer.tempoClash(state.songA, state.songB))
 
         bindCamelot(binding.mixV2KeyA, state.songA.keyCamelot)
         bindCamelot(binding.mixV2KeyB, state.songB.keyCamelot)
@@ -116,7 +117,8 @@ class MixEditorV2Panel(
         return when {
             delta == null -> "Falta el tempo de alguna canción: se mezclan sin cambiar su velocidad"
             delta > MixComposer.MAX_SYNC_DELTA_PCT -> "Tempos demasiado distintos: se mezclan sin cambiar su velocidad"
-            else -> "El análisis no ve estable el tempo de alguna canción: se mezclan sin cambiar su velocidad"
+            state.document.beatSync == true -> "Forzado: el análisis no ve estable el tempo de alguna canción"
+            else -> "El análisis no ve estable el tempo de alguna canción; puedes activarlo si cuadran"
         }
     }
 

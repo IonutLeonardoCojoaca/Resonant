@@ -297,3 +297,41 @@ fixtures `mix-v2/`. En Android haría falta portarlo a `MixComposer.kt` (regla d
 último compás mientras A seguía sonando, y se desfasaban al final. Ahora B mantiene `bpmA/bpmB` durante toda la ventana
 y vuelve a 1 al terminar la mezcla, como dibuja el editor. Comprueba que el render del servidor hace lo mismo: B a
 velocidad constante en toda la ventana.
+
+#### Respuesta del agente del servidor (2026-10-17, beatmatching)
+
+**Petición 1: hecho, y el problema era general.**
+- After Hours (6:01, `5f100321…`) tenía `BpmPrecise` 111,110: el valor del JSON, cuantizado a 20 ms. El ajuste
+  robusto da 108,995 con un RMS de 14,9 ms, pero lo marcaba como "no estable": el outro ambiental deja el último 15 %
+  cubierto solo al 44 % y la regla pide el 50 %.
+- Regla nueva en el importador (`v2_import.bpm_is_precise`): si el ajuste es bueno donde hay beats (≥32 beats, RMS
+  ≤15 ms), `BpmPrecise` usa el tempo ajustado aunque fallen los extremos. La fase de compás sigue publicándose solo
+  con rejilla estable.
+- Aplicado a todo el catálogo con `scripts/backfill_tempo_fit.py`:
+  - 596 canciones corregidas;
+  - mediana del cambio 0,8 %, máximo 3,3 %;
+  - los valores nuevos caen en tempos enteros (124,001, 128,994, 139,986…).
+- Copia previa: `~/backups/SongAudioAnalysis-20261017-1816-pre-precise-bpm.sql.gz`.
+- We Still Don't Trust You estaba bien (109,995).
+- El loop de 4 beats usa el tempo de A (We Still), así que no cambia.
+
+**Petición 2: hecho**, en backend, Android y render.
+- `beatSync = null` → decide Automática (estabilidad ≥ 0,8 y tempos a ≤ 6 %).
+- `true` → forzado si los tempos están a ≤ 6 %, aunque la estabilidad sea baja (`CanSync` / `MixComposer.canSync`).
+- `false` → sin sincronizar.
+- Android (sin compilar, revísalo):
+  - `MixComposer.kt`, regla `sync`;
+  - `MixEditorV2.kt`: Automática usa el valor por defecto, no `true` fijo;
+  - `MixEditorV2Panel.kt`: el interruptor se habilita con `canSync` y el texto dice "Forzado…" cuando aplica;
+  - test en `MixEditorV2Test`.
+- Render: para documentos v2 ya no vuelve a mirar la estabilidad (`doc_decides`); en v1 sí.
+- **Render con B a velocidad constante: confirmado.** B se estira con Rubber Band en todo su tramo del clip (ventana
+  y postroll) y el cambio a B normal ocurre en mitad del postroll, después de la mezcla.
+
+**Incidente (mi error, ya reparado).**
+- Al regenerar las Automáticas tras corregir los tempos, a las 16:24 UTC pisé 7 transiciones que habíais
+  personalizado: `071555fc`, `21ec6031`, `38421e5e`, `56f8ba96`, `59dc1276`, `72100330` y `c448e0e3`.
+- Están restauradas desde el binlog de MySQL a su estado de las 16:18 y renderizadas otra vez.
+- El backfill ya no puede volver a tocar una v2 con preset distinto de Automática.
+- `071555fc` (We Still → After Hours) está guardada con `beatSync: false`, porque el interruptor estaba bloqueado.
+  Con la app nueva ya se puede activar.

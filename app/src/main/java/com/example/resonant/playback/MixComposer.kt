@@ -95,6 +95,13 @@ object MixComposer {
 
     // ─── Ventana ────────────────────────────────────────────────────────────────────────────────
 
+    /** El usuario puede forzar el beatmatching: tempos conocidos y a ≤ 6 % (como `CanSync` del backend). */
+    fun canSync(from: Song, to: Song): Boolean {
+        val delta = bpmDeltaPct(bpm(from), bpm(to))
+        return delta != null && delta <= MAX_SYNC_DELTA_PCT
+    }
+
+    /** Automática no sincroniza (valor por defecto de beatSync): > 6 % o rejilla poco estable. */
     fun tempoClash(from: Song, to: Song): Boolean {
         val delta = bpmDeltaPct(bpm(from), bpm(to))
         return delta == null || delta > MAX_SYNC_DELTA_PCT ||
@@ -142,7 +149,12 @@ object MixComposer {
     // ─── Documento ──────────────────────────────────────────────────────────────────────────────
 
     fun compose(selection: MixSelectionDTO, window: Window, from: Song, to: Song, beatSync: Boolean?, presetCode: String): MixDocumentDTO? {
-        val sync = !tempoClash(from, to) && (beatSync ?: true)
+        // null = Automática decide; true = forzado (si se puede); false = sin sincronizar (igual que el backend).
+        val sync = when (beatSync) {
+            true -> canSync(from, to)
+            false -> false
+            null -> !tempoClash(from, to)
+        }
         if (selection.volume == NONE) return noTransition(from, to, sync, presetCode)
         val gridA = Grid.of(from) ?: return null
 

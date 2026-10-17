@@ -90,7 +90,7 @@ object MixEditorV2 {
                 presetCode = saved.preset?.code ?: CUSTOM,
                 selection = saved.selection ?: MixSelectionDTO(),
                 window = window,
-                beatSync = saved.beatSync ?: true
+                beatSync = saved.beatSync ?: !MixComposer.tempoClash(a, b)
             )
         }
         val window = MixComposer.automaticWindow(a, b) ?: return null
@@ -103,7 +103,8 @@ object MixEditorV2 {
         if (code == AUTOMATIC) {
             val window = MixComposer.automaticWindow(state.songA, state.songB) ?: return state
             val selection = MixComposer.automaticSelection(state.songA, state.songB)
-            return regenerate(state.copy(presetCode = AUTOMATIC, selection = selection, window = window, beatSync = true))
+            val sync = !MixComposer.tempoClash(state.songA, state.songB)
+            return regenerate(state.copy(presetCode = AUTOMATIC, selection = selection, window = window, beatSync = sync))
         }
         val preset = state.presets.firstOrNull { it.code == code } ?: return state
         val selection = preset.selection ?: return state
