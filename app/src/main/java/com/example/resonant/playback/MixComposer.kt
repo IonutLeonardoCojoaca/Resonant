@@ -14,12 +14,12 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.rint
+import kotlin.math.round
 
 /**
  * Port de `ResonantBackend/.../Service/Studio/MixComposer.cs` (spotify-style-transition-engine D6): mismas formas,
  * misma ventana de Automática y mismo redondeo (al par, como `Math.Round` de C#; los tiempos de los puntos, lejos
- * del cero). Se comprueba con los fixtures `mix-v2/*.json` que escribe el test del backend: si cambia allí, cambia
+ * del cero). Se comprueba con los fixtures JSON de `mix-v2/` que escribe el test del backend: si cambia allí, cambia
  * aquí. Lo usan el modo Automática sin red y el editor (respuesta inmediata); al guardar manda el backend.
  */
 object MixComposer {
@@ -376,7 +376,7 @@ object MixComposer {
         /** Desfase (−½ compás, ½ compás] entre [ms] y el downbeat más cercano. */
         fun phaseAt(ms: Int): Double {
             val first = firstMs ?: return 0.0
-            return first + rint((ms - first) / barMs) * barMs - ms
+            return first + round((ms - first) / barMs) * barMs - ms
         }
 
         companion object {
@@ -397,8 +397,8 @@ object MixComposer {
         val half: Double get() = if (bars >= 2) clamp(snapBar(duration / 2.0)) else clamp(snapBeat(duration / 2.0))
         val swap: Double get() = beat / 4
         val fillet: Double get() = beat / 8
-        fun snapBar(t: Double): Double = phase + rint((t - phase) / bar) * bar
-        fun snapBeat(t: Double): Double = phase + rint((t - phase) / beat) * beat
+        fun snapBar(t: Double): Double = phase + round((t - phase) / bar) * bar
+        fun snapBeat(t: Double): Double = phase + round((t - phase) / beat) * beat
         fun clamp(t: Double): Double = t.coerceIn(0.0, duration.toDouble())
     }
 
@@ -472,11 +472,11 @@ object MixComposer {
     private const val SMOOTH = "smooth"
 
     /** `(int)Math.Round(x)` de C#: al par. */
-    private fun roundEven(x: Double): Int = rint(x).toInt()
+    private fun roundEven(x: Double): Int = round(x).toInt()
 
     private fun roundAwayFromZero(x: Double): Int = (if (x >= 0) floor(x + 0.5) else ceil(x - 0.5)).toInt()
 
     private fun round4(x: Double): Double = roundTo(x, 1e4)
 
-    private fun roundTo(x: Double, scale: Double): Double = rint(x * scale) / scale
+    private fun roundTo(x: Double, scale: Double): Double = round(x * scale) / scale
 }
