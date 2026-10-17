@@ -210,7 +210,9 @@ data class TransitionPresetDTO(
     val iconName: String,
     val category: String,
     val isSystem: Boolean,
-    val sortOrder: Int
+    val sortOrder: Int,
+    /** Presets v2 (`X-Mix-Doc-Version: 2`): opción de cada carril; null en Automática y en los presets antiguos. */
+    val selection: MixSelectionDTO? = null
 )
 
 data class ApplyPresetRequest(

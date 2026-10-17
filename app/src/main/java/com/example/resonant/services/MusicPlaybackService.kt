@@ -75,6 +75,12 @@ import com.example.resonant.data.network.SongPlaybackDTO
 import com.example.resonant.managers.SettingsManager
 import com.example.resonant.managers.FlowPreferencesManager
 import com.example.resonant.managers.CapabilitiesManager
+import com.example.resonant.playback.MixComposer
+import com.example.resonant.playback.TransitionPreview
+import com.example.resonant.playback.UserEqPolicy
+import com.example.resonant.playback.engine.MixOutputEngine
+import com.example.resonant.playback.engine.TransitionEngineFlag
+import com.example.resonant.playback.engine.buildPlayer
 import com.example.resonant.managers.TransitionManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.managers.StreamReporter
@@ -229,6 +235,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     private lateinit var settingsManager: SettingsManager
     private lateinit var transitionManager: TransitionManager
+
+    /** Motor de salida único (spotify-style-transition-engine D5); null = un AudioTrack por player, como antes. */
+    private var mixEngine: MixOutputEngine? = null
     private lateinit var playbackUrlResolver: PlaybackUrlResolver
     private lateinit var playbackMediaItemFactory: PlaybackMediaItemFactory
     private lateinit var playbackMediaSourceFactory: PlaybackMediaSourceFactory
@@ -937,6 +946,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 )
             )
         )
+        mixEngine = if (TransitionEngineFlag.isEnabled(applicationContext)) MixOutputEngine(applicationContext) else null
+        // Actualiza la capacidad para el próximo arranque (el motor no cambia con el servicio en marcha).
+        serviceScope.launch { runCatching { CapabilitiesManager.refresh(applicationContext) } }
         transitionManager = TransitionManager(
             context = this,
             mediaSourceFactoryProvider = playbackMediaSourceFactory::create,
@@ -946,7 +958,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             onTransitionAudible = ::handleTransitionAudible,
             onTransitionProgress = { position, duration ->
                 PlaybackStateRepository.updatePlaybackPosition(position, duration.toInt())
-            }
+            },
+            mixEngine = mixEngine
         )
 
         setupPlayerListener()
@@ -1077,6 +1090,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         PlaybackStateRepository.reset()
         audioEqualizerController.release()
         exoPlayer?.release()
+        mixEngine?.release()
+        mixEngine = null
         exoPlayer = null
         unregisterBecomingNoisyReceiver()
         abandonAudioFocus()
@@ -1499,20 +1514,24 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
 
     private fun createExoPlayer(): ExoPlayer {
-        return ExoPlayer.Builder(this)
-            .setMediaSourceFactory(playbackMediaSourceFactory.create())
-            .build().apply {
-                setAudioAttributes(exoAudioAttributes, false)
-                setWakeMode(C.WAKE_MODE_NETWORK)
-                addListener(playerListener)
-                addAnalyticsListener(playbackQoeTracker)
-                val initialMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
-                repeatMode = when (initialMode) {
-                    PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
-                    PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
-                    else -> Player.REPEAT_MODE_OFF
-                }
+        val engine = mixEngine
+        val player = if (engine != null) {
+            engine.buildPlayer(this, "main") { setMediaSourceFactory(playbackMediaSourceFactory.create()) }
+        } else {
+            ExoPlayer.Builder(this).setMediaSourceFactory(playbackMediaSourceFactory.create()).build()
+        }
+        return player.apply {
+            setAudioAttributes(exoAudioAttributes, false)
+            setWakeMode(C.WAKE_MODE_NETWORK)
+            addListener(playerListener)
+            addAnalyticsListener(playbackQoeTracker)
+            val initialMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+            repeatMode = when (initialMode) {
+                PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+                PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+                else -> Player.REPEAT_MODE_OFF
             }
+        }
     }
 
     @Volatile
@@ -1601,6 +1620,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         // —— PlayMix mode: trigger at exitPointMs (which already accounts for crossfade + gap) ——
         if (isPlaymixMode) {
+            // Escucha desde el editor: manda el documento que se está editando.
+            previewPlanFor(song, nextSong)?.let { plan ->
+                return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
+            }
             val stored = playmixTransitions["${song.id}:${nextSong.id}"]
             // Studio sin clip listo: el documento se reproduce con el motor del móvil (add-rhythmic-mix-styles D5).
             stored?.let { studioPlanFor(it, song, nextSong) }?.let { plan ->
@@ -2613,8 +2636,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             a == null -> null
             recipe != null -> {
                 val ratio = TransitionPlanner.beatmatchRatio(a, b)
-                TransitionPlanner.Plan(recipe, "recipe", beatSync = ratio != null, bpmRatio = ratio ?: 1.0)
+                val sync = ratio != null && (!recipe.isV2 || recipe.beatSync == true)
+                TransitionPlanner.Plan(recipe, "recipe", beatSync = sync, bpmRatio = ratio ?: 1.0)
             }
+            crossfadeMode == CrossfadeMode.INTELLIGENT_EQ && mixEngine != null ->
+                localAutomaticPlan(from, to, a, b) ?: TransitionPlanner.plan(TransitionPlanner.Mode.SMART, a, b, 0L)
             crossfadeMode == CrossfadeMode.INTELLIGENT_EQ -> TransitionPlanner.plan(TransitionPlanner.Mode.SMART, a, b, 0L)
             crossfadeMode == CrossfadeMode.DIRECT_CUT -> TransitionPlanner.plan(TransitionPlanner.Mode.CUT, a, b, crossfadeDurationMs)
             crossfadeDurationMs <= 0L -> null
@@ -2626,6 +2652,28 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         return plan
     }
 
+    /** Plan del documento que el editor está escuchando sin guardar ([TransitionPreview]). */
+    private fun previewPlanFor(from: Song, to: Song): TransitionPlanner.Plan? {
+        val doc = TransitionPreview.documentFor(from.id, to.id)?.takeIf { !it.isV2 || mixEngine != null } ?: return null
+        val a = TransitionPlanner.trackOf(from.audioAnalysis, -1L)
+        val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
+        val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
+        val sync = ratio != null && (!doc.isV2 || doc.beatSync == true)
+        return TransitionPlanner.Plan(doc, "preview", beatSync = sync, bpmRatio = ratio ?: 1.0)
+    }
+
+    /**
+     * Automática sin servidor (spotify-style-transition-engine D6): el port del generador del backend, con la
+     * misma ventana y las mismas formas; solo con el motor de salida único, que reproduce documentos v2.
+     */
+    private fun localAutomaticPlan(from: Song, to: Song, a: TransitionPlanner.Track, b: TransitionPlanner.Track): TransitionPlanner.Plan? {
+        val analysisA = from.audioAnalysis ?: return null
+        val analysisB = to.audioAnalysis ?: return null
+        val doc = MixComposer.automatic(MixComposer.songOf(analysisA), MixComposer.songOf(analysisB)) ?: return null
+        val ratio = TransitionPlanner.beatmatchRatio(a, b)
+        return TransitionPlanner.Plan(doc, "auto-local", beatSync = ratio != null && doc.beatSync == true, bpmRatio = ratio ?: 1.0)
+    }
+
     /**
      * Plan con el documento de Studio de una transición de Playmix, si lo tiene y su clip renderizado aún no
      * está listo (con clip listo manda `RenderedTransition`). Así la transición suena como en la web desde que
@@ -2635,7 +2683,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private var cachedStudioPlan: TransitionPlanner.Plan? = null
 
     private fun studioPlanFor(transition: PlaymixTransitionDTO, from: Song, to: Song): TransitionPlanner.Plan? {
-        val doc = transition.mixDocument ?: return null
+        // Un documento v2 solo lo reproduce el motor de salida único; sin él, la Playmix usa su camino anterior.
+        val doc = transition.mixDocument?.takeIf { !it.isV2 || mixEngine != null } ?: return null
         // Se consulta en cada tick del seekbar: se cachea por transición, estado del clip y análisis.
         val key = "${transition.id}:${transition.render?.status}:${System.identityHashCode(doc)}:" +
             "${System.identityHashCode(from.audioAnalysis)}:${System.identityHashCode(to.audioAnalysis)}"
@@ -2644,7 +2693,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             val a = TransitionPlanner.trackOf(from.audioAnalysis, -1L)
             val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
             val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
-            TransitionPlanner.Plan(doc, "studio-${doc.preset?.code ?: "custom"}", beatSync = ratio != null, bpmRatio = ratio ?: 1.0)
+            val sync = ratio != null && (!doc.isV2 || doc.beatSync == true)
+            TransitionPlanner.Plan(doc, "studio-${doc.preset?.code ?: "custom"}", beatSync = sync, bpmRatio = ratio ?: 1.0)
         }
         cachedStudioKey = key
         cachedStudioPlan = plan
@@ -3913,36 +3963,36 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     // ── Presets v2: recetas sugeridas por el backend para el modo inteligente ──────────────────
 
     private val recipeDocuments = java.util.concurrent.ConcurrentHashMap<String, MixDocumentDTO>()
-    private val recipeMisses: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
-
-    @Volatile
-    private var recipesUnavailable = false
+    /** Parejas con una petición en curso (no se piden dos veces a la vez). */
+    private val recipeRequests: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     private fun recipeKey(from: Song, to: Song) = "${from.id}:${to.id}"
 
-    fun recipeFor(from: Song, to: Song): MixDocumentDTO? = recipeDocuments[recipeKey(from, to)]
+    /** Receta del servidor para la pareja; un documento v2 solo si el motor de salida único puede reproducirlo. */
+    fun recipeFor(from: Song, to: Song): MixDocumentDTO? =
+        recipeDocuments[recipeKey(from, to)]?.takeIf { !it.isV2 || mixEngine != null }
 
-    /** Pide al backend la mejor receta para la pareja; un 404 (flag apagado) desactiva las peticiones en la sesión. */
+    /**
+     * Pide al backend la mejor receta para la pareja. Un fallo (sin red, flag apagado) no se recuerda: la
+     * siguiente pareja vuelve a preguntar, y mientras tanto se usa la mezcla local.
+     */
     private fun prefetchRecipe(queue: PlaybackQueue, from: Song, to: Song) {
-        if (recipesUnavailable || crossfadeMode != CrossfadeMode.INTELLIGENT_EQ) return
+        if (crossfadeMode != CrossfadeMode.INTELLIGENT_EQ) return
         if (queue.sourceType == QueueSource.PLAYMIX || queue.sourceType == QueueSource.ALBUM) return
         val key = recipeKey(from, to)
-        if (recipeDocuments.containsKey(key) || !recipeMisses.add(key)) return
+        if (recipeDocuments.containsKey(key) || !recipeRequests.add(key)) return
         serviceScope.launch(Dispatchers.IO) {
             try {
                 val response = ApiClient.getTransitionPresetService(applicationContext)
                     .suggest(TransitionSuggestRequest(fromSongId = from.id, toSongId = to.id, limit = 1))
-                if (response.code() == 404) {
-                    recipesUnavailable = true
-                    return@launch
-                }
                 response.body()?.suggestions?.firstOrNull()?.document?.let { doc ->
                     recipeDocuments[key] = doc
-                    recipeMisses.remove(key)
-                    Log.d("MusicService", "🧩 Receta para ${from.title} → ${to.title}: ${doc.durationMs}ms")
+                    Log.d("MusicService", "🧩 Receta v${doc.version} para ${from.title} → ${to.title}: ${doc.durationMs}ms")
                 }
             } catch (e: Exception) {
                 Log.w("MusicService", "Sin receta para la pareja: ${e.message}")
+            } finally {
+                recipeRequests.remove(key)
             }
         }
     }
@@ -4064,13 +4114,15 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         // La UI y la cola cambian a B cuando B empieza a sonar (handleTransitionAudible, D6).
-        val studioPlan = if (isPlaymixMode) playmixTransitions["${oldSong.id}:${nextSong.id}"]?.let { studioPlanFor(it, oldSong, nextSong) } else null
+        val studioPlan = if (isPlaymixMode) {
+            previewPlanFor(oldSong, nextSong) ?: playmixTransitions["${oldSong.id}:${nextSong.id}"]?.let { studioPlanFor(it, oldSong, nextSong) }
+        } else null
         // Con documento de Studio (sin clip listo) manda el documento, no los campos antiguos de la transición.
         val legacyTransition = if (studioPlan != null) null else playmixTransition
         val plan = studioPlan ?: if (legacyTransition == null) transitionPlanFor(oldSong, nextSong, playmixSmart = isPlaymixMode) else null
         // Un fundido sin EQ propio deja el ecualizador del usuario en A (y se copia a B al entrar):
         // quitarlo de golpe al empezar la transición se oía como un salto de volumen y timbre.
-        if (legacyTransition != null || plan == null || plan.hasEq) {
+        if (UserEqPolicy.suspendForTransition(engineActive = mixEngine != null, legacyPlaymix = legacyTransition != null, plan = plan)) {
             audioEqualizerController.suspendForTransition()
         }
         if (legacyTransition != null) {

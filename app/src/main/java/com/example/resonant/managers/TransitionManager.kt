@@ -27,6 +27,9 @@ import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
+import com.example.resonant.playback.engine.MixOutputEngine
+import com.example.resonant.playback.engine.MixSession
+import com.example.resonant.playback.engine.buildPlayer
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
@@ -62,7 +65,9 @@ class TransitionManager(
     private val onTransitionComplete: (newPlayer: ExoPlayer, oldPlayer: ExoPlayer) -> Unit,
     private val onTransitionFailed: (oldPlayer: ExoPlayer, oldSong: Song?, nextSong: Song?, wasAudible: Boolean) -> Unit,
     private val onTransitionAudible: ((nextSong: Song, nextIndex: Int) -> Unit)? = null,
-    private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null
+    private val onTransitionProgress: ((position: Long, duration: Long) -> Unit)? = null,
+    /** Motor de salida único (spotify-style-transition-engine D5); null = camino anterior de dos players. */
+    private val mixEngine: MixOutputEngine? = null
 ) {
 
     private val musicAudioAttributes = AudioAttributes.Builder()
@@ -73,6 +78,8 @@ class TransitionManager(
     companion object {
         private const val TAG = "TransitionManager"
         private const val ANIMATION_FRAME_DELAY_MS = 16L
+        /** Refresco de la interfaz durante una mezcla del motor (el audio no depende de él). */
+        private const val ENGINE_TICK_MS = 50L
         private const val GAP_FADE_OUT_MS = 300L
         private const val EQ_MAX_ATTENUATION: Short = -1500
         private const val EQ_MEDIUM_ATTENUATION: Short = -800
@@ -88,13 +95,18 @@ class TransitionManager(
     }
 
     private fun createTransitionPlayer(): ExoPlayer {
-        return ExoPlayer.Builder(context)
-            .setMediaSourceFactory(mediaSourceFactoryProvider())
-            .build()
-            .apply {
-                setAudioAttributes(musicAudioAttributes, false)
-                setWakeMode(C.WAKE_MODE_NETWORK)
-            }
+        val engine = mixEngine
+        val player = if (engine != null) {
+            engine.buildPlayer(context, "transition") { setMediaSourceFactory(mediaSourceFactoryProvider()) }
+        } else {
+            ExoPlayer.Builder(context)
+                .setMediaSourceFactory(mediaSourceFactoryProvider())
+                .build()
+        }
+        return player.apply {
+            setAudioAttributes(musicAudioAttributes, false)
+            setWakeMode(C.WAKE_MODE_NETWORK)
+        }
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -554,6 +566,8 @@ class TransitionManager(
 
         if (isAlbumMode || plan == null) {
             beginAlbumCut(oldPlayer, oldSong, nextSong, nextSongIndex)
+        } else if (mixEngine != null) {
+            beginEngineRun(oldPlayer, oldSong, nextSong, nextSongIndex, plan)
         } else {
             beginPlanned(oldPlayer, oldSong, nextSong, nextSongIndex, plan)
         }
@@ -1196,6 +1210,156 @@ class TransitionManager(
         completePlanned(job)
     }
 
+    // =================================================================================================
+    // ===     MOTOR DE SALIDA ÚNICO: EL DOCUMENTO SE MEZCLA EN EL MOTOR A LA MUESTRA (D5)            ===
+    // =================================================================================================
+
+    /**
+     * Transición sobre [MixOutputEngine]: el motor empieza la mezcla en el frame exacto en que A llega a
+     * `a.startMs`, aplica volumen, EQ, filtro, ruido, bucle y eco con [com.example.resonant.playback.dsp.MixDsp]
+     * y termina solo. Aquí solo se arma, se informa a la interfaz y se devuelve B a su tempo en el último compás:
+     * no hay corrección de fase (un solo reloj) ni ecualizadores del sistema.
+     */
+    private inner class EngineRun(
+        val oldPlayer: ExoPlayer,
+        val oldSong: Song,
+        val nextSong: Song,
+        val nextIndex: Int,
+        val plan: TransitionPlanner.Plan,
+        val bPlayer: ExoPlayer,
+        val volumeA: Float,
+        val volumeB: Float,
+        val barMs: Double?
+    ) {
+        var session: MixSession? = null
+        var audible = false
+        var speedRestored = false
+        var lastProgressReportUptime = 0L
+    }
+
+    private var engineRun: EngineRun? = null
+    private var engineRunnable: Runnable? = null
+
+    private fun beginEngineRun(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextIndex: Int, plan: TransitionPlanner.Plan) {
+        val engine = mixEngine ?: return beginPlanned(oldPlayer, oldSong, newSong, nextIndex, plan)
+        val doc = plan.doc
+        val bPlayer = acquireTransitionPlayer(newSong, doc.b.startMs.toLong())
+        val sourceA = engine.players.sourceOf(oldPlayer)
+        val sourceB = engine.players.sourceOf(bPlayer)
+        if (sourceA == null || sourceB == null) {
+            // Algún player no suena por el motor (formato no mezclable): camino anterior.
+            Log.w(TAG, "Fuentes del motor no disponibles; mezcla con dos players")
+            return beginPlanned(oldPlayer, oldSong, newSong, nextIndex, plan)
+        }
+        val gridA = oldSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
+        val barMs = gridA?.let { PhaseAlignment.barMs(it) }
+        val job = EngineRun(oldPlayer, oldSong, newSong, nextIndex, plan, bPlayer, targetOldPlayerVolume, targetNewPlayerVolume, barMs)
+        engineRun = job
+        isTransitioning = true
+        transitionProgress = 0f
+        currentPlayer = oldPlayer
+        currentSong = oldSong
+        nextPlayer = bPlayer
+        Log.i(TAG, "🎚️ Mezcla en el motor ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, v${doc.version}, sync=${plan.beatSync})")
+
+        oldPlayer.volume = job.volumeA
+        bPlayer.volume = job.volumeB
+        // B a tempo de A durante toda la ventana (Sonic en su salida); vuelve a 1 en el último compás.
+        if (plan.beatSync) runCatching { bPlayer.playbackParameters = PlaybackParameters(plan.bpmRatio.toFloat()) }
+        // B llena su búfer; el motor no lo consume hasta que empiece la mezcla.
+        bPlayer.play()
+
+        val barFrames = barMs?.let { (it * MixOutputEngine.SAMPLE_RATE / 1000.0).toInt() }
+        job.session = engine.arm(doc, sourceA, sourceB, barFrames, object : MixSession.Listener {
+            override fun onAudible() {
+                if (engineRun !== job) return
+                job.audible = true
+                try { onTransitionAudible?.invoke(job.nextSong, job.nextIndex) } catch (e: Exception) { Log.e(TAG, "onTransitionAudible", e) }
+            }
+
+            override fun onCompleted() = completeEngineRun(job)
+
+            override fun onFailed(reason: String) = failEngineRun(job, reason)
+        })
+
+        val runnable = object : Runnable {
+            override fun run() {
+                if (engineRun !== job) return
+                tickEngineRun(job)
+                if (engineRun === job) mainHandler.postDelayed(this, ENGINE_TICK_MS)
+            }
+        }
+        engineRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    private fun tickEngineRun(job: EngineRun) {
+        val session = job.session ?: return
+        val doc = job.plan.doc
+        val t = session.timelineMs
+        transitionProgress = if (doc.durationMs > 0) (t / doc.durationMs).toFloat().coerceIn(0f, 1f) else 1f
+        val lastBar = job.barMs ?: (doc.durationMs * (1 - TEMPO_RIDE_FROM))
+        if (job.plan.beatSync && !job.speedRestored && job.audible && t >= doc.durationMs - lastBar) {
+            job.speedRestored = true
+            runCatching { job.bPlayer.playbackParameters = PlaybackParameters(1f) }
+        }
+        val now = SystemClock.uptimeMillis()
+        if (now - job.lastProgressReportUptime >= 250) {
+            job.lastProgressReportUptime = now
+            val player = if (job.audible) job.bPlayer else job.oldPlayer
+            if (player.duration > 0) onTransitionProgress?.invoke(player.currentPosition, player.duration)
+        }
+    }
+
+    private fun detachEngineRun(job: EngineRun) {
+        engineRunnable?.let { mainHandler.removeCallbacks(it) }
+        engineRunnable = null
+        if (engineRun === job) engineRun = null
+    }
+
+    private fun completeEngineRun(job: EngineRun) {
+        if (engineRun !== job) return
+        detachEngineRun(job)
+        resetState()
+        runCatching {
+            if (!job.speedRestored) job.bPlayer.playbackParameters = PlaybackParameters(1f)
+            job.bPlayer.volume = job.volumeB
+        }
+        onTransitionComplete(job.bPlayer, job.oldPlayer)
+        Log.d(TAG, "🎉 Mezcla completada en el motor (${job.plan.label}): ${job.nextSong.title}")
+    }
+
+    private fun failEngineRun(job: EngineRun, reason: String) {
+        if (engineRun !== job) return
+        Log.e(TAG, "❌ Mezcla fallida en el motor (${job.plan.label}): $reason. A recupera su estado.")
+        detachEngineRun(job)
+        job.session?.let { mixEngine?.cancel(it) }
+        runCatching { job.bPlayer.stop(); job.bPlayer.release() }
+        runCatching { job.oldPlayer.volume = job.volumeA }
+        val wasAudible = job.audible
+        resetState()
+        onTransitionFailed(job.oldPlayer, job.oldSong, job.nextSong, wasAudible)
+    }
+
+    private fun cancelEngineRun(job: EngineRun, reason: String) {
+        Log.w(TAG, "🛑 Mezcla del motor $reason")
+        detachEngineRun(job)
+        job.session?.let { mixEngine?.cancel(it) }
+        runCatching { job.bPlayer.stop(); job.bPlayer.release() }
+        runCatching { job.oldPlayer.volume = job.volumeA }
+        resetState()
+    }
+
+    /** Pausa, búsqueda o foco perdido durante la mezcla: si B ya suena se completa; si no, se vuelve a A. */
+    private fun forceCompleteEngineRun(job: EngineRun) {
+        if (!job.audible) {
+            failEngineRun(job, "abandonada antes de entrar B")
+            return
+        }
+        job.session?.let { mixEngine?.completeNow(it) }
+        completeEngineRun(job)
+    }
+
     private fun beginAlbumCut(oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextSongIndex: Int) {
         Log.i(TAG, "🤖 Automix de álbum (corte sobre la precarga)")
         val newPlayer = acquireTransitionPlayer(nextSong, 0L)
@@ -1211,6 +1375,7 @@ class TransitionManager(
 
     fun cancelCurrentTransition() {
         rendered?.let { cancelRendered(it, "cancelada"); return }
+        engineRun?.let { cancelEngineRun(it, "cancelada"); return }
         planned?.let { cancelPlanned(it, "cancelada"); return }
         val t = active
         if (t == null) {
@@ -1228,6 +1393,7 @@ class TransitionManager(
     /** Completa la transición ya, con B sonando a su volumen objetivo. */
     fun forceCompleteTransition() {
         rendered?.let { forceCompleteRendered(it); return }
+        engineRun?.let { forceCompleteEngineRun(it); return }
         planned?.let { forceCompletePlanned(it); return }
         val t = active
         if (t == null) {
@@ -1505,6 +1671,8 @@ class TransitionManager(
 
     @OptIn(UnstableApi::class)
     private fun initializeIntelligentEQ(oldPlayer: ExoPlayer, newPlayer: ExoPlayer) {
+        // Con el motor único todos los players comparten sesión: un Equalizer afectaría a toda la salida.
+        if (mixEngine != null) return
         try {
             oldPlayer.audioSessionId.takeIf { it != 0 }?.let { sessionId ->
                 oldPlayerEq = Equalizer(0, sessionId).apply {
@@ -1542,6 +1710,7 @@ class TransitionManager(
     fun release() {
         active?.let { detachTransition(it) }
         planned?.let { detachPlanned(it) }
+        engineRun?.let { detachEngineRun(it) }
         rendered?.let { run ->
             detachRendered(run)
             runCatching { run.clipPlayer.stop(); run.clipPlayer.release() }

@@ -1,6 +1,7 @@
 package com.example.resonant.data.network.services
 
 import com.example.resonant.data.network.ApplyPresetRequest
+import com.example.resonant.data.network.MixLaneOptionsDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.TransitionPresetPreviewDTO
@@ -16,6 +17,10 @@ interface TransitionPresetService {
 
     @GET("api/v1/transition-presets")
     suspend fun getPresets(): List<TransitionPresetDTO>
+
+    /** Catálogo de opciones por carril de los documentos v2. */
+    @GET("api/v1/transition-presets/lane-options")
+    suspend fun getLaneOptions(): MixLaneOptionsDTO
 
     @GET("api/v1/transition-presets/{code}")
     suspend fun getPreset(@Path("code") code: String): TransitionPresetDTO

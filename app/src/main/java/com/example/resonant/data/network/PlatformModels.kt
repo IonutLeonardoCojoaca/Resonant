@@ -31,5 +31,7 @@ data class PlatformFeaturesDTO(
     /** Estadísticas personales (`api/me/stats/…`) e historial paginado (`api/me/history`). */
     val listeningStats: Boolean = false,
     /** Resumen mensual de escucha (`api/me/recaps*`). */
-    val monthlyRecap: Boolean = false
+    val monthlyRecap: Boolean = false,
+    /** Motor de transiciones v2: documentos v2 (`X-Mix-Doc-Version: 2`) y salida de audio única. */
+    val transitionEngineV2: Boolean = false
 )

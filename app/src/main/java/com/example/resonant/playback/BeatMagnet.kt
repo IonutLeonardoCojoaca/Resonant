@@ -1,6 +1,9 @@
 package com.example.resonant.playback
 
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * "Imán" a la rejilla de beats del editor de Playmix (Fase 1 de transiciones profesionales).
@@ -115,5 +118,64 @@ object BeatMagnet {
         val index = nearestIndex(ms, grid)
         if (index < 0) return null
         return grid[index].takeIf { abs(it - ms) <= thresholdMs }
+    }
+
+    // ── Editor v2: compás de un [MixComposer.Song] y beats coincidentes ───────
+
+    /** Tolerancia para considerar que un beat de A y uno de B suenan a la vez. */
+    const val COINCIDENT_TOLERANCE_MS = 25.0
+
+    /**
+     * Editor v2 (spotify-style-transition-engine D9): [ms] llevado al downbeat más cercano de [song]; sin
+     * rejilla, sin cambios. Con zoom el editor ajusta al beat con [MixComposer.freeWindow].
+     */
+    fun snapToBar(song: MixComposer.Song, ms: Int): Int {
+        val before = MixComposer.downbeatAtOrBefore(song, ms.toDouble())
+        val after = MixComposer.downbeatAtOrAfter(song, ms.toDouble())
+        val snapped = when {
+            before == null -> after
+            after == null -> before
+            ms - before <= after - ms -> before
+            else -> after
+        } ?: return ms
+        return snapped.coerceIn(0, song.durationMs)
+    }
+
+    /** Beats de [song] entre [fromMs] y [toMs] (ms de la canción). */
+    fun beats(song: MixComposer.Song, fromMs: Double, toMs: Double): List<Double> {
+        val bar = MixComposer.barMs(song) ?: return emptyList()
+        val beat = bar / (song.beatsPerBar ?: 4).coerceIn(1, 16)
+        val first = (song.firstDownbeatMs ?: song.downbeats?.firstOrNull())?.toDouble() ?: return emptyList()
+        val result = ArrayList<Double>()
+        var k = ceil((fromMs - first) / beat)
+        while (true) {
+            val t = first + k * beat
+            if (t > toMs) break
+            if (t >= 0) result += t
+            k += 1
+        }
+        return result
+    }
+
+    /**
+     * Posiciones de la ventana (ms desde su inicio) donde un beat de A coincide con uno de B. B entra en
+     * [bOffsetMs] y avanza a [rateB] veces su velocidad (beatmatching).
+     */
+    fun coincidentBeats(
+        a: MixComposer.Song, b: MixComposer.Song,
+        aStartMs: Int, bStartMs: Int, durationMs: Int, rateB: Double, bOffsetMs: Int = 0
+    ): List<Double> {
+        if (durationMs <= 0 || rateB <= 0) return emptyList()
+        val beatsA = beats(a, aStartMs.toDouble(), aStartMs + durationMs.toDouble()).map { it - aStartMs }
+        val beatsB = beats(b, bStartMs.toDouble(), bStartMs + (durationMs - bOffsetMs) * rateB).map { (it - bStartMs) / rateB + bOffsetMs }
+        if (beatsA.isEmpty() || beatsB.isEmpty()) return emptyList()
+        val result = ArrayList<Double>()
+        var j = 0
+        for (t in beatsA) {
+            while (j < beatsB.size - 1 && beatsB[j + 1] <= t) j++
+            val near = min(abs(beatsB[j] - t), if (j + 1 < beatsB.size) abs(beatsB[j + 1] - t) else Double.MAX_VALUE)
+            if (near <= COINCIDENT_TOLERANCE_MS) result += max(0.0, t)
+        }
+        return result
     }
 }

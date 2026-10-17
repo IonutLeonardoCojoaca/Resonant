@@ -52,6 +52,9 @@ import android.graphics.drawable.GradientDrawable
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import com.example.resonant.playback.PlaymixMixMode
+import com.example.resonant.playback.TransitionPreview
+import com.example.resonant.playback.engine.TransitionEngineFlag
+import com.example.resonant.ui.viewmodels.MixEditorV2
 import com.example.resonant.ui.components.ChartPeriodSelector
 import com.example.resonant.ui.components.ResonantAccent
 import java.util.Locale
@@ -79,6 +82,10 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     private var modeSelector: ChartPeriodSelector? = null
     /** Bloques del editor avanzado ocultados por el blend automático, para restaurarlos tal cual. */
     private val hiddenBySmartMode = mutableListOf<View>()
+    /** Editor v2 (motor de salida único): sustituye a los bloques del editor antiguo. */
+    private var v2Panel: MixEditorV2Panel? = null
+    private var amplitudesA: List<Float>? = null
+    private var amplitudesB: List<Float>? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -90,7 +97,8 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         val playmixManager = PlaymixManager(requireContext())
         val presetManager = TransitionPresetManager(requireContext())
         val studioManager = StudioManager(requireContext())
-        viewModel = ViewModelProvider(this, CrossfadeEditorViewModelFactory(playmixManager, presetManager, studioManager))
+        val v2Enabled = TransitionEngineFlag.isEnabled(requireContext())
+        viewModel = ViewModelProvider(this, CrossfadeEditorViewModelFactory(playmixManager, presetManager, studioManager, v2Enabled))
             .get(CrossfadeEditorViewModel::class.java)
 
         setupCompactLayout()
@@ -556,6 +564,12 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                 }
             }
 
+            if (state.v2 != null) {
+                bindV2(state)
+                handleMessages(state)
+                return@observe
+            }
+
             updatePointLabels(state)
             updateBeatPresetLabels(state)
             updateDurationSlider(state)
@@ -573,20 +587,24 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             updateModePanel(state)
 
 
-            if (state.studioUnavailable && !studioUnavailableShown) {
-                studioUnavailableShown = true
-                Toast.makeText(requireContext(), "Resonant Studio no está disponible: solo se pueden guardar los puntos.", Toast.LENGTH_LONG).show()
-            }
+            handleMessages(state)
+        }
+    }
 
-            if (state.savedSuccess) {
-                Toast.makeText(requireContext(), "Transición guardada", Toast.LENGTH_SHORT).show()
-                viewModel.onSaveHandled()
-            }
+    private fun handleMessages(state: CrossfadeEditorState) {
+        if (state.studioUnavailable && !studioUnavailableShown) {
+            studioUnavailableShown = true
+            Toast.makeText(requireContext(), "Resonant Studio no está disponible: solo se pueden guardar los puntos.", Toast.LENGTH_LONG).show()
+        }
 
-            state.error?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
-                viewModel.onSaveHandled()
-            }
+        if (state.savedSuccess) {
+            Toast.makeText(requireContext(), "Transición guardada", Toast.LENGTH_SHORT).show()
+            viewModel.onSaveHandled()
+        }
+
+        state.error?.let {
+            Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+            viewModel.onSaveHandled()
         }
     }
 
@@ -905,6 +923,9 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
 
             withContext(Dispatchers.Main) {
                 val b = _binding ?: return@withContext
+                amplitudesA = ampAResult
+                amplitudesB = ampBResult
+                v2Panel?.setFallbackWaveforms(ampAResult, ampBResult)
                 b.waveformView.setWaveformData(
                     ampAResult, ampBResult,
                     songA.durationMs, songB.durationMs,
@@ -1059,8 +1080,54 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         startPreviewPlayback(state, data)
     }
 
-    private fun startPreviewPlayback(state: CrossfadeEditorState, data: WaveformResponseDTO) {
-        val startPositionMs = (state.exitPointMs - 10_000).coerceAtLeast(0)
+    // ═══════════════════════════════════════════════
+    // EDITOR V2 (spotify-style-transition-engine D9)
+    // ═══════════════════════════════════════════════
+
+    /** Al llegar el primer estado v2 oculta el editor antiguo (menos la cabecera) y monta el panel v2. */
+    private fun bindV2(state: CrossfadeEditorState) {
+        val v2 = state.v2 ?: return
+        val panel = v2Panel ?: createV2Panel()
+        panel.bind(v2, MixEditorV2.coincidentBeats(v2))
+    }
+
+    private fun createV2Panel(): MixEditorV2Panel {
+        val content = binding.editorContent
+        for (i in 0 until content.childCount) {
+            val child = content.getChildAt(i)
+            if (child !== binding.songHeaderPanel) child.visibility = View.GONE
+        }
+        val panel = MixEditorV2Panel(requireContext(), object : MixEditorV2Panel.Actions {
+            override fun selectPreset(code: String) = viewModel.v2SelectPreset(code)
+            override fun selectLaneOption(lane: String, code: String) = viewModel.v2SelectLaneOption(lane, code)
+            override fun setBars(bars: Int) = viewModel.v2SetBars(bars)
+            override fun moveWindow(deltaBars: Int) = viewModel.v2MoveWindow(deltaBars)
+            override fun dragA(aStartMs: Int, toBeat: Boolean) = viewModel.v2DragA(aStartMs, toBeat)
+            override fun dragB(bStartMs: Int, toBeat: Boolean) = viewModel.v2DragB(bStartMs, toBeat)
+            override fun setBeatSync(enabled: Boolean) = viewModel.v2SetBeatSync(enabled)
+            override fun preview() = startV2Preview()
+        }) { anchor, options, current, onSelected -> showStyledPopup(anchor, options, current, onSelected) }
+        content.addView(panel.root, content.indexOfChild(binding.songHeaderPanel) + 1)
+        panel.setFallbackWaveforms(amplitudesA, amplitudesB)
+        v2Panel = panel
+        return panel
+    }
+
+    /** Escucha el documento sin guardar: el servicio lo usa para esta pareja en lugar del guardado. */
+    private fun startV2Preview() {
+        if (isPreviewStarting) return
+        val state = viewModel.state.value ?: return
+        val data = state.waveformData ?: run {
+            Toast.makeText(requireContext(), "Cargando datos, inténtalo de nuevo", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val request = viewModel.v2PreviewRequest() ?: return
+        TransitionPreview.set(request.fromSongId, request.toSongId, request.document)
+        startPreviewPlayback(state, data, request.startPositionMs)
+    }
+
+    private fun startPreviewPlayback(state: CrossfadeEditorState, data: WaveformResponseDTO, startAtMs: Int? = null) {
+        val startPositionMs = startAtMs ?: (state.exitPointMs - 10_000).coerceAtLeast(0)
         val songManager = SongManager(requireContext())
 
         isPreviewStarting = true
@@ -1502,6 +1569,8 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
+        TransitionPreview.clear()
+        v2Panel = null
         super.onDestroyView()
         _binding = null
     }

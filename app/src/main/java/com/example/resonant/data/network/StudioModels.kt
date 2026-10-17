@@ -35,7 +35,12 @@ data class StudioSongDTO(
     val dropMs: Int? = null,
     /** BPM ajustado y primer downbeat: con [beatsPerBar] definen la rejilla de compases exacta (null sin ajuste). */
     val bpmPrecise: Double? = null,
-    val firstDownbeatMs: Int? = null
+    val firstDownbeatMs: Int? = null,
+    /** Forma de onda de 3 bandas (URL firmada; 404 si aún no existe). */
+    val waveformBandsUrl: String? = null,
+    val audioStartMs: Int? = null,
+    val audioEndMs: Int? = null,
+    val bpmStability: Double? = null
 )
 
 data class StudioLimitsDTO(

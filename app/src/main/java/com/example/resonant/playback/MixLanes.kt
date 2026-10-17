@@ -7,7 +7,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Evaluación de los carriles del documento de mezcla v1. Mismas fórmulas que el backend
+ * Evaluación de los carriles del documento de mezcla (v1 y v2). Mismas fórmulas que el backend
  * (`MixLanes.cs`) y el renderer (`mix_doc.py`): si cambian aquí, cambian allí.
  */
 object MixLanes {
@@ -39,6 +39,12 @@ object MixLanes {
         val p = (t - from.t) / (to.t - from.t)
         return from.v + (to.v - from.v) * shape(from.curve, p, from.v, to.v)
     }
+
+    /** Valor de un carril ausente: ganancia y volumen 1; EQ, filtro y ruido 0. */
+    fun defaultValue(lane: String): Double = if (lane.endsWith(".gain") || lane.endsWith(".volume")) 1.0 else 0.0
+
+    fun value(doc: MixDocumentDTO, lane: String, t: Double): Double =
+        evaluate(doc.lanes?.get(lane), t, defaultValue(lane))
 
     fun gain(doc: MixDocumentDTO, side: Char, t: Double): Double =
         evaluate(doc.lanes?.get("$side.gain"), t, 1.0)

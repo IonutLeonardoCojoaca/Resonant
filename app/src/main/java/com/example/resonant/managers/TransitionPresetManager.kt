@@ -3,6 +3,7 @@ package com.example.resonant.managers
 import android.content.Context
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.ApplyPresetRequest
+import com.example.resonant.data.network.MixLaneOptionsDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.TransitionPresetPreviewDTO
@@ -17,6 +18,7 @@ open class TransitionPresetManager(private val context: Context?) {
     companion object {
         private var cachedPresets: List<TransitionPresetDTO>? = null
         private var cacheTimestamp: Long = 0L
+        private var cachedLaneOptions: MixLaneOptionsDTO? = null
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
     }
 
@@ -36,6 +38,10 @@ open class TransitionPresetManager(private val context: Context?) {
             throw e
         }
     }
+
+    /** Opciones de cada carril de los documentos v2 (cambian solo con un despliegue: caché de proceso). */
+    open suspend fun getLaneOptions(): MixLaneOptionsDTO =
+        cachedLaneOptions ?: service.getLaneOptions().also { cachedLaneOptions = it }
 
     open suspend fun getPreset(code: String): TransitionPresetDTO {
         return service.getPreset(code)

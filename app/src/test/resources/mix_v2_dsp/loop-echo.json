@@ -1,0 +1,98 @@
+{
+  "document": {
+    "version": 2,
+    "durationMs": 2000,
+    "bars": 1,
+    "beatSync": false,
+    "a": {
+      "startMs": 0
+    },
+    "b": {
+      "startMs": 0,
+      "offsetMs": 0
+    },
+    "lanes": {
+      "a.volume": [
+        {
+          "t": 0,
+          "v": 1,
+          "curve": "linear"
+        },
+        {
+          "t": 2000,
+          "v": 1,
+          "curve": "linear"
+        }
+      ],
+      "b.volume": [
+        {
+          "t": 0,
+          "v": 0,
+          "curve": "linear"
+        },
+        {
+          "t": 2000,
+          "v": 0,
+          "curve": "linear"
+        }
+      ],
+      "a.filter": [
+        {
+          "t": 0,
+          "v": 0,
+          "curve": "linear"
+        },
+        {
+          "t": 2000,
+          "v": 0.5,
+          "curve": "linear"
+        }
+      ]
+    },
+    "loop": {
+      "track": "a",
+      "beats": 2,
+      "atMs": 500,
+      "lengthMs": 476
+    },
+    "fx": [
+      {
+        "type": "echo",
+        "track": "a",
+        "fromMs": 0,
+        "toMs": 2000,
+        "delayMs": 357
+      }
+    ]
+  },
+  "sampleRate": 44100,
+  "chordA": [
+    [
+      110.0,
+      0.25
+    ],
+    [
+      440.0,
+      0.15
+    ],
+    [
+      3520.0,
+      0.08
+    ]
+  ],
+  "chordB": [
+    [
+      82.41,
+      0.25
+    ],
+    [
+      659.25,
+      0.15
+    ],
+    [
+      5274.0,
+      0.08
+    ]
+  ],
+  "output": "loop-echo.f32"
+}

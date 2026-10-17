@@ -104,4 +104,55 @@ class BeatMagnetTest {
         assertEquals(BeatMagnet.LevelSnap(9_500, BeatMagnet.Level.BEAT), BeatMagnet.snapLevels(9_600, beats, emptyList(), emptyList()))
         assertEquals(BeatMagnet.LevelSnap(9_750, BeatMagnet.Level.NONE), BeatMagnet.snapLevels(9_750, beats, emptyList(), emptyList()))
     }
+
+    // ── Editor v2 (spotify-style-transition-engine) ──────────────────────────
+
+    private fun song(bpm: Double, firstDownbeatMs: Int, durationMs: Int = 200_000) = MixComposer.Song(
+        durationMs = durationMs, audioStartMs = 0, audioEndMs = durationMs,
+        bpm = bpm, bpmPrecise = bpm, beatsPerBar = 4, firstDownbeatMs = firstDownbeatMs
+    )
+
+    @Test
+    fun `v2 snaps a song position to the nearest downbeat`() {
+        val s = song(120.0, 1000) // compás de 2000 ms
+        assertEquals(11_000, BeatMagnet.snapToBar(s, 11_900))
+        assertEquals(13_000, BeatMagnet.snapToBar(s, 12_100))
+        assertEquals(1000, BeatMagnet.snapToBar(s, 0))
+    }
+
+    @Test
+    fun `v2 without grid the position is kept`() {
+        val s = MixComposer.Song(durationMs = 100_000, audioStartMs = 0, audioEndMs = 100_000)
+        assertEquals(12_345, BeatMagnet.snapToBar(s, 12_345))
+    }
+
+    @Test
+    fun `beats lists every beat in range`() {
+        val beats = BeatMagnet.beats(song(120.0, 1000), 1000.0, 3000.0)
+        assertEquals(listOf(1000.0, 1500.0, 2000.0, 2500.0, 3000.0), beats)
+    }
+
+    @Test
+    fun `aligned songs coincide on every beat`() {
+        val a = song(120.0, 1000)
+        val b = song(120.0, 200)
+        val hits = BeatMagnet.coincidentBeats(a, b, aStartMs = 21_000, bStartMs = 2_200, durationMs = 8000, rateB = 1.0)
+        assertEquals(17, hits.size)
+    }
+
+    @Test
+    fun `half a beat off never coincides`() {
+        val a = song(120.0, 1000)
+        val b = song(120.0, 200)
+        val hits = BeatMagnet.coincidentBeats(a, b, aStartMs = 21_000, bStartMs = 2_450, durationMs = 8000, rateB = 1.0)
+        assertTrue(hits.isEmpty())
+    }
+
+    @Test
+    fun `beatmatched B coincides at its own rate`() {
+        val a = song(120.0, 0)
+        val b = song(125.0, 0)
+        val hits = BeatMagnet.coincidentBeats(a, b, 20_000, 9_600, 8000, rateB = 120.0 / 125.0)
+        assertEquals(17, hits.size)
+    }
 }

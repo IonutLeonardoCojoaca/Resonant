@@ -2,6 +2,7 @@ package com.example.resonant.data.network
 
 import android.content.Context
 import com.example.resonant.managers.SessionManager
+import com.example.resonant.playback.engine.TransitionEngineFlag
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
@@ -47,7 +48,7 @@ object NetworkClientProvider {
     fun apiClient(context: Context, session: SessionManager): OkHttpClient {
         return apiClient ?: synchronized(this) {
             apiClient ?: mediaClient.newBuilder()
-                .addInterceptor(ClientCompatibilityInterceptor())
+                .addInterceptor(ClientCompatibilityInterceptor { TransitionEngineFlag.isEnabled(context.applicationContext) })
                 .addInterceptor(AuthInterceptor(context.applicationContext, session))
                 .authenticator(TokenAuthenticator(context.applicationContext))
                 .callTimeout(45, TimeUnit.SECONDS)

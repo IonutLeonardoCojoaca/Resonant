@@ -12,8 +12,9 @@ import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.data.network.services.StudioService
 
 /** Acceso a Resonant Studio desde el editor de transiciones del móvil (add-rhythmic-mix-styles). */
-open class StudioManager(context: Context) {
-    private val service: StudioService = ApiClient.getStudioService(context.applicationContext)
+open class StudioManager(private val context: Context?) {
+    /** Perezoso, como en [TransitionPresetManager]: los tests usan subclases sin contexto. */
+    private val service: StudioService by lazy { ApiClient.getStudioService(context!!.applicationContext) }
 
     open suspend fun get(playmixId: String, transitionId: String): StudioTransitionDTO =
         service.get(playmixId, transitionId)

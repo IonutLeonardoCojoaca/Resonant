@@ -24,6 +24,7 @@ import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.WaveformResponseDTO
 import com.example.resonant.data.network.WaveformSongDTO
 import com.example.resonant.playback.BarGrid
+import com.example.resonant.playback.WaveformBands
 import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.TransitionPresetManager
@@ -75,7 +76,9 @@ data class CrossfadeEditorState(
     val bars: Int? = null,
     val styleLoading: Boolean = false,
     /** Studio apagado o inaccesible: el editor solo puede guardar puntos y el blend automático. */
-    val studioUnavailable: Boolean = false
+    val studioUnavailable: Boolean = false,
+    /** Editor v2 (carriles, ventana y presets estilo Spotify); null con el motor v1 o sin documento v2 posible. */
+    val v2: MixEditorV2State? = null
 )
 
 fun defaultEq() = EqSettingsDTO(
@@ -87,7 +90,10 @@ class CrossfadeEditorViewModel(
     private val presetManager: TransitionPresetManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** Sin gestor de Studio (tests, Studio apagado) el editor queda en modo reducido: puntos y blend automático. */
-    private val studioManager: StudioManager? = null
+    private val studioManager: StudioManager? = null,
+    /** Motor de salida único activo: el editor trabaja con documentos v2 (spotify-style-transition-engine D9). */
+    private val v2Enabled: Boolean = false,
+    private val bandsLoader: suspend (String) -> WaveformBands? = { WaveformBands.download(it) }
 ) : ViewModel() {
 
     private val _state = MutableLiveData(CrossfadeEditorState())
@@ -241,8 +247,10 @@ class CrossfadeEditorViewModel(
 
     private fun applyStudio(studio: StudioTransitionDTO, keepSmart: Boolean) {
         val current = _state.value ?: return
-        val doc = studio.document
+        val v2 = if (v2Enabled) initialV2(studio, current.v2) else null
+        val doc = v2?.document ?: studio.document
         _state.value = current.copy(
+            v2 = v2,
             studio = studio,
             document = doc,
             revision = studio.revision,
@@ -251,10 +259,72 @@ class CrossfadeEditorViewModel(
             exitPointMs = doc.a.startMs,
             entryPointMs = doc.b.startMs,
             crossfadeDurationMs = doc.durationMs,
-            mixMode = if (keepSmart && current.mixMode == PlaymixMixMode.SMART) current.mixMode
+            mixMode = if (v2 != null) PlaymixMixMode.DEFAULT_ADVANCED
+                else if (keepSmart && current.mixMode == PlaymixMixMode.SMART) current.mixMode
                 else if (current.mixMode == PlaymixMixMode.SMART) PlaymixMixMode.DEFAULT_ADVANCED else current.mixMode
         )
+        if (v2 != null && current.v2 == null) loadV2Extras(studio)
     }
+
+    // ─── Editor v2 ─────────────────────────
+
+    /** Estado v2 del documento recibido; conserva presets, opciones y ondas ya cargados. */
+    private fun initialV2(studio: StudioTransitionDTO, previous: MixEditorV2State?): MixEditorV2State? {
+        val presets = MixEditorV2.presetsOrDefault(_state.value?.availablePresets.orEmpty())
+        val state = MixEditorV2.initial(studio)?.copy(presets = presets) ?: return null
+        return if (previous == null) state
+            else state.copy(laneOptions = previous.laneOptions, bandsA = previous.bandsA, bandsB = previous.bandsB)
+    }
+
+    /** Opciones de carril y ondas de 3 bandas: si fallan, el editor sigue con el catálogo local y la onda simple. */
+    private fun loadV2Extras(studio: StudioTransitionDTO) {
+        viewModelScope.launch {
+            val options = runCatching { withContext(ioDispatcher) { presetManager.getLaneOptions() } }
+                .onFailure { logError("Opciones de carril no disponibles", it) }
+                .getOrNull()
+            if (options != null && options.volume.isNotEmpty()) updateV2 { it.copy(laneOptions = options) }
+        }
+        viewModelScope.launch {
+            val a = studio.songA.waveformBandsUrl?.let { url -> runCatching { withContext(ioDispatcher) { bandsLoader(url) } }.getOrNull() }
+            val b = studio.songB.waveformBandsUrl?.let { url -> runCatching { withContext(ioDispatcher) { bandsLoader(url) } }.getOrNull() }
+            updateV2 { it.copy(bandsA = a ?: it.bandsA, bandsB = b ?: it.bandsB) }
+        }
+    }
+
+    private fun updateV2(change: (MixEditorV2State) -> MixEditorV2State) {
+        val current = _state.value ?: return
+        val v2 = current.v2 ?: return
+        val next = change(v2)
+        if (next == v2) return
+        val doc = next.document
+        _state.value = current.copy(
+            v2 = next,
+            document = doc,
+            styleCode = next.presetCode,
+            bars = next.window.bars,
+            exitPointMs = doc.a.startMs,
+            entryPointMs = doc.b.startMs,
+            crossfadeDurationMs = doc.durationMs,
+            error = null
+        )
+    }
+
+    fun v2SelectPreset(code: String) = updateV2 { MixEditorV2.selectPreset(it, code) }
+
+    fun v2SelectLaneOption(lane: String, code: String) = updateV2 { MixEditorV2.selectLaneOption(it, lane, code) }
+
+    fun v2SetBars(bars: Int) = updateV2 { MixEditorV2.setBars(it, bars) }
+
+    fun v2MoveWindow(deltaBars: Int) = updateV2 { MixEditorV2.moveWindow(it, deltaBars) }
+
+    fun v2DragA(aStartMs: Int, toBeat: Boolean = false) = updateV2 { MixEditorV2.dragA(it, aStartMs, toBeat) }
+
+    fun v2DragB(bStartMs: Int, toBeat: Boolean = false) = updateV2 { MixEditorV2.dragB(it, bStartMs, toBeat) }
+
+    fun v2SetBeatSync(enabled: Boolean) = updateV2 { MixEditorV2.setBeatSync(it, enabled) }
+
+    /** Escucha del documento tal como está en el editor (sin guardar); null sin editor v2. */
+    fun v2PreviewRequest(): MixPreviewRequest? = _state.value?.v2?.let { MixEditorV2.preview(it) }
 
     /** Pide al servidor el documento del estilo con los compases elegidos y lo deja como documento actual. */
     fun selectStyle(code: String) {
@@ -311,6 +381,7 @@ class CrossfadeEditorViewModel(
                     presetsLoading = false,
                     presetsError = null
                 )
+                updateV2 { it.copy(presets = MixEditorV2.presetsOrDefault(presets)) }
             } catch (e: Exception) {
                 logError("Error loading presets", e)
                 _state.value = _state.value?.copy(
@@ -586,6 +657,11 @@ class CrossfadeEditorViewModel(
     fun saveTransition() {
         val current = _state.value ?: return
 
+        val v2 = current.v2
+        if (v2 != null && studioManager != null) {
+            saveDocument(studioManager, current, v2.document)
+            return
+        }
         if (current.mixMode == PlaymixMixMode.SMART) {
             saveSmart(current)
             return
@@ -709,12 +785,13 @@ class CrossfadeEditorViewModel(
 class CrossfadeEditorViewModelFactory(
     private val playmixManager: PlaymixManager,
     private val presetManager: TransitionPresetManager,
-    private val studioManager: StudioManager? = null
+    private val studioManager: StudioManager? = null,
+    private val v2Enabled: Boolean = false
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CrossfadeEditorViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return CrossfadeEditorViewModel(playmixManager, presetManager, studioManager = studioManager) as T
+            return CrossfadeEditorViewModel(playmixManager, presetManager, studioManager = studioManager, v2Enabled = v2Enabled) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
