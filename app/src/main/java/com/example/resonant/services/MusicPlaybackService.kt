@@ -184,6 +184,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         const val SONG_LIST = "com.resonant.SONG_LIST"
         const val ACTION_UPDATE_QUEUE = "com.example.resonant.action.UPDATE_QUEUE"
         const val ACTION_PLAYLIST_MODIFIED = "com.resonant.ACTION_PLAYLIST_MODIFIED"
+        /** El editor guardó una transición de Playmix (o su clip quedó listo): recargar sus documentos y clips. */
+        const val ACTION_PLAYMIX_TRANSITIONS_CHANGED = "com.resonant.ACTION_PLAYMIX_TRANSITIONS_CHANGED"
+        const val EXTRA_PLAYMIX_ID = "com.resonant.EXTRA_PLAYMIX_ID"
         const val EXTRA_PLAYLIST_ID = "com.resonant.EXTRA_PLAYLIST_ID"
         const val ACTION_SONG_MARKED_FOR_DELETION = "com.resonant.ACTION_SONG_MARKED_FOR_DELETION"
         const val EXTRA_SONG_ID = "com.resonant.EXTRA_SONG_ID"
@@ -225,6 +228,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             ACTION_SHUTDOWN,
             ACTION_UPDATE_QUEUE,
             ACTION_PLAYLIST_MODIFIED,
+            ACTION_PLAYMIX_TRANSITIONS_CHANGED,
             ACTION_SONG_MARKED_FOR_DELETION,
             ACTION_TOGGLE_SHUFFLE,
             ACTION_TOGGLE_REPEAT,
@@ -3300,6 +3304,16 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             ACTION_STOP_SEEK -> {
                 isSeeking = false
                 startSeekBarUpdates()
+            }
+            ACTION_PLAYMIX_TRANSITIONS_CHANGED -> {
+                // Sin esto la Playmix que ya suena seguía con el documento y el clip anteriores al guardado.
+                val playmixId = intent.getStringExtra(EXTRA_PLAYMIX_ID)
+                val queue = PlaybackStateRepository.activeQueue
+                if (playmixId != null && queue?.sourceType == QueueSource.PLAYMIX && queue.sourceId == playmixId) {
+                    Log.d("MusicService", "🔄 Transiciones de la Playmix $playmixId cambiadas en el editor: recargando")
+                    transitionSuppressedForSongId = null
+                    loadPlaymixTransitions(playmixId)
+                }
             }
             ACTION_PLAYLIST_MODIFIED -> {
                 val modifiedPlaylistId = intent.getStringExtra(EXTRA_PLAYLIST_ID)

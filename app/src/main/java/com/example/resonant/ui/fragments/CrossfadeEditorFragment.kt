@@ -86,6 +86,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     /** Editor v2 (motor de salida único): sustituye a los bloques del editor antiguo. */
     private var v2Panel: MixEditorV2Panel? = null
     private var mixEditorView: MixEditorView? = null
+    private var lastRenderStatus: String? = null
     private var amplitudesA: List<Float>? = null
     private var amplitudesB: List<Float>? = null
 
@@ -597,13 +598,29 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         }
     }
 
+    /** Avisa al servicio de que esta Playmix cambió: si está sonando, recarga el documento y el clip guardados. */
+    private fun notifyPlaymixTransitionsChanged() {
+        val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_PLAYMIX_TRANSITIONS_CHANGED
+            putExtra(MusicPlaybackService.EXTRA_PLAYMIX_ID, playmixId)
+        }
+        runCatching { requireContext().startService(intent) }
+            .onFailure { Log.w("CrossfadeEditor", "No se pudo avisar al servicio", it) }
+    }
+
     private fun handleMessages(state: CrossfadeEditorState) {
+        // El clip del servidor quedó listo tras guardar: la Playmix que suena pasa a usarlo.
+        val renderStatus = state.renderStatus
+        if (renderStatus == "ready" && lastRenderStatus != null && lastRenderStatus != "ready") notifyPlaymixTransitionsChanged()
+        lastRenderStatus = renderStatus
+
         if (state.studioUnavailable && !studioUnavailableShown) {
             studioUnavailableShown = true
             Toast.makeText(requireContext(), "Resonant Studio no está disponible: solo se pueden guardar los puntos.", Toast.LENGTH_LONG).show()
         }
 
         if (state.savedSuccess) {
+            notifyPlaymixTransitionsChanged()
             Toast.makeText(requireContext(), "Transición guardada", Toast.LENGTH_SHORT).show()
             viewModel.onSaveHandled()
         }
