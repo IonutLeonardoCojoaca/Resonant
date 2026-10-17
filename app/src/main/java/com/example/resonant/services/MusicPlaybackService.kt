@@ -142,6 +142,8 @@ import com.google.firebase.analytics.FirebaseAnalytics
 class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     companion object {
+        /** Volver más de esto antes del disparo rearma una transición suprimida tras un fallo. */
+        private const val TRANSITION_REARM_MARGIN_MS = 1_000L
         const val EXTRA_CURRENT_SONG = "com.resonant.EXTRA_CURRENT_SONG"
         const val EXTRA_CURRENT_INDEX = "com.resonant.EXTRA_CURRENT_INDEX"
         const val EXTRA_CURRENT_IMAGE_PATH = "com.resonant.EXTRA_CURRENT_IMAGE_PATH"
@@ -472,6 +474,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
             val triggerPosition = calculateTriggerPosition()
 
+            // Tras una transición fallida se suprime la de esta canción; si se vuelve antes del disparo (el usuario
+            // retrocede o la escucha del editor la relanza), se rearma para intentarla otra vez.
+            if (transitionSuppressedForSongId != null && triggerPosition > 0 &&
+                position < triggerPosition - TRANSITION_REARM_MARGIN_MS
+            ) {
+                transitionSuppressedForSongId = null
+            }
             val transitionSuppressed = transitionSuppressedForSongId != null &&
                 transitionSuppressedForSongId == PlaybackStateRepository.currentSong?.id
             if (triggerPosition > 0 && position >= triggerPosition && !transitionSuppressed) {

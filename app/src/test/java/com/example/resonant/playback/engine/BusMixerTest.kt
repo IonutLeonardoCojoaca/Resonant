@@ -126,8 +126,8 @@ class BusMixerTest {
     @Test
     fun lateStartWaitsForTheNextBarOfA() {
         val mixer = BusMixer()
-        // A ya va 50 ms por detrás de a.startMs: con compás de 200 ms la mezcla empieza en a.startMs + 200 ms.
-        val a = source("a", 20_000, 10_050_000L, 0.1f)
+        // A ya va 100 ms por detrás de a.startMs: con compás de 200 ms la mezcla empieza en a.startMs + 200 ms.
+        val a = source("a", 20_000, 10_100_000L, 0.1f)
         val b = source("b", 20_000, 0L, 0.2f)
         mixer.sources += a; mixer.sources += b
         mixer.session = MixSession(doc(), a, b, 8_820, Events(), { it.run() }, {})
@@ -135,8 +135,43 @@ class BusMixerTest {
         run(mixer, 30)
 
         host.playedFrames = Long.MAX_VALUE
-        val startFrame = 8_820 - 2_205
+        val startFrame = 8_820 - 4_410
         assertEquals(30L * block - startFrame, b.playedFrames())
+    }
+
+    @Test
+    fun aFewMillisecondsLateStillStartsNow() {
+        val mixer = BusMixer()
+        // 30 ms tarde (la posición de A llega por bloques): se empieza ya, no un compás después.
+        val a = source("a", 20_000, 10_030_000L, 0.1f)
+        val b = source("b", 20_000, 0L, 0.2f)
+        mixer.sources += a; mixer.sources += b
+        val events = Events()
+        mixer.session = MixSession(doc(), a, b, 8_820, events, { it.run() }, {})
+
+        run(mixer, 30)
+
+        host.playedFrames = Long.MAX_VALUE
+        assertEquals(30L * block, b.playedFrames())
+        assertTrue(events.log.contains("audible"))
+    }
+
+    @Test
+    fun anIncoherentPositionFailsInsteadOfWaiting() {
+        val mixer = BusMixer()
+        // Marcas en tiempo de renderer sin restar el desplazamiento del stream (10¹² µs): nunca debe esperar horas.
+        val a = source("a", 20_000, 1_000_000_000_000L + 9_900_000L, 0.1f)
+        val b = source("b", 20_000, 0L, 0.2f)
+        mixer.sources += a; mixer.sources += b
+        val events = Events()
+        val session = MixSession(doc(), a, b, 8_820, events, { it.run() }, {})
+        mixer.session = session
+
+        run(mixer, 5)
+
+        assertEquals(listOf("failed"), events.log)
+        assertTrue(session.incoherent)
+        assertNull(mixer.session)
     }
 
     @Test

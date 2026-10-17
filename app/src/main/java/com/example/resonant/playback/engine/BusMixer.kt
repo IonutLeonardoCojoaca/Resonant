@@ -59,7 +59,11 @@ class BusMixer {
             when (s.state) {
                 MixSession.State.WAITING -> {
                     val untilStart = s.framesUntilStart(SAMPLE_RATE)
-                    if (untilStart == null) {
+                    if (s.incoherent) {
+                        s.fail("posición de A incoherente")
+                        session = null
+                        frame += playNormal(s.a, frame, remaining)
+                    } else if (untilStart == null) {
                         // A aún no tiene audio: suena lo que haya (silencio) y se vuelve a mirar en el bloque siguiente.
                         frame += playNormal(s.a, frame, remaining)
                         frame = BLOCK_FRAMES

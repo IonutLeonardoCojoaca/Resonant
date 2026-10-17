@@ -253,11 +253,22 @@ class MixSession internal constructor(
     /** Instante de la línea de tiempo (ms) que acaba de mezclarse; para la interfaz. */
     val timelineMs: Double get() = timelineFrame * 1000.0 / MixDsp.SAMPLE_RATE
 
+    /** La posición de A no casa con el documento (más de [MAX_LATE_MS] pasada): la mezcla no puede empezar a tiempo. */
+    @Volatile internal var incoherent = false
+        private set
+
     /** Frames de A que faltan para empezar la mezcla, o null si A aún no tiene posición. */
     internal fun framesUntilStart(sampleRate: Int): Long? {
         val nextUs = a.nextMediaTimeUs() ?: return null
         val startUs = doc.a.startMs * 1000L + shiftFrames * 1_000_000L / sampleRate
         var frames = (startUs - nextUs) * sampleRate / 1_000_000L
+        // Unos milisegundos tarde es "a tiempo": la posición de A se conoce por bloques y no cae justo en la muestra.
+        if (frames < 0 && -frames <= LATE_TOLERANCE_MS * sampleRate / 1000) return 0
+        if (-frames > MAX_LATE_MS * sampleRate / 1000) {
+            if (!incoherent) log("Posición de A incoherente (${nextUs / 1000} ms frente a ${doc.a.startMs} ms): no se mezcla")
+            incoherent = true
+            return null
+        }
         if (frames < 0) {
             // Disparo tardío: se empieza en el siguiente compás de A para no entrar a destiempo.
             val bar = barFrames?.toLong() ?: return 0
@@ -297,6 +308,8 @@ class MixSession internal constructor(
 
     internal fun fail(reason: String) {
         state = State.FAILED
+        // B no debe sonar suelta mientras el hilo principal la libera.
+        b.retired = true
         post(Runnable { if (!cancelled) listener.onFailed(reason) })
     }
 
@@ -308,6 +321,10 @@ class MixSession internal constructor(
     companion object {
         /** Audio mínimo de B para empezar (~46 ms). */
         const val B_READY_FRAMES = 2048
+        /** Retraso que se acepta como "a tiempo" al llegar al inicio de la mezcla. */
+        const val LATE_TOLERANCE_MS = 60L
+        /** Más tarde que esto (búsqueda lejos de la ventana o marcas de tiempo mal leídas) no se intenta la mezcla. */
+        const val MAX_LATE_MS = 60_000L
     }
 }
 

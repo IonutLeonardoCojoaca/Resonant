@@ -18,11 +18,13 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioOutputProvider
+import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.WeakHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.math.abs
 import kotlin.math.min
 
 /**
@@ -34,7 +36,8 @@ import kotlin.math.min
 class BusAudioOutput(
     private val source: BusSource,
     private val config: AudioOutputProvider.OutputConfig,
-    private val sessionId: Int
+    private val sessionId: Int,
+    private val handle: BusHandle? = null
 ) : AudioOutput {
 
     /** Avisos de la fuente hacia los listeners de Media3. */
@@ -47,9 +50,9 @@ class BusAudioOutput(
     private val bytesPerSample = if (config.encoding == C.ENCODING_PCM_FLOAT) 4 else 2
     private val listeners = CopyOnWriteArrayList<AudioOutput.Listener>()
     private var scratch = FloatArray(0)
-    private var lastBuffer: ByteBuffer? = null
-    private var lastPresentationUs = C.TIME_UNSET
-    private var framesFromLastBuffer = 0L
+    /** Posición de medio (µs de la canción) del primer frame contado desde [framesSinceBase] = 0. */
+    private var baseUs = C.TIME_UNSET
+    private var framesSinceBase = 0L
 
     private val events = object : EventSink {
         override fun onPositionAdvancing(playoutStartSystemTimeMs: Long) =
@@ -67,12 +70,7 @@ class BusAudioOutput(
     override fun pause() = source.pause()
 
     override fun write(buffer: ByteBuffer, encodedAccessUnitCount: Int, presentationTimeUs: Long): Boolean {
-        // El mismo buffer se reintenta hasta escribirlo entero: su posición de medio avanza con lo ya aceptado.
-        if (buffer !== lastBuffer || presentationTimeUs != lastPresentationUs) {
-            lastBuffer = buffer
-            lastPresentationUs = presentationTimeUs
-            framesFromLastBuffer = 0
-        }
+        anchor(presentationTimeUs)
         val bytesPerFrame = channels * bytesPerSample
         val frames = min(buffer.remaining() / bytesPerFrame, source.freeFrames())
         if (frames <= 0) return buffer.remaining() < bytesPerFrame
@@ -87,18 +85,44 @@ class BusAudioOutput(
             scratch[2 * i + 1] = right
             pos += bytesPerFrame
         }
-        val mediaUs = if (presentationTimeUs >= 0) presentationTimeUs + framesFromLastBuffer * 1_000_000L / config.sampleRate else null
+        val mediaUs = if (baseUs != C.TIME_UNSET) baseUs + framesSinceBase * 1_000_000L / config.sampleRate else null
         val accepted = source.write(scratch, frames, mediaUs)
-        framesFromLastBuffer += accepted
+        framesSinceBase += accepted
         buffer.position(buffer.position() + accepted * bytesPerFrame)
         return !buffer.hasRemaining()
+    }
+
+    /**
+     * Posición de medio de lo que se escribe. Media3 pasa la marca del buffer de entrada en tiempo de renderer
+     * (posición de la canción + el desplazamiento del stream, 10¹² µs en el primero), así que se resta el
+     * desplazamiento que el renderer comunicó al sink ([BusHandle.streamOffsetUs]) y, desde el primer buffer, se
+     * cuentan frames: es exacto aunque Sonic remuestree y entregue los trozos con otro tamaño. Solo se reancla si
+     * la marca se aleja más de [REANCHOR_US] (cambio de canción en el mismo player).
+     */
+    private fun anchor(presentationTimeUs: Long) {
+        if (presentationTimeUs == C.TIME_UNSET || presentationTimeUs == C.TIME_END_OF_SOURCE) return
+        val offset = handle?.streamOffsetUs ?: 0L
+        val mediaUs = presentationTimeUs - offset
+        if (mediaUs < 0) return
+        if (baseUs == C.TIME_UNSET) {
+            // Primer frame tras un flush: el primer buffer que entró al sink, no el que sale ahora de Sonic.
+            baseUs = handle?.startMediaUs?.takeIf { it != C.TIME_UNSET } ?: mediaUs
+            framesSinceBase = 0
+            return
+        }
+        val predicted = baseUs + framesSinceBase * 1_000_000L / config.sampleRate
+        if (abs(predicted - mediaUs) > REANCHOR_US) {
+            baseUs = mediaUs
+            framesSinceBase = 0
+        }
     }
 
     private fun sample(data: ByteBuffer, pos: Int): Float =
         if (bytesPerSample == 4) data.getFloat(pos) else data.getShort(pos) / 32768f
 
     override fun flush() {
-        lastBuffer = null
+        baseUs = C.TIME_UNSET
+        framesSinceBase = 0
         source.flush()
     }
 
@@ -152,6 +176,10 @@ class BusAudioOutput(
 /** Fuente actual de un ExoPlayer (Media3 puede crear otra salida al cambiar de formato). */
 class BusHandle(val name: String) {
     @Volatile var source: BusSource? = null
+    /** Desplazamiento que el renderer suma a las marcas de tiempo (`AudioSink.setOutputStreamOffsetUs`). */
+    @Volatile var streamOffsetUs: Long = 0L
+    /** Posición de medio del primer buffer tras el último flush (el origen del reloj de `DefaultAudioSink`). */
+    @Volatile var startMediaUs: Long = C.TIME_UNSET
 }
 
 /**
@@ -177,7 +205,7 @@ class BusAudioOutputProvider(
         }
         val source = engine.newSource(handle.name)
         handle.source = source
-        return BusAudioOutput(source, config, engine.sessionId)
+        return BusAudioOutput(source, config, engine.sessionId, handle)
     }
 
     companion object {
@@ -202,16 +230,37 @@ class BusRenderersFactory(
         enableAudioOutputPlaybackParams: Boolean
     ): AudioSink {
         val sonic = SonicAudioProcessor().apply { setOutputSampleRateHz(MixOutputEngine.SAMPLE_RATE) }
-        return DefaultAudioSink.Builder(context)
+        val sink = DefaultAudioSink.Builder(context)
             .setAudioProcessorChain(
                 DefaultAudioSink.DefaultAudioProcessorChain(arrayOf<AudioProcessor>(), SilenceSkippingAudioProcessor(), sonic)
             )
             .setAudioOutputProvider(BusAudioOutputProvider(context, engine, handle))
             .build()
+        // El desplazamiento de las marcas de tiempo solo llega al sink: se guarda para [BusAudioOutput].
+        return object : ForwardingAudioSink(sink) {
+            override fun setOutputStreamOffsetUs(outputStreamOffsetUs: Long) {
+                handle.streamOffsetUs = if (outputStreamOffsetUs == C.TIME_UNSET) 0L else outputStreamOffsetUs
+                super.setOutputStreamOffsetUs(outputStreamOffsetUs)
+            }
+
+            override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+                if (handle.startMediaUs == C.TIME_UNSET && presentationTimeUs != C.TIME_UNSET) {
+                    handle.startMediaUs = presentationTimeUs - handle.streamOffsetUs
+                }
+                return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+            }
+
+            override fun flush() {
+                handle.startMediaUs = C.TIME_UNSET
+                super.flush()
+            }
+        }
     }
 }
 
 private const val STUCK_PLAYING_TIMEOUT_MS = 60_000
+/** Diferencia entre la marca de Media3 y la posición contada a partir de la cual se reancla (cambio de canción). */
+private const val REANCHOR_US = 200_000L
 
 /** ExoPlayer → su fuente en el motor. */
 class BusPlayers {
