@@ -50,6 +50,8 @@ object MixComposer {
     const val MAX_SYNC_DELTA_PCT = 6.0
     const val MIN_SYNC_STABILITY = 0.8
     const val MAX_DROP_FROM_START_MS = 20_000
+    /** B nunca empieza más allá de esto de su inicio de audio (`MaxBStartFromAudioStartMs` del backend). */
+    const val MAX_B_START_FROM_AUDIO_START_MS = 12_000
     private const val NOISE_STEP = 0.33
     /** Profundidad inicial de los filtros de entrada de B: paso bajo ≈ 2 kHz, paso alto ≈ 300 Hz: B se oye amortiguado. */
     const val IN_FILTER_DEPTH = 0.45
@@ -131,6 +133,9 @@ object MixComposer {
         // B sin intro suficiente: B empieza en su primer downbeat con audio y A no se mueve.
         val audioStartB = max(0, to.audioStartMs)
         if (bStart < audioStartB) bStart = (downbeatAtOrAfter(to, audioStartB.toDouble()) ?: audioStartB).toDouble()
+        // Intro larga: B entra como mucho en el último downbeat antes del tope (con el mix-in lejos sonaba desde el 30 s).
+        val maxBStart = audioStartB + MAX_B_START_FROM_AUDIO_START_MS
+        if (bStart > maxBStart) bStart = (downbeatAtOrBefore(to, maxBStart.toDouble()) ?: maxBStart).toDouble()
         if (aStart < 0) {
             val shiftBars = ceil(-aStart / bar)
             aStart += shiftBars * bar
