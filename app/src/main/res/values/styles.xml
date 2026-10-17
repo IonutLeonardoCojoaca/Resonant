@@ -375,4 +375,13 @@
         <item name="android:drawableTint">@color/textTheme</item>
         <item name="android:textColor">@color/textTheme</item>
     </style>
+    <!-- Título de sección del editor de transición v2 (PRESET, VENTANA). -->
+    <style name="MixV2SectionTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:letterSpacing">0.14</item>
+        <item name="android:textColor">#80FFFFFF</item>
+        <item name="android:textSize">10sp</item>
+    </style>
 </resources>

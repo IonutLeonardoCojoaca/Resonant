@@ -245,4 +245,14 @@ TransitionManager 🎉 Mezcla completada en el motor (preview): B
 
 ## 9. Notas para el agente del servidor (rellenar si hace falta)
 
-_(vacío)_
+### 2026-10-17 — Los clips renderizados nunca llegan al móvil (ruta 3 rota)
+
+- Las URLs firmadas de los clips (`https://resonantapp.ddns.net/playmix-renders/<transitionId>/<n>.flac?X-Amz-…`)
+  devuelven el `index.html` de la web de Resonant (`<!doctype html>… <title>Resonant</title>`), no el FLAC.
+  Comprobado en la caché del emulador: todos los clips pedidos hoy (`72100330-…` 1, 2, 7, 23 y 26; `21ec6031-…` 15)
+  son ese HTML de 790 bytes. Parece que el proxy de `resonantapp.ddns.net` no enruta `/playmix-renders/` a MinIO y la
+  SPA responde a cualquier ruta.
+- Efecto en el móvil: el clip falla al prepararse y se caía al crossfade antiguo (`beginLegacyPlaymix`), que ignora el
+  documento v2. Eso es lo que el usuario oía como "mezcla del servidor": no cohesionaba.
+- Ya cambiado en Android: si el clip falla, un documento v2 se mezcla en el motor del móvil (`beginClipFallback` en
+  `TransitionManager`). Hace falta arreglar el enrutado del proxy para que la ruta 3 funcione de verdad.

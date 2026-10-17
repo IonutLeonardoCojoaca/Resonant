@@ -78,7 +78,7 @@ class BusMixer {
                         session = null
                         frame += playNormal(s.a, frame, remaining)
                     } else if (s.bReady()) {
-                        s.start()
+                        s.start(writtenFrames + frame)
                     }
                 }
                 MixSession.State.RUNNING -> {
@@ -115,7 +115,7 @@ class BusMixer {
         scale(aBuffer, frames, s.a.nextVolume(frames))
 
         bBuffer.fill(0f, 0, 2 * frames)
-        val bFrom = max(0L, s.bOffsetFrames - s.timelineFrame).toInt()
+        val bFrom = max(0L, s.bStartFrames - s.timelineFrame).toInt()
         if (bFrom < frames) {
             val readB = s.b.readInto(sourceBuffer, frames - bFrom, engineFrame + bFrom)
             if (readB < frames - bFrom && !s.b.ended) noteUnderrun(s.b)

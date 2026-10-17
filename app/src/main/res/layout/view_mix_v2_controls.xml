@@ -1,18 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Controles del editor v2 (spotify-style-transition-engine) dentro del visualizador del editor de transición:
-     presets, carriles, ventana, beatmatching y estado del render. Mismos estilos que el editor antiguo. -->
+<!-- Controles del editor v2 (spotify-style-transition-engine) dentro del visualizador del editor de transición.
+     mixV2LanesSection (los carriles) se coloca justo debajo de la onda; el resto va debajo de los tiempos. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
+    <!-- Carriles: una tarjeta por carril en dos columnas (catálogo de lane-options) -->
+    <LinearLayout
+        android:id="@+id/mixV2LanesSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/mixV2Lanes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </LinearLayout>
+
     <!-- Estado de la mezcla: guardada y renderizada, renderizando o sin guardar -->
     <TextView
         android:id="@+id/mixV2Status"
         android:layout_width="wrap_content"
         android:layout_height="28dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="16dp"
         android:background="@drawable/bg_preset_chip"
         android:drawablePadding="6dp"
         android:fontFamily="@font/unageo_medium"
@@ -23,13 +38,9 @@
 
     <!-- Preset -->
     <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:fontFamily="@font/unageo_medium"
-        android:text="Preset"
-        android:textColor="#99FFFFFF"
-        android:textSize="12sp" />
+        style="@style/MixV2SectionTitle"
+        android:layout_marginTop="20dp"
+        android:text="PRESET" />
 
     <HorizontalScrollView
         android:layout_width="match_parent"
@@ -53,11 +64,16 @@
         android:textColor="#66FFFFFF"
         android:textSize="10sp" />
 
-    <!-- Ventana: mover un compás y beatmatching -->
+    <!-- Ventana: mover un compás y tonalidad -->
+    <TextView
+        style="@style/MixV2SectionTitle"
+        android:layout_marginTop="20dp"
+        android:text="VENTANA" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -124,12 +140,17 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <!-- Beatmatching -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_mix_lane_cell"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingVertical="8dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="8dp">
 
         <LinearLayout
             android:layout_width="0dp"
@@ -163,22 +184,5 @@
             app:thumbTint="@color/switch_thumb_selector"
             app:trackTint="@color/switch_track_selector" />
     </LinearLayout>
-
-    <!-- Carriles: una opción por carril (catálogo de lane-options) -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:fontFamily="@font/unageo_medium"
-        android:text="Carriles"
-        android:textColor="#99FFFFFF"
-        android:textSize="12sp" />
-
-    <LinearLayout
-        android:id="@+id/mixV2Lanes"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="vertical" />
 
 </LinearLayout>

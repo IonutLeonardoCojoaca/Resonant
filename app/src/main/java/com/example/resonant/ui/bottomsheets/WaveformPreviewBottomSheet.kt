@@ -24,6 +24,8 @@ import com.example.resonant.managers.StudioManager
 import com.example.resonant.playback.WaveformBands
 import com.example.resonant.ui.viewmodels.MixEditorV2
 import com.example.resonant.ui.viewmodels.MixEditorV2State
+import com.example.resonant.ui.viewmodels.MixPreviewRequest
+import com.example.resonant.playback.TransitionPreview
 import com.example.resonant.ui.views.MixEditorView
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.QueueSource
@@ -49,6 +51,8 @@ class WaveformPreviewBottomSheet(
     /** Mezcla v2: misma vista que el editor, con las curvas reales del documento (null con mezclas antiguas). */
     private var mixState: MixEditorV2State? = null
     private var mixView: MixEditorView? = null
+    /** Documento que esta hoja dejó en [TransitionPreview] al darle al play. */
+    private var previewRequest: MixPreviewRequest? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -247,16 +251,7 @@ class WaveformPreviewBottomSheet(
      */
     private suspend fun showMixDocument(waveform: WaveformView, ampA: List<Float>, ampB: List<Float>) {
         val ctx = context ?: return
-        val state = runCatching {
-            withContext(Dispatchers.IO) {
-                val studio = StudioManager(ctx).get(playmixId, transition.id)
-                val initial = MixEditorV2.initial(studio) ?: return@withContext null
-                initial.copy(
-                    bandsA = studio.songA.waveformBandsUrl?.let { WaveformBands.download(it) },
-                    bandsB = studio.songB.waveformBandsUrl?.let { WaveformBands.download(it) }
-                )
-            }
-        }.onFailure { Log.w("WaveformPreview", "Mezcla v2 sin Studio", it) }.getOrNull() ?: return
+        val state = loadSavedMix(ctx, withBands = true) ?: return
         if (!isAdded) return
         val container = waveform.parent as? ViewGroup ?: return
         container.layoutParams = container.layoutParams.apply { height = (300 * resources.displayMetrics.density).toInt() }
@@ -270,6 +265,26 @@ class WaveformPreviewBottomSheet(
         mixView = view
     }
 
+    /** Documento v2 guardado de la transición (null con mezclas antiguas o si Studio no responde). */
+    private suspend fun loadSavedMix(ctx: android.content.Context, withBands: Boolean): MixEditorV2State? = runCatching {
+        withContext(Dispatchers.IO) {
+            val studio = StudioManager(ctx).get(playmixId, transition.id)
+            val initial = MixEditorV2.initial(studio) ?: return@withContext null
+            if (!withBands) return@withContext initial
+            initial.copy(
+                bandsA = studio.songA.waveformBandsUrl?.let { WaveformBands.download(it) },
+                bandsB = studio.songB.waveformBandsUrl?.let { WaveformBands.download(it) }
+            )
+        }
+    }.onFailure { Log.w("WaveformPreview", "Mezcla v2 sin Studio", it) }.getOrNull()
+
+    override fun onDestroyView() {
+        // La escucha sigue al cerrar la hoja: el documento se suelta cuando A ya no suena (la mezcla pasó o se cambió).
+        previewRequest?.let { if (PlaybackStateRepository.currentSong?.id != it.fromSongId) TransitionPreview.clear() }
+        mixView = null
+        super.onDestroyView()
+    }
+
     private fun generatePlaceholder(durationMs: Int): List<Float> {
         val count = (durationMs / 50).coerceIn(10, 2000)
         return (0 until count).map { (Math.random() * 0.5 + 0.2).toFloat() }
@@ -277,9 +292,6 @@ class WaveformPreviewBottomSheet(
 
     private fun startPreview(playButton: TextView) {
         val data = waveformData ?: return
-        // Mezcla v2: desde 2 compases antes de la ventana, como la escucha del editor.
-        val startPositionMs = mixState?.let { MixEditorV2.preview(it).startPositionMs }
-            ?: maxOf(0, transition.exitPointMs - 10_000)
         val songManager = SongManager(requireContext())
 
         playButton.isEnabled = false
@@ -287,6 +299,15 @@ class WaveformPreviewBottomSheet(
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
+                // Mezcla v2: el documento guardado se mezcla en el móvil, como la escucha del editor, en lugar del
+                // clip del servidor (otro estiramiento de B y otro nivel). Si aún no se cargó, se espera a cargarlo.
+                val state = mixState ?: loadSavedMix(requireContext(), withBands = false)
+                val request = state?.let { MixEditorV2.preview(it) }
+                request?.let { TransitionPreview.set(it.fromSongId, it.toSongId, it.document) }
+                previewRequest = request
+                // Desde 2 compases antes de la ventana, como la escucha del editor.
+                val startPositionMs = request?.startPositionMs ?: maxOf(0, transition.exitPointMs - 10_000)
+
                 val songA = withContext(Dispatchers.IO) { songManager.getSongById(data.songA.songId) }
                 val songB = withContext(Dispatchers.IO) { songManager.getSongById(data.songB.songId) }
                 if (songA == null || songB == null) return@launch

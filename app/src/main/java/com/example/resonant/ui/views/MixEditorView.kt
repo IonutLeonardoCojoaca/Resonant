@@ -21,9 +21,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Editor visual de la mezcla v2 (spotify-style-transition-engine D9): minimapa de las dos canciones, regla de A
- * con los beats coincidentes resaltados, ondas de 3 bandas de A y B (atenuadas fuera de la ventana), rejilla de
- * beats y compases, marca de fin de audio de A, regla de B y los carriles del documento con sus colores
+ * Editor visual de la mezcla v2 (spotify-style-transition-engine D9): tiempos de la ventana en A con los beats
+ * coincidentes resaltados, ondas de 3 bandas de A y B (atenuadas fuera de la ventana), rejilla de beats y compases,
+ * marca de fin de audio de A, tiempos de la ventana en B y los carriles del documento con sus colores
  * (volumen azul, EQ amarillo, filtro rosa, efectos blanco, loop naranja).
  *
  * Cada onda se arrastra por separado; al soltar se avisa con [onDragA]/[onDragB] y el imán (compás, o beat con
@@ -57,8 +57,7 @@ class MixEditorView @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
     private fun dp(v: Float) = v * density
 
-    private val minimapH = dp(18f)
-    private val rulerH = dp(28f)
+    private val rulerH = dp(16f)
     private var trackH = dp(84f)
     private val laneStripH = dp(10f)
     private val gap = dp(4f)
@@ -68,10 +67,12 @@ class MixEditorView @JvmOverloads constructor(
     private val lane = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE; strokeWidth = dp(2f); strokeJoin = Paint.Join.ROUND; strokeCap = Paint.Cap.ROUND
     }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(170, 255, 255, 255); textSize = dp(9f) }
     private val timeText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE; textSize = dp(10f); isFakeBoldText = true
         setShadowLayer(dp(2f), 0f, 0f, Color.BLACK)
+    }
+    private val badgeText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK; textSize = dp(9f); isFakeBoldText = true; textAlign = Paint.Align.CENTER
     }
     private val path = Path()
 
@@ -114,12 +115,12 @@ class MixEditorView @JvmOverloads constructor(
     /** Con altura fija (el contenedor del editor) las pistas crecen para ocuparla. */
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        val fixed = minimapH + gap + rulerH + laneStripH + gap + laneStripH + rulerH
+        val fixed = rulerH + laneStripH + gap + laneStripH + rulerH
         trackH = max(dp(84f), (h - fixed) / 2)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val h = minimapH + gap + rulerH + trackH + laneStripH + gap + trackH + laneStripH + rulerH
+        val h = rulerH + trackH + laneStripH + gap + trackH + laneStripH + rulerH
         setMeasuredDimension(getDefaultSize(suggestedMinimumWidth, widthMeasureSpec), resolveSize(h.toInt(), heightMeasureSpec))
     }
 
@@ -147,9 +148,7 @@ class MixEditorView @JvmOverloads constructor(
         val s = state ?: return
         val doc = s.document
         var y = 0f
-        drawMinimap(canvas, s, doc, y)
-        y += minimapH + gap
-        drawRuler(canvas, doc, y, s.songA, aSide = true, s)
+        drawRuler(canvas, doc, y, aSide = true, s)
         y += rulerH
         val topA = y
         drawTrack(canvas, s, doc, topA, isA = true)
@@ -160,7 +159,7 @@ class MixEditorView @JvmOverloads constructor(
         drawTrack(canvas, s, doc, topB, isA = false)
         y += trackH
         y += laneStripH
-        drawRuler(canvas, doc, y, s.songB, aSide = false, s)
+        drawRuler(canvas, doc, y, aSide = false, s)
         drawWindow(canvas, doc, topA, topB + trackH)
         drawPlayhead(canvas, s, doc, topA, topB + trackH)
     }
@@ -182,55 +181,20 @@ class MixEditorView @JvmOverloads constructor(
         canvas.drawCircle(x, top - rulerH, dp(4f), fill)
     }
 
-    private fun drawMinimap(canvas: Canvas, s: MixEditorV2State, doc: MixDocumentDTO, top: Float) {
-        val half = minimapH / 2 - dp(1f)
-        fun bar(y: Float, durationMs: Int, fromMs: Int, toMs: Int, color: Int) {
-            fill.color = Color.argb(50, 255, 255, 255)
-            rect.set(0f, y, width.toFloat(), y + half)
-            canvas.drawRoundRect(rect, dp(2f), dp(2f), fill)
-            if (durationMs <= 0) return
-            fill.color = color
-            rect.set(fromMs.toFloat() / durationMs * width, y, max(toMs.toFloat() / durationMs * width, fromMs.toFloat() / durationMs * width + dp(2f)), y + half)
-            canvas.drawRect(rect, fill)
-        }
-        bar(top, s.songA.durationMs, doc.a.startMs, doc.a.startMs + doc.durationMs, COLOR_A)
-        val bEnd = doc.b.startMs + ((doc.durationMs - doc.b.offsetMs) * s.rateB).toInt()
-        bar(top + half + dp(2f), s.songB.durationMs, doc.b.startMs, bEnd, COLOR_B)
-    }
-
-    private fun drawRuler(canvas: Canvas, doc: MixDocumentDTO, top: Float, song: MixComposer.Song, aSide: Boolean, s: MixEditorV2State) {
-        val from = viewStartMs(doc)
-        val to = from + visibleSpanMs(doc)
-        val bar = MixComposer.barMs(song) ?: return
-        val first = (song.firstDownbeatMs ?: song.downbeats?.firstOrNull())?.toDouble() ?: return
-        // Compases de la canción proyectados en la línea de tiempo.
-        val songFrom = if (aSide) aMs(doc, from) else bMs(s, doc, from)
-        val songTo = if (aSide) aMs(doc, to) else bMs(s, doc, to)
-        var k = kotlin.math.floor((songFrom - first) / bar).toInt()
-        stroke.color = Color.argb(140, 255, 255, 255)
-        while (true) {
-            val songT = first + k * bar
-            if (songT > songTo) break
-            val t = if (aSide) songT - aMs(doc, 0.0) else (songT - bMs(s, doc, 0.0)) / s.rateB
-            val x = xOf(doc, t)
-            if (x in 0f..width.toFloat() && k >= 0) {
-                canvas.drawLine(x, top, x, top + rulerH * 0.5f, stroke)
-                canvas.drawText((k + 1).toString(), x + dp(2f), top + rulerH * 0.42f, text)
-            }
-            k++
-        }
+    /** Inicio y fin de la ventana en la canción (y en A los beats coincidentes), sin regla de compases. */
+    private fun drawRuler(canvas: Canvas, doc: MixDocumentDTO, top: Float, aSide: Boolean, s: MixEditorV2State) {
         // Tiempos de la ventana en la canción: inicio y fin, la línea de tiempo de cada pista.
         val startMs = if (aSide) aMs(doc, 0.0) else bMs(s, doc, 0.0)
         val endMs = if (aSide) aMs(doc, doc.durationMs.toDouble()) else bMs(s, doc, doc.durationMs.toDouble())
         timeText.textAlign = Paint.Align.RIGHT
-        canvas.drawText(clock(startMs), xOf(doc, 0.0) - dp(3f), top + rulerH * 0.92f, timeText)
+        canvas.drawText(clock(startMs), xOf(doc, 0.0) - dp(3f), top + rulerH * 0.75f, timeText)
         timeText.textAlign = Paint.Align.LEFT
-        canvas.drawText(clock(endMs), xOf(doc, doc.durationMs.toDouble()) + dp(3f), top + rulerH * 0.92f, timeText)
+        canvas.drawText(clock(endMs), xOf(doc, doc.durationMs.toDouble()) + dp(3f), top + rulerH * 0.75f, timeText)
         if (aSide) {
             fill.color = COLOR_COINCIDENT
             for (t in coincident) {
                 val x = xOf(doc, t)
-                canvas.drawCircle(x, top + dp(3f), dp(2f), fill)
+                canvas.drawCircle(x, top + rulerH - dp(3f), dp(2f), fill)
             }
         }
     }
@@ -241,6 +205,13 @@ class MixEditorView @JvmOverloads constructor(
         val song = if (isA) s.songA else s.songB
         val mid = top + trackH / 2
         val step = max(1, (dp(2f)).toInt())
+        // Fondo de la pista y la ventana de mezcla resaltada.
+        fill.color = COLOR_TRACK_BG
+        rect.set(0f, top, width.toFloat(), top + trackH)
+        canvas.drawRoundRect(rect, dp(10f), dp(10f), fill)
+        fill.color = COLOR_WINDOW
+        rect.set(max(0f, xOf(doc, 0.0)), top, min(width.toFloat(), xOf(doc, doc.durationMs.toDouble())), top + trackH)
+        canvas.drawRect(rect, fill)
         val inWindow = { t: Double -> t >= 0 && t <= doc.durationMs }
         for (px in 0 until width step step) {
             val t = viewStartMs(doc) + px * msPerPx(doc)
@@ -270,6 +241,16 @@ class MixEditorView @JvmOverloads constructor(
             }
         }
         drawLanes(canvas, doc, top, if (isA) 'a' else 'b')
+        drawBadge(canvas, if (isA) "A" else "B", if (isA) COLOR_SIDE_A else COLOR_SIDE_B, top)
+    }
+
+    /** Pastilla con la letra de la pista, del color de su canción en la cabecera. */
+    private fun drawBadge(canvas: Canvas, label: String, color: Int, top: Float) {
+        val size = dp(16f)
+        fill.color = color
+        rect.set(dp(6f), top + dp(6f), dp(6f) + size, top + dp(6f) + size)
+        canvas.drawRoundRect(rect, dp(5f), dp(5f), fill)
+        canvas.drawText(label, rect.centerX(), rect.centerY() + badgeText.textSize * 0.35f, badgeText)
     }
 
     private fun drawBar(canvas: Canvas, x: Float, mid: Float, h: Float, color: Int, alpha: Int, step: Int) {
@@ -359,7 +340,7 @@ class MixEditorView @JvmOverloads constructor(
             dragPx = 0f
             return true
         }
-        val trackATop = minimapH + gap + rulerH
+        val trackATop = rulerH
         val trackBTop = trackATop + trackH + laneStripH + gap
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -430,5 +411,10 @@ class MixEditorView @JvmOverloads constructor(
         val COLOR_END = Color.parseColor("#FF5252")
         val COLOR_COINCIDENT = Color.parseColor("#69F0AE")
         val COLOR_PLAYHEAD = Color.parseColor("#E21616")
+        /** Colores de A y B de la cabecera (`bg_bpm_chip_a` / `bg_bpm_chip_b`). */
+        val COLOR_SIDE_A = Color.parseColor("#FF7A59")
+        val COLOR_SIDE_B = Color.parseColor("#FF4FB8")
+        private val COLOR_TRACK_BG = Color.parseColor("#0FFFFFFF")
+        private val COLOR_WINDOW = Color.parseColor("#14FFFFFF")
     }
 }

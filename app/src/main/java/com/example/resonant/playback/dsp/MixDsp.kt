@@ -347,6 +347,8 @@ class MixDsp(private val doc: MixDocumentDTO, noiseSeed: Long = 0L) {
         const val ECHO_CLOSE_BEATS = 4
         const val LOOP_SEAM_MS = 5.0
         val LIMIT_THRESHOLD = 10.0.pow(-1.0 / 20)
+        /** Mayor Float por debajo de 1: el limitador nunca llega a 0 dBFS. */
+        private val MAX_LIMITED = Math.nextDown(1f)
 
         val BANDS = listOf(
             "low" to EqSpec("lowshelf", 250.0, null),
@@ -375,7 +377,9 @@ class MixDsp(private val doc: MixDocumentDTO, noiseSeed: Long = 0L) {
             val magnitude = abs(x.toDouble())
             if (magnitude <= LIMIT_THRESHOLD) return x
             val headroom = 1.0 - LIMIT_THRESHOLD
-            return (sign(x.toDouble()) * (LIMIT_THRESHOLD + headroom * tanh((magnitude - LIMIT_THRESHOLD) / headroom))).toFloat()
+            val limited = (LIMIT_THRESHOLD + headroom * tanh((magnitude - LIMIT_THRESHOLD) / headroom)).toFloat()
+            // Con picos grandes tanh ≈ 1 y el redondeo a Float daría justo 1,0 (0 dBFS).
+            return (sign(x.toDouble()).toFloat() * min(limited, MAX_LIMITED))
         }
 
         /** Paso bajo o paso alto RBJ normalizado: [b0, b1, b2, a1, a2]. */

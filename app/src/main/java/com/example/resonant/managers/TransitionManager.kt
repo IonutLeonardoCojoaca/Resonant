@@ -727,7 +727,7 @@ class TransitionManager(
             }
         } catch (e: Exception) {
             Log.w(TAG, "No se pudo preparar el clip; motor actual", e)
-            beginLegacyPlaymix(oldPlayer, oldSong, nextSong, nextIndex, transition)
+            beginClipFallback(oldPlayer, oldSong, nextSong, nextIndex, transition)
             return
         }
         val bPlayer = acquireTransitionPlayer(nextSong, plan.bPreparePositionMs)
@@ -905,7 +905,26 @@ class TransitionManager(
         preloadedSongId = run.nextSong.id
         targetOldPlayerVolume = run.volumeA
         targetNewPlayerVolume = run.volumeB
-        beginLegacyPlaymix(run.oldPlayer, run.oldSong, run.nextSong, run.nextIndex, run.transition)
+        beginClipFallback(run.oldPlayer, run.oldSong, run.nextSong, run.nextIndex, run.transition)
+    }
+
+    /**
+     * Sin clip (no se pudo preparar o no llegó a tiempo): un documento v2 se mezcla en el motor, como la escucha
+     * del editor; el crossfade antiguo ignora sus carriles y el beatmatching. Sin motor o sin documento v2, el antiguo.
+     */
+    private fun beginClipFallback(oldPlayer: ExoPlayer, oldSong: Song, nextSong: Song, nextIndex: Int, transition: PlaymixTransitionDTO) {
+        val doc = transition.mixDocument?.takeIf { it.isV2 && mixEngine != null }
+        if (doc == null) {
+            beginLegacyPlaymix(oldPlayer, oldSong, nextSong, nextIndex, transition)
+            return
+        }
+        val a = TransitionPlanner.trackOf(oldSong.audioAnalysis, -1L)
+        val b = TransitionPlanner.trackOf(nextSong.audioAnalysis, -1L)
+        val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
+        val plan = TransitionPlanner.Plan(
+            doc, "studio-${doc.preset?.code ?: "custom"}", beatSync = ratio != null && doc.beatSync == true, bpmRatio = ratio ?: 1.0
+        )
+        beginEngineRun(oldPlayer, oldSong, nextSong, nextIndex, plan)
     }
 
     /** Fallo con el clip ya sonando: A recupera su volumen en su posición real y sigue. */
@@ -1280,7 +1299,7 @@ class TransitionManager(
             override fun onCompleted() = completeEngineRun(job)
 
             override fun onFailed(reason: String) = failEngineRun(job, reason)
-        })
+        }, bSpeed = if (plan.beatSync) plan.bpmRatio else 1.0)
 
         val runnable = object : Runnable {
             override fun run() {

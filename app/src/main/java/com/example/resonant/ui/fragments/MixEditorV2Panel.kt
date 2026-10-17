@@ -20,8 +20,9 @@ import com.example.resonant.ui.views.MixEditorView
 
 /**
  * Controles del editor v2 (spotify-style-transition-engine D9) que se añaden al visualizador del editor de
- * transición, debajo de la onda, los tiempos y la canción B: estado del render, presets (con Personalizada),
- * ventana por compases, beatmatching, tonalidad y un desplegable por carril. Usa los estilos del editor antiguo.
+ * transición: los carriles ([lanesSection], una tarjeta por carril en dos columnas, justo debajo de la onda) y,
+ * debajo de los tiempos, estado del render, presets (con Personalizada), ventana por compases, tonalidad y
+ * beatmatching.
  */
 class MixEditorV2Panel(
     private val context: Context,
@@ -38,6 +39,8 @@ class MixEditorV2Panel(
 
     private val binding = ViewMixV2ControlsBinding.inflate(LayoutInflater.from(context))
     val root: View get() = binding.root
+    /** Los carriles: el editor los saca de [root] y los pone justo debajo de la onda. */
+    val lanesSection: View get() = binding.mixV2LanesSection
 
     private val density = context.resources.displayMetrics.density
     private val Int.dp: Int get() = (this * density).toInt()
@@ -52,18 +55,33 @@ class MixEditorV2Panel(
         binding.mixV2BeatSync.setOnCheckedChangeListener { button, checked ->
             if (button.isPressed) actions.setBeatSync(checked)
         }
-        LANES.forEach { (lane, title, color) ->
-            val row = ItemMixV2LaneBinding.inflate(LayoutInflater.from(context), binding.mixV2Lanes, true)
-            row.laneName.text = title
-            row.laneName.setTextColor(color)
-            row.laneDropdown.setOnClickListener { anchor ->
-                val s = bound ?: return@setOnClickListener
-                popup(anchor, optionsFor(s, lane).map { it.code to it.name }, currentFor(s, lane)) {
-                    actions.selectLaneOption(lane, it)
-                }
+        // Dos tarjetas por fila: los cinco carriles caben bajo la onda sin hacer scroll.
+        LANES.chunked(2).forEachIndexed { index, pair ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { if (index > 0) topMargin = 8.dp }
             }
-            laneLabels[lane] = row.laneSelected
+            binding.mixV2Lanes.addView(row)
+            pair.forEachIndexed { column, lane -> addLane(row, lane, column) }
         }
+    }
+
+    private fun addLane(row: LinearLayout, laneSpec: Triple<String, String, Int>, column: Int) {
+        val (lane, title, color) = laneSpec
+        val cell = ItemMixV2LaneBinding.inflate(LayoutInflater.from(context), row, false)
+        (cell.root.layoutParams as LinearLayout.LayoutParams).apply { if (column > 0) marginStart = 8.dp }
+        row.addView(cell.root)
+        cell.laneName.text = title
+        cell.laneName.setTextColor(color)
+        cell.laneDot.backgroundTintList = ColorStateList.valueOf(color)
+        cell.laneDropdown.setOnClickListener { anchor ->
+            val s = bound ?: return@setOnClickListener
+            popup(anchor, optionsFor(s, lane).map { it.code to it.name }, currentFor(s, lane)) {
+                actions.selectLaneOption(lane, it)
+            }
+        }
+        laneLabels[lane] = cell.laneSelected
     }
 
     /** [dirty]: el documento en pantalla no es el guardado. [renderStatus]: estado del clip del servidor. */

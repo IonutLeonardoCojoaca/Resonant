@@ -1158,8 +1158,30 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         }) { anchor, options, current, onSelected -> showStyledPopup(anchor, options, current, onSelected) }
         val visualizer = binding.visualizerPanel
         visualizer.addView(panel.root, visualizer.indexOfChild(binding.mixModePanel))
+        // Carriles justo debajo de la onda: lo que se cambia se ve sin hacer scroll. Los tiempos y el resto, debajo.
+        val lanes = panel.lanesSection
+        (lanes.parent as? ViewGroup)?.removeView(lanes)
+        visualizer.addView(lanes, visualizer.indexOfChild(binding.waveformContainer) + 1)
+        binding.waveformContainer.layoutParams = binding.waveformContainer.layoutParams.apply { height = V2_WAVEFORM_HEIGHT_DP.dp }
+        mergeSongHeaders()
         v2Panel = panel
         return panel
+    }
+
+    /** Editor v2: A y B vuelven a la cabecera, una junto a otra, para dejar la onda y los carriles arriba. */
+    private fun mergeSongHeaders() {
+        val header = binding.songHeaderPanel
+        val songBBlock = binding.songBCover.parent?.parent as? View ?: return
+        if (songBBlock.parent === header) return
+        (songBBlock.parent as? ViewGroup)?.removeView(songBBlock)
+        val arrow = ImageView(requireContext()).apply {
+            setImageResource(R.drawable.ic_compare_arrows)
+            imageTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#66FFFFFF"))
+            layoutParams = LinearLayout.LayoutParams(20.dp, 20.dp).apply { marginStart = 6.dp; marginEnd = 6.dp }
+        }
+        songBBlock.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        header.addView(arrow)
+        header.addView(songBBlock)
     }
 
     private fun barsLabel(bars: Int) = if (bars == 1) "1 compás" else "$bars compases"
@@ -1633,3 +1655,6 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         _binding = null
     }
 }
+
+/** Alto de la onda del editor v2: con la cabecera y los carriles cabe todo sin hacer scroll. */
+private const val V2_WAVEFORM_HEIGHT_DP = 290

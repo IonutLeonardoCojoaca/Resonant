@@ -5,6 +5,7 @@ import android.media.AudioDeviceInfo
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.audio.AudioProcessor
@@ -203,8 +204,7 @@ class BusAudioOutputProvider(
             Log.w(TAG, "${handle.name}: formato no mezclable (${config.sampleRate} Hz, $channels canales); salida normal")
             return super.getAudioOutput(config)
         }
-        val source = engine.newSource(handle.name)
-        handle.source = source
+        val source = engine.newSource(handle)
         return BusAudioOutput(source, config, engine.sessionId, handle)
     }
 
@@ -238,6 +238,16 @@ class BusRenderersFactory(
             .build()
         // El desplazamiento de las marcas de tiempo solo llega al sink: se guarda para [BusAudioOutput].
         return object : ForwardingAudioSink(sink) {
+            private var encoderDelayUs = 0L
+            /** `configure` arma el recorte del retardo del codificador para los primeros datos; un seek no lo rearma. */
+            private var trimPending = false
+
+            override fun configure(inputFormat: Format, specifiedBufferSize: Int, outputChannels: IntArray?) {
+                encoderDelayUs = if (inputFormat.sampleRate > 0) inputFormat.encoderDelay * 1_000_000L / inputFormat.sampleRate else 0L
+                trimPending = true
+                super.configure(inputFormat, specifiedBufferSize, outputChannels)
+            }
+
             override fun setOutputStreamOffsetUs(outputStreamOffsetUs: Long) {
                 handle.streamOffsetUs = if (outputStreamOffsetUs == C.TIME_UNSET) 0L else outputStreamOffsetUs
                 super.setOutputStreamOffsetUs(outputStreamOffsetUs)
@@ -245,7 +255,11 @@ class BusRenderersFactory(
 
             override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
                 if (handle.startMediaUs == C.TIME_UNSET && presentationTimeUs != C.TIME_UNSET) {
-                    handle.startMediaUs = presentationTimeUs - handle.streamOffsetUs
+                    // Tras un seek Media3 no recorta el retardo del codificador (TrimmingAudioProcessor, b/77292509):
+                    // el audio va ese retardo por detrás de su marca (576 muestras = 12 ms en los MP3 de 48 kHz).
+                    val untrimmedUs = if (trimPending) 0L else encoderDelayUs
+                    handle.startMediaUs = presentationTimeUs - handle.streamOffsetUs - untrimmedUs
+                    trimPending = false
                 }
                 return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
             }

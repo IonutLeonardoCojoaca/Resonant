@@ -1,28 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Un carril del editor v2: nombre con su color y desplegable con la opción elegida (estilo de bassDropdown). -->
+<!-- Un carril del editor v2: tarjeta con el nombre en su color y la opción elegida; al tocarla se abre el desplegable. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
+    android:id="@+id/laneDropdown"
+    android:layout_width="0dp"
     android:layout_height="wrap_content"
-    android:layout_marginTop="8dp"
-    android:gravity="center_vertical"
-    android:orientation="horizontal">
-
-    <TextView
-        android:id="@+id/laneName"
-        android:layout_width="76dp"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/unageo_bold"
-        android:textSize="10sp" />
+    android:layout_weight="1"
+    android:background="@drawable/bg_mix_lane_cell"
+    android:orientation="vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="9dp">
 
     <LinearLayout
-        android:id="@+id/laneDropdown"
-        android:layout_width="0dp"
-        android:layout_height="36dp"
-        android:layout_weight="1"
-        android:background="@drawable/bg_mix_mode_selector"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="10dp">
+        android:orientation="horizontal">
+
+        <View
+            android:id="@+id/laneDot"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:background="@drawable/bg_lane_dot" />
+
+        <TextView
+            android:id="@+id/laneName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:fontFamily="@font/unageo_bold"
+            android:letterSpacing="0.12"
+            android:textSize="9sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
         <TextView
             android:id="@+id/laneSelected"
@@ -38,6 +53,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
             android:fontFamily="@font/unageo_medium"
             android:text="▾"
             android:textColor="#88FFFFFF"

@@ -75,8 +75,8 @@ class BusMixerTest {
 
     private fun flat(value: Double) = listOf(MixLanePointDTO(0, value, "hold"), MixLanePointDTO(1000, value, "linear"))
 
-    private fun doc(durationMs: Int = 1000) = MixDocumentDTO(
-        version = 2, durationMs = durationMs, a = MixSideADTO(10_000), b = MixSideBDTO(0, 0),
+    private fun doc(durationMs: Int = 1000, bStartMs: Int = 0) = MixDocumentDTO(
+        version = 2, durationMs = durationMs, a = MixSideADTO(10_000), b = MixSideBDTO(bStartMs, 0),
         lanes = mapOf("a.volume" to flat(1.0), "b.volume" to flat(1.0))
     )
 
@@ -172,6 +172,73 @@ class BusMixerTest {
         assertEquals(listOf("failed"), events.log)
         assertTrue(session.incoherent)
         assertNull(mixer.session)
+    }
+
+    @Test
+    fun bReplacedWhileWaitingMixesWithTheNewSource() {
+        val mixer = BusMixer()
+        // Preparar B con un seek: Media3 suelta su salida y crea otra; la sesión armada con la vieja debe seguir a la nueva.
+        val a = source("a", 20_000, 9_900_000L, 0.1f)
+        val oldB = BusSource(host, "b").also { it.play() }
+        mixer.sources += a; mixer.sources += oldB
+        val events = Events()
+        mixer.session = MixSession(doc(), a, oldB, null, events, { it.run() }, {})
+
+        run(mixer, 2)
+        mixer.sources -= oldB
+        val newB = source("b", 20_000, 0L, 0.2f)
+        oldB.replacedBy = newB
+        mixer.sources += newB
+        run(mixer, 20)
+
+        host.playedFrames = Long.MAX_VALUE
+        assertTrue(events.log.contains("audible"))
+        assertTrue(newB.playedFrames() > 0)
+        assertEquals(0L, oldB.playedFrames())
+    }
+
+    @Test
+    fun bThatStartsLateEntersLaterToKeepTheBeat() {
+        val mixer = BusMixer()
+        // El seek de B cayó 10 ms después de b.startMs (frame MP3 entero): B entra 10 ms (441 frames) más tarde.
+        val a = source("a", 20_000, 10_000_000L, 0.1f)
+        val b = source("b", 20_000, 10_000L, 0.2f)
+        mixer.sources += a; mixer.sources += b
+        mixer.session = MixSession(doc(), a, b, null, Events(), { it.run() }, {})
+
+        run(mixer, 20)
+
+        host.playedFrames = Long.MAX_VALUE
+        assertEquals(20L * block - 441, b.playedFrames())
+    }
+
+    @Test
+    fun bThatStartsEarlyDropsTheExtraAudio() {
+        val mixer = BusMixer()
+        // B trae 10 ms de antes de b.startMs: se descartan al empezar y su audio de b.startMs suena en el frame 0.
+        val a = source("a", 20_000, 10_000_000L, 0.1f)
+        val b = source("b", 20_000, 90_000L, 0.2f)
+        mixer.sources += a; mixer.sources += b
+        mixer.session = MixSession(doc(bStartMs = 100), a, b, null, Events(), { it.run() }, {})
+
+        run(mixer, 20)
+
+        assertEquals(100_000.0 + 20.0 * block * 1_000_000 / BusMixer.SAMPLE_RATE, b.nextMediaTimeUs()!!.toDouble(), 100.0)
+    }
+
+    @Test
+    fun bAlignmentAccountsForItsSpeed() {
+        val mixer = BusMixer()
+        // A media velocidad, 10 ms de canción de B son 20 ms de su salida: entra 882 frames más tarde.
+        val a = source("a", 20_000, 10_000_000L, 0.1f)
+        val b = source("b", 20_000, 10_000L, 0.2f)
+        mixer.sources += a; mixer.sources += b
+        mixer.session = MixSession(doc(), a, b, null, Events(), { it.run() }, {}, bSpeed = 0.5)
+
+        run(mixer, 20)
+
+        host.playedFrames = Long.MAX_VALUE
+        assertEquals(20L * block - 882, b.playedFrames())
     }
 
     @Test

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de un carril del editor v2 (mismos tonos que bg_mix_mode_selector, más redondeada). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#22FFFFFF">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/cardsTheme" />
+            <stroke android:width="1dp" android:color="@color/dividerOverlay" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</ripple>

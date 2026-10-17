@@ -12,6 +12,7 @@ import android.util.Log
 import com.example.resonant.data.network.MixDocumentDTO
 import com.example.resonant.playback.dsp.MixDsp
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -53,11 +54,22 @@ class MixOutputEngine(context: Context) : BusHost {
 
     private val thread = Thread({ loop() }, "MixOutputEngine").apply { start() }
 
-    fun newSource(name: String): BusSource = BusSource(this, name).also { sources += it }
+    /** Fuente nueva del player de [handle]; la anterior (liberada por un flush de Media3) queda enlazada a ella. */
+    fun newSource(handle: BusHandle): BusSource {
+        val created = BusSource(this, handle.name)
+        sources += created
+        handle.source?.replacedBy = created
+        handle.source = created
+        return created
+    }
 
     override fun remove(source: BusSource) {
         sources -= source
-        session?.let { if (it.a === source || it.b === source) it.abandonFromEngine("fuente liberada") }
+        val s = session ?: return
+        // Preparar B con un seek hace que Media3 suelte su salida y cree otra: en espera, la sesión sigue a la nueva
+        // ([BusSource.replacedBy]) y hasta que tenga audio B cuenta como "no lista" (misma espera que sin datos).
+        if (source === s.b && s.state == MixSession.State.WAITING) return
+        if (s.a === source || s.b === source) s.abandonFromEngine("fuente liberada")
     }
 
     override fun wake() = synchronized(wakeLock) { wakeLock.notifyAll() }
@@ -72,8 +84,15 @@ class MixOutputEngine(context: Context) : BusHost {
      * Arma una transición: la mezcla empieza cuando A llegue a `a.startMs` y B tenga audio (si no, se espera al
      * siguiente compás de A, [barFrames], hasta [BusMixer.MAX_WAIT_FRAMES]). Sustituye a cualquier sesión anterior.
      */
-    fun arm(doc: MixDocumentDTO, a: BusSource, b: BusSource, barFrames: Int?, listener: MixSession.Listener): MixSession {
-        val created = MixSession(doc, a, b, barFrames, listener, { mainHandler.post(it) }, { Log.i("MixSession", it) })
+    fun arm(
+        doc: MixDocumentDTO,
+        a: BusSource,
+        b: BusSource,
+        barFrames: Int?,
+        listener: MixSession.Listener,
+        bSpeed: Double = 1.0
+    ): MixSession {
+        val created = MixSession(doc, a, b, barFrames, listener, { mainHandler.post(it) }, { Log.i("MixSession", it) }, bSpeed)
         session?.abandonFromEngine("sustituida")
         session = created
         wake()
@@ -223,11 +242,13 @@ class MixOutputEngine(context: Context) : BusHost {
 class MixSession internal constructor(
     val doc: MixDocumentDTO,
     val a: BusSource,
-    val b: BusSource,
+    b: BusSource,
     private val barFrames: Int?,
     private val listener: Listener,
     private val post: (Runnable) -> Unit,
-    private val log: (String) -> Unit
+    private val log: (String) -> Unit,
+    /** Velocidad de B (Sonic, `bpmA/bpmB` con beatSync): convierte tiempo de canción de B en frames de su salida. */
+    private val bSpeed: Double = 1.0
 ) {
     interface Listener {
         /** B empieza a sonar (la interfaz pasa a B). */
@@ -238,8 +259,15 @@ class MixSession internal constructor(
 
     enum class State { WAITING, RUNNING, DONE, FAILED }
 
+    @Volatile private var bSource = b
+    /** Fuente de B: si Media3 la sustituyó (seek al prepararla), la nueva. */
+    val b: BusSource get() = bSource.latest().also { bSource = it }
+
     val dsp = MixDsp(doc)
     val bOffsetFrames = MixDsp.frames(doc.b.offsetMs.toDouble()).toLong()
+    /** Frame de la línea de tiempo en que entra el audio de B: [bOffsetFrames] más el ajuste de [alignB]. */
+    internal var bStartFrames = bOffsetFrames
+        private set
     @Volatile var state = State.WAITING
         internal set
     @Volatile var cancelled = false
@@ -289,9 +317,27 @@ class MixSession internal constructor(
         return true
     }
 
-    internal fun start() {
+    internal fun start(engineFrame: Long) {
         state = State.RUNNING
+        alignB(engineFrame)
         log("Mezcla en marcha (${doc.durationMs} ms, desplazada ${shiftFrames * 1000 / MixDsp.SAMPLE_RATE} ms)")
+    }
+
+    /**
+     * B empieza justo en `b.startMs`: el seek de Media3 cae en un frame MP3 entero (hasta ~24 ms después) y su ancla
+     * dice dónde empieza de verdad su audio. Si B trae audio de antes se descarta; si empieza después, entra más tarde.
+     */
+    private fun alignB(engineFrame: Long) {
+        val bUs = b.nextMediaTimeUs() ?: return
+        val diffUs = doc.b.startMs * 1000L - bUs
+        if (abs(diffUs) > MAX_B_ALIGN_US) {
+            log("B empieza en ${bUs / 1000} ms frente a ${doc.b.startMs} ms del documento: no se alinea")
+            return
+        }
+        val frames = Math.round(diffUs * MixDsp.SAMPLE_RATE / 1_000_000.0 / bSpeed)
+        if (frames == 0L) return
+        if (frames > 0) b.skip(frames.toInt(), engineFrame) else bStartFrames = bOffsetFrames - frames
+        log("B alineada a ${doc.b.startMs} ms: empezaba ${-diffUs / 1000.0} ms desviada")
     }
 
     internal fun reportAudibleIfNeeded() {
@@ -325,6 +371,8 @@ class MixSession internal constructor(
         const val LATE_TOLERANCE_MS = 60L
         /** Más tarde que esto (búsqueda lejos de la ventana o marcas de tiempo mal leídas) no se intenta la mezcla. */
         const val MAX_LATE_MS = 60_000L
+        /** Desvío de B mayor que esto no es el redondeo del seek (marcas mal leídas): no se corrige. */
+        const val MAX_B_ALIGN_US = 100_000L
     }
 }
 
@@ -361,6 +409,13 @@ class BusSource(private val engine: BusHost, val name: String) {
     /** La sesión terminó con esta fuente (A tras la mezcla): el motor ya no la lee. */
     @Volatile var retired = false
         internal set
+    /** Salida que Media3 creó para el mismo player después de liberar esta (flush por un seek). */
+    @Volatile internal var replacedBy: BusSource? = null
+
+    internal fun latest(): BusSource {
+        var s = this
+        while (true) s = s.replacedBy ?: return s
+    }
     @Volatile var volume = 1f
 
     private var currentVolume = 1f
@@ -450,6 +505,18 @@ class BusSource(private val engine: BusHost, val name: String) {
             notifyAdvancing()
         }
         available
+    }
+
+    /** Descarta hasta [frames] frames sin sonar (alinear B al empezar la mezcla); cuentan como consumidos. */
+    internal fun skip(frames: Int, engineFrame: Long): Int = synchronized(lock) {
+        val skipped = min(frames.toLong(), writeIndex - readIndex).toInt()
+        if (skipped <= 0) return 0
+        readIndex += skipped
+        consumedSinceFlush += skipped
+        records.addLast(longArrayOf(engineFrame, consumedSinceFlush, 0L))
+        while (records.size > MAX_RECORDS) records.removeFirst()
+        while (anchors.size > 1 && anchors[1][0] <= readIndex) anchors.removeFirst()
+        skipped
     }
 
     /** Frames de esta fuente que ya han sonado según la cabeza del motor (posición del `AudioOutput`). */
