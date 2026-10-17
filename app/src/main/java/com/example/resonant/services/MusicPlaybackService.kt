@@ -1638,7 +1638,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
             }
             val stored = playmixTransitions["${song.id}:${nextSong.id}"]
-            // Studio sin clip listo: el documento se reproduce con el motor del móvil (add-rhythmic-mix-styles D5).
+            // Studio sin clip listo (o v2 con el motor de salida único): el documento se reproduce con el motor del móvil.
             stored?.let { studioPlanFor(it, song, nextSong) }?.let { plan ->
                 return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
             }
@@ -2689,8 +2689,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     /**
      * Plan con el documento de Studio de una transición de Playmix, si lo tiene y su clip renderizado aún no
-     * está listo (con clip listo manda `RenderedTransition`). Así la transición suena como en la web desde que
-     * se guarda, sin esperar al render. Con tempos compatibles, B va a tempo de A.
+     * está listo (con clip listo manda `RenderedTransition`, salvo un documento v2 con el motor de salida único,
+     * que siempre se mezcla en el motor). Así la transición suena como en la web desde que se guarda, sin esperar
+     * al render. Con tempos compatibles, B va a tempo de A.
      */
     private var cachedStudioKey: String? = null
     private var cachedStudioPlan: TransitionPlanner.Plan? = null
@@ -2702,7 +2703,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val key = "${transition.id}:${transition.render?.status}:${System.identityHashCode(doc)}:" +
             "${System.identityHashCode(from.audioAnalysis)}:${System.identityHashCode(to.audioAnalysis)}"
         if (key == cachedStudioKey) return cachedStudioPlan
-        val plan = if (RenderedTransition.planFor(transition, System.currentTimeMillis()) != null) null else {
+        // Con el motor de salida único un documento v2 se mezcla en el motor a la muestra, como la escucha del editor,
+        // aunque haya clip: el empalme A → clip → B se sincroniza por posiciones de los players, y en el motor la
+        // posición de A es lo ya sonado mientras el clip entra por delante (búfer de salida + seek del FLAC por
+        // HTTP), así que se repetía un trozo de A al entrar el clip. El clip queda para los dispositivos sin motor.
+        val engineMixesDoc = doc.isV2 && mixEngine != null
+        val clipReady = RenderedTransition.planFor(transition, System.currentTimeMillis()) != null
+        val plan = if (clipReady && !engineMixesDoc) null else {
             val a = TransitionPlanner.trackOf(from.audioAnalysis, -1L)
             val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
             val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
