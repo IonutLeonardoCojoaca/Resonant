@@ -98,6 +98,72 @@
             android:drawableStart="@drawable/ic_play"
             android:text="Reproducir PlayMix" />
 
+        <!-- Cola: la Playmix entera como un bloque, con sus mezclas -->
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playNextButton"
+            android:drawableStart="@drawable/ic_play_next_compact"
+            android:text="Reproducir a continuación"
+            android:visibility="gone" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/addToQueueButton"
+            android:drawableStart="@drawable/ic_queue_add"
+            android:text="Añadir a la cola"
+            android:visibility="gone" />
+
+        <!-- Descarga sin conexión -->
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/downloadPlaymixButton"
+            android:drawableStart="@drawable/ic_download"
+            android:text="Descargar"
+            android:visibility="gone" />
+
+        <!-- Compartir y descubrir (playmix-sharing-discovery); sin callback, ocultas -->
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playmixLikeOptionButton"
+            android:drawableStart="@drawable/ic_favorite_border"
+            android:text="Me gusta"
+            android:visibility="gone" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playmixShareOptionButton"
+            android:drawableStart="@drawable/ic_share"
+            android:text="Compartir"
+            android:visibility="gone" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playmixVisibilityOptionButton"
+            android:drawableStart="@drawable/ic_public"
+            android:text="Visibilidad"
+            android:visibility="gone" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playmixDuplicateOptionButton"
+            android:drawableStart="@drawable/ic_unisound_copy"
+            android:text="Duplicar"
+            android:visibility="gone" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playmixSortOptionButton"
+            android:drawableStart="@drawable/ic_queue_list"
+            android:text="Ordenar por…"
+            android:visibility="gone" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playmixMergeOptionButton"
+            android:drawableStart="@drawable/ic_playmix"
+            android:text="Fusionar con…"
+            android:visibility="gone" />
+
         <!-- Edit name -->
         <TextView
             style="@style/OptionRow"

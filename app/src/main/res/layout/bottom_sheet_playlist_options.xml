@@ -103,6 +103,27 @@
             android:text="Añadir a la sala"
             android:visibility="gone" />
 
+        <!-- Cola: la lista entera como un bloque -->
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playNextButton"
+            android:drawableStart="@drawable/ic_play_next_compact"
+            android:text="Reproducir a continuación" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/addToQueueButton"
+            android:drawableStart="@drawable/ic_queue_add"
+            android:text="Añadir a la cola" />
+
+        <!-- Descarga sin conexión -->
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/downloadPlaylistButton"
+            android:drawableStart="@drawable/ic_download"
+            android:text="Descargar"
+            android:visibility="gone" />
+
         <!-- Edit -->
         <TextView
             style="@style/OptionRow"

@@ -49,6 +49,8 @@ object MixComposer {
     const val CLASH_BARS = 2
     const val MAX_SYNC_DELTA_PCT = 6.0
     const val MIN_SYNC_STABILITY = 0.8
+    /** Estirado máximo de B (|bpmA/bpmB − 1|, %) en el rango ampliado de Playmix (`MaxExtendedSyncDeltaPct`). */
+    const val MAX_EXTENDED_SYNC_DELTA_PCT = 12.0
     const val MAX_DROP_FROM_START_MS = 20_000
     /** B nunca empieza más allá de esto de su inicio de audio (`MaxBStartFromAudioStartMs` del backend). */
     const val MAX_B_START_FROM_AUDIO_START_MS = 12_000
@@ -83,8 +85,8 @@ object MixComposer {
      * Preset que elegiría Automática con el seed de `seed_presets_v2.sql`: con tempos incompatibles, Fundido;
      * con tonalidades compatibles (Camelot ≤ 1), Fusión; si no, Onda.
      */
-    fun automaticSelection(from: Song, to: Song): MixSelectionDTO = when {
-        tempoClash(from, to) -> MixSelectionDTO(volume = "smooth-crossfade", eq = "bass-swap-center")
+    fun automaticSelection(from: Song, to: Song, extended: Boolean = false): MixSelectionDTO = when {
+        tempoClash(from, to, extended) -> MixSelectionDTO(volume = "smooth-crossfade", eq = "bass-swap-center")
         (camelotDistance(from.keyCamelot, to.keyCamelot) ?: Double.MAX_VALUE) <= 1 -> MixSelectionDTO(volume = "overlap", eq = "three-band-fade")
         else -> MixSelectionDTO(volume = "overlap", eq = "bass-swap-center", filter = "lpf-in-out")
     }
@@ -97,23 +99,51 @@ object MixComposer {
 
     // ─── Ventana ────────────────────────────────────────────────────────────────────────────────
 
-    /** El usuario puede forzar el beatmatching: tempos conocidos y a ≤ 6 % (como `CanSync` del backend). */
-    fun canSync(from: Song, to: Song): Boolean {
+    /**
+     * El usuario puede forzar el beatmatching: tempos conocidos y a ≤ 6 % (como `CanSync` del backend). Con
+     * [extended] (editor de Playmix con la capacidad activa) también en el rango ampliado.
+     */
+    fun canSync(from: Song, to: Song, extended: Boolean = false): Boolean {
         val delta = bpmDeltaPct(bpm(from), bpm(to))
-        return delta != null && delta <= MAX_SYNC_DELTA_PCT
+        return (delta != null && delta <= MAX_SYNC_DELTA_PCT) || (extended && inExtendedRange(from, to))
     }
 
-    /** Automática no sincroniza (valor por defecto de beatSync): > 6 % o rejilla poco estable. */
-    fun tempoClash(from: Song, to: Song): Boolean {
+    /**
+     * Automática no sincroniza (valor por defecto de beatSync): > 6 % o rejilla poco estable. Con [extended], una
+     * pareja en [inExtendedRange] no choca.
+     */
+    fun tempoClash(from: Song, to: Song, extended: Boolean = false): Boolean {
         val delta = bpmDeltaPct(bpm(from), bpm(to))
-        return delta == null || delta > MAX_SYNC_DELTA_PCT ||
+        val clash = delta == null || delta > MAX_SYNC_DELTA_PCT ||
             min(from.bpmStability ?: 0.0, to.bpmStability ?: 0.0) < MIN_SYNC_STABILITY
+        return clash && !(extended && inExtendedRange(from, to))
     }
 
-    fun automaticWindow(from: Song, to: Song, requestedBars: Int? = null): Window? {
+    /**
+     * Rango ampliado de Playmix (playmix-extended-beatmatch D2, `InExtendedRange` del backend): choca con la regla
+     * del ±6 %, |bpmA/bpmB − 1| (razón redondeada a 6 decimales, sin octavas) en (6 %, 12 %] y las dos estabilidades ≥ 0,8.
+     */
+    fun inExtendedRange(from: Song, to: Song): Boolean {
+        if (!tempoClash(from, to)) return false
+        val stretch = directStretch(from, to) ?: return false
+        if ((from.bpmStability ?: 0.0) < MIN_SYNC_STABILITY || (to.bpmStability ?: 0.0) < MIN_SYNC_STABILITY) return false
+        return stretch > MAX_SYNC_DELTA_PCT / 100 + 1e-9 && stretch <= MAX_EXTENDED_SYNC_DELTA_PCT / 100 + 1e-9
+    }
+
+    /** |bpmA/bpmB − 1| con la razón redondeada a 6 decimales (`DirectStretch` del backend); null sin tempos. */
+    fun directStretch(from: Song, to: Song): Double? = directRate(from, to)?.let { abs(it - 1.0) }
+
+    private fun directRate(from: Song, to: Song): Double? {
+        val a = bpm(from) ?: return null
+        val b = bpm(to) ?: return null
+        if (a <= 0 || b <= 0) return null
+        return round(a / b * 1e6) / 1e6
+    }
+
+    fun automaticWindow(from: Song, to: Song, requestedBars: Int? = null, extended: Boolean = false): Window? {
         val gridA = Grid.of(from) ?: return null
         val bar = gridA.barMs
-        val clash = tempoClash(from, to)
+        val clash = tempoClash(from, to, extended)
         val bars = requestedBars ?: when {
             clash -> CLASH_BARS
             introBMs(to) >= LONG_BARS / 2 * bar && outroAMs(from) >= LONG_BARS / 2 * bar -> LONG_BARS
@@ -125,7 +155,7 @@ object MixComposer {
         val audioEndA = audioEnd(from)
         val endA = downbeatAtOrBefore(from, audioEndA.toDouble()) ?: audioEndA
         val strongB = strongPointB(to)
-        val rate = if (clash) 1.0 else rate(from, to)
+        val rate = if (clash) 1.0 else if (extended && inExtendedRange(from, to)) directRate(from, to) ?: rate(from, to) else rate(from, to)
         val length = bars * bar
 
         var aStart = endA - length
@@ -153,12 +183,15 @@ object MixComposer {
 
     // ─── Documento ──────────────────────────────────────────────────────────────────────────────
 
-    fun compose(selection: MixSelectionDTO, window: Window, from: Song, to: Song, beatSync: Boolean?, presetCode: String): MixDocumentDTO? {
+    fun compose(
+        selection: MixSelectionDTO, window: Window, from: Song, to: Song, beatSync: Boolean?, presetCode: String,
+        extended: Boolean = false
+    ): MixDocumentDTO? {
         // null = Automática decide; true = forzado (si se puede); false = sin sincronizar (igual que el backend).
         val sync = when (beatSync) {
-            true -> canSync(from, to)
+            true -> canSync(from, to, extended)
             false -> false
-            null -> !tempoClash(from, to)
+            null -> !tempoClash(from, to, extended)
         }
         if (selection.volume == NONE) return noTransition(from, to, sync, presetCode)
         val gridA = Grid.of(from) ?: return null
@@ -184,7 +217,8 @@ object MixComposer {
             beatSync = sync,
             selection = selection.copy(),
             loop = loop(selection.loop, t),
-            fx = if (selection.fx == "echo-out") listOf(echo(t)) else null
+            fx = if (selection.fx == "echo-out") listOf(echo(t)) else null,
+            extendedSync = if (sync && extended && inExtendedRange(from, to)) true else null
         )
     }
 

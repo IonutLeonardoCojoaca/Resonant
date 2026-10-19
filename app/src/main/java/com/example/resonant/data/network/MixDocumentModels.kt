@@ -18,7 +18,12 @@ data class MixDocumentDTO(
     val beatSync: Boolean? = null,
     val selection: MixSelectionDTO? = null,
     val loop: MixLoopDTO? = null,
-    val fx: List<MixFxDTO>? = null
+    val fx: List<MixFxDTO>? = null,
+    /**
+     * v2 (playmix-extended-beatmatch): sincronía en el rango ampliado de Playmix (B estirada más de un 6 % y como
+     * mucho un 12 %). Solo cuenta con la capacidad `playmixExtendedSync`; si no, se trata como ausente.
+     */
+    val extendedSync: Boolean? = null
 ) {
     val isV2: Boolean get() = version == VERSION_V2
 

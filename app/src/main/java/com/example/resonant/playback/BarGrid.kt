@@ -243,11 +243,13 @@ class BarGrid private constructor(
          * Velocidad a la que suena B durante la mezcla (`bpmA / bpmB`), o null si no hay rejillas exactas o los
          * tempos no son compatibles. Misma regla que [TransitionPlanner.beatmatchRatio] (la de la reproducción).
          */
-        fun tempoLockRatio(a: BarGrid, b: BarGrid): Double? {
+        fun tempoLockRatio(a: BarGrid, b: BarGrid, extended: Boolean = false): Double? {
             val gridA = a.exact ?: return null
             val gridB = b.exact ?: return null
             val ratio = gridA.bpm / gridB.bpm
-            return ratio.takeIf { abs(it - 1.0) <= TransitionPlanner.BEATMATCH_TOLERANCE }
+            // playmix-extended-beatmatch: un documento con `extendedSync` (y la capacidad activa) admite hasta ±12 %.
+            val tolerance = if (extended) TransitionPlanner.EXTENDED_BEATMATCH_TOLERANCE + 1e-9 else TransitionPlanner.BEATMATCH_TOLERANCE
+            return ratio.takeIf { abs(it - 1.0) <= tolerance }
         }
 
         /** Índice del último elemento ≤ [t] en una lista ordenada, o -1. */

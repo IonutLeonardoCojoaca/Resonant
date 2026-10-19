@@ -154,6 +154,19 @@
                     android:textSize="13sp"
                     android:visibility="gone" />
 
+                <!-- Dueño de una Playmix ajena (playmix-sharing-discovery) -->
+                <TextView
+                    android:id="@+id/playmixOwnerText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_medium"
+                    android:maxLines="1"
+                    android:textColor="@color/textTheme"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
                 <!-- Datos del set en píldoras -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -176,6 +189,50 @@
                         style="@style/PlaymixStatChip"
                         android:layout_marginStart="6dp"
                         android:visibility="gone" />
+
+                    <!-- Estado de la descarga sin conexión (collection-queue-offline) -->
+                    <TextView
+                        android:id="@+id/playmixDownloadChip"
+                        style="@style/PlaymixStatChip"
+                        android:layout_marginStart="6dp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <!-- Visibilidad, me gusta y compartir (playmix-sharing-discovery); ocultos con la capacidad apagada -->
+                <LinearLayout
+                    android:id="@+id/playmixSocialRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/playmixVisibilityChip"
+                        style="@style/PlaymixStatChip"
+                        android:drawablePadding="4dp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/playmixLikeButton"
+                        style="@style/PlaymixStatChip"
+                        android:layout_marginStart="6dp"
+                        android:clickable="true"
+                        android:contentDescription="Me gusta"
+                        android:drawablePadding="4dp"
+                        android:focusable="true"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/playmixShareButton"
+                        style="@style/PlaymixStatChip"
+                        android:layout_marginStart="6dp"
+                        android:clickable="true"
+                        android:drawablePadding="4dp"
+                        android:focusable="true"
+                        android:text="Compartir" />
 
                 </LinearLayout>
 
@@ -339,6 +396,19 @@
                 android:fontFamily="@font/unageo_regular"
                 android:gravity="center"
                 android:text="Este PlayMix está vacío.\nAñade canciones para empezar a mezclar."
+                android:textColor="@color/textTheme"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <!-- Enlace a una Playmix que no existe o no se puede ver (playmix-sharing-discovery) -->
+            <TextView
+                android:id="@+id/playmixUnavailableText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="36dp"
+                android:fontFamily="@font/unageo_regular"
+                android:gravity="center"
+                android:text="Esta Playmix no está disponible"
                 android:textColor="@color/textTheme"
                 android:textSize="14sp"
                 android:visibility="gone" />

@@ -80,7 +80,7 @@ La única excepción verificada es `feature/collabfinder/*`, que usa Hilt (`@Hil
 
 ## Room
 
-- Uso único: descargas offline (`DownloadedSongDao` / `AppDatabase`, versión 5 actualmente).
+- Uso único: descargas offline (`DownloadedSongDao`, `AutoDownloadJobDao`, `OfflineCollectionDao` / `AppDatabase`, versión 7 actualmente).
 - `SELECT *` no está prohibido — es aceptable cuando el caller necesita la mayoría de las columnas. Evitarlo cuando el caller solo necesita unas pocas (p. ej. solo el `songId`), especialmente en queries frecuentes o que corren en un `Flow` colectado por varias pantallas (ver `getAllSongIdsByUser` frente a `getAllByUser`).
 - Preferir queries batched (`WHERE x IN (:ids)`) sobre lanzar una query por elemento dentro de un `forEach`.
 - Envolver escrituras multi-paso relacionadas en un método `@Transaction` del DAO.

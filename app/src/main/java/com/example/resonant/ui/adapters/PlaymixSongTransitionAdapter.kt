@@ -46,8 +46,30 @@ class PlaymixSongTransitionAdapter(
     private val onSongOptionsClick: ((PlaymixSongDTO) -> Unit)? = null,
     private val onPreviewClick: ((PlaymixTransitionDTO) -> Unit)? = null,
     private val onCopyTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null,
-    private val isReadOnly: Boolean = false
+    isReadOnly: Boolean = false,
+    /** Compartir el enlace de una transición (playmix-sharing-discovery); null = sin la opción. */
+    private val onShareTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    /** Solo lectura (Playmix ajena): se decide con `isOwner` del detalle al cargarlo. */
+    var isReadOnly: Boolean = isReadOnly
+        set(value) {
+            if (field == value) return
+            field = value
+            notifyDataSetChanged()
+        }
+
+    /** Transición destacada al abrir un enlace `/playmix/{id}/transition/{tid}`. */
+    var highlightTransitionId: String? = null
+        set(value) {
+            if (field == value) return
+            field = value
+            notifyDataSetChanged()
+        }
+
+    /** Posición de la transición en la lista, o -1. */
+    fun positionOfTransition(transitionId: String): Int =
+        items.indexOfFirst { (it as? PlaymixDetailItem.TransitionItem)?.transition?.id == transitionId }
 
     companion object {
         private const val TYPE_SONG = 0
@@ -237,8 +259,12 @@ class PlaymixSongTransitionAdapter(
 
             // Escuchar la transición solo tiene sentido con puntos fijos (avanzada o Studio).
             previewBtn.isVisible = transition != null && !smart && onPreviewClick != null
-            moreBtn.isVisible = transition != null && !isReadOnly
+            // Ajena: el menú solo copia o comparte (sin editar); propia: igual que antes.
+            moreBtn.isVisible = transition != null &&
+                (!isReadOnly || (!smart && onCopyTransitionClick != null) || onShareTransitionClick != null)
             card.isClickable = transition != null
+            val highlighted = transition != null && transition.id == highlightTransitionId
+            itemView.setBackgroundColor(if (highlighted) ColorUtils.setAlphaComponent(accent, 0x2E) else Color.TRANSPARENT)
         }
 
         /** Menú ⋮ con el estilo de la app (mismo panel que el menú de Aria), alineado a la derecha del botón. */
@@ -259,13 +285,25 @@ class PlaymixSongTransitionAdapter(
 
             menuView.findViewById<TextView>(R.id.menuEditSubtitle).text =
                 if (smart) "Blend automático o transición avanzada" else "Puntos, curva y EQ"
-            menuView.findViewById<View>(R.id.menuEditTransition).setOnClickListener {
-                popup.dismiss()
-                onTransitionClick(transition)
+            menuView.findViewById<View>(R.id.menuEditTransition).apply {
+                isVisible = !isReadOnly
+                setOnClickListener {
+                    popup.dismiss()
+                    onTransitionClick(transition)
+                }
             }
             // Copiar solo tiene sentido con puntos fijos; el blend automático se recalcula en cada set.
             val canCopy = !smart && onCopyTransitionClick != null
-            menuView.findViewById<View>(R.id.menuCopyDivider).isVisible = canCopy
+            menuView.findViewById<View>(R.id.menuCopyDivider).isVisible = canCopy && !isReadOnly
+            val canShare = onShareTransitionClick != null
+            menuView.findViewById<View>(R.id.menuShareDivider).isVisible = canShare && (canCopy || !isReadOnly)
+            menuView.findViewById<View>(R.id.menuShareTransition).apply {
+                isVisible = canShare
+                setOnClickListener {
+                    popup.dismiss()
+                    onShareTransitionClick?.invoke(transition)
+                }
+            }
             menuView.findViewById<View>(R.id.menuCopyTransition).apply {
                 isVisible = canCopy
                 setOnClickListener {

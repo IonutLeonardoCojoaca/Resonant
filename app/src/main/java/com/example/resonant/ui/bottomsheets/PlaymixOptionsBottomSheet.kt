@@ -16,7 +16,16 @@ class PlaymixOptionsBottomSheet(
     private val detail: PlaymixDetailDTO,
     private val onPlayClick: (() -> Unit)? = null,
     private val onEditNameClick: (() -> Unit)? = null,
-    private val onDeleteClick: (() -> Unit)? = null
+    private val onDeleteClick: (() -> Unit)? = null,
+    /** Cola de la Playmix entera (collection-queue-offline). Sin callbacks, las filas no se muestran. */
+    private val onPlayNextClick: (() -> Unit)? = null,
+    private val onAddToQueueClick: (() -> Unit)? = null,
+    /** `null` = sin fila de descarga. `true` muestra "Quitar descarga". */
+    private val isDownloaded: Boolean? = null,
+    private val onDownloadClick: (() -> Unit)? = null,
+    private val onRemoveDownloadClick: (() -> Unit)? = null,
+    /** Compartir y descubrir (playmix-sharing-discovery). null = sin esas filas (capacidad apagada). */
+    private val sharing: PlaymixSheetSharing? = null
 ) : ResonantBottomSheetDialogFragment() {
 
     override val hasOptionRows = true
@@ -38,6 +47,9 @@ class PlaymixOptionsBottomSheet(
         val editNameButton: TextView = view.findViewById(R.id.editNameButton)
         val deletePlaymixButton: TextView = view.findViewById(R.id.deletePlaymixButton)
         val cancelButton: TextView = view.findViewById(R.id.cancelButton)
+        val playNextButton: TextView = view.findViewById(R.id.playNextButton)
+        val addToQueueButton: TextView = view.findViewById(R.id.addToQueueButton)
+        val downloadButton: TextView = view.findViewById(R.id.downloadPlaymixButton)
 
         // Populate header
         playmixName.text = detail.name
@@ -53,6 +65,33 @@ class PlaymixOptionsBottomSheet(
             dismiss()
             onPlayClick?.invoke()
         }
+
+        playNextButton.visibility = if (onPlayNextClick != null) View.VISIBLE else View.GONE
+        playNextButton.setOnClickListener {
+            dismiss()
+            onPlayNextClick?.invoke()
+        }
+        addToQueueButton.visibility = if (onAddToQueueClick != null) View.VISIBLE else View.GONE
+        addToQueueButton.setOnClickListener {
+            dismiss()
+            onAddToQueueClick?.invoke()
+        }
+        val downloaded = isDownloaded
+        downloadButton.visibility = if (downloaded == null) View.GONE else View.VISIBLE
+        if (downloaded == true) {
+            downloadButton.text = "Quitar descarga"
+            OptionRows.setIcon(downloadButton, R.drawable.ic_delete)
+        }
+        downloadButton.setOnClickListener {
+            dismiss()
+            if (downloaded == true) onRemoveDownloadClick?.invoke() else onDownloadClick?.invoke()
+        }
+
+        sharing?.bind(view, ::dismiss)
+
+        // Sin callback (Playmix ajena) no se ofrece editar ni borrar.
+        editNameButton.visibility = if (onEditNameClick != null) View.VISIBLE else View.GONE
+        deletePlaymixButton.visibility = if (onDeleteClick != null) View.VISIBLE else View.GONE
 
         editNameButton.setOnClickListener {
             dismiss()

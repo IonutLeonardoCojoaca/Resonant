@@ -153,6 +153,19 @@
             app:tint="@color/textTheme" />
     </LinearLayout>
 
+    <!-- Colecciones descargadas: Playlists, Playmix y Álbumes (collection-queue-offline).
+         Se rellena desde DownloadedCollectionsSection; vacío = oculto. -->
+    <LinearLayout
+        android:id="@+id/downloadedCollectionsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="6dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_surface_panel"
+        android:orientation="vertical"
+        android:paddingVertical="6dp"
+        android:visibility="gone" />
+
     <include
         android:id="@+id/collectionActions"
         layout="@layout/view_collection_actions"

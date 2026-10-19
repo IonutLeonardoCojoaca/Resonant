@@ -6,6 +6,8 @@ sealed class NotificationTarget {
     data class Playlist(val playlistId: String) : NotificationTarget()
     data class Artist(val artistId: String) : NotificationTarget()
     data class Album(val albumId: String) : NotificationTarget()
+    /** PlayMix compartida (`/playmix/{id}` o `/playmix/{id}/transition/{tid}`, playmix-sharing-discovery). */
+    data class Playmix(val playmixId: String, val transitionId: String? = null) : NotificationTarget()
     data class Live(val slug: String) : NotificationTarget()
     data class UnisoundSummary(val sessionId: String) : NotificationTarget()
     /** Monthly recap, `yyyy-MM`. */
@@ -38,6 +40,13 @@ object NotificationDeepLink {
             } else {
                 NotificationTarget.None
             }
+            4 -> if (segments[0] == "playmix" && segments[2] == "transition" &&
+                GUID.matches(segments[1]) && GUID.matches(segments[3])
+            ) {
+                NotificationTarget.Playmix(segments[1], segments[3])
+            } else {
+                NotificationTarget.None
+            }
             else -> NotificationTarget.None
         }
     }
@@ -47,6 +56,7 @@ object NotificationDeepLink {
         "playlist" -> if (GUID.matches(value)) NotificationTarget.Playlist(value) else NotificationTarget.None
         "artist" -> if (GUID.matches(value)) NotificationTarget.Artist(value) else NotificationTarget.None
         "album" -> if (GUID.matches(value)) NotificationTarget.Album(value) else NotificationTarget.None
+        "playmix" -> if (GUID.matches(value)) NotificationTarget.Playmix(value) else NotificationTarget.None
         "live" -> if (SLUG.matches(value)) NotificationTarget.Live(value) else NotificationTarget.None
         "recap" -> if (PERIOD.matches(value)) NotificationTarget.Recap(value) else NotificationTarget.None
         "update" -> if (VERSION.matches(value)) NotificationTarget.Update(value) else NotificationTarget.None

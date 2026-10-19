@@ -44,6 +44,12 @@ class PlaybackQueue(
     var flowSeedSourceId: String = sourceId
 
     /**
+     * Mezclas de Playmix por pareja de entradas cuando la cola ya no es la de la Playmix (collection-queue-offline
+     * D1). Vive con la cola: una cola nueva empieza sin mezclas. Vacío en una Playmix sin editar.
+     */
+    val mixIndex: QueueMixIndex = QueueMixIndex()
+
+    /**
      * Atribución de recomendación por entrada (`entryId`), solo en memoria: sigue a la entrada al reordenar
      * o quitar otras y nunca se persiste (una sesión restaurada se reporta sin `requestId`).
      */

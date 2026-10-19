@@ -241,6 +241,27 @@
                         android:fontFamily="@font/unageo_regular"
                         android:textSize="13sp" />
 
+                    <!-- Descarga sin conexión de la lista (collection-queue-offline) -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="6dp"
+                        android:text="·"
+                        android:textColor="@color/textTertiaryAlpha"
+                        android:textSize="16sp"
+                        android:fontFamily="@font/unageo_regular" />
+
+                    <TextView
+                        android:id="@+id/playlistDownloadStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:drawablePadding="4dp"
+                        android:text="Descargar"
+                        android:textColor="@color/textSecondaryAlpha"
+                        android:fontFamily="@font/unageo_bold"
+                        android:textSize="13sp" />
+
                 </LinearLayout>
 
                 <LinearLayout

@@ -173,6 +173,15 @@ class CapabilitiesCacheTest {
     }
 
     @Test
+    fun `playmix extended sync flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(playmixExtendedSync = true) }.refresh().playmixExtendedSync)
+        assertFalse(cache { PlatformFeaturesDTO() }.refresh().playmixExtendedSync)
+        val missing = Gson().fromJson("{\"transitionEngineV2\": true}", PlatformFeaturesDTO::class.java)
+        assertFalse(cache { missing }.refresh().playmixExtendedSync)
+        assertFalse(cache { throw IOException("offline") }.refresh().playmixExtendedSync)
+    }
+
+    @Test
     fun `force bypasses fresh cache`() = runTest {
         val cache = cache { PlatformFeaturesDTO(unisound = true) }
         cache.refresh()

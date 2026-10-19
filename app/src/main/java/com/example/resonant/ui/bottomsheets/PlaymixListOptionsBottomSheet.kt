@@ -8,6 +8,7 @@ import android.widget.TextView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.network.PlaymixDTO
+import com.example.resonant.playback.QueueCommands
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
 import com.example.resonant.ui.components.DefaultCover
@@ -38,6 +39,16 @@ class PlaymixListOptionsBottomSheet(
         infoText.text = if (count == 1) "1 canción" else "$count canciones"
 
         DefaultCover.load(coverImage, playmix.coverUrl, DefaultCover.Kind.PLAYMIX, playmix.name)
+
+        // Cola de la Playmix entera (collection-queue-offline).
+        view.findViewById<TextView>(R.id.playNextButton).setOnClickListener {
+            CollectionQueueActions.playNext(this, QueueCommands.COLLECTION_PLAYMIX, playmix.id)
+            dismiss()
+        }
+        view.findViewById<TextView>(R.id.addToQueueButton).setOnClickListener {
+            CollectionQueueActions.addToQueue(this, QueueCommands.COLLECTION_PLAYMIX, playmix.id)
+            dismiss()
+        }
 
         deleteButton.setOnClickListener {
             dismiss()

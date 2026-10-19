@@ -33,6 +33,50 @@ interface PlaymixService {
     @GET("api/playmix/{id}")
     suspend fun getPlaymixDetail(@Path("id") id: String): PlaymixDetailDTO
 
+    // ─── Compartir y descubrir (playmix-sharing-discovery) ───
+
+    @PATCH("api/playmix/{id}/visibility")
+    suspend fun setVisibility(
+        @Path("id") id: String,
+        @Body request: com.example.resonant.data.network.PlaymixVisibilityRequest
+    ): PlaymixDetailDTO
+
+    @GET("api/playmix/public")
+    suspend fun getPublicPlaymixes(
+        @retrofit2.http.Query("sort") sort: String,
+        @retrofit2.http.Query("limit") limit: Int,
+        @retrofit2.http.Query("cursor") cursor: String?
+    ): com.example.resonant.data.network.PlaymixPageDTO
+
+    @GET("api/playmix/liked")
+    suspend fun getLikedPlaymixes(
+        @retrofit2.http.Query("limit") limit: Int,
+        @retrofit2.http.Query("cursor") cursor: String?
+    ): com.example.resonant.data.network.PlaymixPageDTO
+
+    @PUT("api/playmix/{id}/like")
+    suspend fun likePlaymix(@Path("id") id: String): Response<Unit>
+
+    @DELETE("api/playmix/{id}/like")
+    suspend fun unlikePlaymix(@Path("id") id: String): Response<Unit>
+
+    @POST("api/playmix/{id}/copy")
+    suspend fun copyPlaymix(
+        @Path("id") id: String,
+        @Body request: com.example.resonant.data.network.PlaymixCopyRequest
+    ): PlaymixDetailDTO
+
+    @POST("api/playmix/{id}/sort")
+    suspend fun sortPlaymix(
+        @Path("id") id: String,
+        @Body request: com.example.resonant.data.network.PlaymixSortRequest
+    ): com.example.resonant.data.network.PlaymixSortResponseDTO
+
+    @POST("api/playmix/merge")
+    suspend fun mergePlaymixes(
+        @Body request: com.example.resonant.data.network.PlaymixMergeRequest
+    ): PlaymixDetailDTO
+
     @DELETE("api/playmix/{id}")
     suspend fun deletePlaymix(@Path("id") id: String): Response<Unit>
 

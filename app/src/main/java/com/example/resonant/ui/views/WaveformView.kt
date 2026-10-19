@@ -404,10 +404,20 @@ class WaveformView @JvmOverloads constructor(
     /** true si B se dibuja al tempo de A (tempos bloqueados). */
     val isTempoLocked: Boolean get() = tempoLocked
 
+    /** playmix-extended-beatmatch: el documento tiene `extendedSync` y la capacidad está activa (B a ±12 %). */
+    private var extendedTempoLock = false
+
+    fun setExtendedTempoLock(enabled: Boolean) {
+        if (enabled == extendedTempoLock) return
+        extendedTempoLock = enabled
+        rebuildGrids()
+        invalidate()
+    }
+
     private fun rebuildGrids() {
         barGridA = BarGrid.of(tempoGridA, beatGridA, downbeatsA, phrasesA, beatsPerBarA, durationA)
         barGridB = BarGrid.of(tempoGridB, beatGridB, downbeatsB, phrasesB, beatsPerBarB, durationB)
-        val ratio = BarGrid.tempoLockRatio(barGridA, barGridB)
+        val ratio = BarGrid.tempoLockRatio(barGridA, barGridB, extendedTempoLock)
         tempoLocked = ratio != null
         tempoRatioB = ratio?.toFloat() ?: 1f
     }

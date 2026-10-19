@@ -12,6 +12,7 @@ import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.network.ApiClient
+import com.example.resonant.playback.QueueCommands
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.launch
 import com.example.resonant.ui.components.DefaultCover
@@ -21,7 +22,11 @@ class PlaylistOptionsBottomSheet(
     private val playlistImageBitmap: Bitmap?,
     private val onDeleteClick: (Playlist) -> Unit,
     private val onEditClick: (Playlist) -> Unit,
-    private val onToggleVisibilityClick: ((Playlist) -> Unit)? = null
+    private val onToggleVisibilityClick: ((Playlist) -> Unit)? = null,
+    /** `null` = sin fila de descarga. `true` muestra "Quitar descarga". */
+    private val isDownloaded: Boolean? = null,
+    private val onDownloadClick: ((Playlist) -> Unit)? = null,
+    private val onRemoveDownloadClick: ((Playlist) -> Unit)? = null
 ) : ResonantBottomSheetDialogFragment() {
 
     override val hasOptionRows = true
@@ -45,6 +50,28 @@ class PlaylistOptionsBottomSheet(
         val deleteBtn = view.findViewById<TextView>(R.id.deletePlaylistButton)
         val cancelButton = view.findViewById<TextView>(R.id.cancelButton)
         bindAddToRoom(view.findViewById(R.id.addToRoomButton), SOURCE_PLAYLIST, playlist.id.orEmpty())
+
+        // Cola y descarga de la lista entera (collection-queue-offline).
+        view.findViewById<TextView>(R.id.playNextButton).setOnClickListener {
+            CollectionQueueActions.playNext(this, QueueCommands.COLLECTION_PLAYLIST, playlist.id.orEmpty())
+            dismiss()
+        }
+        view.findViewById<TextView>(R.id.addToQueueButton).setOnClickListener {
+            CollectionQueueActions.addToQueue(this, QueueCommands.COLLECTION_PLAYLIST, playlist.id.orEmpty())
+            dismiss()
+        }
+        view.findViewById<TextView>(R.id.downloadPlaylistButton).let { downloadBtn ->
+            val downloaded = isDownloaded
+            downloadBtn.visibility = if (downloaded == null) View.GONE else View.VISIBLE
+            if (downloaded == true) {
+                downloadBtn.text = "Quitar descarga"
+                OptionRows.setIcon(downloadBtn, R.drawable.ic_delete)
+            }
+            downloadBtn.setOnClickListener {
+                dismiss()
+                if (downloaded == true) onRemoveDownloadClick?.invoke(playlist) else onDownloadClick?.invoke(playlist)
+            }
+        }
 
         // Cover image
         val imageUrl = playlist.imageUrl

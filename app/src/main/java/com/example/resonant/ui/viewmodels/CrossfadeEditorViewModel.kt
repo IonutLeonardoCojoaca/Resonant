@@ -26,6 +26,7 @@ import com.example.resonant.data.network.WaveformSongDTO
 import com.example.resonant.playback.BarGrid
 import com.example.resonant.playback.WaveformBands
 import com.example.resonant.playback.PhaseAlignment
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.TransitionPresetManager
 import kotlinx.coroutines.CoroutineDispatcher
@@ -329,7 +330,8 @@ class CrossfadeEditorViewModel(
     /** Estado v2 del documento recibido; conserva presets, opciones y ondas ya cargados. */
     private fun initialV2(studio: StudioTransitionDTO, previous: MixEditorV2State?): MixEditorV2State? {
         val presets = MixEditorV2.presetsOrDefault(_state.value?.availablePresets.orEmpty())
-        val state = MixEditorV2.initial(studio)?.copy(presets = presets) ?: return null
+        val state = MixEditorV2.initial(studio, extended = CapabilitiesManager.isPlaymixExtendedSyncEnabled())
+            ?.copy(presets = presets) ?: return null
         return if (previous == null) state
             else state.copy(laneOptions = previous.laneOptions, bandsA = previous.bandsA, bandsB = previous.bandsB)
     }

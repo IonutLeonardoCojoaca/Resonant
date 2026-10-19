@@ -44,6 +44,9 @@ import com.example.resonant.ui.components.CollectionState
 import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.DownloadViewModel
+import com.example.resonant.ui.viewmodels.CollectionDownloadViewModel
+import com.example.resonant.ui.components.DownloadedCollectionsSection
+import com.example.resonant.playback.OfflineCollectionStore
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
@@ -321,10 +324,36 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
             current?.let { songAdapter.setCurrentPlayingSong(it.id) }
         }
 
+        // Playlists, Playmix y Álbumes descargados (collection-queue-offline).
+        val collections = ViewModelProvider(requireActivity())[CollectionDownloadViewModel::class.java]
+        val section = DownloadedCollectionsSection(header.findViewById(R.id.downloadedCollectionsContainer)) { item ->
+            openDownloadedCollection(item.summary.collectionType, item.summary.collectionId)
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                collections.downloadedCollections().collect { section.bind(it) }
+            }
+        }
+
         favoritesViewModel.loadFavoriteSongs()
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
             songAdapter.notifyDataSetChanged()
+        }
+    }
+
+    /** Abre una colección descargada; sin conexión, su pantalla muestra lo guardado. */
+    private fun openDownloadedCollection(type: String, id: String) {
+        val nav = findNavController()
+        runCatching {
+            when (type) {
+                OfflineCollectionStore.TYPE_PLAYLIST ->
+                    nav.navigate(R.id.playlistFragment, Bundle().apply { putString("playlistId", id) })
+                OfflineCollectionStore.TYPE_PLAYMIX ->
+                    nav.navigate(R.id.playmixDetailFragment, Bundle().apply { putString("playmixId", id) })
+                OfflineCollectionStore.TYPE_ALBUM ->
+                    nav.navigate(R.id.albumFragment, Bundle().apply { putString("albumId", id) })
+            }
         }
     }
 

@@ -41,7 +41,12 @@ object TransitionPlanner {
         val audioEndMs: Long,
         val mixInMs: Long?,
         val mixOutMs: Long?,
-        val grid: PhaseAlignment.Grid?
+        val grid: PhaseAlignment.Grid?,
+        /**
+         * Estabilidad del tempo (0–1), solo para el rango ampliado de Playmix ([extendedBeatmatchRatio]); null =
+         * desconocida. El análisis del cliente no la trae: con tempo exacto se da por estable, como en `MixComposer.songOf`.
+         */
+        val stability: Double? = null
     )
 
     /**
@@ -52,7 +57,12 @@ object TransitionPlanner {
         val doc: MixDocumentDTO,
         val label: String,
         val beatSync: Boolean = false,
-        val bpmRatio: Double = 1.0
+        val bpmRatio: Double = 1.0,
+        /**
+         * playmix-extended-beatmatch: B va a [bpmRatio] (|bpmRatio − 1| > 0,06) durante toda la mezcla, sin la
+         * vuelta del 75 %, y al acabar vuelve a 1,0 con [TempoReturn]. Solo lo marcan los planes de Playmix.
+         */
+        val extendedSync: Boolean = false
     ) {
         val hasEq: Boolean get() = doc.lanes?.keys?.any { it.contains(".eq.") } == true
     }
@@ -63,6 +73,10 @@ object TransitionPlanner {
     const val SMART_MAX_BLEND_MS = 12_000L
     const val MAX_BEATMATCH_MS = 40_000L
     const val BEATMATCH_TOLERANCE = 0.06
+    /** Tope del rango ampliado de Playmix (`MaxExtendedSyncDeltaPct` del backend, `EXTENDED_MAX_RATE_DEVIATION` del worker). */
+    const val EXTENDED_BEATMATCH_TOLERANCE = 0.12
+    /** Estabilidad mínima de las dos canciones en el rango ampliado (`MinSyncStability` del backend). */
+    const val EXTENDED_MIN_STABILITY = 0.8
     /**
      * Corte de graves del beatmatch. Se pide más de lo que admite el EQ del dispositivo (suele llegar a
      * −15 dB): `TransitionManager` lo limita a su rango, así que en la práctica es el máximo corte posible.
@@ -88,7 +102,8 @@ object TransitionPlanner {
             // Cue points v2; sin ellos (canciones aún sin análisis v2), los puntos óptimos v1.
             mixInMs = inside(analysis?.mixInMs) ?: inside(analysis?.optimalStartPointMs),
             mixOutMs = inside(analysis?.mixOutMs) ?: inside(analysis?.optimalExitPointMs),
-            grid = PhaseAlignment.gridOf(analysis?.bpmPrecise, analysis?.firstDownbeatMs, analysis?.beatsPerBar)
+            grid = PhaseAlignment.gridOf(analysis?.bpmPrecise, analysis?.firstDownbeatMs, analysis?.beatsPerBar),
+            stability = if (analysis?.bpmPrecise != null) 1.0 else null
         )
     }
 
@@ -154,6 +169,36 @@ object TransitionPlanner {
         val gridB = b.grid ?: return null
         val ratio = gridA.bpm / gridB.bpm
         return ratio.takeIf { abs(it - 1.0) <= BEATMATCH_TOLERANCE }
+    }
+
+    /**
+     * Velocidad de B en el rango ampliado de Playmix (playmix-extended-beatmatch): |bpmA/bpmB − 1| en (0,06, 0,12],
+     * sin doblar ni dividir a la mitad, con las dos estabilidades conocidas y ≥ 0,8. Null fuera de ese rango (el
+     * estándar lo cubre [beatmatchRatio]). Se compara con la razón redondeada a 6 decimales, como el mix worker.
+     */
+    fun extendedBeatmatchRatio(a: Track, b: Track): Double? {
+        val gridA = a.grid ?: return null
+        val gridB = b.grid ?: return null
+        if (gridA.bpm <= 0.0 || gridB.bpm <= 0.0) return null
+        if ((a.stability ?: return null) < EXTENDED_MIN_STABILITY || (b.stability ?: return null) < EXTENDED_MIN_STABILITY) return null
+        val ratio = gridA.bpm / gridB.bpm
+        val stretch = abs(Math.round(ratio * 1e6) / 1e6 - 1.0)
+        return ratio.takeIf { stretch > BEATMATCH_TOLERANCE + 1e-9 && stretch <= EXTENDED_BEATMATCH_TOLERANCE + 1e-9 }
+    }
+
+    /**
+     * Plan de una transición de Playmix con `extendedSync` (playmix-extended-beatmatch D6): con la capacidad activa y
+     * el documento marcado, la velocidad es `beatmatchRatio ?: extendedBeatmatchRatio` y el plan queda ampliado si
+     * |ratio − 1| > 0,06. Sin capacidad o sin la marca, el plan de siempre (`beatmatchRatio`).
+     */
+    fun playmixPlan(doc: MixDocumentDTO, label: String, a: Track?, b: Track?, extendedEnabled: Boolean): Plan {
+        val extendedDoc = extendedEnabled && doc.extendedSync == true
+        val ratio = if (a != null && b != null) {
+            beatmatchRatio(a, b) ?: if (extendedDoc) extendedBeatmatchRatio(a, b) else null
+        } else null
+        val sync = ratio != null && (!doc.isV2 || doc.beatSync == true)
+        val extended = sync && extendedDoc && abs(ratio!! - 1.0) > BEATMATCH_TOLERANCE
+        return Plan(doc, label, beatSync = sync, bpmRatio = ratio ?: 1.0, extendedSync = extended)
     }
 
     private fun beatmatch(a: Track, b: Track): Plan? {

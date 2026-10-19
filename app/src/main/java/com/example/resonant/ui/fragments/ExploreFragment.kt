@@ -281,6 +281,7 @@ class ExploreFragment : Fragment() {
 
         collabFinderCard = view.findViewById(R.id.btnCollabFinder)
         ExploreCollabFinderCard.bind(collabFinderCard, ::openCollabFinder)
+        bindPublicPlaymixesEntry(view.findViewById(R.id.btnPublicPlaymixes))
 
         viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
 
@@ -319,6 +320,23 @@ class ExploreFragment : Fragment() {
             if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
         quickCardsAnimated = true
+    }
+
+    /** Entrada a las PlayMix públicas (playmix-sharing-discovery), solo con la capacidad activa. */
+    private fun bindPublicPlaymixesEntry(card: View) {
+        card.visibility = if (com.example.resonant.managers.CapabilitiesManager.isPlaymixSharingEnabled()) View.VISIBLE else View.GONE
+        val accent = ResonantAccent.PLAYMIX.color
+        card.findViewById<View>(R.id.shortcutBadge).background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(accent, 0x2E))
+        }
+        card.findViewById<android.widget.ImageView>(R.id.shortcutIcon).apply {
+            setImageResource(R.drawable.ic_playmix)
+            imageTintList = android.content.res.ColorStateList.valueOf(accent)
+        }
+        card.findViewById<android.widget.TextView>(R.id.shortcutTitle).text = "PlayMix públicas"
+        card.findViewById<android.widget.TextView>(R.id.shortcutSubtitle).text = "Sesiones con transiciones de la comunidad"
+        card.setOnClickListener { findNavController().navigate(R.id.action_global_to_publicPlaymixesFragment) }
     }
 
     /** Live channel cards go first in "En el momento", before Tendencias. */

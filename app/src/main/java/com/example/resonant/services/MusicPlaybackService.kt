@@ -39,6 +39,11 @@ import com.example.resonant.playback.AudioEqualizerController
 import com.example.resonant.playback.ListenClock
 import com.example.resonant.playback.PlaybackCache
 import com.example.resonant.playback.PlaymixMixMode
+import com.example.resonant.playback.PlaymixResolution
+import com.example.resonant.playback.QueueMixIndex
+import com.example.resonant.playback.CollectionQueueInsertion
+import com.example.resonant.playback.CollectionQueueResolver
+import com.example.resonant.playback.OfflineCollectionStore
 import com.example.resonant.playback.PlaybackQueue
 import com.example.resonant.playback.PlaybackQueueEnricher
 import com.example.resonant.playback.RadioRepository
@@ -53,6 +58,7 @@ import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.PlaybackStateStore
 import com.example.resonant.playback.PlaybackUrlResolver
 import com.example.resonant.playback.TransitionPlanner
+import com.example.resonant.playback.TempoReturn
 import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.playback.RenderedTransition
 import com.example.resonant.playback.PlaybackQoeTracker
@@ -65,6 +71,7 @@ import com.example.resonant.playback.QueueCommands
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.data.network.PlaymixDetailDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.TransitionSuggestRequest
 import com.example.resonant.data.network.MixDocumentDTO
@@ -125,6 +132,7 @@ import com.example.resonant.playback.LiveDjController
 import com.example.resonant.playback.LiveDjPlayer
 import com.example.resonant.live.LiveTickAction
 import com.example.resonant.playback.UnisoundAwarePlayer
+import com.example.resonant.playback.PlaymixBounds
 import com.example.resonant.playback.UnisoundPlaybackAdapter
 import com.example.resonant.playback.UnisoundPlaybackBridge
 import com.example.resonant.unisound.UnisoundControl
@@ -445,6 +453,17 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private val seekBarHandler = Handler(Looper.getMainLooper())
+
+    // playmix-extended-beatmatch: vuelta de B a su tempo tras una mezcla ampliada (rampa en el hilo principal).
+    private val tempoReturnHandler = Handler(Looper.getMainLooper())
+    private val tempoReturn = TempoReturn.Driver(
+        scheduler = object : TempoReturn.Scheduler {
+            override fun postDelayed(task: Runnable, delayMs: Long) { tempoReturnHandler.postDelayed(task, delayMs) }
+            override fun remove(task: Runnable) { tempoReturnHandler.removeCallbacks(task) }
+        },
+        clock = SystemClock::uptimeMillis,
+        log = { Log.d("TempoReturn", it) }
+    )
     private val updateSeekBarRunnable = object : Runnable {
         override fun run() {
             val player = exoPlayer
@@ -493,7 +512,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 return
             }
 
-            PlaybackStateRepository.updatePlaybackPosition(position, duration)
+            publishPosition(position, duration)
             persistPlaybackState()
             seekBarHandler.postDelayed(this, 200)
         }
@@ -608,6 +627,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             // No hay transición, solo pausar normalmente
             exoPlayer?.pause()
         }
+        // Al reanudar suena a 1,0× (playmix-extended-beatmatch).
+        cancelTempoReturn("pausa")
         // An errored player may already report isPlaying=false and therefore not
         // emit another callback. Keep the observable state authoritative so the
         // mini-player never keeps sending PAUSE while playback is stopped.
@@ -622,6 +643,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     override fun playNext() {
         // In a room or a broadcast the server decides what plays next.
         if (isSharedMode) return
+        cancelTempoReturn("siguiente")
         reportCurrentSongFinished(wasSkipped = true)
 
         if (transitionManager.isTransitioning) {
@@ -669,6 +691,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
     override fun playPrevious() {
         if (isSharedMode) return
+        cancelTempoReturn("anterior")
         reportCurrentSongFinished(wasSkipped = true)
 
         if (transitionManager.isTransitioning) {
@@ -722,10 +745,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         transitionSuppressedForSongId = null
         PlaybackStateRepository.setCurrentSong(targetSong)
         PlaybackStateRepository.publishQueue()
-        PlaybackStateRepository.updatePlaybackPosition(
-            position = 0L,
-            duration = targetSong.audioAnalysis?.durationMs ?: 0
-        )
+        publishPosition(0L, targetSong.audioAnalysis?.durationMs ?: 0)
         currentSongStartTimeMs = System.currentTimeMillis()
         PlaybackStateRepository.streamReported = false
         lastManualChangeTimestamp = System.currentTimeMillis()
@@ -770,6 +790,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     override fun seekTo(position: Long) {
+        // Playmix: seek durante la preparación de la mezcla (B aún no suena) → se cancela y se rearma (D6).
+        val playmixPreparationCancelled = cancelPlaymixPreparationForSeek()
         if (transitionManager.isTransitioning) {
             Log.w("MusicService", "Seek to durante transición. Forzando completado para buscar en la nueva canción.")
             transitionManager.forceCompleteTransition()
@@ -786,10 +808,14 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         val player = exoPlayer ?: return
+        cancelTempoReturn("búsqueda")
+        // Playmix: nunca más allá del límite de la canción actual (sin límites, la posición pedida).
+        val target = boundedSeekPosition(position, origin = "app")
         lastManualChangeTimestamp = System.currentTimeMillis()
-        expectedSeekPositionMs = position
+        expectedSeekPositionMs = target
         seekIssuedAtMs = System.currentTimeMillis()
-        player.seekTo(position)
+        player.seekTo(target)
+        if (playmixPreparationCancelled) startSeekBarUpdates()
     }
 
     override fun playFromSearch(query: String?, extras: Bundle?) {
@@ -970,10 +996,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             onTransitionFailed = ::handleTransitionFailed,
             onTransitionAudible = ::handleTransitionAudible,
             onTransitionProgress = { position, duration ->
-                PlaybackStateRepository.updatePlaybackPosition(position, duration.toInt())
+                publishPosition(position, duration.toInt())
             },
             mixEngine = mixEngine
         )
+        transitionManager.onTempoReturn = ::startTempoReturn
 
         setupPlayerListener()
         exoPlayer = createExoPlayer()
@@ -1219,6 +1246,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // playmix-extended-beatmatch: otra canción (o la misma repetida) nunca hereda la rampa. Un cambio de
+                // lista con la misma canción (sincronizar la cola tras la mezcla) no la corta.
+                if (tempoReturn.isActive && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT ||
+                        mediaItem?.mediaId != tempoReturn.songId)
+                ) cancelTempoReturn("cambio de canción")
                 if (transitionManager.isTransitioning) {
                     Log.d("PlayerListener", "onMediaItemTransition ignorado durante transición.")
                     return
@@ -1633,40 +1667,15 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         // —— PlayMix mode: trigger at exitPointMs (which already accounts for crossfade + gap) ——
         if (isPlaymixMode) {
-            // Escucha desde el editor: manda el documento que se está editando.
-            previewPlanFor(song, nextSong)?.let { plan ->
-                return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
-            }
             val stored = playmixTransitions["${song.id}:${nextSong.id}"]
-            // Studio sin clip listo (o v2 con el motor de salida único): el documento se reproduce con el motor del móvil.
-            stored?.let { studioPlanFor(it, song, nextSong) }?.let { plan ->
-                return (plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
-            }
-            val transition = PlaymixMixMode.advancedOrNull(stored)
-            if (transition != null) {
-                // Resonant Studio: con clip renderizado se dispara antes para precargar clip y B.
-                val nowMs = System.currentTimeMillis()
-                RenderedTransition.planFor(transition, nowMs)?.let { plan ->
-                    return RenderedTransition.triggerPositionMs(plan)
-                }
-                if (RenderedTransition.needsRefresh(transition, nowMs)) refreshPlaymixTransitions()
+            return playmixTriggerPositionMs(resolvePlaymixPlan(stored, song, nextSong)) { refreshPlaymixTransitions() }
+        }
 
-                val exitMs = transition.exitPointMs.toLong()
-                val crossfadeMs = transition.crossfadeDurationMs.toLong()
-                val gapMs = transition.gapMs.toLong()
-                val mixMode = transition.mixMode ?: "crossfade"
-
-                // For hard_edit with a gap, we need extra time for fade-out + gap
-                val triggerMs = when {
-                    mixMode == "hard_edit" && gapMs > 0 -> exitMs - 300L // 300ms for fade-out animation
-                    crossfadeMs == 0L && gapMs > 0 -> exitMs - 300L
-                    else -> exitMs // exitPointMs is already set by the editor to be crossfadeMs before the end
-                }
-                return triggerMs.coerceAtLeast(0L)
+        // Cola con un bloque de Playmix: la pareja de entradas con mezcla diseñada suena como en la Playmix (D1).
+        designedQueueMixAt(queue, currentQueueIndex)?.let { (transition, mix) ->
+            return playmixTriggerPositionMs(resolvePlaymixPlan(transition, song, nextSong)) {
+                refreshPlaymixTransitions(queueMixPlaymixId = mix.playmixId)
             }
-            // Blend automático (o pareja sin transición): el motor inteligente decide la mezcla.
-            val smartPlan = transitionPlanFor(song, nextSong, playmixSmart = true) ?: return -1L
-            return (smartPlan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
         }
 
         val player = exoPlayer
@@ -1683,6 +1692,71 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
 
+
+    /**
+     * Resolución de una pareja con mezcla de Playmix, la misma para una cola PLAYMIX y para un bloque de Playmix
+     * dentro de la cola (collection-queue-offline D1): escucha del editor → documento de Studio → clip o campos
+     * clásicos → automático. Extraída de `calculateTriggerPosition`/`handleTransitionTrigger` sin cambiar su lógica.
+     */
+    private fun resolvePlaymixPlan(transition: PlaymixTransitionDTO?, a: Song, b: Song): PlaymixResolution {
+        // Escucha desde el editor: manda el documento que se está editando.
+        previewPlanFor(a, b)?.let { return PlaymixResolution.Planned(it) }
+        // Studio sin clip listo (o v2 con el motor de salida único): el documento se reproduce con el motor del móvil.
+        transition?.let { studioPlanFor(it, a, b) }?.let { return PlaymixResolution.Planned(it) }
+        // Clip renderizado o campos clásicos: motor de Playmix.
+        PlaymixMixMode.advancedOrNull(transition)?.let { return PlaymixResolution.Designed(it) }
+        // Blend automático (o pareja sin transición): el motor inteligente decide la mezcla.
+        return PlaymixResolution.Smart(transitionPlanFor(a, b, playmixSmart = true))
+    }
+
+    /** Posición de disparo de una pareja de Playmix ya resuelta. [onExpiredClip] refresca las URLs de los clips. */
+    private fun playmixTriggerPositionMs(resolution: PlaymixResolution, onExpiredClip: () -> Unit): Long =
+        when (resolution) {
+            is PlaymixResolution.Planned -> (resolution.plan.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L)
+            is PlaymixResolution.Smart -> resolution.plan
+                ?.let { (it.doc.a.startMs - TRANSITION_LEAD_MS).coerceAtLeast(1L) }
+                ?: -1L
+            is PlaymixResolution.Designed -> {
+                val transition = resolution.transition
+                // Resonant Studio: con clip renderizado se dispara antes para precargar clip y B.
+                val nowMs = System.currentTimeMillis()
+                val clipPlan = RenderedTransition.planFor(transition, nowMs)
+                if (clipPlan != null) {
+                    RenderedTransition.triggerPositionMs(clipPlan)
+                } else {
+                    if (RenderedTransition.needsRefresh(transition, nowMs)) onExpiredClip()
+
+                    val exitMs = transition.exitPointMs.toLong()
+                    val crossfadeMs = transition.crossfadeDurationMs.toLong()
+                    val gapMs = transition.gapMs.toLong()
+                    val mixMode = transition.mixMode ?: "crossfade"
+
+                    // For hard_edit with a gap, we need extra time for fade-out + gap
+                    val triggerMs = when {
+                        mixMode == "hard_edit" && gapMs > 0 -> exitMs - 300L // 300ms for fade-out animation
+                        crossfadeMs == 0L && gapMs > 0 -> exitMs - 300L
+                        else -> exitMs // exitPointMs is already set by the editor to be crossfadeMs before the end
+                    }
+                    triggerMs.coerceAtLeast(0L)
+                }
+            }
+        }
+
+    /**
+     * Mezcla diseñada entre la entrada [index] de la cola y la siguiente cuando la cola no es la de la Playmix
+     * (collection-queue-offline D1). `null` con el índice vacío: la cola normal sigue su camino de siempre.
+     */
+    private fun designedQueueMixAt(
+        queue: PlaybackQueue?,
+        index: Int
+    ): Pair<PlaymixTransitionDTO, QueueMixIndex.DesignedMix>? {
+        if (queue == null || queue.sourceType == QueueSource.PLAYMIX || queue.mixIndex.isEmpty() || index < 0) return null
+        val from = queue.entryIds.getOrNull(index)
+        val to = queue.entryIds.getOrNull(index + 1)
+        val mix = queue.mixIndex.designedMixFor(from, to) ?: return null
+        val transition = queue.mixIndex.designedTransitionFor(from, to) ?: return null
+        return transition to mix
+    }
 
     private fun loadArtworkForSong(song: Song) {
         // Invalidate whatever load is in flight before doing anything else,
@@ -1823,6 +1897,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     private fun enterUnisoundModeIfNeeded() {
         if (isUnisoundMode) return
+        cancelTempoReturn("Unisound")
         reportCurrentSongFinished(wasSkipped = true)
         cancelCurrentTransitionAndRestoreEffects()
         resetRadioSession()
@@ -2055,7 +2130,13 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun sessionPlayerFor(player: Player): UnisoundAwarePlayer =
-        UnisoundAwarePlayer(player, restrictControls = { isLiveMode }, intercept = ::interceptSystemControl)
+        UnisoundAwarePlayer(
+            player,
+            restrictControls = { isLiveMode },
+            bounds = { sessionPlaymixBounds(player) },
+            seek = ::seekFromSession,
+            intercept = ::interceptSystemControl
+        )
 
     /** Makes the session read the available commands again: the notification drops (or regains) skip and seek. */
     private fun refreshSessionPlayer() {
@@ -2125,6 +2206,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
     private fun enterLiveModeIfNeeded() {
         if (isLiveMode) return
+        cancelTempoReturn("Live")
         reportCurrentSongFinished(wasSkipped = true)
         cancelCurrentTransitionAndRestoreEffects()
         resetRadioSession()
@@ -2481,14 +2563,17 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 )
             }
         val player = exoPlayer
+        // Playmix con mezcla de salida: Connect ve la duración mostrada (hasta la entrega), no la del audio.
+        val connectBounds = player?.let { sessionPlaymixBounds(it) }
+        val positionMs = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
         return PlaybackConnectStateDTO(
             stateRevision = connectStateRevision.incrementAndGet(),
             queueRevision = PlaybackStateRepository.currentQueueRevision(),
             queueItems = queueItems,
             queueTruncated = queue.songs.size > queueItems.size,
             currentIndex = safeCurrentIndex - windowStart,
-            positionMs = player?.currentPosition?.coerceAtLeast(0L) ?: 0L,
-            durationMs = player
+            positionMs = connectBounds?.displayPosition(positionMs) ?: positionMs,
+            durationMs = connectBounds?.displayDuration ?: player
                 ?.duration
                 ?.takeIf { it > 0L && it != C.TIME_UNSET }
                 ?: 0L,
@@ -2583,6 +2668,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val nextSong = queue.songs.getOrNull(currentQueueIndex + 1)
         val needsSecondPlayer = nextSong != null && (
             queue.sourceType == QueueSource.PLAYMIX ||
+                designedQueueMixAt(queue, currentQueueIndex) != null || // bloque de Playmix en la cola
                 crossfadeMode != CrossfadeMode.SOFT_MIX || // automático y empalme limpio siempre mezclan
                 (queue.sourceType == QueueSource.ALBUM && automixEnabled) ||
                 crossfadeDurationMs > 0L
@@ -2599,9 +2685,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     /** Punto de entrada con el que se precarga la siguiente canción (design D3). */
     private fun resolveNextEntryPointMs(queue: PlaybackQueue, currentQueueIndex: Int, nextSong: Song): Long {
         val currentSong = queue.songs.getOrNull(currentQueueIndex)
+        // Bloque de Playmix en la cola: la pareja con mezcla diseñada se precarga como en la Playmix.
+        val queueMix = designedQueueMixAt(queue, currentQueueIndex)
         return when {
-            queue.sourceType == QueueSource.PLAYMIX -> {
-                val transition = currentSong?.let { playmixTransitions["${it.id}:${nextSong.id}"] }
+            queue.sourceType == QueueSource.PLAYMIX || queueMix != null -> {
+                val transition = queueMix?.first ?: currentSong?.let { playmixTransitions["${it.id}:${nextSong.id}"] }
                 if (transition != null && currentSong != null && studioPlanFor(transition, currentSong, nextSong) != null) {
                     studioPlanFor(transition, currentSong, nextSong)!!.doc.b.startMs.toLong()
                 } else if (PlaymixMixMode.isSmart(transition)) {
@@ -2670,9 +2758,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val doc = TransitionPreview.documentFor(from.id, to.id)?.takeIf { !it.isV2 || mixEngine != null } ?: return null
         val a = TransitionPlanner.trackOf(from.audioAnalysis, -1L)
         val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
-        val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
-        val sync = ratio != null && (!doc.isV2 || doc.beatSync == true)
-        return TransitionPlanner.Plan(doc, "preview", beatSync = sync, bpmRatio = ratio ?: 1.0)
+        // playmix-extended-beatmatch: con la capacidad y `extendedSync`, también el rango ampliado (si no, como siempre).
+        return TransitionPlanner.playmixPlan(doc, "preview", a, b, CapabilitiesManager.isPlaymixExtendedSyncEnabled())
     }
 
     /**
@@ -2701,7 +2788,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val doc = transition.mixDocument?.takeIf { !it.isV2 || mixEngine != null } ?: return null
         // Se consulta en cada tick del seekbar: se cachea por transición, estado del clip y análisis.
         val key = "${transition.id}:${transition.render?.status}:${System.identityHashCode(doc)}:" +
-            "${System.identityHashCode(from.audioAnalysis)}:${System.identityHashCode(to.audioAnalysis)}"
+            "${System.identityHashCode(from.audioAnalysis)}:${System.identityHashCode(to.audioAnalysis)}:" +
+            "${CapabilitiesManager.isPlaymixExtendedSyncEnabled()}"
         if (key == cachedStudioKey) return cachedStudioPlan
         // Con el motor de salida único un documento v2 se mezcla en el motor a la muestra, como la escucha del editor,
         // aunque haya clip: el empalme A → clip → B se sincroniza por posiciones de los players, y en el motor la
@@ -2712,9 +2800,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         val plan = if (clipReady && !engineMixesDoc) null else {
             val a = TransitionPlanner.trackOf(from.audioAnalysis, -1L)
             val b = TransitionPlanner.trackOf(to.audioAnalysis, -1L)
-            val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
-            val sync = ratio != null && (!doc.isV2 || doc.beatSync == true)
-            TransitionPlanner.Plan(doc, "studio-${doc.preset?.code ?: "custom"}", beatSync = sync, bpmRatio = ratio ?: 1.0)
+            // playmix-extended-beatmatch: con la capacidad y `extendedSync`, también el rango ampliado (si no, como siempre).
+            TransitionPlanner.playmixPlan(
+                doc, "studio-${doc.preset?.code ?: "custom"}", a, b, CapabilitiesManager.isPlaymixExtendedSyncEnabled()
+            )
         }
         cachedStudioKey = key
         cachedStudioPlan = plan
@@ -3033,14 +3122,39 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
             else -> Player.REPEAT_MODE_OFF
         }
+        // Playmix: una sesión guardada más allá del límite de la canción se restaura en el límite (D7).
+        val restoredDurationMs = restored.durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val restoredPositionMs = currentPlaymixBounds(restoredDurationMs.toLong())
+            ?.clampSeek(restored.positionMs)
+            ?: restored.positionMs
+        if (restoredPositionMs != restored.positionMs) {
+            Log.d("MusicService", "📏 Seek acotado (restauración): ${restored.positionMs}ms → ${restoredPositionMs}ms")
+        }
+        publishPosition(restoredPositionMs, restoredDurationMs)
         player.setMediaItems(
             queue.songs.map(playbackMediaItemFactory::create),
             queue.currentIndex,
-            restored.positionMs
+            restoredPositionMs
         )
         applyLoudnessNormalization(currentSong)
         updateMediaSessionMetadata()
         maybePrefetchRadio()
+        reloadRestoredMixes(queue)
+    }
+
+    /**
+     * Mezclas de una sesión restaurada (collection-queue-offline D3): una Playmix recarga sus transiciones (antes
+     * se quedaba sin ellas) y una cola con bloques de Playmix recarga los DTO de su índice, del servidor o del
+     * paquete descargado. Si falla, esas transiciones suenan con el modo normal.
+     */
+    private fun reloadRestoredMixes(queue: PlaybackQueue) {
+        playmixTransitions = emptyMap()
+        playmixSongIdMap = emptyMap()
+        if (queue.sourceType == QueueSource.PLAYMIX && queue.sourceId.isNotBlank()) {
+            loadPlaymixTransitions(queue.sourceId)
+        } else {
+            queue.mixIndex.playmixIds().forEach(::loadQueueMixTransitions)
+        }
     }
 
     private fun reportCurrentSongFinished(wasSkipped: Boolean) {
@@ -3319,7 +3433,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 if (playmixId != null && queue?.sourceType == QueueSource.PLAYMIX && queue.sourceId == playmixId) {
                     Log.d("MusicService", "🔄 Transiciones de la Playmix $playmixId cambiadas en el editor: recargando")
                     transitionSuppressedForSongId = null
+                    invalidatePlaymixBounds()
                     loadPlaymixTransitions(playmixId)
+                } else if (playmixId != null && queue != null && playmixId in queue.mixIndex.playmixIds()) {
+                    // Bloque de esa Playmix dentro de la cola (collection-queue-offline D1).
+                    transitionSuppressedForSongId = null
+                    loadQueueMixTransitions(playmixId)
                 }
             }
             ACTION_PLAYLIST_MODIFIED -> {
@@ -3378,6 +3497,10 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 SessionResult.RESULT_ERROR_INVALID_STATE,
                 "La cola cambió; se ha actualizado antes de aplicar la acción"
             )
+        }
+
+        if (action == QueueCommands.ADD_COLLECTION || action == QueueCommands.PLAY_NEXT_COLLECTION) {
+            return handleCollectionQueueCommand(playNext = action == QueueCommands.PLAY_NEXT_COLLECTION, arguments)
         }
 
         val resolvedSong = if (
@@ -3460,6 +3583,97 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                 )
             }
         }
+    }
+
+    /**
+     * Añade una playlist o Playmix entera a la cola como un bloque contiguo (collection-queue-offline D2). Las
+     * canciones se resuelven antes de tocar la cola: si falla, la cola no cambia.
+     */
+    private suspend fun handleCollectionQueueCommand(playNext: Boolean, arguments: Bundle): SessionResult {
+        val type = arguments.getString(QueueCommands.ARG_COLLECTION_TYPE).orEmpty()
+        val collectionId = arguments.getString(QueueCommands.ARG_COLLECTION_ID)
+            ?.takeIf(String::isNotBlank)
+            ?: return queueCommandResult(SessionResult.RESULT_ERROR_BAD_VALUE, "Falta la colección")
+        val resolved = withContext(Dispatchers.IO) {
+            CollectionQueueResolver(applicationContext).resolve(type, collectionId)
+        }
+        val block = when (resolved) {
+            is CollectionQueueResolver.Result.Songs -> resolved
+            CollectionQueueResolver.Result.Empty ->
+                return queueCommandResult(SessionResult.RESULT_ERROR_BAD_VALUE, "La lista está vacía")
+            CollectionQueueResolver.Result.Offline ->
+                return queueCommandResult(SessionResult.RESULT_ERROR_INVALID_STATE, "Sin conexión: no se pudo cargar la lista")
+            CollectionQueueResolver.Result.Unsupported ->
+                return queueCommandResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED, "Comando no compatible")
+        }
+        // Un único lote para todo el bloque, como una canción resuelta en el servicio.
+        val songs = playbackQueueEnricher.enrich(block.songs, 0)
+        return withContext(Dispatchers.Main) {
+            if (isUnisoundMode || isLiveMode) {
+                return@withContext queueCommandResult(
+                    SessionResult.RESULT_ERROR_INVALID_STATE,
+                    if (isUnisoundMode) "La cola es de la sala; se gestiona desde la pantalla de sala"
+                    else "En directo no se puede editar la cola"
+                )
+            }
+            val pairs = enqueueResolvedBlock(songs, playNext, block.playmixId, block.bySongPair)
+            Log.i(
+                "MusicService",
+                "Colección en la cola: $type $collectionId, ${songs.size} canciones, $pairs parejas con mezcla, " +
+                    if (playNext) "a continuación" else "al final"
+            )
+            queueCommandResult(
+                SessionResult.RESULT_SUCCESS,
+                if (songs.size == 1) "Se añadió 1 canción" else "Se añadieron ${songs.size} canciones"
+            ).also { it.extras.putInt(QueueCommands.RESULT_ADDED_COUNT, songs.size) }
+        }
+    }
+
+    /**
+     * Inserta [songs] como un bloque con la política de [enqueueResolvedSong] y registra las parejas internas de la
+     * Playmix [playmixId]. Una sola [finishQueueMutation]. Devuelve cuántas parejas con mezcla registró.
+     */
+    private fun enqueueResolvedBlock(
+        songs: List<Song>,
+        playNext: Boolean,
+        playmixId: String?,
+        bySongPair: Map<String, PlaymixTransitionDTO>
+    ): Int {
+        val blockEntryIds = songs.map { UUID.randomUUID().toString() }
+        val existingQueue = PlaybackStateRepository.activeQueue
+        if (existingQueue == null || existingQueue.songs.isEmpty()) {
+            val queue = PlaybackQueue(
+                sourceId = "manual_queue",
+                sourceType = QueueSource.QUEUE,
+                songs = songs,
+                currentIndex = 0,
+                entryIds = blockEntryIds
+            )
+            val pairs = playmixId?.let { queue.mixIndex.register(it, blockEntryIds, songs.map(Song::id), bySongPair) } ?: 0
+            playmixTransitions = emptyMap()
+            playmixSongIdMap = emptyMap()
+            PlaybackStateRepository.activeQueue = queue
+            PlaybackStateRepository.setCurrentSong(songs.first())
+            playSongFromQueue()
+            persistPlaybackState(force = true)
+            return pairs
+        }
+
+        prepareForManualQueueMutation(existingQueue)
+        val insertionIndex = CollectionQueueInsertion.insertionIndex(
+            playNext = playNext,
+            currentIndex = existingQueue.currentIndex,
+            size = existingQueue.songs.size,
+            entryIds = existingQueue.entryIds,
+            flowEntryIds = existingQueue.flowEntryIds
+        )
+        existingQueue.songs = CollectionQueueInsertion.insertBlock(existingQueue.songs, insertionIndex, songs)
+        existingQueue.entryIds = CollectionQueueInsertion.insertBlock(existingQueue.entryIds, insertionIndex, blockEntryIds)
+        val pairs = playmixId?.let {
+            existingQueue.mixIndex.register(it, blockEntryIds, songs.map(Song::id), bySongPair)
+        } ?: 0
+        finishQueueMutation(existingQueue)
+        return pairs
     }
 
     private fun enqueueResolvedSong(song: Song, playNext: Boolean) {
@@ -3680,6 +3894,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             originalQueueSongs = null
         }
         if (queue.sourceType == QueueSource.PLAYMIX) {
+            // D1: las mezclas de la Playmix pasan al índice por entradas de la cola en vez de perderse; las
+            // parejas que dejen de ser consecutivas se descartan en finishQueueMutation.
+            val converted = queue.mixIndex.registerFromSongMap(
+                queue.sourceId, queue.entryIds, queue.songs.map { it.id }, playmixTransitions
+            )
+            Log.i("MusicService", "Cola de Playmix editada: $converted mezclas pasan a la cola")
             playmixTransitions = emptyMap()
             playmixSongIdMap = emptyMap()
         }
@@ -3688,6 +3908,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     private fun finishQueueMutation(queue: PlaybackQueue) {
+        queue.mixIndex.retainAdjacent(queue.entryIds)
         queue.pruneFlowEntries()
         queue.currentIndex = queue.currentIndex.coerceIn(queue.songs.indices)
         synchronizeExoPlayerQueue()
@@ -4031,7 +4252,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private fun loadPlaymixTransitions(playmixId: String) {
         serviceScope.launch(Dispatchers.IO) {
             try {
-                val detail = PlaymixManager(applicationContext).getPlaymixDetail(playmixId)
+                val detail = fetchPlaymixDetail(playmixId)
                 val songIdToPlaymixId = detail.songs.associate { it.songId to it.playmixSongId }
                 val transitionMap = mutableMapOf<String, PlaymixTransitionDTO>()
                 for (t in detail.transitions) {
@@ -4058,15 +4279,67 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
     }
 
-    private var lastPlaymixRefreshUptime = 0L
+    /**
+     * Detalle de la Playmix del servidor; sin red (o si la petición falla) el del paquete descargado, que guarda
+     * transiciones y documentos (collection-queue-offline D5).
+     */
+    private suspend fun fetchPlaymixDetail(playmixId: String): PlaymixDetailDTO {
+        return try {
+            PlaymixManager(applicationContext).getPlaymixDetail(playmixId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            OfflineCollectionStore.playmixDetail(applicationContext, playmixId)
+                ?.also { Log.d("MusicService", "📦 Playmix $playmixId: mezclas del paquete descargado") }
+                ?: throw e
+        }
+    }
 
-    /** Las URL firmadas de los clips caducan: se vuelve a pedir el detalle, como mucho una vez por minuto. */
-    private fun refreshPlaymixTransitions() {
+    /**
+     * Carga (o refresca) los DTO de las mezclas de [playmixId] para los bloques de esa Playmix en la cola
+     * (collection-queue-offline D1/D3). Si falla, esas parejas se quedan sin DTO y suenan con el modo normal.
+     */
+    private fun loadQueueMixTransitions(playmixId: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val detail = fetchPlaymixDetail(playmixId)
+                withContext(Dispatchers.Main) {
+                    val queue = PlaybackStateRepository.activeQueue ?: return@withContext
+                    if (playmixId !in queue.mixIndex.playmixIds()) return@withContext
+                    queue.mixIndex.updateTransitions(playmixId, detail.transitions)
+                    Log.d("MusicService", "🔌 Mezclas de la Playmix $playmixId en la cola: ${detail.transitions.size}")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("MusicService", "No se pudieron cargar las mezclas de la Playmix $playmixId para la cola", e)
+            }
+        }
+    }
+
+    private var lastPlaymixRefreshUptime = 0L
+    private val lastQueueMixRefreshUptime = HashMap<String, Long>()
+
+    /**
+     * Las URL firmadas de los clips caducan: se vuelve a pedir el detalle, como mucho una vez por minuto. Con
+     * [queueMixPlaymixId] se refresca esa Playmix dentro de la cola (bloque del índice) en vez de la cola PLAYMIX.
+     */
+    private fun refreshPlaymixTransitions(queueMixPlaymixId: String? = null) {
         val queue = PlaybackStateRepository.activeQueue ?: return
+        if (queueMixPlaymixId != null) {
+            val now = SystemClock.uptimeMillis()
+            val last = lastQueueMixRefreshUptime[queueMixPlaymixId] ?: 0L
+            if (last != 0L && now - last < PLAYMIX_REFRESH_MIN_INTERVAL_MS) return
+            lastQueueMixRefreshUptime[queueMixPlaymixId] = now
+            Log.d("MusicService", "🔄 URL de clip caducada en la cola: refrescando la Playmix $queueMixPlaymixId")
+            loadQueueMixTransitions(queueMixPlaymixId)
+            return
+        }
         if (queue.sourceType != QueueSource.PLAYMIX || queue.sourceId.isBlank()) return
         val now = SystemClock.uptimeMillis()
         if (lastPlaymixRefreshUptime != 0L && now - lastPlaymixRefreshUptime < PLAYMIX_REFRESH_MIN_INTERVAL_MS) return
         lastPlaymixRefreshUptime = now
+        invalidatePlaymixBounds()
         Log.d("MusicService", "🔄 URL de clip de Studio caducada: refrescando transiciones")
         loadPlaymixTransitions(queue.sourceId)
     }
@@ -4074,6 +4347,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     private fun handleTransitionTrigger() {
         // Always stop the seekbar FIRST — must never fire twice.
         stopSeekBarUpdates()
+        // La transición siguiente empieza siempre con B a 1,0× (playmix-extended-beatmatch).
+        cancelTempoReturn("transición")
 
         val player = exoPlayer
         if (player == null) {
@@ -4126,10 +4401,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         // PlayMix: use the full transition object (mixMode, fadeCurveType, bandFadeTypes, gapMs)
         // instead of the global crossfadeMode setting — Spotify-style per-transition config.
         val isPlaymixMode = queue.sourceType == QueueSource.PLAYMIX
-        // Blend automático (mixMode "smart" o pareja sin transición): motor inteligente, no el de PlayMix.
-        val playmixTransition = if (isPlaymixMode) {
-            PlaymixMixMode.advancedOrNull(playmixTransitions["${oldSong.id}:${nextSong.id}"])
-        } else null
+        // Cola con un bloque de Playmix: la pareja de entradas con mezcla diseñada (collection-queue-offline D1).
+        val entryIndex = queue.currentIndex.takeIf {
+            queue.songs.getOrNull(it)?.id == oldSong.id && queue.songs.getOrNull(it + 1)?.id == nextSong.id
+        } ?: currentQueueIndex
+        val queueMix = if (isPlaymixMode) null else designedQueueMixAt(queue, entryIndex)
 
         // D1: aislar al player saliente. Solo puede terminar, nunca avanzar a B por su cuenta.
         // La cola completa se reconstruye en el player promocionado tras el relevo.
@@ -4144,12 +4420,22 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         }
 
         // La UI y la cola cambian a B cuando B empieza a sonar (handleTransitionAudible, D6).
-        val studioPlan = if (isPlaymixMode) {
-            previewPlanFor(oldSong, nextSong) ?: playmixTransitions["${oldSong.id}:${nextSong.id}"]?.let { studioPlanFor(it, oldSong, nextSong) }
-        } else null
+        // Misma resolución que una Playmix: escucha del editor → documento de Studio → clip/clásica → automático.
+        val playmixResolution = when {
+            isPlaymixMode -> resolvePlaymixPlan(playmixTransitions["${oldSong.id}:${nextSong.id}"], oldSong, nextSong)
+            queueMix != null -> resolvePlaymixPlan(queueMix.first, oldSong, nextSong).also {
+                Log.d("MusicService", "🎹 Mezcla de Playmix en la cola (${queueMix.second.playmixId}): ${oldSong.title} → ${nextSong.title}")
+            }
+            else -> null
+        }
+        val studioPlan = (playmixResolution as? PlaymixResolution.Planned)?.plan
         // Con documento de Studio (sin clip listo) manda el documento, no los campos antiguos de la transición.
-        val legacyTransition = if (studioPlan != null) null else playmixTransition
-        val plan = studioPlan ?: if (legacyTransition == null) transitionPlanFor(oldSong, nextSong, playmixSmart = isPlaymixMode) else null
+        val legacyTransition = (playmixResolution as? PlaymixResolution.Designed)?.transition
+        val plan = studioPlan ?: when (playmixResolution) {
+            is PlaymixResolution.Smart -> playmixResolution.plan
+            null -> transitionPlanFor(oldSong, nextSong)
+            else -> null
+        }
         // Un fundido sin EQ propio deja el ecualizador del usuario en A (y se copia a B al entrar):
         // quitarlo de golpe al empezar la transición se oía como un salto de volumen y timbre.
         if (UserEqPolicy.suspendForTransition(engineActive = mixEngine != null, legacyPlaymix = legacyTransition != null, plan = plan)) {
@@ -4282,6 +4568,30 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     /**
+     * playmix-extended-beatmatch: B terminó una mezcla ampliada a [fromRate]; vuelve a 1,0 con la rampa de
+     * [TempoReturn] sobre el reproductor principal. Fuera de él (o en una sala/emisión), 1,0 directo.
+     */
+    @androidx.annotation.MainThread
+    private fun startTempoReturn(player: ExoPlayer, fromRate: Double) {
+        if (isSharedMode || exoPlayer !== player) {
+            runCatching { player.playbackParameters = PlaybackParameters.DEFAULT }
+            return
+        }
+        tempoReturn.start(object : TempoReturn.Target {
+            override fun setSpeed(speed: Float) {
+                if (exoPlayer === player) player.playbackParameters = PlaybackParameters(speed)
+            }
+        }, fromRate, player.currentMediaItem?.mediaId)
+        Log.i("TempoReturn", "Vuelta al tempo desde ${"%.4f".format(fromRate)} en ${TempoReturn.TEMPO_RETURN_MS} ms")
+    }
+
+    /** Corta la vuelta al tempo con 1,0 inmediato (búsqueda, salto, pausa, otra canción o transición, Live/Unisound). */
+    @androidx.annotation.MainThread
+    private fun cancelTempoReturn(reason: String) {
+        if (tempoReturn.isActive) tempoReturn.cancel(reason)
+    }
+
+    /**
      * D6: B ha empezado a sonar. Ahora sí la UI, la cola, la notificación y Connect pasan a B.
      * Hasta este instante la canción actual seguía siendo A.
      */
@@ -4302,7 +4612,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         PlaybackStateRepository.publishQueue()
 
         val newDuration = nextSong.audioAnalysis?.durationMs ?: 0
-        PlaybackStateRepository.updatePlaybackPosition(0, newDuration)
+        publishPosition(0, newDuration)
         currentSongStartTimeMs = System.currentTimeMillis()
         PlaybackStateRepository.streamReported = false
         updateUiAndSystem()
@@ -4315,6 +4625,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
      */
     private fun handleTransitionFailed(oldPlayer: ExoPlayer, oldSong: Song?, nextSong: Song?, wasAudible: Boolean) {
         Log.w("MusicService", "Transición fallida (audible=$wasAudible). A continúa; B=${nextSong?.title}")
+        invalidatePlaymixBounds()
 
         audioEqualizerController.resumeAfterTransition(oldPlayer.audioSessionId)
 
@@ -4341,6 +4652,118 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
 
         // A sigue sonando: el seekbar vuelve a correr (sin volver a disparar la transición).
         if (oldPlayer.isPlaying) startSeekBarUpdates()
+    }
+
+    // =================================================================================================
+    // ===        PLAYMIX: BARRA ACOTADA A LA MEZCLA (playmix-mix-bounded-seekbar)                     ===
+    // =================================================================================================
+
+    /** Clave y punto de entrega cacheados de la canción actual (canción + transiciones + repetición + disparo). */
+    private var playmixBoundsKey: String? = null
+    private var playmixBoundsHandoffMs: Long = -1L
+
+    /**
+     * Límites de la canción actual de Playmix, o `null` si no se acota (otra cola, última canción, repetir una,
+     * Unisound/Live, transición suprimida o entrega fuera del audio). El arranque es el de
+     * [calculateTriggerPosition], la misma función que dispara la mezcla; la entrega, la de la vía que va a sonar.
+     */
+    private fun currentPlaymixBounds(mediaDurationMs: Long): PlaymixBounds? {
+        if (!PlaymixBounds.PLAYMIX_BOUNDED_PROGRESS) return null
+        val queue = PlaybackStateRepository.activeQueue ?: return null
+        if (queue.sourceType != QueueSource.PLAYMIX) return null
+        val song = PlaybackStateRepository.currentSong ?: return null
+        // Tras una transición fallida A sigue hasta su final: no hay mezcla que respetar.
+        if (transitionSuppressedForSongId == song.id) return null
+        val trigger = calculateTriggerPosition()
+        if (trigger <= 0L) return null
+        val repeatMode = PlaybackStateRepository.repeatModeLiveData.value ?: PlaybackStateRepository.REPEAT_MODE_OFF
+        val key = "${song.id}:${System.identityHashCode(playmixTransitions)}:$repeatMode:$trigger"
+        if (key != playmixBoundsKey) {
+            playmixBoundsKey = key
+            playmixBoundsHandoffMs = playmixHandoffMs(song, queue, trigger) ?: -1L
+        }
+        return PlaymixBounds.of(playmixBoundsHandoffMs, trigger, mediaDurationMs)
+    }
+
+    private fun invalidatePlaymixBounds() {
+        playmixBoundsKey = null
+        playmixBoundsHandoffMs = -1L
+    }
+
+    /** Punto de entrega de [song] por la vía que va a sonar: la misma [resolvePlaymixPlan] que dispara la mezcla. */
+    private fun playmixHandoffMs(song: Song, queue: PlaybackQueue, trigger: Long): Long? {
+        val queueIndex = queue.currentIndex.takeIf { queue.songs.getOrNull(it)?.id == song.id }
+            ?: queue.songs.indexOfFirst { it.id == song.id }
+        val nextSong = if (queueIndex >= 0) queue.songs.getOrNull(queueIndex + 1)
+            else PlaybackStateRepository.getNextSong(exoPlayer?.currentMediaItemIndex ?: -1)
+        if (nextSong == null || nextSong.id == song.id) return null
+
+        val route = when (val resolution = resolvePlaymixPlan(playmixTransitions["${song.id}:${nextSong.id}"], song, nextSong)) {
+            is PlaymixResolution.Planned -> playmixDocumentRoute(resolution.plan.doc)
+            is PlaymixResolution.Designed -> RenderedTransition.planFor(resolution.transition, System.currentTimeMillis())
+                ?.let { PlaymixBounds.Route.Clip(it) }
+                ?: PlaymixBounds.Route.Classic(resolution.transition.exitPointMs.toLong())
+            is PlaymixResolution.Smart -> resolution.plan?.let { playmixDocumentRoute(it.doc) }
+        } ?: return null
+        val handoff = PlaymixBounds.handoffFor(route)
+        Log.d("MusicService", "📏 Límites Playmix ${song.title}: vía=${route::class.simpleName}, entrega=${handoff}ms, " +
+            "límite=${trigger - PlaymixBounds.SEEK_GUARD_MS}ms")
+        return handoff
+    }
+
+    private fun playmixDocumentRoute(doc: MixDocumentDTO): PlaymixBounds.Route =
+        if (doc.preset?.code == "sin-transicion") PlaymixBounds.Route.NoMix(doc.a.startMs.toLong())
+        else PlaymixBounds.Route.Document(doc.a.startMs.toLong(), doc.b.offsetMs.toLong())
+
+    /** Publica la posición de la canción actual: en Playmix con límites, con la duración mostrada (D4). */
+    private fun publishPosition(position: Long, mediaDuration: Int) {
+        val published = PlaymixBounds.positionFor(position, mediaDuration, currentPlaymixBounds(mediaDuration.toLong()))
+        PlaybackStateRepository.updatePlaybackPosition(published.position, published.duration, published.mediaDurationMs)
+    }
+
+    /** Límites para el MediaSession: solo si [player] es el que tiene la canción actual (durante el relevo no). */
+    private fun sessionPlaymixBounds(player: Player): PlaymixBounds? {
+        val songId = PlaybackStateRepository.currentSong?.id ?: return null
+        if (player.currentMediaItem?.mediaId != songId) return null
+        val duration = player.duration.takeIf { it > 0L && it != C.TIME_UNSET } ?: return null
+        return currentPlaymixBounds(duration)
+    }
+
+    /** Destino de un seek sobre la canción actual, acotado a su límite si lo tiene. */
+    private fun boundedSeekPosition(position: Long, origin: String): Long {
+        val player = exoPlayer ?: return position
+        val bounds = sessionPlaymixBounds(player) ?: return position
+        val target = bounds.clampSeek(position)
+        if (target != position) Log.d("MusicService", "📏 Seek acotado ($origin): ${position}ms → ${target}ms")
+        return target
+    }
+
+    /** Seek del MediaSession (notificación, bloqueo, Bluetooth, Auto) con límites: el mismo camino que la app. */
+    private fun seekFromSession(position: Long) {
+        Log.d("MusicService", "📏 Seek desde la sesión: ${position}ms")
+        seekTo(position)
+    }
+
+    /**
+     * D6: seek sobre A mientras su mezcla se prepara y B aún no se oye. Se cancela sin suprimirla, se deshace
+     * el aislamiento de [handleTransitionTrigger] (cola y repetición) y el seekbar vuelve a correr; al llegar
+     * otra vez al disparo la mezcla se arma de nuevo. Devuelve `true` si canceló.
+     */
+    private fun cancelPlaymixPreparationForSeek(): Boolean {
+        if (!transitionManager.isTransitioning || transitionManager.isAudible) return false
+        val player = exoPlayer ?: return false
+        if (sessionPlaymixBounds(player) == null) return false
+        if (!transitionManager.cancelPreparation()) return false
+        Log.i("MusicService", "🔁 Seek durante la preparación de la mezcla: se cancela y se rearma")
+        audioEqualizerController.resumeAfterTransition(player.audioSessionId)
+        applyLoudnessNormalization(PlaybackStateRepository.currentSong)
+        player.repeatMode = when (PlaybackStateRepository.repeatModeLiveData.value) {
+            PlaybackStateRepository.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+            PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
+            else -> Player.REPEAT_MODE_OFF
+        }
+        synchronizeExoPlayerQueue()
+        return true
     }
 
     private fun logPlayerState(context: String) {

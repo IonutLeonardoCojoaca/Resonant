@@ -17,8 +17,31 @@ import com.example.resonant.unisound.UnisoundControl
 class UnisoundAwarePlayer(
     player: Player,
     private val restrictControls: () -> Boolean = { false },
+    /** Límites de Playmix de la canción actual (playmix-mix-bounded-seekbar D5); `null` = sin acotar. */
+    private val bounds: () -> PlaymixBounds? = { null },
+    /** Seek con límites y cancelación de la preparación; con límites sustituye al seek directo. */
+    private val seek: ((Long) -> Unit)? = null,
     private val intercept: (control: UnisoundControl, positionMs: Long?) -> Boolean
 ) : ForwardingPlayer(player) {
+
+    override fun getDuration(): Long = bounds()?.displayDuration ?: super.getDuration()
+
+    override fun getContentDuration(): Long = bounds()?.displayDuration ?: super.getContentDuration()
+
+    override fun getCurrentPosition(): Long {
+        val position = super.getCurrentPosition()
+        return bounds()?.displayPosition(position) ?: position
+    }
+
+    override fun getContentPosition(): Long {
+        val position = super.getContentPosition()
+        return bounds()?.displayPosition(position) ?: position
+    }
+
+    override fun getBufferedPosition(): Long {
+        val position = super.getBufferedPosition()
+        return bounds()?.displayPosition(position) ?: position
+    }
 
     override fun isCommandAvailable(command: Int): Boolean =
         !(restrictControls() && command in RESTRICTED_COMMANDS) && super.isCommandAvailable(command)
@@ -59,12 +82,23 @@ class UnisoundAwarePlayer(
     }
 
     override fun seekTo(positionMs: Long) {
-        if (!intercept(UnisoundControl.SEEK, positionMs)) super.seekTo(positionMs)
+        if (intercept(UnisoundControl.SEEK, positionMs)) return
+        val current = seekBounds()
+        if (current != null) seek?.invoke(current.clampSeek(positionMs)) else super.seekTo(positionMs)
     }
 
     override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
-        if (!intercept(UnisoundControl.SEEK, positionMs)) super.seekTo(mediaItemIndex, positionMs)
+        if (intercept(UnisoundControl.SEEK, positionMs)) return
+        val current = seekBounds()
+        if (current != null && mediaItemIndex == super.getCurrentMediaItemIndex()) {
+            seek?.invoke(current.clampSeek(positionMs))
+        } else {
+            super.seekTo(mediaItemIndex, positionMs)
+        }
     }
+
+    /** Límites para un seek: solo si hay límites y un seek del servicio por el que pasar. */
+    private fun seekBounds(): PlaymixBounds? = if (seek != null) bounds() else null
 
     companion object {
         /** What a Live listener cannot do: only play (rejoin) and pause (hold) stay. */

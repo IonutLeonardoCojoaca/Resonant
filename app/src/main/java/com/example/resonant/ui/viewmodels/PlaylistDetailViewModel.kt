@@ -88,6 +88,26 @@ class PlaylistDetailViewModel(
         }
     }
 
+    /**
+     * Playlist descargada sin conexión (collection-queue-offline): muestra lo guardado, en solo lectura, si la
+     * carga del servidor falló.
+     */
+    fun showOfflineCopy(playlistId: String, title: String, songs: List<Song>) {
+        if (currentPlaylistId != playlistId || songs.isEmpty()) return
+        if (_screenState.value?.playlistDetails != null) return
+        _screenState.value = PlaylistScreenState(
+            isLoading = false,
+            playlistDetails = Playlist(
+                id = playlistId,
+                name = title,
+                numberOfTracks = songs.size,
+                canEdit = false
+            ),
+            songs = songs,
+            canReorder = false
+        )
+    }
+
     fun addSongToPlaylist(songId: String, playlistId: String) {
         viewModelScope.launch {
             try {

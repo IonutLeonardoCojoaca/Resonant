@@ -34,7 +34,12 @@ data class MixEditorV2State(
     val presets: List<TransitionPresetDTO> = MixEditorV2.DEFAULT_PRESETS,
     val laneOptions: MixLaneOptionsDTO = MixEditorV2.DEFAULT_LANE_OPTIONS,
     val bandsA: WaveformBands? = null,
-    val bandsB: WaveformBands? = null
+    val bandsB: WaveformBands? = null,
+    /**
+     * playmix-extended-beatmatch: capacidad `playmixExtendedSync` activa. El generador admite el rango ampliado
+     * (B estirada entre el 6 % y el 12 %) y la sincronía se puede activar en él.
+     */
+    val extended: Boolean = false
 ) {
     /** Compás de A en ms (para mover la ventana y dibujar la rejilla). */
     val barMsA: Double? get() = MixComposer.barMs(songA)
@@ -78,7 +83,7 @@ object MixEditorV2 {
      * Estado inicial: el documento v2 guardado tal cual (ventana, opciones y preset), o Automática si la
      * transición aún no tiene documento v2. Null si las canciones no tienen compás.
      */
-    fun initial(studio: StudioTransitionDTO): MixEditorV2State? {
+    fun initial(studio: StudioTransitionDTO, extended: Boolean = false): MixEditorV2State? {
         val a = songOf(studio.songA)
         val b = songOf(studio.songB)
         val saved = studio.document.takeIf { it.isV2 }
@@ -90,20 +95,23 @@ object MixEditorV2 {
                 presetCode = saved.preset?.code ?: CUSTOM,
                 selection = saved.selection ?: MixSelectionDTO(),
                 window = window,
-                beatSync = saved.beatSync ?: !MixComposer.tempoClash(a, b)
+                beatSync = saved.beatSync ?: !MixComposer.tempoClash(a, b, extended),
+                extended = extended
             )
         }
-        val window = MixComposer.automaticWindow(a, b) ?: return null
-        val selection = MixComposer.automaticSelection(a, b)
-        val document = MixComposer.compose(selection, window, a, b, null, AUTOMATIC) ?: return null
-        return MixEditorV2State(a, b, studio.songA, studio.songB, document, AUTOMATIC, selection, window, document.beatSync ?: true)
+        val window = MixComposer.automaticWindow(a, b, extended = extended) ?: return null
+        val selection = MixComposer.automaticSelection(a, b, extended)
+        val document = MixComposer.compose(selection, window, a, b, null, AUTOMATIC, extended) ?: return null
+        return MixEditorV2State(
+            a, b, studio.songA, studio.songB, document, AUTOMATIC, selection, window, document.beatSync ?: true, extended = extended
+        )
     }
 
     fun selectPreset(state: MixEditorV2State, code: String): MixEditorV2State {
         if (code == AUTOMATIC) {
-            val window = MixComposer.automaticWindow(state.songA, state.songB) ?: return state
-            val selection = MixComposer.automaticSelection(state.songA, state.songB)
-            val sync = !MixComposer.tempoClash(state.songA, state.songB)
+            val window = MixComposer.automaticWindow(state.songA, state.songB, extended = state.extended) ?: return state
+            val selection = MixComposer.automaticSelection(state.songA, state.songB, state.extended)
+            val sync = !MixComposer.tempoClash(state.songA, state.songB, state.extended)
             return regenerate(state.copy(presetCode = AUTOMATIC, selection = selection, window = window, beatSync = sync))
         }
         val preset = state.presets.firstOrNull { it.code == code } ?: return state
@@ -131,7 +139,7 @@ object MixEditorV2 {
     fun setBars(state: MixEditorV2State, bars: Int): MixEditorV2State {
         if (bars !in BAR_OPTIONS) return state
         if (state.presetCode == AUTOMATIC) {
-            val window = MixComposer.automaticWindow(state.songA, state.songB, bars) ?: return state
+            val window = MixComposer.automaticWindow(state.songA, state.songB, bars, state.extended) ?: return state
             return regenerate(state.copy(window = window))
         }
         val bar = state.barMsA ?: return regenerate(state.copy(window = state.window.copy(bars = bars)))
@@ -193,8 +201,9 @@ object MixEditorV2 {
     }
 
     private fun regenerate(state: MixEditorV2State): MixEditorV2State {
-        val document = MixComposer.compose(state.selection, state.window, state.songA, state.songB, state.beatSync, state.presetCode)
-            ?: return state
+        val document = MixComposer.compose(
+            state.selection, state.window, state.songA, state.songB, state.beatSync, state.presetCode, state.extended
+        ) ?: return state
         return state.copy(document = document)
     }
 

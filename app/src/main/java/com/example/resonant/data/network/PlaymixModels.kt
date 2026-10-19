@@ -11,7 +11,17 @@ data class PlaymixDTO(
     val duration: Int,
     val isPublic: Boolean,
     val coverUrl: String?,
-    val createdAt: String
+    val createdAt: String,
+    // ─── playmix-sharing-discovery (null/0/false con un backend anterior) ───
+    /** `private`, `unlisted` o `public`; null con un backend anterior (usar [isPublic]). */
+    val visibility: String? = null,
+    val ownerId: String? = null,
+    val ownerName: String? = null,
+    /** true si el usuario es el dueño; null con un backend anterior. */
+    val isOwner: Boolean? = null,
+    val likeCount: Int = 0,
+    val isLiked: Boolean = false,
+    val sourcePlaymixId: String? = null
 )
 
 // ─── Detalle completo ───────────────────────
@@ -24,7 +34,19 @@ data class PlaymixDetailDTO(
     val isPublic: Boolean,
     val coverUrl: String?,
     val songs: List<PlaymixSongDTO>,
-    val transitions: List<PlaymixTransitionDTO>
+    val transitions: List<PlaymixTransitionDTO>,
+    // ─── playmix-sharing-discovery (null/0/false con un backend anterior) ───
+    /** `private`, `unlisted` o `public`; null con un backend anterior (usar [isPublic]). */
+    val visibility: String? = null,
+    val ownerId: String? = null,
+    val ownerName: String? = null,
+    /** true si el usuario es el dueño; null con un backend anterior. */
+    val isOwner: Boolean? = null,
+    val likeCount: Int = 0,
+    val isLiked: Boolean = false,
+    val sourcePlaymixId: String? = null,
+    /** Versión opaca del contenido (orden, documentos, renders): detecta cambios de una Playmix descargada. */
+    val contentVersion: String? = null
 )
 
 data class PlaymixSongDTO(
@@ -96,7 +118,12 @@ data class PlaymixRenderDTO(
     val prerollMs: Int? = null,
     val postrollMs: Int? = null,
     val durationMs: Int? = null,
-    val error: String? = null
+    val error: String? = null,
+    /**
+     * Ms de B por cada ms del clip desde que entra B hasta el final (postroll incluido); `null` = 1,0
+     * (playmix-extended-beatmatch). Con |bRate − 1| > 0,06 el empalme sigue B a esa velocidad.
+     */
+    val bRate: Double? = null
 )
 
 data class EqSettingsDTO(
@@ -165,7 +192,9 @@ data class PhraseDTO(
 // ─── Request bodies ─────────────────────────
 data class CreatePlaymixRequest(
     val name: String,
-    val description: String? = null
+    val description: String? = null,
+    /** `private`/`unlisted`/`public` (playmix-sharing-discovery); null = privada. Gson omite el null. */
+    val visibility: String? = null
 )
 
 data class RenamePlaymixRequest(

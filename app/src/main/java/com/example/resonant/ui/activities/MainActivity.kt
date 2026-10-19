@@ -1126,6 +1126,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
         if (data.host == "resonantapp.ddns.net") {
             val segments = data.pathSegments
+            // Enlaces de PlayMix compartida (playmix-sharing-discovery), validados como GUID.
+            if (segments.firstOrNull() == "playmix") {
+                val target = com.example.resonant.notifications.NotificationDeepLink.parse(data.path)
+                if (target is NotificationTarget.Playmix) openNotificationTarget(target)
+                return
+            }
             if (segments.isNotEmpty() && segments[0] == "song") {
                 val songId = segments.getOrNull(1)
                 if (songId != null) {
@@ -1503,6 +1509,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                 }
                 is NotificationTarget.Album -> {
                     navController.navigate(R.id.albumFragment, bundleOf("albumId" to target.albumId))
+                    true
+                }
+                is NotificationTarget.Playmix -> {
+                    // Solo lectura lo decide el detalle con `isOwner`; un 404 muestra "no disponible".
+                    navController.navigate(
+                        R.id.action_global_to_playmixDetailFragment,
+                        bundleOf("playmixId" to target.playmixId, "highlightTransitionId" to target.transitionId)
+                    )
                     true
                 }
                 is NotificationTarget.Live -> {

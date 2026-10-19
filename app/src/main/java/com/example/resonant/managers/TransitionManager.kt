@@ -22,6 +22,8 @@ import com.example.resonant.playback.MixLanes
 import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.playback.PlaybackUrlResolver
 import com.example.resonant.playback.RenderedTransition
+import com.example.resonant.playback.TempoReturn
+import com.example.resonant.playback.OfflineClips
 import com.example.resonant.playback.TransitionPlanner
 import com.example.resonant.playback.TransitionTiming
 import com.example.resonant.data.models.Song
@@ -111,9 +113,19 @@ class TransitionManager(
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /**
+     * playmix-extended-beatmatch: al terminar una mezcla ampliada (B a más de ±6 %), B no salta a 1,0 sino que se
+     * entrega aquí con su velocidad para que el servicio haga la rampa de vuelta ([TempoReturn]). Null = 1,0 directo.
+     */
+    var onTempoReturn: ((player: ExoPlayer, fromRate: Double) -> Unit)? = null
+
     @Volatile
     var isTransitioning: Boolean = false
         private set
+
+    /** `true` si en la transición en curso B ya se oye (la interfaz ya muestra B), sea cual sea la vía. */
+    val isAudible: Boolean
+        get() = rendered?.audible ?: engineRun?.audible ?: planned?.audible ?: active?.audible ?: false
 
     /** Player precargado (silencioso) o player de la transición en curso. */
     private var nextPlayer: ExoPlayer? = null
@@ -708,6 +720,22 @@ class TransitionManager(
     }
 
     private var rendered: RenderedRun? = null
+
+    /**
+     * Clip descargado con la Playmix (collection-queue-offline D5): la URI estable con la misma clave de caché con
+     * la que se descargó, para que la fábrica de medios lo lea de la caché permanente. Si no, la URL firmada.
+     */
+    private fun clipMediaItem(plan: RenderedTransition.Plan): MediaItem {
+        val local = plan.localUri
+        val builder = MediaItem.Builder().setMimeType(MimeTypes.AUDIO_FLAC)
+        val clip = local?.let { OfflineClips.parseUri(it) }
+        return if (clip != null) {
+            Log.d(TAG, "🎚 Studio: clip local ${clip.first} r${clip.second}")
+            builder.setUri(local).setCustomCacheKey(OfflineClips.keyFor(clip.first, clip.second)).build()
+        } else {
+            builder.setUri(plan.url).build()
+        }
+    }
     private var renderedRunnable: Runnable? = null
 
     private fun beginRendered(
@@ -721,7 +749,7 @@ class TransitionManager(
         Log.i(TAG, "🎚 Studio: ${oldSong.title} → ${nextSong.title} con clip (A=${plan.aStartMs}ms, clip=${plan.clipDurationMs}ms, B=${plan.bEndMs}ms)")
         val clipPlayer = try {
             createTransitionPlayer().apply {
-                setMediaItem(MediaItem.Builder().setUri(plan.url).setMimeType(MimeTypes.AUDIO_FLAC).build())
+                setMediaItem(clipMediaItem(plan))
                 volume = 0f
                 prepare()
             }
@@ -828,6 +856,7 @@ class TransitionManager(
                     val target = RenderedTransition.bPositionForClip(plan, clipPosition)
                     if (abs(run.bPlayer.currentPosition - target) > SPLICE_SEEK_TOLERANCE_MS) run.bPlayer.seekTo(target)
                     run.bPlayer.volume = 0f
+                    applyClipRate(run)
                     run.bPlayer.play()
                     run.phase = RenderPhase.SPLICE_OUT
                     run.spliceStartUptime = now
@@ -837,6 +866,7 @@ class TransitionManager(
                     if (bReady) {
                         if (abs(run.bPlayer.currentPosition - plan.bEndMs) > SPLICE_SEEK_TOLERANCE_MS) run.bPlayer.seekTo(plan.bEndMs)
                         run.bPlayer.volume = run.volumeB
+                        applyClipRate(run)
                         run.bPlayer.play()
                         completeRendered(run)
                     } else if (now - run.clipEndedUptime > TransitionTiming.HANDOFF_TIMEOUT_MS) {
@@ -890,7 +920,34 @@ class TransitionManager(
         resetState()
         runCatching { run.bPlayer.volume = run.volumeB }
         onTransitionComplete(run.bPlayer, run.oldPlayer)
+        if (run.plan.extendedRate) handOffTempo(run.bPlayer, run.plan.bRate, "clip")
         Log.d(TAG, "🎉 Transición con clip COMPLETADA: ${run.nextSong.title}")
+    }
+
+    /**
+     * Clip de sincronía ampliada ([RenderedTransition.Plan.extendedRate]): B sigue tras el clip a `bRate`, como en el
+     * clip, para que los dos lados del fundido sean el mismo material. Los clips del rango estándar no cambian.
+     */
+    private fun applyClipRate(run: RenderedRun) {
+        if (!run.plan.extendedRate) return
+        runCatching { run.bPlayer.playbackParameters = PlaybackParameters(run.plan.bRate.toFloat()) }
+            .onFailure { Log.w(TAG, "No se pudo poner B a bRate", it) }
+    }
+
+    /** Fin de una mezcla ampliada: B pasa a [TempoReturn] desde [rate] (sin el gancho, 1,0 directo como antes). */
+    private fun handOffTempo(player: ExoPlayer, rate: Double, source: String) {
+        Log.i(TAG, "⏱️ Mezcla ampliada ($source): extended=true, bRate=${"%.4f".format(rate)}, rampa=${TempoReturn.TEMPO_RETURN_MS} ms")
+        val hook = onTempoReturn
+        if (hook == null) {
+            runCatching { player.playbackParameters = PlaybackParameters(1f) }
+            return
+        }
+        try {
+            hook(player, rate)
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo iniciar la vuelta al tempo", e)
+            runCatching { player.playbackParameters = PlaybackParameters(1f) }
+        }
     }
 
     /** El clip no sirvió antes de empalmar: B vuelve a ser la precarga y sigue el motor actual. */
@@ -920,9 +977,9 @@ class TransitionManager(
         }
         val a = TransitionPlanner.trackOf(oldSong.audioAnalysis, -1L)
         val b = TransitionPlanner.trackOf(nextSong.audioAnalysis, -1L)
-        val ratio = if (a != null && b != null) TransitionPlanner.beatmatchRatio(a, b) else null
-        val plan = TransitionPlanner.Plan(
-            doc, "studio-${doc.preset?.code ?: "custom"}", beatSync = ratio != null && doc.beatSync == true, bpmRatio = ratio ?: 1.0
+        // playmix-extended-beatmatch: con la capacidad y `extendedSync`, también el rango ampliado (si no, como siempre).
+        val plan = TransitionPlanner.playmixPlan(
+            doc, "studio-${doc.preset?.code ?: "custom"}", a, b, CapabilitiesManager.isPlaymixExtendedSyncEnabled()
         )
         beginEngineRun(oldPlayer, oldSong, nextSong, nextIndex, plan)
     }
@@ -962,6 +1019,7 @@ class TransitionManager(
             val target = RenderedTransition.bPositionForClip(run.plan, run.clipPlayer.currentPosition)
             if (abs(run.bPlayer.currentPosition - target) > SPLICE_SEEK_TOLERANCE_MS) run.bPlayer.seekTo(target)
             run.bPlayer.volume = run.volumeB
+            applyClipRate(run)
             if (!run.bPlayer.isPlaying) run.bPlayer.play()
         } catch (e: Exception) {
             Log.w(TAG, "No se pudo arrancar B al forzar", e)
@@ -1016,7 +1074,7 @@ class TransitionManager(
 
     private fun beginPlanned(oldPlayer: ExoPlayer, oldSong: Song, newSong: Song, nextIndex: Int, plan: TransitionPlanner.Plan) {
         val doc = plan.doc
-        Log.i(TAG, "🎚️ Mezcla ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, sync=${plan.beatSync})")
+        Log.i(TAG, "🎚️ Mezcla ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, sync=${plan.beatSync}, extended=${plan.extendedSync})")
         val bPlayer = acquireTransitionPlayer(newSong, doc.b.startMs.toLong())
         val job = PlannedRun(oldPlayer, oldSong, newSong, nextIndex, plan, bPlayer, targetOldPlayerVolume, targetNewPlayerVolume)
         planned = job
@@ -1138,7 +1196,9 @@ class TransitionManager(
         val ratio = job.plan.bpmRatio
         val duration = job.doc.durationMs.toDouble()
         val rideFrom = duration * TEMPO_RIDE_FROM
-        if (t >= rideFrom) {
+        // playmix-extended-beatmatch: en una mezcla ampliada B sigue a `ratio` hasta el final (sin la vuelta del 75 %);
+        // la vuelta a su tempo la hace TempoReturn después de la mezcla.
+        if (t >= rideFrom && !job.plan.extendedSync) {
             val p = if (duration > rideFrom) ((t - rideFrom) / (duration - rideFrom)).coerceIn(0.0, 1.0) else 1.0
             setSpeed(job, (ratio + (1.0 - ratio) * p).toFloat())
             return
@@ -1189,11 +1249,13 @@ class TransitionManager(
         detachPlanned(job)
         releaseTransitionEqs()
         resetState()
+        val extended = job.plan.extendedSync
         runCatching {
-            if (abs(job.bPlayer.playbackParameters.speed - 1f) > 0.001f) job.bPlayer.playbackParameters = PlaybackParameters(1f)
+            if (!extended && abs(job.bPlayer.playbackParameters.speed - 1f) > 0.001f) job.bPlayer.playbackParameters = PlaybackParameters(1f)
             job.bPlayer.volume = job.volumeB
         }
         onTransitionComplete(job.bPlayer, job.oldPlayer)
+        if (extended) handOffTempo(job.bPlayer, job.plan.bpmRatio, job.plan.label)
         Log.d(TAG, "🎉 Mezcla completada (${job.plan.label}): ${job.nextSong.title}")
     }
 
@@ -1278,7 +1340,7 @@ class TransitionManager(
         currentPlayer = oldPlayer
         currentSong = oldSong
         nextPlayer = bPlayer
-        Log.i(TAG, "🎚️ Mezcla en el motor ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, v${doc.version}, sync=${plan.beatSync}, velocidad B=${"%.4f".format(plan.bpmRatio)})")
+        Log.i(TAG, "🎚️ Mezcla en el motor ${plan.label}: ${oldSong.title} → ${newSong.title} (A=${doc.a.startMs}ms, B=${doc.b.startMs}ms, ${doc.durationMs}ms, v${doc.version}, sync=${plan.beatSync}, velocidad B=${"%.4f".format(plan.bpmRatio)}, extended=${plan.extendedSync})")
 
         oldPlayer.volume = job.volumeA
         bPlayer.volume = job.volumeB
@@ -1334,12 +1396,15 @@ class TransitionManager(
         if (engineRun !== job) return
         detachEngineRun(job)
         resetState()
+        val extended = job.plan.extendedSync
         runCatching {
             // B vuelve a su tempo cuando ya suena sola: dentro de la ventana A sigue sonando y se desfasarían.
-            if (job.plan.beatSync) job.bPlayer.playbackParameters = PlaybackParameters(1f)
+            // Mezcla ampliada (playmix-extended-beatmatch): la vuelta es una rampa de TempoReturn, no un salto.
+            if (job.plan.beatSync && !extended) job.bPlayer.playbackParameters = PlaybackParameters(1f)
             job.bPlayer.volume = job.volumeB
         }
         onTransitionComplete(job.bPlayer, job.oldPlayer)
+        if (extended) handOffTempo(job.bPlayer, job.plan.bpmRatio, "motor ${job.plan.label}")
         Log.d(TAG, "🎉 Mezcla completada en el motor (${job.plan.label}): ${job.nextSong.title}")
     }
 
@@ -1402,6 +1467,31 @@ class TransitionManager(
         try { t.newPlayer.stop(); t.newPlayer.release() } catch (e: Exception) { Log.e(TAG, "Error al liberar B", e) }
         resetState()
         Log.d(TAG, "✅ Transición cancelada.")
+    }
+
+    /**
+     * Seek sobre A mientras su mezcla se prepara (playmix-mix-bounded-seekbar D6): se cancela sin
+     * `onTransitionFailed`, así que no se suprime y vuelve a armarse al llegar otra vez al disparo.
+     * B se libera y A recupera su volumen; el EQ y la cola de A los restaura el servicio.
+     * Devuelve `false` (sin tocar nada) si no hay transición o si B ya se oye.
+     */
+    fun cancelPreparation(): Boolean {
+        if (!isTransitioning || isAudible) return false
+        rendered?.let { cancelRendered(it, "cancelada por seek durante la preparación"); return true }
+        engineRun?.let { cancelEngineRun(it, "cancelada por seek durante la preparación"); return true }
+        planned?.let { cancelPlanned(it, "cancelada por seek durante la preparación"); return true }
+        val t = active ?: return false
+        // Clásica antes de que entre B (preparando o apagando A hacia el hueco): cancelar sin forzar a B.
+        Log.w(TAG, "🛑 Transición (${t.label}) cancelada por seek durante la preparación")
+        detachTransition(t)
+        releaseTransitionEqs()
+        try {
+            t.oldPlayer.volume = targetOldPlayerVolume
+            if (t.gapMs > 0 && !t.aEnded && !t.oldPlayer.isPlaying) t.oldPlayer.play()
+        } catch (e: Exception) { Log.w(TAG, "No se pudo restaurar A", e) }
+        try { t.newPlayer.stop(); t.newPlayer.release() } catch (e: Exception) { Log.e(TAG, "Error al liberar B", e) }
+        resetState()
+        return true
     }
 
     /** Completa la transición ya, con B sonando a su volumen objetivo. */

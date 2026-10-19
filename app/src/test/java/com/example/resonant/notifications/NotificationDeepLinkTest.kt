@@ -61,6 +61,17 @@ class NotificationDeepLinkTest {
     }
 
     @Test
+    fun `shared playmix and transition links`() {
+        val other = "0f8fad5b-d9cb-469f-a165-70867728950e"
+        assertEquals(NotificationTarget.Playmix(guid), NotificationDeepLink.parse("/playmix/$guid"))
+        assertEquals(NotificationTarget.Playmix(guid, other), NotificationDeepLink.parse("/playmix/$guid/transition/$other"))
+        assertEquals(NotificationTarget.None, NotificationDeepLink.parse("/playmix/not-a-guid"))
+        assertEquals(NotificationTarget.None, NotificationDeepLink.parse("/playmix/$guid/transition/nope"))
+        assertEquals(NotificationTarget.None, NotificationDeepLink.parse("/playmix/$guid/song/$other"))
+        assertEquals(NotificationTarget.None, NotificationDeepLink.parse("/playmix/$guid/transition"))
+    }
+
+    @Test
     fun `malformed values are rejected`() {
         assertEquals(NotificationTarget.None, NotificationDeepLink.parse("/song/not-a-guid"))
         assertEquals(NotificationTarget.None, NotificationDeepLink.parse("/live/Viernes"))

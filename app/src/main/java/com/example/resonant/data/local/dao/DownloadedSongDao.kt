@@ -114,6 +114,13 @@ interface DownloadedSongDao {
     )
     suspend fun deleteCollection(userId: String, type: String, collectionId: String)
 
+    /** Quita de una colección concreta las referencias de esas canciones (sincronización de colecciones). */
+    @Query(
+        "DELETE FROM download_collection_songs WHERE userId = :userId AND collectionType = :type " +
+            "AND collectionId = :collectionId AND songId IN (:songIds)"
+    )
+    suspend fun deleteCollectionSongRefs(userId: String, type: String, collectionId: String, songIds: List<String>)
+
     @Query("DELETE FROM download_collection_songs WHERE userId = :userId")
     suspend fun deleteAllCollectionSongsByUser(userId: String)
 

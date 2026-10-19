@@ -68,7 +68,7 @@ class LyricsExpandedFragment : DialogFragment() {
 
             val position = PlaybackStateRepository.playbackPositionLiveData.value
             val positionMs = position?.position ?: 0L
-            val durationMs = position?.duration?.toLong() ?: 0L
+            val durationMs = position?.mediaDurationMs?.toLong() ?: 0L
             syncLyricsToPosition(positionMs, durationMs, forceScroll = false)
             lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
         }
@@ -173,7 +173,7 @@ class LyricsExpandedFragment : DialogFragment() {
                 val position = PlaybackStateRepository.playbackPositionLiveData.value
                 updateLinearLyricsProgress(
                     position?.position ?: 0L,
-                    position?.duration?.toLong() ?: 0L
+                    position?.mediaDurationMs?.toLong() ?: 0L
                 )
             }
             startLyricsSync()
