@@ -92,10 +92,12 @@ object PlaybackStateRepository {
         }
     }
 
-    fun updatePlaybackPosition(position: Long, duration: Int) {
+    fun updatePlaybackPosition(position: Long, duration: Int, mediaDurationMs: Int = duration) {
         // Solo actualizamos si hay un cambio real para ser eficientes
-        if (_playbackPosition.value?.position != position || _playbackPosition.value?.duration?.toInt() != duration) {
-            _playbackPosition.postValue(PlaybackPosition(position, duration))
+        if (_playbackPosition.value?.position != position || _playbackPosition.value?.duration?.toInt() != duration ||
+            _playbackPosition.value?.mediaDurationMs != mediaDurationMs
+        ) {
+            _playbackPosition.postValue(PlaybackPosition(position, duration, mediaDurationMs))
         }
     }
 

@@ -578,6 +578,17 @@
                     <include
                         android:id="@+id/btnCollabFinder"
                         layout="@layout/view_explore_collab_finder_card" />
+
+                    <!-- PlayMix públicas (playmix-sharing-discovery); oculta con la capacidad apagada -->
+                    <include
+                        android:id="@+id/btnPublicPlaymixes"
+                        layout="@layout/view_library_shortcut"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="13dp"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="6dp"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- ── Playlists (horizontal) ── -->

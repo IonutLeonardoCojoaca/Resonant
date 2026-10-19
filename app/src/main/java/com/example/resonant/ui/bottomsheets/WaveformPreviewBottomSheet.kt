@@ -17,6 +17,7 @@ import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.WaveformResponseDTO
 import com.example.resonant.data.network.WaveformSongDTO
 import com.example.resonant.playback.PhaseAlignment
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SessionManager
 import com.example.resonant.managers.SongManager
@@ -139,6 +140,9 @@ class WaveformPreviewBottomSheet(
                 waveform.setStructureGrids(
                     data.songA.downbeatGrid, data.songA.phrases?.map { it.startMs },
                     data.songB.downbeatGrid, data.songB.phrases?.map { it.startMs }
+                )
+                waveform.setExtendedTempoLock(
+                    CapabilitiesManager.isPlaymixExtendedSyncEnabled() && transition.mixDocument?.extendedSync == true
                 )
                 waveform.setTempoGrids(
                     PhaseAlignment.gridOf(data.songA.bpmPrecise, data.songA.firstDownbeatMs, data.songA.beatsPerBar),
@@ -269,7 +273,8 @@ class WaveformPreviewBottomSheet(
     private suspend fun loadSavedMix(ctx: android.content.Context, withBands: Boolean): MixEditorV2State? = runCatching {
         withContext(Dispatchers.IO) {
             val studio = StudioManager(ctx).get(playmixId, transition.id)
-            val initial = MixEditorV2.initial(studio) ?: return@withContext null
+            val initial = MixEditorV2.initial(studio, extended = CapabilitiesManager.isPlaymixExtendedSyncEnabled())
+                ?: return@withContext null
             if (!withBands) return@withContext initial
             initial.copy(
                 bandsA = studio.songA.waveformBandsUrl?.let { WaveformBands.download(it) },

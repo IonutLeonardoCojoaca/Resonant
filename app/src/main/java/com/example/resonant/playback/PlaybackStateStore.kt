@@ -51,7 +51,9 @@ internal data class PersistedPlaybackState(
     val flowReasons: Map<String, String>? = null,
     val flowSeedSourceType: String? = null,
     val flowSeedSourceId: String? = null,
-    val flowSession: PersistedFlowSession? = null
+    val flowSession: PersistedFlowSession? = null,
+    /** Mezclas de Playmix de la cola por pareja de entradas (ids, sin DTO). Null en estados antiguos. */
+    val queueMixPairs: List<QueueMixIndex.PersistedPair>? = null
 )
 
 internal class PlaybackStateCodec(
@@ -116,7 +118,8 @@ internal class PlaybackStateCodec(
                     reasonText = flow.radioSession?.reasonText,
                     recentSongIds = flow.recentSongIds
                 )
-            }
+            },
+            queueMixPairs = queue.mixIndex.snapshot().takeIf { it.isNotEmpty() }
         )
     }
 
@@ -192,6 +195,8 @@ internal class PlaybackStateCodec(
         if (entryIds != null) {
             queue.flowEntryIds = persisted.flowEntryIds.orEmpty().filterTo(HashSet()) { it in entryIds }
             queue.flowReasons = persisted.flowReasons.orEmpty()
+            // Las parejas van por entrada: sin entradas persistidas no se pueden recuperar.
+            persisted.queueMixPairs?.let { queue.mixIndex.restore(it, entryIds) }
         }
         persisted.flowSeedSourceType
             ?.let { name -> runCatching { QueueSource.valueOf(name) }.getOrNull() }

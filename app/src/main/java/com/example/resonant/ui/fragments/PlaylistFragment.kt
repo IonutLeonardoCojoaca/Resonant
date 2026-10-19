@@ -43,6 +43,12 @@ import com.example.resonant.ui.views.NonScrollableLinearLayoutManager
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.example.resonant.data.local.AppDatabase
+import com.example.resonant.playback.OfflineCollectionStore
+import com.example.resonant.ui.viewmodels.CollectionDownloadUiState
+import com.example.resonant.ui.viewmodels.CollectionDownloadViewModel
 import com.example.resonant.ui.components.DefaultCover
 
 class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
@@ -121,6 +127,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
         playlistViewModel.screenState.observe(viewLifecycleOwner) { state ->
             updateUI(state)
+            if (state.error != null && state.playlistDetails == null) showOfflineCopyIfDownloaded()
         }
         playlistViewModel.error.observe(viewLifecycleOwner) { message ->
             if (!message.isNullOrBlank()) {
@@ -222,6 +229,71 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         }
 
         setupAdapterClickListeners(playlistId)
+        playlistId?.let(::setupCollectionDownload)
+    }
+
+    private lateinit var collectionDownloads: CollectionDownloadViewModel
+
+    /** Descarga de la lista entera: estado, progreso y sincronización al abrir (collection-queue-offline). */
+    private fun setupCollectionDownload(playlistId: String) {
+        collectionDownloads = ViewModelProvider(requireActivity())[CollectionDownloadViewModel::class.java]
+        val status = requireView().findViewById<TextView>(R.id.playlistDownloadStatus)
+        var current: CollectionDownloadUiState? = null
+        status.setOnClickListener {
+            val state = current
+            val title = playlistViewModel.screenState.value?.playlistDetails?.name ?: playlistText.text.toString()
+            if (state?.isDownloaded == true) confirmRemoveDownload(playlistId, title)
+            else collectionDownloads.download(OfflineCollectionStore.TYPE_PLAYLIST, playlistId, title)
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    collectionDownloads.stateFor(OfflineCollectionStore.TYPE_PLAYLIST, playlistId).collect { state ->
+                        current = state
+                        status.text = when {
+                            !state.isDownloaded -> "Descargar"
+                            state.unavailable -> "Ya no disponible"
+                            state.isRunning || !state.progress.isComplete -> "Descargando ${state.progress.percent} %"
+                            state.pendingUpdate -> "Pendiente de actualizar"
+                            else -> "Descargada"
+                        }
+                    }
+                }
+                launch {
+                    collectionDownloads.events.collect { message ->
+                        showResonantSnackbar(message, R.color.successColor, R.drawable.ic_success)
+                    }
+                }
+            }
+        }
+        collectionDownloads.refresh(OfflineCollectionStore.TYPE_PLAYLIST, playlistId)
+    }
+
+    private fun confirmRemoveDownload(playlistId: String, title: String) {
+        com.example.resonant.ui.dialogs.ResonantDialog(requireContext())
+            .setTitle("Quitar descarga")
+            .setMessage("Se borrarán del dispositivo las canciones de '$title' que no use otra descarga.")
+            .setPositiveButton("Quitar") {
+                collectionDownloads.remove(OfflineCollectionStore.TYPE_PLAYLIST, playlistId, title)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    /** Sin conexión: la copia descargada, en solo lectura. */
+    private fun showOfflineCopyIfDownloaded() {
+        val playlistId = arguments?.getString("playlistId") ?: arguments?.getString("playlist_id") ?: return
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val songs = withContext(Dispatchers.IO) { OfflineCollectionStore.playlistSongs(appContext, playlistId) }
+                ?: return@launch
+            val title = withContext(Dispatchers.IO) {
+                AppDatabase.getDatabase(appContext).offlineCollectionDao()
+                    .getCollection(OfflineCollectionStore.currentUserId(appContext), OfflineCollectionStore.TYPE_PLAYLIST, playlistId)
+                    ?.title
+            }.orEmpty()
+            playlistViewModel.showOfflineCopy(playlistId, title, songs)
+        }
     }
 
     private fun showPlaylistOptions() {
@@ -279,7 +351,13 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                         Toast.makeText(requireContext(), "Error: $err", Toast.LENGTH_SHORT).show()
                     }
                 )
-            }
+            },
+            isDownloaded = collectionDownloads.states.value["${OfflineCollectionStore.TYPE_PLAYLIST}:${playlist.id}"]
+                ?.isDownloaded == true,
+            onDownloadClick = { pl ->
+                collectionDownloads.download(OfflineCollectionStore.TYPE_PLAYLIST, pl.id.orEmpty(), pl.name)
+            },
+            onRemoveDownloadClick = { pl -> confirmRemoveDownload(pl.id.orEmpty(), pl.name) }
         )
         bottomSheet.show(parentFragmentManager, bottomSheet.tag)
     }

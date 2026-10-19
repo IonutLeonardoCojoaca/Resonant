@@ -25,6 +25,7 @@ import com.example.resonant.data.network.WaveformSongDTO
 import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.databinding.FragmentCrossfadeEditorBinding
 import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SongManager
 import com.example.resonant.managers.StudioManager
@@ -962,6 +963,11 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                 b.waveformView.setStructureGrids(
                     songA.downbeatGrid, songA.phrases?.map { it.startMs },
                     songB.downbeatGrid, songB.phrases?.map { it.startMs }
+                )
+                // playmix-extended-beatmatch: con `extendedSync` y la capacidad, B se dibuja a su velocidad de hasta ±12 %.
+                b.waveformView.setExtendedTempoLock(
+                    CapabilitiesManager.isPlaymixExtendedSyncEnabled() &&
+                        viewModel.state.value?.waveformData?.transition?.mixDocument?.extendedSync == true
                 )
                 // Rejilla exacta (bpmPrecise + primer downbeat): compases sin deriva y B al tempo de A.
                 b.waveformView.setTempoGrids(

@@ -102,6 +102,8 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private lateinit var artistsAdapter: SearchResultAdapter
     private lateinit var albumsAdapter: SearchResultAdapter
     private lateinit var playmixAdapter: PlaymixListAdapter
+    /** "Me gustan" bajo las PlayMix propias (playmix-sharing-discovery). */
+    private var likedPlaymixes: LikedPlaymixesSection? = null
     private lateinit var songsHeader: HeaderViewAdapter
     private lateinit var songsActions: View
     private lateinit var downloadsShortcut: View
@@ -158,6 +160,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         reloadPlaylistsInitial()
         favoritesViewModel.loadAllFavorites()
         playmixListViewModel.loadMyPlaymixes()
+        likedPlaymixes?.refresh()
     }
 
     private fun initViews(view: View) {
@@ -266,9 +269,10 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         songsPage.list.adapter = ConcatAdapter(songsHeader, songsAdapter)
         pages.getValue(Tab.ARTISTS).list.adapter = artistsAdapter
         pages.getValue(Tab.ALBUMS).list.adapter = albumsAdapter
+        val liked = LikedPlaymixesSection(this).also { likedPlaymixes = it }
         pages.getValue(Tab.PLAYMIXES).list.adapter = ConcatAdapter(
-            HeaderViewAdapter(buildPlaymixHeader(pages.getValue(Tab.PLAYMIXES).list)),
-            playmixAdapter
+            listOf(HeaderViewAdapter(buildPlaymixHeader(pages.getValue(Tab.PLAYMIXES).list)), playmixAdapter) +
+                liked.adapters
         )
     }
 
@@ -299,7 +303,10 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                 selectedTab = tab
                 updateHero(animate = true)
                 // Al volver a PlayMix se refresca en segundo plano (la caché ya está pintada).
-                if (tab == Tab.PLAYMIXES) playmixListViewModel.loadMyPlaymixes()
+                if (tab == Tab.PLAYMIXES) {
+                    playmixListViewModel.loadMyPlaymixes()
+                    likedPlaymixes?.refresh()
+                }
             }
         })
     }

@@ -41,6 +41,17 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
     private lateinit var playmixViewModel: PlaymixListViewModel
 
     private var isCreating = false
+    private var visibilityGroup: com.google.android.material.chip.ChipGroup? = null
+
+    /** null con la capacidad apagada: el servidor la crea privada. */
+    private fun selectedVisibility(): String? {
+        if (!com.example.resonant.managers.CapabilitiesManager.isPlaymixSharingEnabled()) return null
+        return when (visibilityGroup?.checkedChipId) {
+            R.id.visibilityUnlistedChip -> com.example.resonant.data.network.PlaymixVisibility.UNLISTED
+            R.id.visibilityPublicChip -> com.example.resonant.data.network.PlaymixVisibility.PUBLIC
+            else -> com.example.resonant.data.network.PlaymixVisibility.PRIVATE
+        }
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -74,6 +85,11 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
         )
 
         bindSteps(view)
+
+        // Visibilidad al crear (playmix-sharing-discovery): solo con la capacidad activa; por defecto, privada.
+        view.findViewById<View>(R.id.visibilitySection).visibility =
+            if (com.example.resonant.managers.CapabilitiesManager.isPlaymixSharingEnabled()) View.VISIBLE else View.GONE
+        visibilityGroup = view.findViewById(R.id.visibilityChipGroup)
 
         view.findViewById<View>(R.id.btnBack).setOnClickListener {
             nameField.hideKeyboard()
@@ -114,7 +130,7 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
         isCreating = true
         CreateCta.setLoading(createButton, true, CTA_TEXT)
         nameField.hideKeyboard()
-        playmixViewModel.createPlaymix(nameField.text)
+        playmixViewModel.createPlaymix(nameField.text, visibility = selectedVisibility())
     }
 
     private fun setupObservers() {

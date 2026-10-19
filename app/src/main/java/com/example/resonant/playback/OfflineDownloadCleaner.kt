@@ -79,6 +79,16 @@ class OfflineDownloadCleaner(
         return deleteOrphans(userId, songIds)
     }
 
+    /**
+     * Quita esas canciones de una colección concreta (p. ej. canciones que ya no están en una playlist o Playmix
+     * descargada) y devuelve las que se han borrado del dispositivo por quedar huérfanas.
+     */
+    suspend fun removeFromCollection(userId: String, type: String, collectionId: String, songIds: List<String>): List<String> {
+        if (songIds.isEmpty()) return emptyList()
+        dao.deleteCollectionSongRefs(userId, type, collectionId, songIds)
+        return deleteOrphans(userId, songIds)
+    }
+
     /** Quita las referencias de [type] de esas canciones y devuelve las que se han borrado. */
     suspend fun removeFromCollectionType(userId: String, type: String, songIds: List<String>): List<String> {
         if (songIds.isEmpty()) return emptyList()

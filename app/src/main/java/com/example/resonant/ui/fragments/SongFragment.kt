@@ -227,7 +227,7 @@ class SongFragment : DialogFragment() {
             
             val position = PlaybackStateRepository.playbackPositionLiveData.value
             val positionMs = position?.position ?: 0L
-            val durationMs = position?.duration?.toLong() ?: 0L
+            val durationMs = position?.mediaDurationMs?.toLong() ?: 0L
             Log.d("SongFragmentSync", "Syncing lyrics to pos: $positionMs")
             syncLyricsToPosition(positionMs, durationMs, forceScroll = false)
             lyricsHandler.postDelayed(this, if (hasTimedLyrics) 350 else 16)
@@ -555,7 +555,7 @@ class SongFragment : DialogFragment() {
                     currentTimeText.text = Utils.formatTime(progress)
                     if (lyricLines.isNotEmpty()) {
                         val durationMs = PlaybackStateRepository.playbackPositionLiveData.value
-                            ?.duration?.toLong() ?: 0L
+                            ?.mediaDurationMs?.toLong() ?: 0L
                         syncLyricsToPosition(progress.toLong(), durationMs, forceScroll = true)
                     }
                 }
@@ -582,7 +582,7 @@ class SongFragment : DialogFragment() {
                 
                 if (lyricLines.isNotEmpty()) {
                     val durationMs = PlaybackStateRepository.playbackPositionLiveData.value
-                        ?.duration?.toLong() ?: 0L
+                        ?.mediaDurationMs?.toLong() ?: 0L
                     lastActiveLine = -1 
                     lyricsAdapter.clearActiveLine() // Force adapter to forget previous highlight
                     syncLyricsToPosition(seekProgress.toLong(), durationMs, forceScroll = true)
@@ -841,7 +841,7 @@ class SongFragment : DialogFragment() {
                     val position = PlaybackStateRepository.playbackPositionLiveData.value
                     updateLinearLyricsProgress(
                         position?.position ?: 0L,
-                        position?.duration?.toLong() ?: 0L
+                        position?.mediaDurationMs?.toLong() ?: 0L
                     )
                 }
 

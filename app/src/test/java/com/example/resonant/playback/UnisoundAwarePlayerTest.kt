@@ -115,4 +115,73 @@ class UnisoundAwarePlayerTest {
         assertTrue(player.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
         assertTrue(player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
     }
+
+    // ── Playmix con mezcla de salida (playmix-mix-bounded-seekbar) ──────────
+
+    private val serviceSeeks = mutableListOf<Long>()
+
+    // Entrega en 2:45 (165 000) y límite de seek en 157 500 sobre una canción de 3:18.
+    private val playmixBounds = PlaymixBounds(handoffMs = 165_000, seekLimitMs = 157_500, mediaDurationMs = 198_000)
+
+    private fun boundedPlayer(bounds: PlaymixBounds?, inRoom: Boolean = false) = UnisoundAwarePlayer(
+        fakePlayer,
+        bounds = { bounds },
+        seek = { serviceSeeks += it }
+    ) { control, position ->
+        if (inRoom) intercepted += control to position
+        inRoom
+    }
+
+    @Test
+    fun `without bounds the session reaches the real player as today`() {
+        val player = boundedPlayer(bounds = null)
+
+        player.duration
+        player.currentPosition
+        player.seekTo(200_000L)
+        player.seekTo(0, 200_000L)
+
+        assertEquals(listOf("getDuration", "getCurrentPosition", "seekTo", "seekTo"), calls)
+        assertTrue(serviceSeeks.isEmpty())
+    }
+
+    @Test
+    fun `with bounds the session shows the handoff as duration`() {
+        val player = boundedPlayer(playmixBounds)
+
+        assertEquals(165_000L, player.duration)
+        assertEquals(165_000L, player.contentDuration)
+    }
+
+    @Test
+    fun `with bounds a session seek goes through the service, limited`() {
+        val player = boundedPlayer(playmixBounds)
+
+        player.seekTo(200_000L)
+        player.seekTo(0, 90_000L) // índice actual del fake: 0
+
+        assertEquals(listOf(157_500L, 90_000L), serviceSeeks)
+        assertFalse(calls.contains("seekTo"))
+    }
+
+    @Test
+    fun `with bounds a seek to another item goes to the real player`() {
+        val player = boundedPlayer(playmixBounds)
+
+        player.seekTo(3, 10_000L)
+
+        assertTrue(serviceSeeks.isEmpty())
+        assertEquals("seekTo", calls.last())
+    }
+
+    @Test
+    fun `in a room the interception still comes first`() {
+        val player = boundedPlayer(playmixBounds, inRoom = true)
+
+        player.seekTo(200_000L)
+
+        assertEquals(listOf(UnisoundControl.SEEK to 200_000L), intercepted)
+        assertTrue(serviceSeeks.isEmpty())
+        assertTrue(calls.isEmpty())
+    }
 }

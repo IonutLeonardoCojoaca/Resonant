@@ -121,4 +121,48 @@ class RenderedTransitionTest {
         assertEquals(0.5f, RenderedTransition.spliceProgress(1_015, 1_000), 1e-6f)
         assertEquals(1f, RenderedTransition.spliceProgress(1_100, 1_000), 0f)
     }
+
+    // ── Sincronía ampliada (playmix-extended-beatmatch) ─────────────────────
+
+    @Test
+    fun `render without rate is read as one`() {
+        val plan = RenderedTransition.planFor(transition(), now, extendedSyncEnabled = true)!!
+        assertEquals(1.0, plan.bRate, 0.0)
+        assertFalse(plan.extendedRate)
+    }
+
+    @Test
+    fun `render rate is read`() {
+        val plan = RenderedTransition.planFor(transition(render().copy(bRate = 1.085)), now, extendedSyncEnabled = true)!!
+        assertEquals(1.085, plan.bRate, 0.0)
+        assertTrue(plan.extendedRate)
+    }
+
+    @Test
+    fun `extended clip without the capability uses the live engine`() {
+        assertNull(RenderedTransition.planFor(transition(render().copy(bRate = 1.085)), now, extendedSyncEnabled = false))
+        // Un clip del rango estándar se usa siempre, con o sin capacidad.
+        assertNotNull(RenderedTransition.planFor(transition(render().copy(bRate = 1.016)), now, extendedSyncEnabled = false))
+    }
+
+    @Test
+    fun `standard rate keeps the current splice`() {
+        val standard = RenderedTransition.planFor(transition(render().copy(bRate = 1.016)), now, extendedSyncEnabled = true)!!
+        assertFalse(standard.extendedRate)
+        assertEquals(15_412L - 500L, RenderedTransition.bPositionForClip(standard, 17_500))
+        assertFalse(RenderedTransition.planFor(transition(render().copy(bRate = 1.06)), now, extendedSyncEnabled = true)!!.extendedRate)
+        assertTrue(RenderedTransition.planFor(transition(render().copy(bRate = 1.0601)), now, extendedSyncEnabled = true)!!.extendedRate)
+    }
+
+    @Test
+    fun `extended splice follows b at its rate`() {
+        // Ejemplo del spec: bRate 1,085, durationMs 20 000, bEndMs 30 000, cambio a B a los 19 500 ms → 29 457,5.
+        assertEquals(29_457.5, RenderedTransition.extendedBPositionForClip(30_000, 20_000, 19_500, 1.085), 1e-9)
+        val plan = RenderedTransition.planFor(
+            transition(render().copy(bRate = 1.085, bEndMs = 30_000, durationMs = 20_000)), now, extendedSyncEnabled = true
+        )!!
+        assertEquals(29_458L, RenderedTransition.bPositionForClip(plan, 19_500))
+        // Al acabar el clip, B sigue desde bEndMs.
+        assertEquals(30_000L, RenderedTransition.bPositionForClip(plan, 20_000))
+    }
 }

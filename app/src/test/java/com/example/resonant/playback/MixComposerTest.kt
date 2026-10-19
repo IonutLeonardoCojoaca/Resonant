@@ -23,7 +23,9 @@ class MixComposerTest {
         "preset-fundido", "preset-crescendo", "preset-fusion", "preset-onda", "preset-crossover", "preset-corte",
         "preset-disolucion", "preset-impulso", "preset-halo", "preset-sin-transicion",
         "auto-compatible", "auto-drop", "auto-tempo-clash", "auto-b-without-intro",
-        "loop-echo-noise", "one-bar", "free-window-off-beat", "no-sync-requested", "no-grid"
+        "loop-echo-noise", "one-bar", "free-window-off-beat", "no-sync-requested", "no-grid",
+        // playmix-extended-beatmatch: Mi Gente (105) → Gasolina (96,77) generado con extended = true.
+        "auto-extended-sync"
     )
 
     private data class FixtureSong(
@@ -50,11 +52,12 @@ class MixComposerTest {
         val to = gson.fromJson(fixture.get("to"), FixtureSong::class.java).toSong()
         val selection = gson.fromJson(fixture.get("selection"), MixSelectionDTO::class.java)
         val beatSync = fixture.get("beatSync")?.takeIf { !it.isJsonNull }?.asBoolean
+        val extended = fixture.get("extended")?.takeIf { !it.isJsonNull }?.asBoolean == true
         val window = fixture.get("window")?.takeIf { !it.isJsonNull }?.let { gson.fromJson(it, FixtureWindow::class.java) }
             ?.let { MixComposer.freeWindow(from, to, it.aStartMs, it.bStartMs, it.bars) }
-            ?: MixComposer.automaticWindow(from, to)
+            ?: MixComposer.automaticWindow(from, to, extended = extended)
             ?: return null
-        return MixComposer.compose(selection, window, from, to, beatSync, "fixture")
+        return MixComposer.compose(selection, window, from, to, beatSync, "fixture", extended)
     }
 
     @Test
@@ -74,6 +77,7 @@ class MixComposerTest {
             assertEquals("$name b", expected.b, actual.b)
             assertEquals("$name bars", expected.bars, actual.bars)
             assertEquals("$name beatSync", expected.beatSync, actual.beatSync)
+            assertEquals("$name extendedSync", expected.extendedSync, actual.extendedSync)
             assertEquals("$name selection", expected.selection, actual.selection)
             assertEquals("$name loop", expected.loop, actual.loop)
             assertEquals("$name fx", expected.fx, actual.fx)

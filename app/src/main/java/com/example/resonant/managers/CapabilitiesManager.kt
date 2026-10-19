@@ -96,6 +96,12 @@ object CapabilitiesManager {
     /** Last known value; false until the first successful [refresh]. */
     fun isTransitionEngineV2Enabled(): Boolean = cache?.features?.transitionEngineV2 == true
 
+    /** Last known value; false until the first successful [refresh]. Compartir y descubrir Playmix. */
+    fun isPlaymixSharingEnabled(): Boolean = cache?.features?.playmixSharing == true
+
+    /** Last known value; false until the first successful [refresh]. Sincronía ampliada de Playmix. */
+    fun isPlaymixExtendedSyncEnabled(): Boolean = cache?.features?.playmixExtendedSync == true
+
     suspend fun refresh(context: Context, force: Boolean = false): PlatformFeaturesDTO =
         withContext(Dispatchers.IO) {
             val capabilities = cache(context)

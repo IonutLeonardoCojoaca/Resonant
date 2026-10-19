@@ -18,11 +18,14 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.ClientCompatibilityInterceptor
 import com.example.resonant.data.network.NetworkTypeDetector
 import com.example.resonant.data.network.PlaybackResolveRequestDTO
+import com.example.resonant.managers.CollectionDownloader
 import com.example.resonant.managers.DownloadCollectionRef
 import com.example.resonant.managers.DownloadStatus
 import com.example.resonant.managers.MusicDownloadManager
 import com.example.resonant.managers.SettingsManager
 import com.example.resonant.playback.OfflineDownloadCleaner
+import com.example.resonant.playback.OfflineAnalysisCodec
+import com.example.resonant.playback.OfflineClips
 import com.example.resonant.playback.OfflineDownloadProvider
 import com.example.resonant.playback.OfflineMediaFiles
 import com.example.resonant.playback.PlaybackUrlResolver
@@ -71,6 +74,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private val dao = database.downloadedSongDao()
     private val downloadManager = MusicDownloadManager(application, dao)
     private val settingsManager = SettingsManager(application)
+    private val collectionDownloader = CollectionDownloader(application, dao, downloadManager, settingsManager)
 
     private val _downloadEvent = MutableSharedFlow<String>()
     val downloadEvent = _downloadEvent.asSharedFlow()
@@ -149,7 +153,9 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         coverUrl = coverPath,
                         duration = entity.duration,
                         album = entity.album,
-                        sizeBytes = audioSize + imageSize
+                        sizeBytes = audioSize + imageSize,
+                        // Sin red, las transiciones inteligentes necesitan el análisis guardado (collection-queue-offline).
+                        audioAnalysis = OfflineAnalysisCodec.decode(entity.audioAnalysisJson)
                     )
                 }
             }
@@ -338,6 +344,18 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                     dao.deleteAllByUser(userId)
                 }
             }
+            // Paquetes sin conexión de playlists y Playmix y sus clips (collection-queue-offline).
+            withContext(Dispatchers.IO) {
+                val offlineDao = database.offlineCollectionDao()
+                val clipKeys = offlineDao.getAllClipsByUser(userId).map { it.cacheKey }.distinct()
+                offlineDao.deleteAllPackagesByUser(userId)
+                clipKeys.forEach { key ->
+                    if (offlineDao.countClipReferences(key) == 0) {
+                        OfflineClips.markRemoved(key)
+                        DownloadService.sendRemoveDownload(context, ResonantDownloadService::class.java, key, false)
+                    }
+                }
+            }
             withContext(Dispatchers.IO) {
                 if (current.isNotEmpty()) {
                     val songIds = current.map { it.songId }
@@ -383,50 +401,20 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             seedAlbumResolutions(targetSongs)
 
             try {
-                supervisorScope {
-                    targetSongs.map { song ->
-                        async {
-                            var succeeded = false
-                            downloadManager.downloadSong(
-                                song = song,
-                                userId = userId,
-                                collection = collection
-                            ).collect { status ->
-                                when (status) {
-                                    is DownloadStatus.Started ->
-                                        updateSongProgress(request.albumId, song.id, 0)
-                                    is DownloadStatus.Progress ->
-                                        updateSongProgress(
-                                            request.albumId,
-                                            song.id,
-                                            status.percent
-                                        )
-                                    is DownloadStatus.Success -> {
-                                        succeeded = true
-                                        albumCompleted
-                                            .getValue(request.albumId)
-                                            .add(song.id)
-                                        albumFailed
-                                            .getValue(request.albumId)
-                                            .remove(song.id)
-                                        updateSongProgress(
-                                            request.albumId,
-                                            song.id,
-                                            100
-                                        )
-                                    }
-                                    is DownloadStatus.Error -> {
-                                        albumFailed
-                                            .getValue(request.albumId)
-                                            .add(song.id)
-                                        updateAlbumState(request.albumId)
-                                    }
-                                    else -> Unit
-                                }
-                            }
-                            succeeded
+                collectionDownloader.downloadSongs(userId, collection, targetSongs) { event ->
+                    when (event) {
+                        is CollectionDownloader.SongEvent.Progress ->
+                            updateSongProgress(request.albumId, event.songId, event.percent)
+                        is CollectionDownloader.SongEvent.Completed -> {
+                            albumCompleted.getValue(request.albumId).add(event.songId)
+                            albumFailed.getValue(request.albumId).remove(event.songId)
+                            updateSongProgress(request.albumId, event.songId, 100)
                         }
-                    }.awaitAll()
+                        is CollectionDownloader.SongEvent.Failed -> {
+                            albumFailed.getValue(request.albumId).add(event.songId)
+                            updateAlbumState(request.albumId)
+                        }
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -455,60 +443,13 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         userId: String,
         request: AlbumDownloadRequest
     ) {
-        withContext(Dispatchers.IO) {
-            dao.insertCollectionWithSongs(
-                DownloadCollection(
-                    userId = userId,
-                    collectionType = ALBUM_TYPE,
-                    collectionId = request.albumId,
-                    title = request.title,
-                    createdAtEpochMs = System.currentTimeMillis()
-                ),
-                request.songs.map { song ->
-                    DownloadCollectionSong(
-                        userId = userId,
-                        collectionType = ALBUM_TYPE,
-                        collectionId = request.albumId,
-                        songId = song.id
-                    )
-                }
-            )
-        }
+        collectionDownloader.registerCollection(
+            userId, ALBUM_TYPE, request.albumId, request.title, request.songs.map(Song::id)
+        )
     }
 
     private suspend fun seedAlbumResolutions(songs: List<Song>) {
-        val context = getApplication<Application>()
-        val quality = settingsManager.downloadQualityFlow.first()
-        val service = ApiClient.getSongService(context)
-        OfflineDownloadProvider.getDownloadManager(context)
-        songs.forEach { OfflineDownloadProvider.prepareDownload(it.id) }
-
-        songs.chunked(MAX_RESOLVE_BATCH).forEach { chunk ->
-            runCatching {
-                withTimeout(BATCH_TIMEOUT_MS) {
-                    service.resolvePlayback(
-                        request = PlaybackResolveRequestDTO(
-                            songIds = chunk.map(Song::id),
-                            preferredQuality = quality.apiValue,
-                            networkType = NetworkTypeDetector.current(context),
-                            download = true
-                        ),
-                        capabilities =
-                            ClientCompatibilityInterceptor.BASE_PLAYBACK_CAPABILITIES
-                    )
-                }
-            }.onSuccess { response ->
-                response.items.forEach(
-                    OfflineDownloadProvider::seedDownloadResolution
-                )
-            }.onFailure { error ->
-                Log.w(
-                    TAG,
-                    "Batch de descarga no disponible; se resolverá canción a canción",
-                    error
-                )
-            }
-        }
+        collectionDownloader.seedResolutions(songs)
     }
 
     private fun updateSongProgress(albumId: String, songId: String, percent: Int) {

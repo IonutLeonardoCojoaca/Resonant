@@ -80,6 +80,19 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <!-- Cola: la Playmix entera como un bloque, con sus mezclas -->
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/playNextButton"
+            android:drawableStart="@drawable/ic_play_next_compact"
+            android:text="Reproducir a continuación" />
+
+        <TextView
+            style="@style/OptionRow"
+            android:id="@+id/addToQueueButton"
+            android:drawableStart="@drawable/ic_queue_add"
+            android:text="Añadir a la cola" />
+
         <!-- Delete -->
         <TextView
             style="@style/OptionRow.Destructive"

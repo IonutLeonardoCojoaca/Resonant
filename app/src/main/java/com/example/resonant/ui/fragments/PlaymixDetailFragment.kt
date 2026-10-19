@@ -35,6 +35,12 @@ import com.example.resonant.ui.bottomsheets.PlaymixSongOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModel
+import com.example.resonant.ui.viewmodels.CollectionDownloadViewModel
+import com.example.resonant.ui.bottomsheets.CollectionQueueActions
+import com.example.resonant.playback.OfflineCollectionStore
+import com.example.resonant.playback.QueueCommands
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModelFactory
 import com.example.resonant.ui.components.DefaultCover
 
@@ -48,23 +54,67 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     private var playmixId: String = ""
     private var isReadOnly: Boolean = false
 
+    // ─── playmix-sharing-discovery ───
+    /** Valor del argumento de navegación: solo se usa si el servidor no envía `isOwner` (backend anterior). */
+    private var argReadOnly: Boolean = false
+    /** Transición a destacar al abrir `/playmix/{id}/transition/{tid}`; se desplaza a ella una vez. */
+    private var highlightTransitionId: String? = null
+    private var scrolledToHighlight = false
+    private lateinit var sharingViewModel: com.example.resonant.ui.viewmodels.PlaymixSharingViewModel
+    private lateinit var sharingUi: PlaymixDetailSharing
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentPlaymixDetailBinding.bind(view)
 
         playmixId = arguments?.getString("playmixId") ?: return
         isReadOnly = arguments?.getBoolean("isReadOnly", false) ?: false
+        argReadOnly = isReadOnly
+        highlightTransitionId = arguments?.getString("highlightTransitionId")
+        setupSharing()
 
         val playmixManager = PlaymixManager(requireContext())
         viewModel = ViewModelProvider(this, PlaymixDetailViewModelFactory(playmixManager))
             .get(PlaymixDetailViewModel::class.java)
+        viewModel.offlineContext = requireContext().applicationContext
+        collectionDownloads = ViewModelProvider(requireActivity())[CollectionDownloadViewModel::class.java]
 
         setupRecyclerView()
         setupListeners()
         setupParallaxTitle()
         observeViewModel()
+        observeDownload()
 
         viewModel.loadPlaymixDetail(playmixId)
+        // Descargada y con red: se sincroniza al abrir (collection-queue-offline D6).
+        collectionDownloads.refresh(OfflineCollectionStore.TYPE_PLAYMIX, playmixId)
+    }
+
+    private lateinit var collectionDownloads: CollectionDownloadViewModel
+
+    /** Chip con el estado de la descarga: descargando, descargada, pendiente de actualizar o ya no disponible. */
+    private fun observeDownload() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    collectionDownloads.stateFor(OfflineCollectionStore.TYPE_PLAYMIX, playmixId).collect { state ->
+                        val chip = _binding?.playmixDownloadChip ?: return@collect
+                        chip.isVisible = state.isDownloaded
+                        chip.text = when {
+                            state.unavailable -> "Ya no disponible"
+                            state.isRunning || !state.progress.isComplete -> "Descargando ${state.progress.percent} %"
+                            state.pendingUpdate -> "Pendiente de actualizar"
+                            else -> "Descargada"
+                        }
+                    }
+                }
+                launch {
+                    collectionDownloads.events.collect { message ->
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
     }
 
     private fun setupRecyclerView() {
@@ -103,7 +153,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                     }
                 ).show(childFragmentManager, "PlaymixSongOptions")
             },
-            isReadOnly = isReadOnly
+            isReadOnly = isReadOnly,
+            onShareTransitionClick = if (sharingUi.enabled) ({ transition -> sharingUi.shareTransition(transition) }) else null
         )
         binding.songTransitionList.layoutManager = LinearLayoutManager(requireContext())
         binding.songTransitionList.adapter = adapter
@@ -124,7 +175,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         binding.settingsBackground.setOnClickListener {
             showSettingsMenu()
         }
-        binding.settingsBackground.visibility = if (isReadOnly) View.GONE else View.VISIBLE
+        // También en una Playmix ajena: cola y descarga (collection-queue-offline). Editar y borrar solo el dueño.
+        binding.settingsBackground.visibility = View.VISIBLE
 
         binding.playButton.setOnClickListener {
             playPlaymix()
@@ -179,7 +231,16 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                 binding.lottieLoader.cancelAnimation()
             }
 
+            binding.playmixUnavailableText.isVisible = state.notFound
+            if (state.notFound) {
+                binding.songTransitionList.visibility = View.GONE
+                binding.noSongsText.visibility = View.GONE
+                binding.settingsBackground.visibility = View.GONE
+                binding.playButton.visibility = View.GONE
+            }
+
             state.detail?.let { detail ->
+                applyOwnership(detail)
                 binding.playmixTitle.text = detail.name
                 binding.playmixName.text = detail.name
 
@@ -210,6 +271,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                     binding.noSongsText.visibility = View.GONE
                     binding.songTransitionList.visibility = View.VISIBLE
                     adapter.submitItems(detail.songs, detail.transitions)
+                    scrollToHighlightedTransition()
                 }
             }
 
@@ -258,11 +320,35 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
 
     private fun showSettingsMenu() {
         val detail = viewModel.screenState.value?.detail ?: return
+        val download = collectionDownloads.states.value["${OfflineCollectionStore.TYPE_PLAYMIX}:$playmixId"]
+        val ownerActions = !isReadOnly
         PlaymixOptionsBottomSheet(
             detail = detail,
             onPlayClick = { playPlaymix() },
-            onEditNameClick = { showRenameDialog(detail.name) },
-            onDeleteClick = {
+            onPlayNextClick = {
+                CollectionQueueActions.playNext(this, QueueCommands.COLLECTION_PLAYMIX, playmixId)
+            },
+            onAddToQueueClick = {
+                CollectionQueueActions.addToQueue(this, QueueCommands.COLLECTION_PLAYMIX, playmixId)
+            },
+            isDownloaded = download?.isDownloaded == true,
+            onDownloadClick = {
+                collectionDownloads.download(OfflineCollectionStore.TYPE_PLAYMIX, playmixId, detail.name)
+            },
+            onRemoveDownloadClick = {
+                ResonantDialog(requireContext())
+                    .setSection("PlayMix")
+                    .setTitle("Quitar descarga")
+                    .setMessage("Se borrarán sus canciones y mezclas del dispositivo, salvo las que use otra descarga.")
+                    .setDestructive()
+                    .setPositiveButton("Quitar") {
+                        collectionDownloads.remove(OfflineCollectionStore.TYPE_PLAYMIX, playmixId, detail.name)
+                    }
+                    .setNegativeButton("Cancelar")
+                    .show()
+            },
+            onEditNameClick = if (ownerActions) ({ showRenameDialog(detail.name) }) else null,
+            onDeleteClick = if (!ownerActions) null else ({
                 ResonantDialog(requireContext())
                     .setSection("PlayMix")
                     .setTitle("Eliminar PlayMix")
@@ -281,7 +367,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                     }
                     .setNegativeButton("Cancelar")
                     .show()
-            }
+            }),
+            sharing = sharingUi.sheetSharing(detail, isOwner = !isReadOnly)
         ).show(childFragmentManager, "PlaymixOptions")
     }
 
@@ -319,6 +406,11 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     }
 
     private fun navigateToCrossfadeEditor(transition: PlaymixTransitionDTO) {
+        // Playmix ajena: solo la vista previa, nunca el editor (playmix-sharing-discovery).
+        if (isReadOnly) {
+            WaveformPreviewBottomSheet(playmixId, transition).show(childFragmentManager, "WaveformPreview")
+            return
+        }
         val bundle = Bundle().apply {
             putString("playmixId", playmixId)
             putString("transitionId", transition.id)
@@ -332,6 +424,62 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         val songB = songs?.find { it.playmixSongId == transition.toPlaymixSongId }?.title ?: "Canción B"
         CopyTransitionBottomSheet(transition, playmixId, songA, songB)
             .show(childFragmentManager, "CopyTransition")
+    }
+
+    // ─── Compartir y descubrir (playmix-sharing-discovery) ───
+
+    private fun setupSharing() {
+        sharingViewModel = ViewModelProvider(
+            this,
+            com.example.resonant.ui.viewmodels.PlaymixSharingViewModelFactory(
+                com.example.resonant.managers.PlaymixSharingManager(requireContext())
+            )
+        ).get(com.example.resonant.ui.viewmodels.PlaymixSharingViewModel::class.java)
+        sharingUi = PlaymixDetailSharing(
+            fragment = this,
+            viewModel = sharingViewModel,
+            currentDetail = { viewModel.screenState.value?.detail },
+            reload = { viewModel.loadPlaymixDetail(playmixId, forceReload = true) }
+        )
+        sharingViewModel.like.observe(viewLifecycleOwner) { like ->
+            _binding?.let { sharingUi.bindLike(like, it.playmixLikeButton) }
+        }
+        sharingViewModel.message.observe(viewLifecycleOwner) { message ->
+            message ?: return@observe
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            sharingViewModel.consumeMessage()
+        }
+    }
+
+    /** `isOwner` del servidor decide el modo solo lectura; con un backend anterior, el argumento de navegación. */
+    private fun applyOwnership(detail: PlaymixDetailDTO) {
+        isReadOnly = detail.isOwner?.let { !it } ?: argReadOnly
+        adapter.isReadOnly = isReadOnly
+        sharingUi.bindHeader(
+            detail = detail,
+            isOwner = !isReadOnly,
+            ownerText = binding.playmixOwnerText,
+            socialRow = binding.playmixSocialRow,
+            visibilityChip = binding.playmixVisibilityChip,
+            likeButton = binding.playmixLikeButton,
+            shareButton = binding.playmixShareButton
+        )
+    }
+
+    private fun scrollToHighlightedTransition() {
+        val transitionId = highlightTransitionId ?: return
+        adapter.highlightTransitionId = transitionId
+        if (scrolledToHighlight) return
+        scrolledToHighlight = true
+        binding.songTransitionList.post {
+            val b = _binding ?: return@post
+            val position = adapter.positionOfTransition(transitionId)
+            val row = b.songTransitionList.layoutManager?.findViewByPosition(position) ?: return@post
+            b.appBarLayout.setExpanded(false, true)
+            var parent = b.songTransitionList.parent
+            while (parent != null && parent !is androidx.core.widget.NestedScrollView) parent = parent.parent
+            (parent as? androidx.core.widget.NestedScrollView)?.smoothScrollTo(0, b.songTransitionList.top + row.top)
+        }
     }
 
     private fun formatDuration(seconds: Int): String {

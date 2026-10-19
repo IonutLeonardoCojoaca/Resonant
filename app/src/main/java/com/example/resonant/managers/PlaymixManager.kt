@@ -47,8 +47,11 @@ open class PlaymixManager(private val context: Context?) {
         cacheTimestampMs = 0L
     }
 
-    suspend fun createPlaymix(name: String, description: String? = null): PlaymixDTO {
-        val created = playmixService.createPlaymix(CreatePlaymixRequest(name, description))
+    /** La lista de Playmix propias cambió fuera de este manager (copiar, fusionar, visibilidad): se pide de nuevo. */
+    fun markPlaymixesChanged() = invalidatePlaymixCache()
+
+    suspend fun createPlaymix(name: String, description: String? = null, visibility: String? = null): PlaymixDTO {
+        val created = playmixService.createPlaymix(CreatePlaymixRequest(name, description, visibility))
         val updatedCache = listOf(created) + cachedPlaymixes.orEmpty().filterNot { it.id == created.id }
         updatePlaymixCache(updatedCache)
         return created

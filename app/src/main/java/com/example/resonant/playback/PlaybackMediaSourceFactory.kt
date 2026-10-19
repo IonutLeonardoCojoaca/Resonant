@@ -31,6 +31,9 @@ class PlaybackMediaSourceFactory(
                 val songId = uri.pathSegments.firstOrNull()
                     ?: throw IllegalArgumentException("Stable playback URI has no song ID: $uri")
                 dataSpec.withUri(Uri.parse(urlResolver.resolveBlocking(songId)))
+            } else if (uri.scheme == OfflineClips.SCHEME) {
+                // Clip descargado que no está en la caché permanente: se pide con su URL firmada vigente.
+                dataSpec.withUri(Uri.parse(OfflineClipDownloads.resolveUrlBlocking(context, uri)))
             } else {
                 dataSpec
             }

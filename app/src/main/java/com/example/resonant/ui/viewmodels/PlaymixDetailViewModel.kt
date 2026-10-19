@@ -1,5 +1,6 @@
 package com.example.resonant.ui.viewmodels
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -12,6 +13,7 @@ import com.example.resonant.data.network.PlaymixSongDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SongManager
+import com.example.resonant.playback.OfflineCollectionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -20,7 +22,9 @@ import kotlinx.coroutines.withContext
 data class PlaymixDetailScreenState(
     val isLoading: Boolean = true,
     val detail: PlaymixDetailDTO? = null,
-    val error: String? = null
+    val error: String? = null,
+    /** 404: no existe o no se puede ver (privada ajena, enlace retirado). La pantalla muestra "no disponible". */
+    val notFound: Boolean = false
 )
 
 class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewModel() {
@@ -60,6 +64,19 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
                 )
             } catch (e: Exception) {
                 Log.e("PlaymixDetailVM", "Error loading detail", e)
+                if (e is retrofit2.HttpException && e.code() == 404) {
+                    _screenState.postValue(PlaymixDetailScreenState(isLoading = false, notFound = true))
+                    return@launch
+                }
+                // Sin red: el detalle guardado de una Playmix descargada (collection-queue-offline D5).
+                val offline = offlineContext?.let { ctx ->
+                    withContext(Dispatchers.IO) { OfflineCollectionStore.playmixDetail(ctx, playmixId) }
+                }
+                if (offline != null) {
+                    Log.d("PlaymixDetailVM", "Playmix $playmixId abierta desde la descarga")
+                    _screenState.postValue(PlaymixDetailScreenState(isLoading = false, detail = offline, error = null))
+                    return@launch
+                }
                 _screenState.postValue(
                     _screenState.value?.copy(isLoading = false, error = "No se pudieron cargar los datos.")
                 )
@@ -154,12 +171,26 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         }
     }
 
+    /** Contexto para leer la Playmix descargada sin conexión (lo fija la pantalla). */
+    var offlineContext: Context? = null
+
     suspend fun fetchSongsForPlayback(
         songManager: SongManager,
         startSongId: String? = null
     ): Pair<List<Song>, Int>? {
         val detail = _screenState.value?.detail ?: return null
         val sortedPlaymixSongs = detail.songs.sortedBy { it.position }
+
+        // Descargada y sin red: canciones y análisis guardados, sin pedir nada al servidor (collection-queue-offline D5).
+        offlineContext?.let { ctx ->
+            if (!OfflineCollectionStore.isOnline(ctx)) {
+                val offline = withContext(Dispatchers.IO) { OfflineCollectionStore.playmixSongs(ctx, detail.id) }
+                if (!offline.isNullOrEmpty()) {
+                    val startIdx = startSongId?.let { id -> offline.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
+                    return Pair(offline, startIdx)
+                }
+            }
+        }
 
         val indexedSongs: List<Pair<Int, Song>> = withContext(Dispatchers.IO) {
             sortedPlaymixSongs.mapIndexed { idx, ps ->
@@ -175,7 +206,17 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
             }.mapNotNull { it.await() }
         }
 
-        if (indexedSongs.isEmpty()) return null
+        if (indexedSongs.isEmpty()) {
+            // La red falló a mitad: si está descargada, lo guardado.
+            val offline = offlineContext?.let { ctx ->
+                withContext(Dispatchers.IO) { OfflineCollectionStore.playmixSongs(ctx, detail.id) }
+            }
+            if (!offline.isNullOrEmpty()) {
+                val startIdx = startSongId?.let { id -> offline.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
+                return Pair(offline, startIdx)
+            }
+            return null
+        }
 
         val songs = indexedSongs.map { it.second }
         val startIdx = if (startSongId != null) {

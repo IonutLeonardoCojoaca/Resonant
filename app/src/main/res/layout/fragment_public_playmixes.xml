@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PlayMix públicas (playmix-sharing-discovery): copia de fragment_public_playlists con Recientes/Populares. -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/primaryColorTheme">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:id="@+id/collapsingToolbar"
+            android:layout_width="match_parent"
+            android:layout_height="290dp"
+            app:contentScrim="@color/primaryColorTheme"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
+            app:statusBarScrim="@color/primaryColorTheme"
+            app:titleEnabled="false"
+            app:toolbarId="@+id/toolbar">
+
+            <!-- Hero por capas con parallax (ChartHero) -->
+            <include
+                android:id="@+id/chartHero"
+                layout="@layout/view_chart_hero" />
+
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                app:contentInsetStartWithNavigation="0dp"
+                app:layout_collapseMode="pin"
+                app:navigationContentDescription="Atras"
+                app:navigationIcon="@drawable/ic_arrow_back"
+                app:navigationIconTint="@color/white" />
+
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+
+        <!-- Filtros fijos: se quedan pegados bajo la toolbar al colapsar la cabecera. -->
+        <HorizontalScrollView
+            android:id="@+id/filterScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/primaryColorTheme"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupSort"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="15dp"
+                android:theme="@style/Theme.MaterialComponents.Light"
+                app:chipSpacingHorizontal="6dp"
+                app:selectionRequired="true"
+                app:singleLine="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSortRecent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:checkable="true"
+                    android:checked="true"
+                    android:text="Recientes"
+                    android:textColor="@color/chip_text_color_selector"
+                    android:textSize="14sp"
+                    app:checkedIconVisible="false"
+                    app:chipBackgroundColor="@color/chip_background_selector"
+                    app:chipCornerRadius="35dp"
+                    app:chipStrokeColor="@android:color/transparent"
+                    app:fontFamily="@font/unageo_medium"
+                    app:rippleColor="@android:color/transparent"
+                    app:useMaterialThemeColors="false" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSortPopular"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:checkable="true"
+                    android:text="Populares"
+                    android:textColor="@color/chip_text_color_selector"
+                    android:textSize="14sp"
+                    app:checkedIconVisible="false"
+                    app:chipBackgroundColor="@color/chip_background_selector"
+                    app:chipCornerRadius="35dp"
+                    app:chipStrokeColor="@android:color/transparent"
+                    app:fontFamily="@font/unageo_medium"
+                    app:rippleColor="@android:color/transparent"
+                    app:useMaterialThemeColors="false" />
+
+            </com.google.android.material.chip.ChipGroup>
+        </HorizontalScrollView>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Zona de contenido (bajo la cabecera): lista, skeleton de carga y estados vacío/error. -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipeRefreshLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvPublicPlaymixes"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:layoutAnimation="@anim/layout_animation_fade_slide"
+                android:overScrollMode="never"
+                android:paddingHorizontal="5dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="@dimen/screen_bottom_inset" />
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <com.facebook.shimmer.ShimmerFrameLayout
+            android:id="@+id/shimmerLoading"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="2dp">
+
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+                <include layout="@layout/item_song_shimmer_placeholder" />
+
+            </LinearLayout>
+        </com.facebook.shimmer.ShimmerFrameLayout>
+
+        <LinearLayout
+            android:id="@+id/stateContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginBottom="80dp"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingHorizontal="32dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/ivStateIcon"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_playmix"
+                app:tint="#44FFFFFF" />
+
+            <TextView
+                android:id="@+id/tvStateTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/unageo_bold"
+                android:gravity="center"
+                android:text="No hay PlayMix públicas"
+                android:textColor="#AAFFFFFF"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tvStateSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/unageo_medium"
+                android:gravity="center"
+                android:text="Sé el primero en compartir la tuya"
+                android:textColor="#66FFFFFF"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/btnStateAction"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_public_playlists_count_pill"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/unageo_bold"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:paddingHorizontal="20dp"
+                android:text="Reintentar"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

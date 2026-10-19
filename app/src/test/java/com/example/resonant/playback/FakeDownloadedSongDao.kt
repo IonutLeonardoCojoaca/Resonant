@@ -91,6 +91,11 @@ class FakeDownloadedSongDao : DownloadedSongDao {
     override suspend fun deleteCollection(userId: String, type: String, collectionId: String) {
         collections.removeAll { it.userId == userId && it.collectionType == type && it.collectionId == collectionId }
     }
+    override suspend fun deleteCollectionSongRefs(userId: String, type: String, collectionId: String, songIds: List<String>) {
+        refs.removeAll {
+            it.userId == userId && it.collectionType == type && it.collectionId == collectionId && it.songId in songIds
+        }
+    }
     override suspend fun deleteAllCollectionSongsByUser(userId: String) { refs.removeAll { it.userId == userId } }
     override suspend fun deleteAllCollectionsByUser(userId: String) { collections.removeAll { it.userId == userId } }
     override suspend fun getAutoOnlyUsedBytes(userId: String, autoType: String): Long =

@@ -24,6 +24,8 @@ class ClientCompatibilityInterceptor(
             builder.header(PLAYBACK_CAPABILITIES_HEADER, BASE_PLAYBACK_CAPABILITIES)
         }
         if (mixDocV2()) builder.header(MIX_DOC_VERSION_HEADER, MIX_DOC_VERSION_V2)
+        // playmix-extended-beatmatch: esta app sabe empalmar clips a `render.bRate` y hacer la rampa de vuelta.
+        builder.header(MIX_EXTENDED_SYNC_HEADER, MIX_EXTENDED_SYNC_ON)
 
         return chain.proceed(builder.build())
     }
@@ -35,6 +37,9 @@ class ClientCompatibilityInterceptor(
         /** spotify-style-transition-engine D4: sin esta cabecera el backend sirve documentos de mezcla v1. */
         const val MIX_DOC_VERSION_HEADER = "X-Mix-Doc-Version"
         const val MIX_DOC_VERSION_V2 = "2"
+        /** playmix-extended-beatmatch: sin esta cabecera el backend no entrega clips con |bRate − 1| > 0,06. */
+        const val MIX_EXTENDED_SYNC_HEADER = "X-Mix-Extended-Sync"
+        const val MIX_EXTENDED_SYNC_ON = "1"
 
         const val BASE_PLAYBACK_CAPABILITIES =
             "stable-uri-v1,progressive-v1,http-range-v1"

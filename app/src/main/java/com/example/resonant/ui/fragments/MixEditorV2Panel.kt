@@ -96,10 +96,11 @@ class MixEditorV2Panel(
         binding.mixV2PresetDescription.text = MixEditorV2.describe(state)
 
         // Se puede forzar con tempos a ≤ 6 % aunque el análisis vea poco estable alguno (solo cambia el defecto).
-        val canSync = MixComposer.canSync(state.songA, state.songB)
+        // playmix-extended-beatmatch: con la capacidad, también entre el 6 % y el 12 % (tempos estables).
+        val canSync = MixComposer.canSync(state.songA, state.songB, state.extended)
         binding.mixV2BeatSync.isEnabled = canSync
         binding.mixV2BeatSync.isChecked = canSync && state.document.beatSync == true
-        binding.mixV2BeatSyncHint.text = beatSyncHint(state, MixComposer.tempoClash(state.songA, state.songB))
+        binding.mixV2BeatSyncHint.text = beatSyncHint(state, MixComposer.tempoClash(state.songA, state.songB, state.extended))
 
         bindCamelot(binding.mixV2KeyA, state.songA.keyCamelot)
         bindCamelot(binding.mixV2KeyB, state.songB.keyCamelot)
@@ -112,6 +113,9 @@ class MixEditorV2Panel(
 
     /** Por qué no hay beatmatching, con la misma regla que [MixComposer.tempoClash]: distancia de tempo o estabilidad. */
     private fun beatSyncHint(state: MixEditorV2State, clash: Boolean): String {
+        if (!clash && state.document.extendedSync == true) {
+            return "La segunda canción se ajusta al tempo de la primera durante la mezcla y vuelve al suyo después"
+        }
         if (!clash) return "La segunda canción se ajusta al tempo de la primera"
         val delta = MixComposer.bpmDeltaPct(state.songA.bpmPrecise ?: state.songA.bpm, state.songB.bpmPrecise ?: state.songB.bpm)
         return when {

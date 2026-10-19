@@ -597,6 +597,17 @@
         android:id="@+id/action_global_to_playmixDetailFragment"
         app:destination="@id/playmixDetailFragment" />
 
+    <!-- PlayMix públicas (playmix-sharing-discovery) -->
+    <fragment
+        android:id="@+id/publicPlaymixesFragment"
+        android:name="com.example.resonant.ui.fragments.PublicPlaymixesFragment"
+        android:label="PlayMix públicas"
+        tools:layout="@layout/fragment_public_playmixes" />
+
+    <action
+        android:id="@+id/action_global_to_publicPlaymixesFragment"
+        app:destination="@id/publicPlaymixesFragment" />
+
     <include app:graph="@navigation/collab_finder_nav" />
 
 </navigation>

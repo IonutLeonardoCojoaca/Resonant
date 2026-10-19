@@ -33,5 +33,12 @@ data class PlatformFeaturesDTO(
     /** Resumen mensual de escucha (`api/me/recaps*`). */
     val monthlyRecap: Boolean = false,
     /** Motor de transiciones v2: documentos v2 (`X-Mix-Doc-Version: 2`) y salida de audio única. */
-    val transitionEngineV2: Boolean = false
+    val transitionEngineV2: Boolean = false,
+    /** Compartir y descubrir Playmix: visibilidad, listado público, me gusta, duplicar, ordenar y fusionar. */
+    val playmixSharing: Boolean = false,
+    /**
+     * Beatmatching ampliado en Playmix (playmix-extended-beatmatch): documentos con `extendedSync` (B estirada
+     * entre el 6 % y el 12 %) y clips con `render.bRate`. Apagado, `extendedSync` se trata como ausente.
+     */
+    val playmixExtendedSync: Boolean = false
 )

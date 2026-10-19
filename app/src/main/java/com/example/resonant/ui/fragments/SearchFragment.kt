@@ -686,7 +686,17 @@ class SearchFragment : Fragment() {
         }
     }
 
+    /** Con solo el filtro PlayMix marcado, enlace a las PlayMix públicas (playmix-sharing-discovery). */
+    private fun updatePublicPlaymixesLink() {
+        val link = view?.findViewById<View>(R.id.searchPublicPlaymixesLink) ?: return
+        val onlyPlaymixes = showPlaymixes && !showSongs && !showAlbums && !showArtists &&
+            !showPlaylists && !showEssentials && !showGenres
+        link.visibility = if (onlyPlaymixes && com.example.resonant.managers.CapabilitiesManager.isPlaymixSharingEnabled()) View.VISIBLE else View.GONE
+        link.setOnClickListener { it.findNavController().navigate(R.id.action_global_to_publicPlaymixesFragment) }
+    }
+
     private fun updateFilteredResults() {
+        updatePublicPlaymixesLink()
         val filtered = applyActiveFilters(lastResults)
         searchResultAdapter.submitList(filtered)
         noSongsFounded.visibility = if (filtered.isEmpty() && lastResults.isNotEmpty()) View.VISIBLE else View.GONE

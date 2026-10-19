@@ -18,6 +18,7 @@ import com.example.resonant.data.models.Genre
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.managers.PlaylistManager
+import com.example.resonant.playback.QueueCommands
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.viewmodels.DownloadViewModel
@@ -115,6 +116,12 @@ object ItemOptions {
             placeholder = R.drawable.ic_playlist_stack,
             options = listOf(
                 QuickOptionsBottomSheet.Option(R.drawable.ic_play, "Reproducir") { playPlaylist(fragment, playlist) },
+                QuickOptionsBottomSheet.Option(R.drawable.ic_play_next_compact, "Reproducir a continuación") {
+                    CollectionQueueActions.playNext(fragment, QueueCommands.COLLECTION_PLAYLIST, playlist.id.orEmpty())
+                },
+                QuickOptionsBottomSheet.Option(R.drawable.ic_queue_add, "Añadir a la cola") {
+                    CollectionQueueActions.addToQueue(fragment, QueueCommands.COLLECTION_PLAYLIST, playlist.id.orEmpty())
+                },
                 QuickOptionsBottomSheet.Option(R.drawable.ic_queue_list, "Abrir lista") { openPlaylist(fragment, playlist) }
             )
         ).show(fragment.parentFragmentManager, "PlaylistQuickOptions")

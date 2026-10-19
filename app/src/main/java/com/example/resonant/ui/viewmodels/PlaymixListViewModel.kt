@@ -68,10 +68,10 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
         }
     }
 
-    fun createPlaymix(name: String, description: String? = null) {
+    fun createPlaymix(name: String, description: String? = null, visibility: String? = null) {
         viewModelScope.launch {
             try {
-                playmixManager.createPlaymix(name, description)
+                playmixManager.createPlaymix(name, description, visibility)
                 _playmixCreated.postValue(true)
                 refreshPlaymixes()
             } catch (e: Exception) {

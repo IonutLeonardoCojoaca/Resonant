@@ -8,19 +8,26 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.resonant.data.local.dao.AutoDownloadJobDao
 import com.example.resonant.data.local.dao.DownloadedSongDao
+import com.example.resonant.data.local.dao.OfflineCollectionDao
 import com.example.resonant.data.local.entities.AutoDownloadJob
 import com.example.resonant.data.local.entities.DownloadedSong
 import com.example.resonant.data.local.entities.DownloadCollection
 import com.example.resonant.data.local.entities.DownloadCollectionSong
+import com.example.resonant.data.local.entities.OfflinePlaylist
+import com.example.resonant.data.local.entities.OfflinePlaymix
+import com.example.resonant.data.local.entities.OfflinePlaymixClip
 
 @Database(
     entities = [
         DownloadedSong::class,
         DownloadCollection::class,
         DownloadCollectionSong::class,
-        AutoDownloadJob::class
+        AutoDownloadJob::class,
+        OfflinePlaymix::class,
+        OfflinePlaymixClip::class,
+        OfflinePlaylist::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @androidx.room.TypeConverters(Converters::class)
@@ -29,6 +36,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun downloadedSongDao(): DownloadedSongDao
 
     abstract fun autoDownloadJobDao(): AutoDownloadJobDao
+
+    abstract fun offlineCollectionDao(): OfflineCollectionDao
 
     companion object {
         @Volatile
@@ -157,6 +166,54 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v6 → v7: paquetes sin conexión de Playmix (detalle y clips) y orden/estado de playlists descargadas
+        // (collection-queue-offline). Solo crea tablas nuevas; no toca las descargas existentes. Columnas, PK e
+        // índices deben coincidir con OfflinePlaymix, OfflinePlaymixClip y OfflinePlaylist.
+        internal val MIGRATION_6_7_STATEMENTS = listOf(
+            """
+            CREATE TABLE IF NOT EXISTS `offline_playmix` (
+                `userId` TEXT NOT NULL,
+                `playmixId` TEXT NOT NULL,
+                `detailJson` TEXT NOT NULL,
+                `contentVersion` TEXT,
+                `syncedAtEpochMs` INTEGER NOT NULL,
+                `unavailable` INTEGER NOT NULL,
+                `pendingUpdate` INTEGER NOT NULL,
+                PRIMARY KEY(`userId`, `playmixId`)
+            )
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS `offline_playmix_clip` (
+                `userId` TEXT NOT NULL,
+                `playmixId` TEXT NOT NULL,
+                `transitionId` TEXT NOT NULL,
+                `renderRevision` INTEGER NOT NULL,
+                `cacheKey` TEXT NOT NULL,
+                `sizeBytes` INTEGER NOT NULL,
+                PRIMARY KEY(`userId`, `playmixId`, `transitionId`)
+            )
+            """.trimIndent(),
+            "CREATE INDEX IF NOT EXISTS `index_offline_playmix_clip_userId_playmixId` " +
+                "ON `offline_playmix_clip` (`userId`, `playmixId`)",
+            """
+            CREATE TABLE IF NOT EXISTS `offline_playlist` (
+                `userId` TEXT NOT NULL,
+                `playlistId` TEXT NOT NULL,
+                `songIdsJson` TEXT NOT NULL,
+                `syncedAtEpochMs` INTEGER NOT NULL,
+                `unavailable` INTEGER NOT NULL,
+                `pendingUpdate` INTEGER NOT NULL,
+                PRIMARY KEY(`userId`, `playlistId`)
+            )
+            """.trimIndent()
+        )
+
+        internal val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_7_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -164,7 +221,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "resonant_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                 INSTANCE = instance
                 instance
