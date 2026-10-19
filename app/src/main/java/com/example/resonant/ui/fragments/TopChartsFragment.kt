@@ -39,6 +39,7 @@ import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.ui.viewmodels.TopChartsViewModel
 import com.example.resonant.utils.Utils
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class TopChartsFragment : Fragment() {
 
@@ -198,7 +199,7 @@ class TopChartsFragment : Fragment() {
 
         // B. FAVORITO (CORAZÓN)
         adapter.onFavoriteClick = { song, _ ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         // C. OPCIONES (3 PUNTOS)
@@ -214,7 +215,7 @@ class TopChartsFragment : Fragment() {
                         findNavController().navigate(R.id.action_topChartsFragment_to_detailedSongFragment, bundle)
                     },
                     onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(toggledSong)
+                        favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong))
                     },
                     onAddToPlaylistClick = { songToAdd ->
                         val sheet = SelectPlaylistBottomSheet(

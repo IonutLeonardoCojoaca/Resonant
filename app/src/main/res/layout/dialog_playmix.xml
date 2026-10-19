@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Diálogo de PlayMix (cambios sin guardar del editor, renombrar…). Lo monta PlaymixDialog. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/playmixDialogCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_mx_dialog"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingHorizontal="22dp"
+    android:paddingTop="26dp"
+    android:paddingBottom="18dp">
+
+    <FrameLayout
+        android:id="@+id/playmixDialogBadge"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:background="@drawable/bg_mx_dialog_icon"
+        android:elevation="6dp"
+        android:outlineSpotShadowColor="@color/playmix_accent_end">
+
+        <ImageView
+            android:id="@+id/playmixDialogIcon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_playmix"
+            app:tint="@color/mx_on_stage" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/playmixDialogEyebrow"
+        style="@style/MxEyebrow"
+        android:layout_width="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="PLAYMIX"
+        android:textColor="@color/playmix_accent" />
+
+    <TextView
+        android:id="@+id/playmixDialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="20sp"
+        tools:text="Cambios sin guardar" />
+
+    <TextView
+        android:id="@+id/playmixDialogMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:fontFamily="@font/unageo_medium"
+        android:gravity="center"
+        android:lineSpacingExtra="2dp"
+        android:textColor="@color/textTheme"
+        android:textSize="14sp"
+        android:visibility="gone"
+        tools:text="Si sales ahora se perderán los cambios de esta transición."
+        tools:visibility="visible" />
+
+    <EditText
+        android:id="@+id/playmixDialogInput"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="18dp"
+        android:background="@drawable/bg_mx_input"
+        android:fontFamily="@font/unageo_semi_bold"
+        android:imeOptions="actionDone"
+        android:importantForAutofill="no"
+        android:inputType="textCapSentences"
+        android:maxLines="1"
+        android:paddingHorizontal="16dp"
+        android:textColor="@color/white"
+        android:textColorHighlight="#66FF7A59"
+        android:textColorHint="@color/textTheme"
+        android:textCursorDrawable="@null"
+        android:textSize="15sp"
+        android:visibility="gone"
+        tools:text="Barbarity"
+        tools:visibility="visible" />
+
+    <LinearLayout
+        android:id="@+id/playmixDialogInputMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="6dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/playmixDialogInputError"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="#FF6B6B"
+            android:textSize="11.5sp"
+            tools:text="El nombre no puede estar vacío" />
+
+        <TextView
+            android:id="@+id/playmixDialogInputCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="@color/textTheme"
+            android:textSize="11.5sp"
+            tools:text="9/60" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/playmixDialogPrimary"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="22dp"
+        android:background="@drawable/bg_mx_primary_button"
+        android:fontFamily="@font/unageo_bold"
+        android:gravity="center"
+        android:textColor="@color/mx_on_stage"
+        android:textSize="15sp"
+        tools:text="Guardar y salir" />
+
+    <TextView
+        android:id="@+id/playmixDialogSecondary"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_mx_secondary_button"
+        android:fontFamily="@font/unageo_semi_bold"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="15sp"
+        android:visibility="gone"
+        tools:text="Descartar cambios"
+        tools:visibility="visible" />
+
+    <TextView
+        android:id="@+id/playmixDialogTertiary"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="4dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:fontFamily="@font/unageo_semi_bold"
+        android:gravity="center"
+        android:textColor="@color/textTheme"
+        android:textSize="14sp"
+        android:visibility="gone"
+        tools:text="Seguir editando"
+        tools:visibility="visible" />
+</LinearLayout>

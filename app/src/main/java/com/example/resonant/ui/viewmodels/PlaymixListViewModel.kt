@@ -81,10 +81,11 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
         }
     }
 
-    fun deletePlaymix(playmixId: String) {
+    fun deletePlaymix(playmixId: String, onResult: (Boolean) -> Unit = {}) {
         val originalList = _playmixes.value
         if (originalList == null) {
             _error.postValue("No se pudo borrar, la lista no estaba cargada.")
+            onResult(false)
             return
         }
 
@@ -94,10 +95,12 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
         viewModelScope.launch {
             try {
                 playmixManager.deletePlaymix(playmixId)
+                onResult(true)
             } catch (e: Exception) {
                 Log.e("PlaymixListVM", "Error deleting playmix", e)
                 _error.postValue("Error al borrar el playmix. Se ha restaurado.")
                 _playmixes.postValue(originalList)
+                onResult(false)
             }
         }
     }

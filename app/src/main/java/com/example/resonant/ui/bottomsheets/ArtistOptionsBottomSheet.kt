@@ -18,6 +18,7 @@ import com.example.resonant.data.models.Artist
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.google.android.material.imageview.ShapeableImageView
+import com.example.resonant.utils.SnackType
 
 class ArtistOptionsBottomSheet(
     private val artist: Artist,
@@ -102,12 +103,19 @@ class ArtistOptionsBottomSheet(
     private fun onFavoriteToggled(artist: Artist) {
         val favoritesViewModel = ViewModelProvider(requireActivity())[FavoritesViewModel::class.java]
         val isCurrentlyFavorite = favoritesViewModel.favoriteArtistIds.value?.contains(artist.id) ?: false
+        // La hoja se cierra antes de que responda el servidor: el resultado se muestra en la actividad.
+        val host = requireActivity()
+        val onResult: (Boolean) -> Unit = { success ->
+            when {
+                !success -> host.showResonantSnackbar("Comprueba tu conexión e inténtalo de nuevo", SnackType.ERROR, title = "No se pudieron actualizar tus favoritos")
+                isCurrentlyFavorite -> host.showResonantSnackbar(artist.name, SnackType.UNLIKE, title = "Artista eliminado de favoritos")
+                else -> host.showResonantSnackbar(artist.name, SnackType.LIKE, title = "Artista añadido a favoritos")
+            }
+        }
         if (!isCurrentlyFavorite) {
-            showResonantSnackbar(text = "¡Artista añadido a favoritos!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-            favoritesViewModel.addFavoriteArtist(artist)
+            favoritesViewModel.addFavoriteArtist(artist, onResult)
         } else {
-            showResonantSnackbar(text = "Artista eliminado de favoritos", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-            favoritesViewModel.deleteFavoriteArtist(artist.id)
+            favoritesViewModel.deleteFavoriteArtist(artist.id, onResult)
         }
     }
 

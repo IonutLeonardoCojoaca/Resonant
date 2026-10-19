@@ -35,6 +35,7 @@ import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_playlist) {
 
@@ -269,7 +270,7 @@ class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_
 
         // Favorite toggle
         songAdapter.onFavoriteClick = { song, _ ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         // Settings (3-dot menu)
@@ -288,7 +289,7 @@ class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_
                             )
                         },
                         onFavoriteToggled = { toggledSong ->
-                            favoritesViewModel.toggleFavoriteSong(toggledSong)
+                            favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong))
                         },
                         onAddToPlaylistClick = { songToAdd ->
                             val sheet = SelectPlaylistBottomSheet(

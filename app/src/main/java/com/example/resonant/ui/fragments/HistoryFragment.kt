@@ -41,6 +41,7 @@ import com.facebook.shimmer.ShimmerFrameLayout
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class HistoryFragment : Fragment() {
 
@@ -171,7 +172,7 @@ class HistoryFragment : Fragment() {
 
         // Favorito
         songAdapter.onFavoriteClick = { song, _ ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         // Opciones (3 puntos)
@@ -186,7 +187,7 @@ class HistoryFragment : Fragment() {
                         findNavController().navigate(R.id.action_historyFragment_to_detailedSongFragment, bundle)
                     },
                     onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(toggledSong)
+                        favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong))
                     },
                     onAddToPlaylistClick = { songToAdd ->
                         val sheet = SelectPlaylistBottomSheet(

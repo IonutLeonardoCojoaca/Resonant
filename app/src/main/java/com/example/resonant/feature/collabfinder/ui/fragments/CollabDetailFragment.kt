@@ -12,7 +12,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -46,6 +45,9 @@ import com.example.resonant.ui.views.NonScrollableLinearLayoutManager
 import com.example.resonant.utils.Utils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 @AndroidEntryPoint
 class CollabDetailFragment : Fragment() {
@@ -168,7 +170,7 @@ class CollabDetailFragment : Fragment() {
         binding.btnPlayAll.setOnClickListener {
             playableSongs.firstOrNull()?.let { firstSong ->
                 playSong(firstSong, null)
-            } ?: Toast.makeText(context, "No hay canciones para reproducir", Toast.LENGTH_SHORT).show()
+            } ?: showResonantSnackbar("No hay canciones para reproducir", SnackType.INFO)
         }
 
         songAdapter.onItemClick = { (song, bitmap) ->
@@ -176,7 +178,7 @@ class CollabDetailFragment : Fragment() {
         }
 
         songAdapter.onFavoriteClick = { song, _ ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         songAdapter.onSettingsClick = { song ->
@@ -208,7 +210,7 @@ class CollabDetailFragment : Fragment() {
                             is CollabDetailUiState.Success -> showDetail(state.detail)
                             is CollabDetailUiState.Error -> {
                                 showContent()
-                                Toast.makeText(context, "Error: ${state.message}", Toast.LENGTH_LONG).show()
+                                showResonantSnackbar(state.message, SnackType.ERROR)
                             }
                             is CollabDetailUiState.Idle -> showContent()
                         }
@@ -288,7 +290,7 @@ class CollabDetailFragment : Fragment() {
                 findNavController().navigate(R.id.action_global_to_detailedSongFragment, bundle)
             },
             onFavoriteToggled = { toggledSong ->
-                favoritesViewModel.toggleFavoriteSong(toggledSong)
+                favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong))
             },
             onAddToPlaylistClick = { songToAdd ->
                 SelectPlaylistBottomSheet(

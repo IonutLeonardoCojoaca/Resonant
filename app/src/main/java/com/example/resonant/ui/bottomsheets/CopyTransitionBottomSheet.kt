@@ -22,6 +22,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.resonant.utils.SnackType
 
 class CopyTransitionBottomSheet(
     private val transition: PlaymixTransitionDTO,
@@ -109,17 +110,17 @@ class CopyTransitionBottomSheet(
                         playmixManager.copyTransition(sourcePlaymixId, transition.id, selectedPlaymix.id)
                     }
                     showResonantSnackbar(
-                        text = "Transición copiada a '${selectedPlaymix.name}'",
-                        colorRes = R.color.successColor,
-                        iconRes = R.drawable.ic_success
+                        text = "Ya está disponible en ${selectedPlaymix.name}",
+                        type = SnackType.SUCCESS,
+                        title = "Transición copiada"
                     )
                     dismiss()
                 } catch (e: Exception) {
                     Log.e("CopyTransitionBS", "Error al copiar la transición: ${e.message}")
                     showResonantSnackbar(
-                        text = "Error al copiar la transición",
-                        colorRes = R.color.errorColor,
-                        iconRes = R.drawable.ic_error
+                        text = "Comprueba tu conexión e inténtalo de nuevo",
+                        type = SnackType.ERROR,
+                        title = "No se pudo copiar la transición"
                     )
                     dismiss()
                 }

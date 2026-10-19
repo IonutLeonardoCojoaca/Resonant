@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Escenario del visualizador del editor de PlayMix: superficie oscura fija (igual en claro y oscuro), como la
+     pantalla de un deck, con un brillo cálido muy tenue arriba y borde fino. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="@color/mx_stage_bottom"
+                android:startColor="@color/mx_stage_top" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:centerX="0.5"
+                android:centerY="0.0"
+                android:endColor="#00FF7A59"
+                android:gradientRadius="320dp"
+                android:startColor="#1AFF7A59"
+                android:type="radial" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="@color/mx_stage_stroke" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+</layer-list>

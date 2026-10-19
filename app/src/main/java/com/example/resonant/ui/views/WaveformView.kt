@@ -9,13 +9,16 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.graphics.ColorUtils
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -60,7 +63,18 @@ class WaveformView @JvmOverloads constructor(
         private const val BEAT_LINE_MIN_SPACING_DP = 12f
         /** Separación mínima entre líneas de compás; por debajo se dibuja uno de cada 2, 4… (dp). */
         private const val BAR_LINE_MIN_SPACING_DP = 6f
+        /** Colores de A y B (degradado de PlayMix), los mismos que la cabecera del editor. */
+        private val COLOR_A = Color.parseColor("#FF7A59")
+        private val COLOR_B = Color.parseColor("#FF4FB8")
     }
+
+    private fun dp(v: Float): Float = v * resources.displayMetrics.density
+
+    // ── Contorno suave de las ondas ──────────────────────────────────────────
+    private val waves = WavePaths()
+    private val wavePath = Path()
+    private val corePath = Path()
+    private var waveLevels = FloatArray(0)
 
     // ── Mix mode & curve ──────────────────────────────────────────────────────
     var mixMode: String = "crossfade"
@@ -117,6 +131,12 @@ class WaveformView @JvmOverloads constructor(
      */
     private var tempoRatioB: Float = 1f
 
+    /**
+     * Tempos bloqueados (beatmatching): solo entonces se dibuja la rejilla de beats y compases. Sin él los beats de A
+     * y B no casan y las líneas solo confunden.
+     */
+    private var tempoLocked: Boolean = false
+
     // ── Shared scroll offset ──────────────────────────────────────────────────
     // sharedOffsetMs: ms offset (negative = marker is to the RIGHT of left edge).
     // Both lanes compute their effective offset as: markerMs + sharedOffsetMs.
@@ -150,15 +170,29 @@ class WaveformView @JvmOverloads constructor(
     // ── Zoom gesture ──────────────────────────────────────────────────────────
     // ── Paints ────────────────────────────────────────────────────────────────
     private val paintWaveA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CCFF7A59")
+        color = Color.parseColor("#E0FF7A59")
         style = Paint.Style.FILL
+    }
+    private val paintWaveCore = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    private val paintTrack = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#0CFFFFFF")
+        style = Paint.Style.FILL
+    }
+    private val paintCursorGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#38FFFFFF")
+        strokeWidth = dp(6f)
+        strokeCap = Paint.Cap.ROUND
+        style = Paint.Style.STROKE
     }
     private val paintWaveAOverlap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#AAFF7A59")
         style = Paint.Style.FILL
     }
     private val paintWaveB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CCFF4FB8")
+        color = Color.parseColor("#E0FF4FB8")
         style = Paint.Style.FILL
     }
     private val paintWaveBOverlap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -172,12 +206,14 @@ class WaveformView @JvmOverloads constructor(
     }
     private val paintCenterA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFFF7A59")
-        strokeWidth = 2.5f
+        strokeWidth = dp(1.75f)
+        strokeJoin = Paint.Join.ROUND
         style = Paint.Style.STROKE
     }
     private val paintCenterB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFFF4FB8")
-        strokeWidth = 2.5f
+        strokeWidth = dp(1.75f)
+        strokeJoin = Paint.Join.ROUND
         style = Paint.Style.STROKE
     }
     private val paintCfZoneA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -189,24 +225,27 @@ class WaveformView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val paintBeatA = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#55FF7A59")
-        strokeWidth = 1f
+        color = Color.parseColor("#26FFFFFF")
+        strokeWidth = dp(0.75f)
+        strokeCap = Paint.Cap.ROUND
         style = Paint.Style.STROKE
     }
     private val paintBeatB = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#55FF4FB8")
-        strokeWidth = 1f
+        color = Color.parseColor("#26FFFFFF")
+        strokeWidth = dp(0.75f)
+        strokeCap = Paint.Cap.ROUND
         style = Paint.Style.STROKE
     }
     private val paintBeatSnap = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#99FFD27A")
-        strokeWidth = 1.5f
+        color = Color.parseColor("#B3FFD166")
+        strokeWidth = dp(1.5f)
+        strokeCap = Paint.Cap.ROUND
         style = Paint.Style.STROKE
-        pathEffect = DashPathEffect(floatArrayOf(4f, 3f), 0f)
     }
     private val paintCursor = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#DDFFFFFF")
-        strokeWidth = 1.5f
+        color = Color.WHITE
+        strokeWidth = dp(1.5f)
+        strokeCap = Paint.Cap.ROUND
         style = Paint.Style.STROKE
     }
     private val paintLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -279,27 +318,28 @@ class WaveformView @JvmOverloads constructor(
     private val paintAutoGain = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#E6FFFFFF")
         style = Paint.Style.STROKE
-        strokeWidth = 2.5f
+        strokeWidth = dp(1.75f)
+        strokeJoin = Paint.Join.ROUND
     }
     private val paintAutoBass = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#CCFF5030")
-        strokeWidth = 4.1f
+        strokeWidth = dp(2f)
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
     }
     private val paintAutoMid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#CCFF9820")
-        strokeWidth = 3.0f
+        strokeWidth = dp(1.75f)
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
-        pathEffect = DashPathEffect(floatArrayOf(8f, 4f), 0f)
+        pathEffect = DashPathEffect(floatArrayOf(dp(5f), dp(3f)), 0f)
     }
     private val paintAutoTreble = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#CCFF4FB8")
-        strokeWidth = 2.2f
+        strokeWidth = dp(1.5f)
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
-        pathEffect = DashPathEffect(floatArrayOf(3f, 3f), 0f)
+        pathEffect = DashPathEffect(floatArrayOf(dp(2f), dp(2.5f)), 0f)
     }
     private val paintBackground = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -311,7 +351,7 @@ class WaveformView @JvmOverloads constructor(
     private val paintHighlightBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#CCFF7A59")
         style = Paint.Style.STROKE
-        strokeWidth = 4f
+        strokeWidth = dp(1.5f)
         strokeJoin = Paint.Join.ROUND
     }
 
@@ -362,12 +402,14 @@ class WaveformView @JvmOverloads constructor(
     }
 
     /** true si B se dibuja al tempo de A (tempos bloqueados). */
-    val isTempoLocked: Boolean get() = tempoRatioB != 1f
+    val isTempoLocked: Boolean get() = tempoLocked
 
     private fun rebuildGrids() {
         barGridA = BarGrid.of(tempoGridA, beatGridA, downbeatsA, phrasesA, beatsPerBarA, durationA)
         barGridB = BarGrid.of(tempoGridB, beatGridB, downbeatsB, phrasesB, beatsPerBarB, durationB)
-        tempoRatioB = BarGrid.tempoLockRatio(barGridA, barGridB)?.toFloat() ?: 1f
+        val ratio = BarGrid.tempoLockRatio(barGridA, barGridB)
+        tempoLocked = ratio != null
+        tempoRatioB = ratio?.toFloat() ?: 1f
     }
 
     fun setTransitionPoints(exitMs: Int, entryMs: Int, crossfadeMs: Int) {
@@ -444,10 +486,14 @@ class WaveformView @JvmOverloads constructor(
         val mmH = 0f
         val halfH = h / 2f
         val cfPx = crossfadeDurationMs * pixelsPerMs
+        val laneGap = dp(3f)
 
         paintBackground.shader = null
         paintBackground.color = canvasBackgroundColor
         canvas.drawRect(0f, 0f, w, h, paintBackground)
+        // Una pista redondeada por canción (sustituye a la línea divisoria).
+        canvas.drawRoundRect(0f, 0f, w, halfH - laneGap, dp(12f), dp(12f), paintTrack)
+        canvas.drawRoundRect(0f, halfH + laneGap, w, h, dp(12f), dp(12f), paintTrack)
 
         // Unified single-scroll: both lanes anchored to the transition point.
         // sharedOffsetMs is the ms-from-transition-start at the LEFT edge of the screen.
@@ -462,65 +508,60 @@ class WaveformView @JvmOverloads constructor(
 
         // Waveform drawing areas (above minimap)
         val waveTopA = 0f
-        val waveBotA = halfH - mmH
-        val waveTopB = halfH
+        val waveBotA = halfH - mmH - laneGap
+        val waveTopB = halfH + laneGap
         val waveBotB = h - mmH
 
-        // ── Dim non-mix zones ─────────────────────────────────────────────────
-        // We dim everything outside the transition window.
-        val transLeft = markerAx.coerceAtLeast(0f)
-        val transRight = (markerAx + cfPx).coerceAtMost(w)
+        // ── Ventana de mezcla: relleno con el degradado de A a B, debajo de las ondas ──
+        val winRect = RectF(markerAx, waveTopA + dp(2f), markerAx + cfPx, waveBotB - dp(2f))
+        if (cfPx > 0) {
+            paintTransitionWindow.shader = LinearGradient(
+                0f, winRect.top, 0f, winRect.bottom,
+                ColorUtils.setAlphaComponent(COLOR_A, 0x1C), ColorUtils.setAlphaComponent(COLOR_B, 0x1C),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRoundRect(winRect, dp(16f), dp(16f), paintTransitionWindow)
+        }
+
+        // Ondas: tenues fuera de la ventana, vivas dentro.
+        drawScrolledWaveform(canvas, amplitudesA, durationA, exitMsF, markerAx, 1f, waveTopA, waveBotA, paintWaveA, winRect, cfPx > 0)
+        drawScrolledWaveform(canvas, amplitudesB, durationB, entryMsF, markerBx, scaleB, waveTopB, waveBotB, paintWaveB, winRect, cfPx > 0)
 
         if (cfPx > 0) {
-            val winRect = RectF(markerAx, waveTopA + 4f, markerAx + cfPx, waveBotB - 4f)
-            canvas.drawRoundRect(winRect, 16f, 16f, paintTransitionWindow)
+            paintHighlightBorder.shader = LinearGradient(
+                0f, winRect.top, 0f, winRect.bottom,
+                ColorUtils.setAlphaComponent(COLOR_A, 0xE6), ColorUtils.setAlphaComponent(COLOR_B, 0xE6),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawRoundRect(winRect, dp(16f), dp(16f), paintHighlightBorder)
         }
 
-        // Waveforms
-        drawScrolledWaveform(canvas, amplitudesA, durationA, exitMsF, markerAx, 1f, waveTopA, waveBotA, paintWaveA)
-        drawScrolledWaveform(canvas, amplitudesB, durationB, entryMsF, markerBx, scaleB, waveTopB, waveBotB, paintWaveB)
+        // Rejilla (compases, frases y, con zoom, beats): solo con tempos bloqueados (beatmatching).
+        if (tempoLocked) {
+            drawBarGrid(canvas, barGridA, exitMsF, markerAx, 1f, waveTopA, waveBotA, w, paintBeatA)
+            drawBarGrid(canvas, barGridB, entryMsF, markerBx, scaleB, waveTopB, waveBotB, w, paintBeatB)
 
-        // Dim overlays
-        if (transLeft > 0f) {
-            canvas.drawRect(0f, 0f, transLeft, h, paintDimOverlay)
+            // Snap guides: where the dragged marker is locked
+            if (isDragging && !isDraggingMinimap && touchingTopHalf && barGridA.hasBars) {
+                val nearestMs = lockExit(exitPointMs)
+                val nearX = markerAx + (nearestMs - exitMsF) * pixelsPerMs
+                if (nearX in 0f..w) canvas.drawLine(nearX, waveTopA + dp(6f), nearX, waveBotA - dp(6f), paintBeatSnap)
+            }
+            if (isDragging && !isDraggingMinimap && !touchingTopHalf && barGridB.hasBars) {
+                val nearestMs = lockEntry(entryPointMs)
+                val nearX = markerBx + (nearestMs - entryMsF) / scaleB * pixelsPerMs
+                if (nearX in 0f..w) canvas.drawLine(nearX, waveTopB + dp(6f), nearX, waveBotB - dp(6f), paintBeatSnap)
+            }
         }
-        if (transRight < w) {
-            canvas.drawRect(transRight, 0f, w, h, paintDimOverlay)
-        }
-
-        if (cfPx > 0) {
-            val winRect = RectF(markerAx, waveTopA + 4f, markerAx + cfPx, waveBotB - 4f)
-            canvas.drawRoundRect(winRect, 16f, 16f, paintHighlightBorder)
-        }
-
-        // Bar grids (bars, phrases and, zoomed in, beats)
-        drawBarGrid(canvas, barGridA, exitMsF, markerAx, 1f, waveTopA, waveBotA, w, paintBeatA)
-        drawBarGrid(canvas, barGridB, entryMsF, markerBx, scaleB, waveTopB, waveBotB, w, paintBeatB)
-
-        // Snap guides: where the dragged marker is locked
-        if (isDragging && !isDraggingMinimap && touchingTopHalf && barGridA.hasBars) {
-            val nearestMs = lockExit(exitPointMs)
-            val nearX = markerAx + (nearestMs - exitMsF) * pixelsPerMs
-            if (nearX in 0f..w) canvas.drawLine(nearX, waveTopA, nearX, waveBotA, paintBeatSnap)
-        }
-        if (isDragging && !isDraggingMinimap && !touchingTopHalf && barGridB.hasBars) {
-            val nearestMs = lockEntry(entryPointMs)
-            val nearX = markerBx + (nearestMs - entryMsF) / scaleB * pixelsPerMs
-            if (nearX in 0f..w) canvas.drawLine(nearX, waveTopB, nearX, waveBotB, paintBeatSnap)
-        }
-
-        // ── Minimaps ──────────────────────────────────────────────────────────
-        // ── Divider ──────────────────────────────────────────────────────────
-        canvas.drawLine(0f, halfH, w, halfH, paintDivider)
 
         // ── Playback cursors ──────────────────────────────────────────────────
         if (playbackPositionAMs >= 0) {
             val curAx = markerAx + (playbackPositionAMs - exitMsF) * pixelsPerMs
-            if (curAx in 0f..w) canvas.drawLine(curAx, waveTopA, curAx, waveBotA, paintCursor)
+            if (curAx in 0f..w) drawCursor(canvas, curAx, waveTopA, waveBotA)
         }
         if (playbackPositionBMs >= 0) {
             val curBx = markerBx + (playbackPositionBMs - entryMsF) / scaleB * pixelsPerMs
-            if (curBx in 0f..w) canvas.drawLine(curBx, waveTopB, curBx, waveBotB, paintCursor)
+            if (curBx in 0f..w) drawCursor(canvas, curBx, waveTopB, waveBotB)
         }
 
         // ── Automation lines (Volume / EQ curves) ─────────────────────────────
@@ -528,8 +569,9 @@ class WaveformView @JvmOverloads constructor(
     }
 
     /**
-     * Onda de una canción: el instante [anchorMs] de la canción cae en [anchorX] y cada ms de la mezcla avanza
-     * [scale] ms de la canción (1 para A; `bpmA / bpmB` para B con tempos bloqueados).
+     * Onda de una canción como contorno suave y plano: el instante [anchorMs] de la canción cae en [anchorX] y cada
+     * ms de la mezcla avanza [scale] ms de la canción (1 para A; `bpmA / bpmB` para B con tempos bloqueados). Con
+     * [dimOutside] se dibuja tenue fuera de [window] y viva dentro; sin amplitudes, una línea base donde suena.
      */
     private fun drawScrolledWaveform(
         canvas: Canvas,
@@ -540,36 +582,58 @@ class WaveformView @JvmOverloads constructor(
         scale: Float,
         top: Float,
         bottom: Float,
-        paint: Paint
+        paint: Paint,
+        window: RectF,
+        dimOutside: Boolean
     ) {
-        if (amps.isEmpty() || durMs <= 0) return
+        if (durMs <= 0 || width <= 0) return
         val midY = (top + bottom) / 2f
-        val maxAmp = (bottom - top) * 0.42f
-        val barDurMs = durMs.toFloat() / amps.size
+        val half = (bottom - top) * 0.42f
         val pxPerSongMs = pixelsPerMs / scale
         val offsetMs = anchorMs - anchorX / pxPerSongMs // ms de la canción en el borde izquierdo
-        val firstVisible = ((offsetMs / barDurMs).toInt() - 1).coerceAtLeast(0)
-        val lastVisible = (((offsetMs + width / pxPerSongMs) / barDurMs).toInt() + 1).coerceAtMost(amps.size - 1)
-        val visibleCount = (lastVisible - firstVisible + 1).coerceAtLeast(1)
-        val groupSize = (visibleCount / 96).coerceAtLeast(1)
-
-        var i = firstVisible
-        while (i <= lastVisible) {
-            val end = (i + groupSize - 1).coerceAtMost(lastVisible)
-            var amp = 0f
-            for (sampleIndex in i..end) {
-                amp = maxOf(amp, amps[sampleIndex])
+        val step = dp(3f)
+        val count = (width / step).toInt() + 2
+        if (waveLevels.size < count) waveLevels = FloatArray(count)
+        val stepMs = step / pxPerSongMs
+        for (i in 0 until count) {
+            val from = offsetMs + i * stepMs
+            val to = from + stepMs
+            waveLevels[i] = when {
+                from > durMs || to < 0 -> Float.NaN
+                amps.isEmpty() -> 0f
+                else -> {
+                    val first = (from.coerceAtLeast(0f) / durMs * amps.size).toInt().coerceIn(0, amps.size - 1)
+                    val last = (to / durMs * amps.size).toInt().coerceIn(first, amps.size - 1)
+                    var peak = 0f
+                    for (k in first..last) peak = maxOf(peak, amps[k])
+                    peak.coerceIn(0f, 1f)
+                }
             }
-            val timeMs = i * barDurMs
-            val nextTimeMs = (end + 1) * barDurMs
-            val x = (timeMs - offsetMs) * pxPerSongMs
-            val x2 = (nextTimeMs - offsetMs) * pxPerSongMs
-            val rectWidth = (x2 - x - 2.5f).coerceAtLeast(4f)
-            val cornerRadius = (rectWidth / 2f).coerceAtMost(4f)
-            val ampH = (amp * maxAmp).coerceAtLeast(3f)
-            canvas.drawRoundRect(x, midY - ampH, x + rectWidth, midY + ampH, cornerRadius, cornerRadius, paint)
-            i = end + 1
         }
+        wavePath.reset()
+        waves.mirrored(wavePath, waveLevels, count, 0f, step, midY, half, dp(0.75f))
+        // Núcleo más claro encima: da profundidad sin volver a las barras.
+        corePath.reset()
+        for (i in 0 until count) if (!waveLevels[i].isNaN()) waveLevels[i] *= 0.5f
+        waves.mirrored(corePath, waveLevels, count, 0f, step, midY, half, 0f)
+
+        val baseAlpha = paint.alpha
+        if (dimOutside) {
+            paint.alpha = (baseAlpha * 0.32f).toInt()
+            canvas.drawPath(wavePath, paint)
+            paint.alpha = baseAlpha
+            canvas.save()
+            canvas.clipRect(window.left.coerceAtLeast(0f), top, window.right.coerceAtMost(width.toFloat()), bottom)
+        }
+        canvas.drawPath(wavePath, paint)
+        paintWaveCore.alpha = 0x5C
+        canvas.drawPath(corePath, paintWaveCore)
+        if (dimOutside) canvas.restore()
+    }
+
+    private fun drawCursor(canvas: Canvas, x: Float, top: Float, bottom: Float) {
+        canvas.drawLine(x, top + dp(2f), x, bottom - dp(2f), paintCursorGlow)
+        canvas.drawLine(x, top + dp(2f), x, bottom - dp(2f), paintCursor)
     }
 
     /**
@@ -597,14 +661,18 @@ class WaveformView @JvmOverloads constructor(
         val originalAlpha = paint.alpha
         fun xOf(ms: Double): Float = (anchorX + (ms - anchorMs) * pxPerSongMs).toFloat()
 
-        // Beats: solo cuando quedan a ≥ BEAT_LINE_MIN_SPACING_DP entre sí.
+        val inset = 6f * density
+        val tick = 4f * density
+
+        // Beats: marcas cortas en los bordes, solo cuando quedan a ≥ BEAT_LINE_MIN_SPACING_DP entre sí.
         val beatPx = grid.beatMsAt(centerMs) * pxPerSongMs
         if (beatPx >= BEAT_LINE_MIN_SPACING_DP * density) {
             paint.strokeWidth = originalStroke
-            paint.alpha = (originalAlpha * 0.6f).toInt()
+            paint.alpha = (originalAlpha * 1.4f).toInt().coerceAtMost(255)
             grid.forEachBeat(fromMs, toMs, includeDownbeats = false) { ms ->
                 val x = xOf(ms)
-                canvas.drawLine(x, top, x, bottom, paint)
+                canvas.drawLine(x, top + inset / 2, x, top + inset / 2 + tick, paint)
+                canvas.drawLine(x, bottom - inset / 2 - tick, x, bottom - inset / 2, paint)
             }
         }
 
@@ -619,17 +687,17 @@ class WaveformView @JvmOverloads constructor(
         grid.forEachDownbeat(fromMs, toMs) { index, ms ->
             if (index.mod(step) == 0) {
                 val x = xOf(ms)
-                canvas.drawLine(x, top, x, bottom, paint)
+                canvas.drawLine(x, top + inset, x, bottom - inset, paint)
             }
         }
 
         // Frases: algo más marcadas que los compases.
-        paint.strokeWidth = originalStroke * 2.4f
-        paint.alpha = (originalAlpha * 2.2f).toInt().coerceAtMost(255)
+        paint.strokeWidth = originalStroke * 2f
+        paint.alpha = (originalAlpha * 2f).toInt().coerceAtMost(255)
         for (phraseMs in grid.phraseStarts) {
             if (phraseMs < fromMs || phraseMs > toMs) continue
             val x = xOf(phraseMs.toDouble())
-            canvas.drawLine(x, top, x, bottom, paint)
+            canvas.drawLine(x, top + inset, x, bottom - inset, paint)
         }
 
         paint.strokeWidth = originalStroke
@@ -814,7 +882,7 @@ class WaveformView @JvmOverloads constructor(
     }
 
     private val paintAutoLegend = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 18f
+        textSize = dp(9f)
         typeface = Typeface.DEFAULT_BOLD
         textAlign = Paint.Align.LEFT
     }

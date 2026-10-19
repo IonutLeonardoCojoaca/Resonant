@@ -99,6 +99,24 @@
     <color name="playmix_scrim_center">#80FFFFFF</color>
     <color name="playmix_scrim_end">#FFFFFFFF</color>
 
+    <!-- Marca Resonant (Inicio y menú lateral): degradado rojo → magenta → violeta, igual en los dos temas,
+         y superficies de cristal sobre la aurora (estas sí cambian con el tema). -->
+    <color name="rs_brand_start">#E21616</color>
+    <color name="rs_brand_mid">#FF2E7E</color>
+    <color name="rs_brand_end">#7C4DFF</color>
+    <color name="rs_glass">#B8FFFFFF</color>
+    <color name="rs_glass_stroke">#14000000</color>
+    <color name="rs_selected_tint">#14E21616</color>
+
+    <!-- Editor de transiciones de PlayMix: el escenario del visualizador es una pantalla oscura fija
+         (como la de un deck), igual en claro y oscuro. -->
+    <color name="mx_stage_top">#17161C</color>
+    <color name="mx_stage_bottom">#0B0B0E</color>
+    <color name="mx_stage_stroke">#1CFFFFFF</color>
+    <color name="mx_capsule">#F2141418</color>
+    <color name="mx_on_stage">#FFFFFFFF</color>
+    <color name="mx_on_stage_dim">#8CFFFFFF</color>
+
     <!-- Search floating header background -->
     <color name="search_header_background">#F5FFFFFF</color>
 
@@ -132,5 +150,19 @@
     <color name="aria_bg_clear">#00FFFFFF</color>
     <color name="aria_card_scrim_top">#99F7F7F9</color>
     <color name="aria_live">#1FB866</color>
+
+    <!-- Resonant snackbar (ver utils/ResonantSnackbar.kt). Superficie "inversa":
+         en tema claro el snackbar es oscuro para destacar sobre el contenido. -->
+    <color name="snackbar_surface">#F21C1C20</color>
+    <color name="snackbar_stroke">#14FFFFFF</color>
+    <color name="snackbar_title">#FFFFFFFF</color>
+    <color name="snackbar_message">#B3FFFFFF</color>
+    <color name="snackbar_track">#14FFFFFF</color>
+    <color name="snackbar_success">#2FD27A</color>
+    <color name="snackbar_error">#FF5A5F</color>
+    <color name="snackbar_warning">#FFB547</color>
+    <color name="snackbar_info">#6AA8FF</color>
+    <color name="snackbar_brand">#FF3B4E</color>
+    <color name="snackbar_neutral">#D9FFFFFF</color>
 
 </resources>

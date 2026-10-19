@@ -14,6 +14,7 @@ import com.example.resonant.playback.QueueCommands
 import com.example.resonant.playback.flow.FlowQueuePolicy
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
 
 /**
  * "Menos de este artista" / "No volver a sugerir" sobre una canción de Flow: guarda el feedback
@@ -45,12 +46,9 @@ object FlowFeedbackActions {
             val saved = runCatching {
                 service.sendRecommendationFeedback(RecommendationFeedbackRequestDTO(targetType, targetId, type)).isSuccessful
             }.onFailure { Log.w(TAG, "Feedback no enviado", it) }.getOrDefault(false)
+            // La hoja ya está cerrada a estas alturas: el snackbar se muestra en la actividad.
             if (!saved) {
-                if (fragment.isAdded) {
-                    fragment.showResonantSnackbar(
-                        fragment.getString(R.string.flow_feedback_failed), R.color.errorColor, R.drawable.ic_warning
-                    )
-                }
+                activity.showResonantSnackbar(activity.getString(R.string.flow_feedback_failed), SnackType.ERROR)
                 return@launch
             }
 
@@ -58,12 +56,10 @@ object FlowFeedbackActions {
                 PlaybackControllerConnection.sendQueueCommand(context, QueueCommands.FLOW_FEEDBACK_APPLY, targetArgs(targetType, targetId))
             }.onFailure { Log.w(TAG, "No se pudo actualizar la cola", it) }
 
-            if (!fragment.isAdded) return@launch
-            fragment.showResonantSnackbar(
-                text = fragment.getString(doneMessage),
-                colorRes = R.color.successColor,
-                iconRes = R.drawable.ic_success,
-                actionText = fragment.getString(R.string.flow_feedback_undo),
+            activity.showResonantSnackbar(
+                text = activity.getString(doneMessage),
+                type = SnackType.SUCCESS,
+                actionText = activity.getString(R.string.flow_feedback_undo),
                 onAction = { undo(activity, targetType, targetId) }
             )
         }
@@ -72,8 +68,10 @@ object FlowFeedbackActions {
     private fun undo(activity: androidx.fragment.app.FragmentActivity, targetType: String, targetId: String) {
         val context = activity.applicationContext
         activity.lifecycleScope.launch {
-            runCatching { ApiClient.getRadioService(context).removeRecommendationFeedback(targetType, targetId) }
+            val undone = runCatching { ApiClient.getRadioService(context).removeRecommendationFeedback(targetType, targetId) }
                 .onFailure { Log.w(TAG, "No se pudo deshacer el feedback", it) }
+                .isSuccess
+            if (!undone) activity.showResonantSnackbar("No se pudo deshacer. Inténtalo de nuevo", SnackType.ERROR)
             runCatching { PlaybackControllerConnection.sendQueueCommand(context, QueueCommands.FLOW_FEEDBACK_UNDO, Bundle()) }
                 .onFailure { Log.w(TAG, "No se pudo restaurar la cola", it) }
         }

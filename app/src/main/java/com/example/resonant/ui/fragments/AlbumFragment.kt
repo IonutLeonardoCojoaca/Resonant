@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
@@ -47,6 +46,8 @@ import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import com.example.resonant.managers.AlbumManager
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
@@ -130,15 +131,6 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                     downloadViewModel.albumDownloadStates.collect { states ->
                         val albumId = arguments?.getString("albumId")
                         renderAlbumDownloadState(albumId?.let(states::get))
-                    }
-                }
-                launch {
-                    downloadViewModel.downloadEvent.collect { message ->
-                        showResonantSnackbar(
-                            text = message,
-                            colorRes = R.color.successColor,
-                            iconRes = R.drawable.ic_success
-                        )
                     }
                 }
             }
@@ -283,13 +275,13 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 val isFavorite = favoritesViewModel.favoriteAlbumIds.value?.contains(album.id) ?: false
                 if (isFavorite) {
                     favoritesViewModel.deleteFavoriteAlbum(album.id) { success ->
-                        if (success) showResonantSnackbar(text = "¡Álbum eliminado!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-                        else showResonantSnackbar(text = "Error", colorRes = R.color.errorColor, iconRes = R.drawable.ic_error)
+                        if (success) showResonantSnackbar(text = album.title.orEmpty(), type = SnackType.UNLIKE, title = "Álbum eliminado de favoritos")
+                        else showResonantSnackbar(text = "Comprueba tu conexión e inténtalo de nuevo", type = SnackType.ERROR, title = "No se pudieron actualizar tus favoritos")
                     }
                 } else {
                     favoritesViewModel.addFavoriteAlbum(album) { success ->
-                        if (success) showResonantSnackbar(text = "¡Álbum añadido!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-                        else showResonantSnackbar(text = "Error", colorRes = R.color.errorColor, iconRes = R.drawable.ic_error)
+                        if (success) showResonantSnackbar(text = album.title.orEmpty(), type = SnackType.LIKE, title = "Álbum añadido a favoritos")
+                        else showResonantSnackbar(text = "Comprueba tu conexión e inténtalo de nuevo", type = SnackType.ERROR, title = "No se pudieron actualizar tus favoritos")
                     }
                 }
             }
@@ -368,7 +360,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         }
 
         songAdapter.onFavoriteClick = { song, _ ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         songAdapter.onSettingsClick = { song ->
@@ -382,7 +374,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                         val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                         findNavController().navigate(R.id.action_albumFragment_to_detailedSongFragment, bundle)
                     },
-                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
+                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong)) },
                     onAddToPlaylistClick = { songToAdd ->
                         val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
@@ -445,7 +437,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 val songs = songsDeferred.await()
                 
                 if (album == null) {
-                    Toast.makeText(requireContext(), "Error Cargando Álbum", Toast.LENGTH_SHORT).show()
+                    showResonantSnackbar("No se pudo cargar el álbum", SnackType.ERROR)
                     // findNavController().popBackStack() // Opcional
                     shimmerLayout.visibility = View.GONE
                     return@launch
@@ -502,7 +494,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 recyclerViewSongs.visibility = View.VISIBLE
 
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Error al cargar el álbum", Toast.LENGTH_SHORT).show()
+                showResonantSnackbar("No se pudo cargar el álbum", SnackType.ERROR)
                 shimmerLayout.visibility = View.GONE
                 recyclerViewSongs.visibility = View.VISIBLE
             }

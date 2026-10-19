@@ -14,7 +14,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
@@ -51,6 +50,8 @@ import com.example.resonant.ui.adapters.ArtistImageAdapter
 import com.example.resonant.ui.adapters.ArtistSmartPlaylistAdapter
 import com.example.resonant.data.models.ArtistSmartPlaylist
 import com.example.resonant.managers.ArtistManager
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
@@ -546,7 +547,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         // Observer: Errores
         artistViewModel.errorMessage.observe(viewLifecycleOwner) { msg ->
-            msg?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+            msg?.let { showResonantSnackbar(it, SnackType.ERROR) }
         }
     }
 
@@ -876,7 +877,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             }
         }
 
-        topSongsAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        topSongsAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
 
         topSongsAdapter.onSettingsClick = { song ->
             lifecycleScope.launch {
@@ -890,7 +891,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                             val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                             findNavController().navigate(R.id.action_artistFragment_to_detailedSongFragment, bundle)
                         },
-                        onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
+                        onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong)) },
                         onAddToPlaylistClick = { songToAdd ->
                             val sheet = SelectPlaylistBottomSheet(
                                 song = songToAdd,
@@ -953,7 +954,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
             }
         }
 
-        singlesAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        singlesAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
 
         singlesAdapter.onSettingsClick = { song ->
             lifecycleScope.launch {
@@ -966,7 +967,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                             val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                             findNavController().navigate(R.id.action_artistFragment_to_detailedSongFragment, bundle)
                         },
-                        onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
+                        onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong)) },
                         onAddToPlaylistClick = { songToAdd ->
                             val sheet = SelectPlaylistBottomSheet(
                                 song = songToAdd,
@@ -1020,13 +1021,13 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
                 val isFavorite = favoritesViewModel.favoriteArtistIds.value?.contains(artist.id) ?: false
                 if (isFavorite) {
                     favoritesViewModel.deleteFavoriteArtist(artist.id) { success ->
-                        if (success) showResonantSnackbar(text = "¡Artista eliminado!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-                        else showResonantSnackbar(text = "Error", colorRes = R.color.errorColor, iconRes = R.drawable.ic_error)
+                        if (success) showResonantSnackbar(text = artist.name, type = SnackType.UNLIKE, title = "Artista eliminado de favoritos")
+                        else showResonantSnackbar(text = "Comprueba tu conexión e inténtalo de nuevo", type = SnackType.ERROR, title = "No se pudieron actualizar tus favoritos")
                     }
                 } else {
                     favoritesViewModel.addFavoriteArtist(artist) { success ->
-                        if (success) showResonantSnackbar(text = "¡Artista añadido!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
-                        else showResonantSnackbar(text = "Error", colorRes = R.color.errorColor, iconRes = R.drawable.ic_error)
+                        if (success) showResonantSnackbar(text = artist.name, type = SnackType.LIKE, title = "Artista añadido a favoritos")
+                        else showResonantSnackbar(text = "Comprueba tu conexión e inténtalo de nuevo", type = SnackType.ERROR, title = "No se pudieron actualizar tus favoritos")
                     }
                 }
             }

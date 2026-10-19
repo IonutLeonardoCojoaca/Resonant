@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
-import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
@@ -23,6 +22,9 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 /**
  * Hojas de opciones ya cableadas para cualquier pantalla: la misma acción que el botón ⋯ y que
@@ -49,7 +51,7 @@ object ItemOptions {
         SongOptionsBottomSheet(
             song = song,
             onSeeSongClick = { openSong(fragment, it) },
-            onFavoriteToggled = { favorites.toggleFavoriteSong(it) },
+            onFavoriteToggled = { favorites.toggleFavoriteSong(it, fragment.favoriteSongFeedback(it)) },
             playlistId = playlistId,
             onRemoveFromPlaylistClick = onRemoveFromPlaylist,
             onAddToPlaylistClick = { selected ->
@@ -220,7 +222,7 @@ object ItemOptions {
         fragment.viewLifecycleOwner.lifecycleScope.launch {
             val songs = runCatching { PlaylistManager(context).getSongsByPlaylistId(id) }.getOrDefault(emptyList())
             if (songs.isEmpty()) {
-                Toast.makeText(context, "Esta lista no tiene canciones", Toast.LENGTH_SHORT).show()
+                fragment.showResonantSnackbar("Esta lista no tiene canciones", SnackType.INFO)
                 return@launch
             }
             context.startService(Intent(context, MusicPlaybackService::class.java).apply {

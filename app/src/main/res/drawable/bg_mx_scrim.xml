@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Funde las portadas desenfocadas del fondo con el color de la pantalla (claro u oscuro). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:centerColor="@color/playmix_scrim_center"
+        android:endColor="@color/playmix_scrim_end"
+        android:startColor="@color/playmix_scrim_start" />
+</shape>

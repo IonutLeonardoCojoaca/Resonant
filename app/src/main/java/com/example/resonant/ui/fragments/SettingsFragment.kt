@@ -10,7 +10,6 @@ import android.text.format.Formatter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -54,6 +53,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 /**
  * Ajustes (redesign-settings), por secciones: reproducción, al terminar la cola, sonido, descargas y
@@ -80,7 +81,7 @@ class SettingsFragment : Fragment() {
             }
         } else if (!granted) {
             setSwitchSilently(currentBinding.rowAriaWakeWord.settingSwitch, false)
-            Toast.makeText(requireContext(), R.string.settings_aria_wake_needs_mic, Toast.LENGTH_LONG).show()
+            showResonantSnackbar(getString(R.string.settings_aria_wake_needs_mic), SnackType.WARNING)
         }
         pendingWakeWordEnable = false
     }
@@ -379,7 +380,7 @@ class SettingsFragment : Fragment() {
         val appContext = requireContext().applicationContext
         viewLifecycleOwner.lifecycleScope.launch {
             val freed = withContext(Dispatchers.IO) { PlaybackCache.clear(appContext) }
-            Toast.makeText(appContext, getString(R.string.settings_cache_cleared, Formatter.formatShortFileSize(appContext, freed)), Toast.LENGTH_SHORT).show()
+            showResonantSnackbar(getString(R.string.settings_cache_cleared, Formatter.formatShortFileSize(appContext, freed)), SnackType.SUCCESS)
             if (_binding != null) updateCacheSize()
         }
     }
@@ -411,7 +412,7 @@ class SettingsFragment : Fragment() {
             }
             if (!ForegroundAriaWakeWordController.isSupported(requireContext())) {
                 setSwitchSilently(switch, false)
-                Toast.makeText(requireContext(), R.string.settings_aria_wake_unsupported, Toast.LENGTH_LONG).show()
+                showResonantSnackbar(getString(R.string.settings_aria_wake_unsupported), SnackType.WARNING)
                 return@setOnCheckedChangeListener
             }
             if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -515,7 +516,7 @@ class SettingsFragment : Fragment() {
                 NotificationsResult.Disabled -> currentBinding.notificationCategoriesContainer.isVisible = false
                 NotificationsResult.Failed -> {
                     applyNotificationSettings(mapOf(category to !enabled), onlyGiven = true)
-                    Toast.makeText(appContext, R.string.notifications_settings_save_failed, Toast.LENGTH_SHORT).show()
+                    showResonantSnackbar(appContext.getString(R.string.notifications_settings_save_failed), SnackType.ERROR)
                 }
             }
         }

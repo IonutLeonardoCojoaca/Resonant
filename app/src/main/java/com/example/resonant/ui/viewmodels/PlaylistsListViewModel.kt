@@ -57,10 +57,11 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
         loadMyPlaylists()
     }
 
-    fun deletePlaylist(playlistId: String) {
+    fun deletePlaylist(playlistId: String, onResult: (Boolean) -> Unit = {}) {
         val originalList = _playlists.value
         if (originalList == null) {
             _error.postValue("No se pudo borrar, la lista no estaba cargada.")
+            onResult(false)
             return
         }
 
@@ -70,10 +71,12 @@ class PlaylistsListViewModel(private val playlistManager: PlaylistManager) : Vie
         viewModelScope.launch {
             try {
                 playlistManager.deletePlaylist(playlistId)
+                onResult(true)
             } catch (e: Exception) {
                 Log.i("Exception playlist", e.toString())
                 _error.postValue("Error al borrar la playlist. Se ha restaurado.")
                 _playlists.postValue(originalList)
+                onResult(false)
             }
         }
     }

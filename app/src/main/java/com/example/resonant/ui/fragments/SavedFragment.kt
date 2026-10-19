@@ -64,6 +64,8 @@ import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.launch
 import java.util.ArrayList
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
+import com.example.resonant.utils.SnackType
 
 /**
  * Biblioteca. Una lista real por pestaña dentro de un ViewPager2: cambiar de pestaña
@@ -412,7 +414,10 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                             .setMessage("¿Borrar \"${p.name}\"? Esta acción no se puede deshacer.")
                             .setDestructive()
                             .setPositiveButton("Borrar") {
-                                playmixListViewModel.deletePlaymix(p.id)
+                                playmixListViewModel.deletePlaymix(p.id) { ok ->
+                                    if (ok) showResonantSnackbar(p.name, SnackType.SUCCESS, title = "PlayMix eliminada")
+                                    else showResonantSnackbar("Se ha restaurado en tu biblioteca", SnackType.ERROR, title = "No se pudo borrar la PlayMix")
+                                }
                             }
                             .setNegativeButton("Cancelar")
                             .show()
@@ -433,7 +438,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
         onSettingsClick = { song -> ItemOptions.song(this@SavedFragment, song) }
         onFavoriteClick = { song, _ ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         // Albums
@@ -657,12 +662,10 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             playlist = playlist,
             playlistImageBitmap = null,
             onDeleteClick = { playlistToDelete ->
-                playlistsListViewModel.deletePlaylist(playlistToDelete.id!!)
-                showResonantSnackbar(
-                    text = "Se ha borrado la lista correctamente",
-                    colorRes = R.color.successColor,
-                    iconRes = R.drawable.ic_success
-                )
+                playlistsListViewModel.deletePlaylist(playlistToDelete.id!!) { ok ->
+                    if (ok) showResonantSnackbar(playlistToDelete.name, SnackType.SUCCESS, title = "Playlist eliminada")
+                    else showResonantSnackbar("Se ha restaurado en tu biblioteca", SnackType.ERROR, title = "No se pudo borrar la playlist")
+                }
             },
             onEditClick = { playlistToEdit ->
                 val bundle = Bundle().apply {

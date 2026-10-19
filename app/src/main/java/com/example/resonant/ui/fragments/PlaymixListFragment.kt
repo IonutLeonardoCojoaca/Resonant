@@ -2,7 +2,6 @@ package com.example.resonant.ui.fragments
 
 import android.os.Bundle
 import android.view.View
-import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.DefaultItemAnimator
@@ -17,6 +16,8 @@ import com.example.resonant.ui.bottomsheets.PlaymixListOptionsBottomSheet
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.PlaymixListViewModel
 import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
 
@@ -110,13 +111,13 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
 
         viewModel.error.observe(viewLifecycleOwner) { msg ->
             msg?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+                showResonantSnackbar(it, SnackType.ERROR)
             }
         }
 
         viewModel.playmixCreated.observe(viewLifecycleOwner) { created ->
             if (created) {
-                Toast.makeText(requireContext(), "PlayMix creado", Toast.LENGTH_SHORT).show()
+                showResonantSnackbar("Añade canciones y diseña sus transiciones", SnackType.SUCCESS, title = "PlayMix creada")
                 viewModel.onPlaymixCreationHandled()
             }
         }
@@ -154,7 +155,10 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
                     .setMessage("¿Borrar \"${p.name}\"? Esta acción no se puede deshacer.")
                     .setDestructive()
                     .setPositiveButton("Borrar") {
-                        viewModel.deletePlaymix(p.id)
+                        // El error ya se muestra vía viewModel.error.
+                        viewModel.deletePlaymix(p.id) { ok ->
+                            if (ok) showResonantSnackbar(p.name, SnackType.SUCCESS, title = "PlayMix eliminada")
+                        }
                     }
                     .setNegativeButton("Cancelar")
                     .show()

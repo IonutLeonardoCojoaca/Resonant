@@ -81,13 +81,14 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         }
     }
 
-    fun removeSong(playmixSongId: String) {
+    fun removeSong(playmixSongId: String, onSuccess: () -> Unit = {}) {
         val playmixId = currentPlaymixId ?: return
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     playmixManager.removeSongFromPlaymix(playmixId, playmixSongId)
                 }
+                onSuccess()
                 refreshDetail(playmixId, showLoading = false)
             } catch (e: Exception) {
                 _error.postValue("Error al eliminar canción: ${e.message}")

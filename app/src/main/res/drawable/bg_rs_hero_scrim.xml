@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Oscurece la portada desenfocada de la tarjeta "Sigue escuchando" por el lado del texto. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:centerColor="#80000000"
+        android:endColor="#1A000000"
+        android:startColor="#D9000000" />
+</shape>

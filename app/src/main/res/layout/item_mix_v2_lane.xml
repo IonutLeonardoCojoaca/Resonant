@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Un carril del editor v2: tarjeta con el nombre en su color y la opción elegida; al tocarla se abre el desplegable. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/laneDropdown"
     android:layout_width="0dp"
     android:layout_height="wrap_content"
     android:layout_weight="1"
     android:background="@drawable/bg_mix_lane_cell"
     android:orientation="vertical"
-    android:paddingHorizontal="12dp"
-    android:paddingVertical="9dp">
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="11dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,24 +19,25 @@
 
         <View
             android:id="@+id/laneDot"
-            android:layout_width="6dp"
-            android:layout_height="6dp"
+            android:layout_width="7dp"
+            android:layout_height="7dp"
             android:background="@drawable/bg_lane_dot" />
 
         <TextView
             android:id="@+id/laneName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="7dp"
             android:fontFamily="@font/unageo_bold"
             android:letterSpacing="0.12"
-            android:textSize="9sp" />
+            android:textColor="@color/textTheme"
+            android:textSize="9.5sp" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="5dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -45,18 +47,17 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:ellipsize="end"
-            android:fontFamily="@font/unageo_medium"
+            android:fontFamily="@font/unageo_semi_bold"
             android:maxLines="1"
             android:textColor="@color/white"
-            android:textSize="12sp" />
+            android:textSize="12.5sp" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:layout_marginStart="4dp"
-            android:fontFamily="@font/unageo_medium"
-            android:text="▾"
-            android:textColor="#88FFFFFF"
-            android:textSize="12sp" />
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_keyboard_arrow_down"
+            app:tint="@color/textTheme" />
     </LinearLayout>
 </LinearLayout>

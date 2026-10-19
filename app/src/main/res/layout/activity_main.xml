@@ -580,7 +580,7 @@
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:orientation="vertical"
-        android:background="@color/sideBar"
+        android:background="@color/primaryColorTheme"
         android:fitsSystemWindows="true">
         <include layout="@layout/drawer_index"/>
     </LinearLayout>

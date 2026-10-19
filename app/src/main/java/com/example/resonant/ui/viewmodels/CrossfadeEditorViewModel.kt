@@ -82,7 +82,9 @@ data class CrossfadeEditorState(
     /** Editor v2 (carriles, ventana y presets estilo Spotify); null con el motor v1 o sin documento v2 posible. */
     val v2: MixEditorV2State? = null,
     /** Documento v2 guardado en el servidor (null si aún no hay): distinto del de [v2] = cambios sin guardar. */
-    val v2Saved: MixDocumentDTO? = null
+    val v2Saved: MixDocumentDTO? = null,
+    /** No se pudieron cargar los datos de la transición: el editor enseña el error con reintento. */
+    val loadFailed: Boolean = false
 ) {
     val v2Dirty: Boolean get() = v2 != null && v2.document != v2Saved
     /** Estado del clip renderizado del servidor (pending, rendering, ready, failed…). */
@@ -171,7 +173,24 @@ class CrossfadeEditorViewModel(
         )
     }
 
+    /** Transición ya cargada (o cargándose) en este ViewModel: volver a la pantalla no descarta lo editado. */
+    private var loadedKey: String? = null
+
+    /**
+     * Ondas simples de A y B ya descargadas (clave = ids de las canciones). Viven aquí y no en la vista para no volver
+     * a descargarlas al recrearla (volver atrás a la pantalla, girar).
+     */
+    var cachedAmplitudes: Triple<String, List<Float>, List<Float>>? = null
+        private set
+
+    fun cacheAmplitudes(key: String, a: List<Float>, b: List<Float>) {
+        cachedAmplitudes = Triple(key, a, b)
+    }
+
     fun loadWaveformData(playmixId: String, transitionId: String) {
+        val key = "$playmixId/$transitionId"
+        if (key == loadedKey) return
+        loadedKey = key
         this.playmixId = playmixId
         this.transitionId = transitionId
 
@@ -229,9 +248,18 @@ class CrossfadeEditorViewModel(
                 }
             } catch (e: Exception) {
                 logError("Error loading waveform data", e)
-                _state.value = _state.value?.copy(isLoading = false, error = "Error al cargar datos: ${e.message}")
+                // Sin datos no hay editor: se permite reintentar la carga entera.
+                loadedKey = null
+                _state.value = _state.value?.copy(isLoading = false, loadFailed = true)
             }
         }
+    }
+
+    /** Reintenta la carga tras un fallo (pantalla de error). */
+    fun retryLoad() {
+        if (playmixId.isEmpty() || transitionId.isEmpty()) return
+        _state.value = _state.value?.copy(loadFailed = false)
+        loadWaveformData(playmixId, transitionId)
     }
 
     // ─── Resonant Studio: documento, estilo y compases ─────────────────────────
@@ -309,6 +337,9 @@ class CrossfadeEditorViewModel(
     /** Opciones de carril y ondas de 3 bandas: si fallan, el editor sigue con el catálogo local y la onda simple. */
     private fun loadV2Extras(studio: StudioTransitionDTO) {
         viewModelScope.launch {
+            // Copia local primero (nombres reales al instante), luego la del servidor.
+            val stored = runCatching { withContext(ioDispatcher) { presetManager.peekCachedLaneOptions() } }.getOrNull()
+            if (stored != null && stored.volume.isNotEmpty()) updateV2 { it.copy(laneOptions = stored) }
             val options = runCatching { withContext(ioDispatcher) { presetManager.getLaneOptions() } }
                 .onFailure { logError("Opciones de carril no disponibles", it) }
                 .getOrNull()
@@ -356,12 +387,18 @@ class CrossfadeEditorViewModel(
     /** Escucha del documento tal como está en el editor (sin guardar); null sin editor v2. */
     fun v2PreviewRequest(): MixPreviewRequest? = _state.value?.v2?.let { MixEditorV2.preview(it) }
 
-    /** Pide al servidor el documento del estilo con los compases elegidos y lo deja como documento actual. */
+    private var styleJob: Job? = null
+
+    /**
+     * Pide al servidor el documento del estilo con los compases elegidos y lo deja como documento actual. Un toque
+     * nuevo cancela la petición anterior: no llega una respuesta vieja después de la buena.
+     */
     fun selectStyle(code: String) {
         val manager = studioManager ?: return
         val current = _state.value ?: return
         _state.value = current.copy(styleLoading = true, error = null)
-        viewModelScope.launch {
+        styleJob?.cancel()
+        styleJob = viewModelScope.launch {
             try {
                 val response = withContext(ioDispatcher) { manager.preset(playmixId, transitionId, code, current.bars) }
                 val doc = response.document.copy(preset = response.document.preset ?: MixPresetRefDTO(code))
@@ -376,6 +413,8 @@ class CrossfadeEditorViewModel(
                     mixMode = if (now.mixMode == PlaymixMixMode.SMART) PlaymixMixMode.DEFAULT_ADVANCED else now.mixMode,
                     activePresetCode = null, activePresetName = null, isPresetModified = false
                 )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logError("Error pidiendo el estilo $code", e)
                 _state.value = _state.value?.copy(
@@ -399,31 +438,41 @@ class CrossfadeEditorViewModel(
 
     // ─── Preset Loading ─────────────────────────
 
-    private fun loadPresets() {
-        _state.value = _state.value?.copy(presetsLoading = true, presetsError = null)
-        viewModelScope.launch {
+    private var presetsJob: Job? = null
+
+    /**
+     * Presets guardados en el dispositivo al instante (sin esperar a la red) y, después, los del servidor si la copia
+     * caducó. Con copia local, un fallo de red no es un error: se siguen usando los guardados.
+     */
+    private fun loadPresets(forceRefresh: Boolean = false) {
+        presetsJob?.cancel()
+        presetsJob = viewModelScope.launch {
+            val cached = runCatching { withContext(ioDispatcher) { presetManager.peekCachedPresets() } }.getOrNull()
+            if (!cached.isNullOrEmpty()) applyPresets(cached)
+            else _state.value = _state.value?.copy(presetsLoading = true, presetsError = null)
+            if (!forceRefresh && !cached.isNullOrEmpty() && presetManager.hasFreshPresets()) return@launch
             try {
-                val presets = withContext(ioDispatcher) {
-                    presetManager.getPresets()
-                }
-                _state.value = _state.value?.copy(
-                    availablePresets = presets,
-                    presetsLoading = false,
-                    presetsError = null
-                )
-                updateV2 { it.copy(presets = MixEditorV2.presetsOrDefault(presets)) }
+                val presets = withContext(ioDispatcher) { presetManager.getPresets(forceRefresh) }
+                applyPresets(presets)
             } catch (e: Exception) {
                 logError("Error loading presets", e)
                 _state.value = _state.value?.copy(
                     presetsLoading = false,
-                    presetsError = "No se pudieron cargar los presets"
+                    presetsError = if (cached.isNullOrEmpty()) "No se pudieron cargar los presets" else null
                 )
             }
         }
     }
 
+    private fun applyPresets(presets: List<TransitionPresetDTO>) {
+        val current = _state.value ?: return
+        if (current.availablePresets == presets && !current.presetsLoading && current.presetsError == null) return
+        _state.value = current.copy(availablePresets = presets, presetsLoading = false, presetsError = null)
+        updateV2 { it.copy(presets = MixEditorV2.presetsOrDefault(presets)) }
+    }
+
     fun retryLoadPresets() {
-        loadPresets()
+        loadPresets(forceRefresh = true)
     }
 
     // ─── Preset Selection & Apply ─────────────
@@ -686,6 +735,8 @@ class CrossfadeEditorViewModel(
 
     fun saveTransition() {
         val current = _state.value ?: return
+        // Un doble toque no lanza dos guardados (el segundo chocaría con la revisión del primero: 409).
+        if (current.isSaving) return
 
         val v2 = current.v2
         if (v2 != null && studioManager != null) {

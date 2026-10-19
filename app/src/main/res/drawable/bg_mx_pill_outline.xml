@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Desplegable de compases bajo la ventana de mezcla: borde con el degradado de PlayMix. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#22FF7A59">
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="0"
+                        android:endColor="@color/playmix_accent_end"
+                        android:startColor="@color/playmix_accent" />
+                    <corners android:radius="22dp" />
+                </shape>
+            </item>
+            <item
+                android:bottom="1.5dp"
+                android:left="1.5dp"
+                android:right="1.5dp"
+                android:top="1.5dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/primaryColorTheme" />
+                    <corners android:radius="21dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</ripple>

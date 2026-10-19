@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
@@ -25,6 +24,8 @@ import com.example.resonant.ui.viewmodels.PlaylistsListViewModelFactory
 import com.example.resonant.ui.viewmodels.UserViewModel
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
@@ -177,6 +178,7 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
                     "NEW_PLAYLIST_CREATED"
                 )
                 playlistsViewModel.onPlaylistCreationHandled()
+                showResonantSnackbar(nameField.text, SnackType.SUCCESS, title = "Playlist creada")
 
                 val navOptions = androidx.navigation.NavOptions.Builder()
                     .setPopUpTo(R.id.createPlaylistFragment, true)
@@ -188,7 +190,7 @@ class CreatePlaylistFragment : BaseFragment(R.layout.fragment_create_playlist) {
 
         playlistsViewModel.error.observe(viewLifecycleOwner) { errorMessage ->
             errorMessage?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+                showResonantSnackbar(it, SnackType.ERROR, title = "No se pudo crear la playlist")
                 playlistsViewModel.onPlaylistCreationHandled()
                 isCreating = false
                 CreateCta.setLoading(createButton, false, CTA_TEXT)

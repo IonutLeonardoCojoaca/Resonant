@@ -39,6 +39,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.json.JSONArray
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class WaveformPreviewBottomSheet(
     private val playmixId: String,
@@ -310,7 +312,10 @@ class WaveformPreviewBottomSheet(
 
                 val songA = withContext(Dispatchers.IO) { songManager.getSongById(data.songA.songId) }
                 val songB = withContext(Dispatchers.IO) { songManager.getSongById(data.songB.songId) }
-                if (songA == null || songB == null) return@launch
+                if (songA == null || songB == null) {
+                    showResonantSnackbar("No se pudo preparar la escucha", SnackType.ERROR, inDialog = true)
+                    return@launch
+                }
 
                 val songList = ArrayList(listOf(songA, songB))
                 val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
@@ -327,6 +332,7 @@ class WaveformPreviewBottomSheet(
                 requireContext().startService(playIntent)
             } catch (e: Exception) {
                 Log.e("WaveformPreview", "Preview error", e)
+                showResonantSnackbar("Error al reproducir la escucha", SnackType.ERROR, inDialog = true)
             } finally {
                 playButton.isEnabled = true
                 playButton.alpha = 1f

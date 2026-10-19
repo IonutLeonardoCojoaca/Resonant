@@ -1,67 +1,77 @@
 package com.example.resonant.ui.fragments
 
+import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.View
-import android.view.ViewGroup
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.HorizontalScrollView
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.example.resonant.R
-import com.example.resonant.data.network.CompatibilityDTO
-import com.example.resonant.data.network.BandFadeTypesDTO
-import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.data.network.WaveformResponseDTO
-import com.example.resonant.data.network.WaveformSongDTO
-import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.databinding.FragmentCrossfadeEditorBinding
-import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.SongManager
 import com.example.resonant.managers.StudioManager
 import com.example.resonant.managers.TransitionPresetManager
+import com.example.resonant.playback.MixComposer
+import com.example.resonant.playback.PhaseAlignment
 import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.playback.PlaymixMixMode
 import com.example.resonant.playback.QueueSource
+import com.example.resonant.playback.TransitionPreview
+import com.example.resonant.playback.WaveformAmplitudes
+import com.example.resonant.playback.engine.TransitionEngineFlag
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.components.ChartPeriodSelector
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.detail.SongInsightsFormatter
 import com.example.resonant.ui.viewmodels.CrossfadeEditorState
 import com.example.resonant.ui.viewmodels.CrossfadeEditorViewModel
 import com.example.resonant.ui.viewmodels.CrossfadeEditorViewModelFactory
+import com.example.resonant.ui.viewmodels.MixEditorV2
 import com.example.resonant.utils.ImageRequestHelper
-import androidx.lifecycle.lifecycleScope
-import com.bumptech.glide.Glide
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
+import com.example.resonant.ui.dialogs.PlaymixDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.util.Log
-import okhttp3.Request
-import org.json.JSONArray
-import com.example.resonant.data.network.ApiClient
-import android.content.res.ColorStateList
-import android.graphics.drawable.GradientDrawable
-import androidx.core.graphics.ColorUtils
-import androidx.core.view.isVisible
-import com.example.resonant.playback.PlaymixMixMode
-import com.example.resonant.playback.TransitionPreview
-import com.example.resonant.playback.engine.TransitionEngineFlag
-import com.example.resonant.ui.viewmodels.MixEditorV2
-import com.example.resonant.ui.views.MixEditorView
-import com.example.resonant.ui.components.ChartPeriodSelector
-import com.example.resonant.ui.components.ResonantAccent
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/**
+ * Editor de una transición de PlayMix. Con el motor v2 edita el documento por carriles ([MixEditorView] + estilos +
+ * ajuste fino); con el antiguo, el blend automático o la transición avanzada sobre [com.example.resonant.ui.views.WaveformView]
+ * con los estilos de Studio. Toda la pantalla se pinta desde el estado del ViewModel en [render]: las secciones
+ * están en el layout y aquí solo se muestran u ocultan.
+ */
 class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor) {
 
     private var _binding: FragmentCrossfadeEditorBinding? = null
@@ -70,25 +80,32 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     private lateinit var viewModel: CrossfadeEditorViewModel
     private var playmixId: String = ""
     private var transitionId: String = ""
+    private var v2Enabled = false
 
-    private var isCompatCollapsed = true
-    private var showAdvancedControls = false
-    private var lastLoadedWaveformKey: String? = null
-    private var lastLoadedArtworkKey: String? = null
-    private var isPreviewStarting = false
-    private val mixModeChipViews = mutableMapOf<String, TextView>()
-    private val effectChipViews = mutableMapOf<String, TextView>()
-    private var effectChipContainer: LinearLayout? = null
-    private var studioUnavailableShown = false
+    // ─── Ligado a la vista: se reinicia en onDestroyView (el fragment sobrevive en la pila sin vista) ───
     private var modeSelector: ChartPeriodSelector? = null
-    /** Bloques del editor avanzado ocultados por el blend automático, para restaurarlos tal cual. */
-    private val hiddenBySmartMode = mutableListOf<View>()
-    /** Editor v2 (motor de salida único): sustituye a los bloques del editor antiguo. */
     private var v2Panel: MixEditorV2Panel? = null
-    private var mixEditorView: MixEditorView? = null
+    private val styleChips = linkedMapOf<String, TextView>()
+    private var boundWaveformKey: String? = null
+    private var boundArtworkKey: String? = null
     private var lastRenderStatus: String? = null
-    private var amplitudesA: List<Float>? = null
-    private var amplitudesB: List<Float>? = null
+    private var lastSaving = false
+    private var lastDirty = false
+    private var lastSelectedStyle: String? = null
+    private var contentRevealed = false
+    private var isPreviewStarting = false
+    private var capsuleKind: Capsule? = null
+    private val hideCapsule = Runnable { dismissCapsule() }
+    private var playPulse: ValueAnimator? = null
+    private var skeletonPulse: ObjectAnimator? = null
+    private var unsavedCallback: OnBackPressedCallback? = null
+    /** «Guardar y salir» del aviso de cambios sin guardar: se sale cuando el guardado termina bien. */
+    private var exitAfterSave = false
+
+    /** Una vez por fragment: el aviso de Studio no disponible no se repite al volver a la pantalla. */
+    private var studioUnavailableShown = false
+
+    private enum class Capsule { SAVING, RENDERING, DONE, FAILED }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -97,224 +114,333 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         playmixId = arguments?.getString("playmixId") ?: return
         transitionId = arguments?.getString("transitionId") ?: return
 
-        val playmixManager = PlaymixManager(requireContext())
-        val presetManager = TransitionPresetManager(requireContext())
-        val studioManager = StudioManager(requireContext())
-        val v2Enabled = TransitionEngineFlag.isEnabled(requireContext())
-        viewModel = ViewModelProvider(this, CrossfadeEditorViewModelFactory(playmixManager, presetManager, studioManager, v2Enabled))
-            .get(CrossfadeEditorViewModel::class.java)
+        val ctx = requireContext()
+        v2Enabled = TransitionEngineFlag.isEnabled(ctx)
+        viewModel = ViewModelProvider(
+            this,
+            CrossfadeEditorViewModelFactory(PlaymixManager(ctx), TransitionPresetManager(ctx), StudioManager(ctx), v2Enabled)
+        ).get(CrossfadeEditorViewModel::class.java)
 
-        setupCompactLayout()
-        bindModePanel()
-        setupListeners()
-        setupPresetListeners()
-        setupGapSlider()
-        setupTransitionDurationControls()
-        setupBandFadePanel()
+        setupTopBar()
+        setupBackdropAndParallax()
+        setupModeSelector()
+        setupStage()
+        setupStyleSection()
         observeViewModel()
-        observePlaybackForPrelisten()
+        observePlayback()
 
         viewModel.loadWaveformData(playmixId, transitionId)
     }
 
-    private fun setupListeners() {
+    // ═══════════════════════════════════════════════
+    // MONTAJE
+    // ═══════════════════════════════════════════════
+
+    private fun setupTopBar() {
         binding.arrowGoBackButton.setOnClickListener {
-            findNavController().popBackStack()
+            if (unsavedCallback?.isEnabled == true) confirmDiscard() else findNavController().popBackStack()
         }
-
         binding.topSaveButton.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
             viewModel.saveTransition()
         }
+        binding.loadRetryButton.setOnClickListener { viewModel.retryLoad() }
 
-        // Compatibility panel collapse
-        binding.compatHeader.setOnClickListener {
-            isCompatCollapsed = !isCompatCollapsed
-            binding.compatContent.visibility = if (isCompatCollapsed) View.GONE else View.VISIBLE
-            binding.compatToggle.setImageResource(
-                if (isCompatCollapsed) R.drawable.ic_keyboard_arrow_down
-                else R.drawable.ic_keyboard_arrow_up
-            )
+        // Con cambios sin guardar (motor v2), salir pregunta antes de descartarlos.
+        val callback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() = confirmDiscard()
         }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, callback)
+        unsavedCallback = callback
+    }
 
-        // Snap-to-beat button
-        binding.snapToBeatButton.visibility = View.GONE
-        binding.smartSuggestButton.visibility = View.GONE
-
-        // Waveform drag → exit point
-        // Real-time scrubbing callback for smooth UI updates during drag
-        binding.waveformView.onScrubbing = { exitMs, entryMs ->
-            binding.exitPointLabel.text = formatMs(exitMs)
-            binding.entryPointLabel.text = formatMs(entryMs)
-        }
-
-        // Action UP / Cancel -> commit changes to state
-        // El ViewModel puede recortar el punto (el cruce tiene que caber): la etiqueta muestra el valor final.
-        binding.waveformView.onExitChanged = { ms ->
-            viewModel.setExitPoint(ms)
-            binding.exitPointLabel.text = formatMs(viewModel.state.value?.exitPointMs ?: ms)
-            updateWaveformMarkers()
-        }
-
-        binding.waveformView.onEntryChanged = { ms ->
-            viewModel.setEntryPoint(ms)
-            binding.entryPointLabel.text = formatMs(viewModel.state.value?.entryPointMs ?: ms)
-            updateWaveformMarkers()
-        }
-
-        // Beat presets — labels updated when BPM is known
-        binding.preset4beats.setOnClickListener  { applyMeasurePreset(2) }
-        binding.preset8beats.setOnClickListener  { applyMeasurePreset(4) }
-        binding.preset16beats.setOnClickListener { applyMeasurePreset(8) }
-        binding.preset32beats.setOnClickListener { applyMeasurePreset(16) }
-        binding.measureDropdownButton.setOnClickListener { showMeasureMenu(it) }
-
-        // DJ Mix mode dropdown
-        binding.mixModeDropdown.visibility = View.GONE
-
-        binding.previewToggleButton.setOnClickListener {
-            togglePreviewPlayback()
-        }
-
-        // Preview button
-        binding.previewButton.setOnClickListener {
-            val state = viewModel.state.value ?: return@setOnClickListener
-            val baseTransition = state.waveformData?.transition ?: run {
-                Toast.makeText(requireContext(), "Cargando datos, inténtalo de nuevo", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+    private fun confirmDiscard() {
+        PlaymixDialog(requireContext())
+            .setIcon(R.drawable.ic_warning)
+            .setEyebrow("Editor de transición")
+            .setTitle("Cambios sin guardar")
+            .setMessage("Si sales ahora se perderán los cambios de esta transición.")
+            .setPrimary("Guardar y salir") {
+                // Se sale al confirmarse el guardado (handleMessages); si falla, se queda en el editor.
+                exitAfterSave = true
+                viewModel.saveTransition()
             }
-            val previewTransition = baseTransition.copy(
-                exitPointMs = state.exitPointMs,
-                entryPointMs = state.entryPointMs,
-                crossfadeDurationMs = state.crossfadeDurationMs,
-                fadeCurveType = state.fadeCurveType,
-                eqSettings = state.eqSettings,
-                eqSettingsA = state.eqSettingsA,
-                eqSettingsB = state.eqSettingsB,
-                mixMode = state.mixMode,
-                bandFadeTypes = state.bandFadeTypes,
-                gapMs = state.gapMs,
-                mixDocument = state.document.takeIf { state.mixMode != PlaymixMixMode.SMART }
-            )
-            WaveformPreviewBottomSheet(playmixId, previewTransition)
-                .show(childFragmentManager, "WaveformPreview")
-        }
-
-        // Pre-listen buttons
-        binding.prelistenExitButton.setOnClickListener { togglePrelisten("songA") }
-        binding.prelistenEntryButton.setOnClickListener { togglePrelisten("songB") }
-
-        // Save button
-        binding.saveButton.setOnClickListener {
-            viewModel.saveTransition()
-        }
-
-        binding.advancedToggleButton.setOnClickListener {
-            showAdvancedControls = !showAdvancedControls
-            updateAdvancedControlsVisibility(viewModel.state.value)
-        }
-
-        // Fade curve type buttons (master control: sets all 3 bands at once)
-        binding.curveLinear.setOnClickListener {
-            viewModel.setFadeCurveType("linear")
-        }
-        binding.curveLogarithmic.setOnClickListener {
-            viewModel.setFadeCurveType("logarithmic")
-        }
-        binding.curveExponential.setOnClickListener {
-            viewModel.setFadeCurveType("exponential")
-        }
-
-        // ─── Per-band fade type dropdowns ─────────────
-        binding.bassDropdown.setOnClickListener { showBandFadeMenu(it, "bass") }
-        binding.midDropdown.setOnClickListener { showBandFadeMenu(it, "mid") }
-        binding.trebleDropdown.setOnClickListener { showBandFadeMenu(it, "treble") }
+            .setSecondary("Descartar cambios", destructive = true) {
+                unsavedCallback?.isEnabled = false
+                findNavController().popBackStack()
+            }
+            .setTertiary("Seguir editando")
+            .show()
     }
 
-    private fun setupCompactLayout() {
-        val parent = binding.editorContent
-        splitSongHeaders()
-        val compactViews = listOf(
-            binding.beatSuggestionsPanel
-        )
-        compactViews.forEach { view ->
-            (view.parent as? ViewGroup)?.removeView(view)
+    /** Portadas desenfocadas detrás de la cabecera y parallax de las capas al hacer scroll. */
+    private fun setupBackdropAndParallax() {
+        binding.backdropArt.setRenderEffect(RenderEffect.createBlurEffect(BACKDROP_BLUR, BACKDROP_BLUR, Shader.TileMode.CLAMP))
+        binding.songACoverFrame.clipToOutline = true
+        binding.songBCoverFrame.clipToOutline = true
+        // Pantalla oscura redondeada bajo la onda antigua (la v2 dibuja la suya igual).
+        binding.waveformContainer.background = GradientDrawable().apply {
+            setColor(STAGE_SCREEN)
+            cornerRadius = 18.dp.toFloat()
         }
-        val visualizerIndex = parent.indexOfChild(binding.visualizerPanel)
-        compactViews.forEachIndexed { offset, view ->
-            parent.addView(view, visualizerIndex + 1 + offset)
-        }
-
-        binding.compatibilityPanel.visibility = View.GONE
-        binding.visualizerPanel.getChildAt(0)?.visibility = View.GONE
-        binding.presetSelectorContainer.visibility = View.GONE
-        binding.activePresetBanner.visibility = View.GONE
-        binding.transitionDurationPanel.visibility = View.GONE
-        binding.beatSuggestionsPanel.visibility = View.GONE
-        binding.beatSuggestionsPanel.background = null
-        binding.beatSuggestionsPanel.setPadding(0, 10.dp, 0, 0)
-        binding.beatSuggestionsPanel.getChildAt(0)?.visibility = View.GONE
-        binding.saveButton.visibility = View.GONE
-        binding.previewButton.visibility = View.GONE
-        binding.actionButtonsPanel.visibility = View.GONE
-        binding.prelistenPanel.visibility = View.GONE
-        binding.advancedToggleButton.visibility = View.GONE
-        updateAdvancedControlsVisibility(null)
+        binding.waveformContainer.clipToOutline = true
+        binding.waveformView.canvasBackgroundColor = Color.TRANSPARENT
+        binding.editorScroll.setOnScrollChangeListener { _, _, y, _, _ -> applyParallax(y) }
     }
 
-    // ═══════════════════════════════════════════════
-    // MODO: BLEND AUTOMÁTICO / TRANSICIÓN AVANZADA
-    // ═══════════════════════════════════════════════
+    private fun applyParallax(scrollY: Int) {
+        val b = _binding ?: return
+        val heroH = b.heroPanel.height.takeIf { it > 0 } ?: return
+        val progress = (scrollY / heroH.toFloat()).coerceIn(0f, 1f)
+        // Fondo: sube a la mitad de velocidad y se apaga.
+        b.backdrop.translationY = -scrollY * 0.5f
+        b.backdrop.alpha = 1f - progress
+        // Cabecera: se queda algo atrás, se desvanece y las portadas se separan como cartas.
+        b.heroPanel.translationY = scrollY * 0.35f
+        b.heroPanel.alpha = 1f - progress * 0.85f
+        val scale = 1f - 0.12f * progress
+        b.songACoverFrame.apply { rotation = -7f * progress; scaleX = scale; scaleY = scale }
+        b.songBCoverFrame.apply { rotation = 7f * progress; scaleX = scale; scaleY = scale }
+        // Barra superior: aparece con su título cuando la cabecera se va.
+        val bar = ((scrollY - heroH * 0.45f) / (heroH * 0.35f)).coerceIn(0f, 1f)
+        b.topBarBackground.alpha = bar
+        b.topBarBackground.elevation = 4.dp * bar
+        b.editorTitle.alpha = bar
+    }
 
-    private fun bindModePanel() {
+    private fun setupModeSelector() {
         val panel = binding.playmixModePanel
         val accent = ResonantAccent.PLAYMIX.color
         modeSelector = ChartPeriodSelector(
-            panel.playmixModeSelector.root,
-            accent,
-            listOf("Blend automático", "Transición avanzada"),
-            initialIndex = 0
-        ) { index -> viewModel.setSmartMode(index == 0) }
-
+            panel.playmixModeSelector.root, accent, listOf("Automático", "Avanzado"), initialIndex = 0
+        ) { index ->
+            binding.root.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            viewModel.setSmartMode(index == 0)
+        }
         panel.smartModeBadge.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(ColorUtils.setAlphaComponent(accent, 0x2E))
         }
         panel.smartModeIcon.imageTintList = ColorStateList.valueOf(accent)
         panel.smartModeEyebrow.setTextColor(accent)
-        val link = GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(ColorUtils.setAlphaComponent(accent, 0x22), ColorUtils.setAlphaComponent(accent, 0x99))
-        ).apply { cornerRadius = 1.dp.toFloat() }
-        panel.smartModeBpmLink.background = link
-        panel.smartModeBpmLink2.background = link.constantState?.newDrawable()?.mutate()?.apply {
-            (this as GradientDrawable).orientation = GradientDrawable.Orientation.RIGHT_LEFT
+    }
+
+    private fun setupStage() {
+        val wave = binding.waveformView
+        // Durante el arrastre solo cambian las etiquetas; al soltar decide el ViewModel (puede recortar el punto).
+        wave.onScrubbing = { exitMs, entryMs ->
+            binding.exitPointLabel.text = formatMs(exitMs)
+            binding.entryPointLabel.text = formatMs(entryMs)
+        }
+        wave.onExitChanged = { ms ->
+            wave.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            viewModel.setExitPoint(ms)
+        }
+        wave.onEntryChanged = { ms ->
+            wave.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            viewModel.setEntryPoint(ms)
+        }
+        binding.mixEditorView.onDragA = { ms, toBeat ->
+            binding.mixEditorView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            viewModel.v2DragA(ms, toBeat)
+        }
+        binding.mixEditorView.onDragB = { ms, toBeat ->
+            binding.mixEditorView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            viewModel.v2DragB(ms, toBeat)
+        }
+        binding.previewToggleButton.setOnClickListener { togglePreviewPlayback() }
+        binding.measureDropdownButton.setOnClickListener { showMeasureMenu(it) }
+        binding.windowEarlierButton.setOnClickListener { viewModel.v2MoveWindow(-1) }
+        binding.windowLaterButton.setOnClickListener { viewModel.v2MoveWindow(1) }
+    }
+
+    private fun setupStyleSection() {
+        binding.styleRetryButton.setOnClickListener { viewModel.retryLoadPresets() }
+    }
+
+    private fun ensureV2Panel(): MixEditorV2Panel {
+        v2Panel?.let { return it }
+        val prefs = requireContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return MixEditorV2Panel(
+            binding.mixV2Controls,
+            object : MixEditorV2Panel.Actions {
+                override fun selectLaneOption(lane: String, code: String) = viewModel.v2SelectLaneOption(lane, code)
+                override fun setBeatSync(enabled: Boolean) = viewModel.v2SetBeatSync(enabled)
+            },
+            lanesExpanded = prefs.getBoolean(KEY_LANES_EXPANDED, false),
+            onLanesExpandedChanged = { prefs.edit().putBoolean(KEY_LANES_EXPANDED, it).apply() }
+        ) { anchor, options, current, onSelected -> showStyledPopup(anchor, options, current, onSelected) }
+            .also { v2Panel = it }
+    }
+
+    // ═══════════════════════════════════════════════
+    // RENDER
+    // ═══════════════════════════════════════════════
+
+    private fun observeViewModel() {
+        viewModel.state.observe(viewLifecycleOwner) { render(it) }
+    }
+
+    private fun render(state: CrossfadeEditorState) {
+        val data = state.waveformData
+        // Con el motor v2 se espera también a Studio: si no, se vería un instante el editor antiguo.
+        val ready = data != null && (!v2Enabled || state.v2 != null || state.studio != null || state.studioUnavailable)
+        renderLoading(state, ready)
+        if (data == null || !ready) return
+
+        loadWaveforms(data)
+        loadSongArtwork(data)
+        renderHero(state, data)
+        if (state.v2 != null) renderV2(state) else renderLegacy(state)
+        renderSaveButton(state)
+        renderCapsule(state)
+        handleMessages(state)
+        unsavedCallback?.isEnabled = state.v2Dirty
+        updatePreviewToggleButton()
+        updatePlaybackCursor()
+        revealContent()
+    }
+
+    private fun renderLoading(state: CrossfadeEditorState, hasData: Boolean) {
+        val loading = !hasData && !state.loadFailed
+        binding.lottieLoader.isVisible = loading
+        if (loading) binding.lottieLoader.playAnimation() else binding.lottieLoader.cancelAnimation()
+        binding.loadErrorPanel.isVisible = !hasData && state.loadFailed
+        binding.editorScroll.visibility = if (hasData) View.VISIBLE else View.INVISIBLE
+        binding.topSaveButton.isVisible = hasData
+    }
+
+    /** Entrada escalonada de las secciones y de las portadas la primera vez que hay datos. */
+    private fun revealContent() {
+        if (contentRevealed) return
+        contentRevealed = true
+        val content = binding.editorContent
+        val rise = 28.dp.toFloat()
+        var order = 0
+        for (i in 0 until content.childCount) {
+            val child = content.getChildAt(i)
+            if (!child.isVisible) continue
+            child.alpha = 0f
+            child.translationY = rise
+            child.animate().alpha(1f).translationY(0f)
+                .setStartDelay(REVEAL_STAGGER_MS * order++)
+                .setDuration(REVEAL_MS)
+                .setInterpolator(DecelerateInterpolator(1.6f))
+                .start()
+        }
+        listOf(binding.songACoverFrame, binding.songBCoverFrame).forEachIndexed { index, cover ->
+            cover.scaleX = 0.82f
+            cover.scaleY = 0.82f
+            cover.animate().scaleX(1f).scaleY(1f).setStartDelay(80L + index * 90L).setDuration(520)
+                .setInterpolator(OvershootInterpolator(1.4f)).start()
         }
     }
 
-    /** Muestra el panel del modo elegido; en automático oculta el editor avanzado sin perder su estado. */
-    private fun updateModePanel(state: CrossfadeEditorState) {
+    private fun renderHero(state: CrossfadeEditorState, data: WaveformResponseDTO) {
+        data.songA.title?.let { binding.songATitle.text = it }
+        data.songB.title?.let { binding.songBTitle.text = it }
+        data.songA.artist?.let { binding.songAArtist.text = it }
+        data.songB.artist?.let { binding.songBArtist.text = it }
+
+        val bpmA = data.songA.bpm?.takeIf { it > 0 }
+        val bpmB = data.songB.bpm?.takeIf { it > 0 }
+        bindBpm(binding.songABpm, bpmA)
+        bindBpm(binding.songBBpm, bpmB)
+
+        val keyA = SongInsightsFormatter.camelot(state.studio?.songA?.camelot ?: state.v2?.songA?.keyCamelot, data.songA.musicalKey)
+        val keyB = SongInsightsFormatter.camelot(state.studio?.songB?.camelot ?: state.v2?.songB?.keyCamelot, data.songB.musicalKey)
+        bindCamelot(binding.songAKey, keyA)
+        bindCamelot(binding.songBKey, keyB)
+
+        // Conector: cuánto se separan los tempos y cómo casan las tonalidades.
+        val delta = MixComposer.bpmDeltaPct(bpmA, bpmB)
+        binding.heroTempoMatch.text = delta?.let { "± " + String.format(SPANISH, "%.1f", it) + " %" } ?: "Tempo —"
+        binding.heroTempoMatch.setTextColor(
+            when {
+                delta == null -> themeColor(R.color.textTheme)
+                delta <= 2.0 -> COLOR_GOOD
+                delta <= MixComposer.MAX_SYNC_DELTA_PCT -> COLOR_FAIR
+                else -> themeColor(R.color.textTheme)
+            }
+        )
+        val distance = MixComposer.camelotDistance(keyA, keyB)
+        val (keyText, keyColor) = when {
+            distance == null -> "Tono —" to themeColor(R.color.textTheme)
+            distance == 0.0 -> "Misma tonalidad" to COLOR_GOOD
+            distance <= 1.0 -> "Armónica" to COLOR_GOOD
+            distance <= 2.0 -> "Tensión suave" to COLOR_FAIR
+            else -> "Tonos lejanos" to themeColor(R.color.textTheme)
+        }
+        binding.heroKeyMatch.text = keyText
+        binding.heroKeyMatch.setTextColor(keyColor)
+    }
+
+    private fun bindBpm(view: TextView, bpm: Double?) {
+        view.isVisible = bpm != null
+        if (bpm != null) view.text = "${bpm.roundToInt()} BPM"
+    }
+
+    /** Pastilla Camelot con el color de su número en la rueda (más clara en el anillo B, mayor). */
+    private fun bindCamelot(view: TextView, code: String?) {
+        val position = SongInsightsFormatter.camelotPosition(code)
+        view.isVisible = position != null
+        if (position == null) return
+        view.text = code
+        val hue = ((position.first - 1) * 30f + 150f) % 360f
+        view.backgroundTintList = ColorStateList.valueOf(
+            Color.HSVToColor(floatArrayOf(hue, if (position.second) 0.55f else 0.35f, 0.95f))
+        )
+        view.setTextColor(Color.BLACK)
+        view.contentDescription = "Tonalidad $code"
+    }
+
+    // ─── Motor antiguo ─────────────────────────
+
+    private fun renderLegacy(state: CrossfadeEditorState) {
         val smart = state.mixMode == PlaymixMixMode.SMART
         val panel = binding.playmixModePanel
+        panel.root.isVisible = true
         val selectedIndex = if (smart) 0 else 1
         modeSelector?.let { if (it.selectedIndex != selectedIndex) it.select(selectedIndex, animate = false) }
-        panel.smartModePanel.isVisible = smart
+        setSectionVisible(panel.smartModePanel, smart)
+        if (smart) bindSmartExplanation(state)
 
-        val content = binding.editorContent
-        if (smart) {
-            for (i in 0 until content.childCount) {
-                val child = content.getChildAt(i)
-                if (child === binding.songHeaderPanel || child === panel.root) continue
-                if (child.visibility == View.VISIBLE) {
-                    child.visibility = View.GONE
-                    hiddenBySmartMode += child
-                }
-            }
-            bindSmartExplanation(state)
-        } else if (hiddenBySmartMode.isNotEmpty()) {
-            hiddenBySmartMode.forEach { it.visibility = View.VISIBLE }
-            hiddenBySmartMode.clear()
-            updateAdvancedControlsVisibility(state)
-        }
+        setSectionVisible(binding.stageSection, !smart)
+        setSectionVisible(binding.styleSection, !smart && !state.studioUnavailable)
+        binding.mixV2Controls.root.isVisible = false
+        binding.stageStatus.isVisible = false
+        binding.waveformView.isVisible = true
+        binding.mixEditorView.isVisible = false
+        binding.windowEarlierButton.isVisible = false
+        binding.windowLaterButton.isVisible = false
+        if (smart) return
+
+        binding.stageHint.text = "Arrastra cada canción para mover su punto · se ajusta al compás"
+        updateWaveformMarkers(state)
+        binding.exitPointLabel.text = formatMs(state.exitPointMs)
+        binding.entryPointLabel.text = formatMs(state.entryPointMs)
+        binding.measureDropdownButton.text = legacyMeasureLabel(state)
+        binding.crossfadeLabel.text = legacyDurationLabel(state)
+
+        val styles = legacyStyles(state.availablePresets)
+        renderStyleChips(
+            options = styles.map { it.code to it.name },
+            selected = state.styleCode,
+            enabled = !state.styleLoading,
+            loading = state.presetsLoading && styles.isEmpty(),
+            failed = state.presetsError != null && styles.isEmpty()
+        ) { viewModel.selectStyle(it) }
+        val style = styles.firstOrNull { it.code == state.styleCode }
+        setStyleDescription(
+            style?.description?.takeIf { it.isNotBlank() }
+                ?: if (style != null) style.name else "Mezcla con sus propios puntos. Elige un estilo para que los cambios caigan en los compases."
+        )
+    }
+
+    /** Estilos del motor antiguo: los presets v2 solo sirven al editor v2 (sus documentos no los suena este motor). */
+    private fun legacyStyles(presets: List<TransitionPresetDTO>): List<TransitionPresetDTO> {
+        val legacy = presets.filter { it.category != "mix-v2" }
+        return (legacy.ifEmpty { presets }).sortedBy { it.sortOrder }
     }
 
     private fun bindSmartExplanation(state: CrossfadeEditorState) {
@@ -332,280 +458,322 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
                     "Los tempos están demasiado lejos para cuadrar beats sin que se note: " +
                         "las dos canciones se funden con potencia constante, sin cambiar su velocidad."
                 } else {
-                    "Sin análisis de tempo de alguna canción: se funden con potencia constante, " +
-                        "sin cambiar su velocidad."
+                    "Sin análisis de tempo de alguna canción: se funden con potencia constante, sin cambiar su velocidad."
                 }
             }
         }
-        panel.smartModeSongA.text = state.waveformData?.songA?.title ?: "Canción A"
-        panel.smartModeSongB.text = state.waveformData?.songB?.title ?: "Canción B"
-        panel.smartModeBpmA.text = if (state.bpmA > 0) "${state.bpmA.roundToInt()} BPM" else "— BPM"
-        panel.smartModeBpmB.text = if (state.bpmB > 0) "${state.bpmB.roundToInt()} BPM" else "— BPM"
-        panel.smartModeMatch.text = if (hasTempo) {
-            val diff = abs(state.bpmA / state.bpmB - 1.0) * 100
-            "± " + String.format(Locale("es", "ES"), "%.1f", diff) + " %"
-        } else {
-            "Tempo"
+    }
+
+    private fun updateWaveformMarkers(state: CrossfadeEditorState) {
+        val wave = binding.waveformView
+        // Con documento se dibujan sus carriles (volumen y tres bandas); en blend automático no hay curvas que enseñar.
+        wave.setMixDocument(state.document.takeIf { state.mixMode != PlaymixMixMode.SMART })
+        wave.fadeCurveType = state.fadeCurveType
+        wave.mixMode = state.mixMode
+        wave.bandFadeTypeBass = state.bandFadeTypes.bass
+        wave.bandFadeTypeMid = state.bandFadeTypes.mid
+        wave.bandFadeTypeTreble = state.bandFadeTypes.treble
+        wave.setTransitionPoints(state.exitPointMs, state.entryPointMs, state.crossfadeDurationMs)
+    }
+
+    private fun legacyMeasureLabel(state: CrossfadeEditorState): String {
+        state.document?.bars?.let { return barsLabel(it) }
+        state.bars?.let { return barsLabel(it) }
+        val bpm = bestBpm(state)
+        if (bpm <= 0.0 || state.crossfadeDurationMs <= 0) return "Compases"
+        val beats = (state.crossfadeDurationMs / (60000.0 / bpm)).roundToInt().coerceAtLeast(1)
+        return barsLabel((beats / 4.0).roundToInt().coerceAtLeast(1))
+    }
+
+    private fun legacyDurationLabel(state: CrossfadeEditorState): String {
+        val ms = state.crossfadeDurationMs
+        if (ms <= 0) return "Corte limpio entre las dos canciones"
+        val bpm = bestBpm(state)
+        val beats = if (bpm > 0) " · ${(ms / (60000.0 / bpm)).roundToInt().coerceAtLeast(1)} beats a ${bpm.roundToInt()} BPM" else ""
+        return "Cruce de ${formatSeconds(ms)}$beats"
+    }
+
+    // ─── Motor v2 ─────────────────────────
+
+    private fun renderV2(state: CrossfadeEditorState) {
+        val v2 = state.v2 ?: return
+        binding.playmixModePanel.root.isVisible = false
+        setSectionVisible(binding.stageSection, true)
+        setSectionVisible(binding.styleSection, true)
+        binding.mixV2Controls.root.isVisible = true
+        binding.waveformView.isVisible = false
+        binding.mixEditorView.isVisible = true
+        binding.windowEarlierButton.isVisible = true
+        binding.windowLaterButton.isVisible = true
+        binding.stageHint.text = "Arrastra cada canción · pellizca para hacer zoom"
+
+        binding.mixEditorView.setState(v2, MixEditorV2.coincidentBeats(v2))
+        binding.mixEditorView.setRendering(!state.v2Dirty && state.renderStatus in RENDERING)
+        ensureV2Panel().bind(v2)
+
+        binding.exitPointLabel.text = formatMs(v2.document.a.startMs)
+        binding.entryPointLabel.text = formatMs(v2.document.b.startMs)
+        binding.measureDropdownButton.text = barsLabel(v2.window.bars)
+        val tempo = if (v2.document.beatSync == true) "B al tempo de A" else "cada canción a su tempo"
+        binding.crossfadeLabel.text = "Cruce de ${formatSeconds(v2.document.durationMs)} · $tempo"
+
+        val presets = v2.presets.sortedBy { it.sortOrder }
+        val codes = presets.map { it.code }
+        // Un preset guardado que ya no existe en el servidor se enseña como Personalizada, sin perder el documento.
+        val selected = if (v2.presetCode in codes) v2.presetCode else MixEditorV2.CUSTOM
+        val options = presets.map { it.code to it.name } +
+            if (selected == MixEditorV2.CUSTOM) listOf(MixEditorV2.CUSTOM to "Personalizada") else emptyList()
+        renderStyleChips(options, selected, enabled = true, loading = false, failed = false) { code ->
+            if (code != MixEditorV2.CUSTOM) viewModel.v2SelectPreset(code)
+        }
+        setStyleDescription(MixEditorV2.describe(v2))
+        renderStageStatus(state)
+    }
+
+    /** Pastilla de estado junto al título del escenario: sin guardar, renderizando, renderizada… */
+    private fun renderStageStatus(state: CrossfadeEditorState) {
+        val status = state.renderStatus
+        val (text, color) = when {
+            state.v2Dirty -> "Sin guardar" to COLOR_FAIR
+            status in RENDERING -> "Renderizando…" to ResonantAccent.PLAYMIX.color
+            status == "ready" -> "Renderizada" to COLOR_GOOD
+            status == "failed" -> "Suena en directo" to COLOR_BAD
+            state.v2Saved != null -> "Guardada" to themeColor(R.color.textTheme)
+            else -> "Sin guardar" to COLOR_FAIR
+        }
+        binding.stageStatus.isVisible = true
+        if (binding.stageStatusText.text != text) {
+            binding.stageStatusText.text = text
+            binding.stageStatus.alpha = 0f
+            binding.stageStatus.animate().alpha(1f).setDuration(220).start()
+        }
+        binding.stageStatusDot.backgroundTintList = ColorStateList.valueOf(color)
+    }
+
+    // ─── Estilos ─────────────────────────
+
+    /**
+     * Chips de estilo (los del servidor o los v2). Se reconstruyen solo si cambia la lista; elegir uno lo anima y lo
+     * lleva a la vista. Mientras cargan, esqueleto latiendo; si fallan sin copia local, aviso con reintento.
+     */
+    private fun renderStyleChips(
+        options: List<Pair<String, String>>,
+        selected: String?,
+        enabled: Boolean,
+        loading: Boolean,
+        failed: Boolean,
+        onSelect: (String) -> Unit
+    ) {
+        val row = binding.styleChipsRow
+        setSkeletonVisible(loading)
+        binding.styleErrorRow.isVisible = failed
+        binding.styleScroll.isVisible = !loading && options.isNotEmpty()
+
+        if (styleChips.keys.toList() != options.map { it.first } ||
+            styleChips.values.map { it.text.toString() } != options.map { it.second }
+        ) {
+            row.removeAllViews()
+            styleChips.clear()
+            options.forEach { (code, name) ->
+                val chip = createStyleChip(name)
+                chip.setOnClickListener {
+                    if (!chip.isEnabled || code == lastSelectedStyle) return@setOnClickListener
+                    chip.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    onSelect(code)
+                }
+                row.addView(chip)
+                styleChips[code] = chip
+            }
+            lastSelectedStyle = null
+        }
+        styleChips.forEach { (code, chip) ->
+            val isSelected = code == selected
+            chip.isSelected = isSelected
+            chip.setTextColor(if (isSelected) Color.WHITE else themeColor(R.color.white))
+            chip.isEnabled = enabled
+            chip.alpha = if (enabled) 1f else 0.55f
+        }
+        if (selected != lastSelectedStyle) {
+            val chip = selected?.let { styleChips[it] }
+            if (chip != null) {
+                if (lastSelectedStyle != null) {
+                    chip.animate().scaleX(1.06f).scaleY(1.06f).setDuration(130).withEndAction {
+                        chip.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
+                    }.start()
+                }
+                // Lleva el elegido a la vista (también al abrir, si está al final de la lista).
+                chip.post {
+                    val scroll = _binding?.styleScroll ?: return@post
+                    val target = (chip.left - (scroll.width - chip.width) / 2).coerceAtLeast(0)
+                    scroll.smoothScrollTo(target, 0)
+                }
+            }
+            lastSelectedStyle = selected
         }
     }
 
-    private fun splitSongHeaders() {
-        val header = binding.songHeaderPanel
-        if (header.childCount < 3) return
-        val arrow = header.getChildAt(1)
-        val songBBlock = header.getChildAt(2)
-        header.removeView(songBBlock)
-        header.removeView(arrow)
-        val insertIndex = binding.visualizerPanel.indexOfChild(binding.waveformContainer) + 1
-        songBBlock.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            topMargin = 12.dp
+    private fun createStyleChip(text: String): TextView = TextView(requireContext()).apply {
+        this.text = text
+        setBackgroundResource(R.drawable.bg_mx_chip)
+        typeface = resources.getFont(R.font.unageo_semi_bold)
+        textSize = 13f
+        gravity = Gravity.CENTER
+        minWidth = 88.dp
+        setPadding(18.dp, 0, 18.dp, 0)
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 42.dp).apply { marginEnd = 8.dp }
+    }
+
+    private fun setStyleDescription(text: String) {
+        val view = binding.styleDescription
+        if (view.text == text) return
+        if (view.text.isNullOrEmpty()) {
+            view.text = text
+            return
         }
-        binding.visualizerPanel.addView(songBBlock, insertIndex)
+        view.animate().alpha(0f).setDuration(110).withEndAction {
+            view.text = text
+            view.animate().alpha(1f).setDuration(180).start()
+        }.start()
+    }
+
+    private fun setSkeletonVisible(visible: Boolean) {
+        val skeleton = binding.styleSkeleton
+        if (skeleton.isVisible == visible) return
+        skeleton.isVisible = visible
+        skeletonPulse?.cancel()
+        skeletonPulse = null
+        if (visible) {
+            skeletonPulse = ObjectAnimator.ofFloat(skeleton, View.ALPHA, 1f, 0.45f).apply {
+                duration = 700
+                repeatMode = ValueAnimator.REVERSE
+                repeatCount = ValueAnimator.INFINITE
+                start()
+            }
+        } else {
+            skeleton.alpha = 1f
+        }
+    }
+
+    /** Muestra u oculta una sección con un fundido suave (sin saltos al cambiar de modo). */
+    private fun setSectionVisible(view: View, visible: Boolean) {
+        if (view.isVisible == visible) return
+        if (!contentRevealed) {
+            view.isVisible = visible
+            return
+        }
+        if (visible) {
+            view.alpha = 0f
+            view.translationY = 12.dp.toFloat()
+            view.isVisible = true
+            view.animate().alpha(1f).translationY(0f).setDuration(280).setInterpolator(DecelerateInterpolator()).start()
+        } else {
+            view.animate().cancel()
+            view.isVisible = false
+        }
+    }
+
+    // ─── Guardar y renderizar ─────────────────────────
+
+    private fun renderSaveButton(state: CrossfadeEditorState) {
+        val saving = state.isSaving
+        val dirty = state.v2Dirty
+        val button = binding.topSaveButton
+        binding.topSaveProgress.isVisible = saving
+        binding.topSaveLabel.visibility = if (saving) View.INVISIBLE else View.VISIBLE
+        val enabled = !saving && (state.v2 == null || dirty)
+        button.isEnabled = enabled
+        binding.topSaveLabel.text = if (state.v2 != null && !dirty) "Guardado" else "Guardar"
+        binding.topSaveLabel.setTextColor(if (enabled || saving) Color.WHITE else themeColor(R.color.textTheme))
+        if (dirty && !lastDirty && contentRevealed) {
+            // Primer cambio sin guardar: el botón se ilumina con un pequeño rebote.
+            button.animate().scaleX(1.08f).scaleY(1.08f).setDuration(140).withEndAction {
+                button.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(OvershootInterpolator()).start()
+            }.start()
+        }
+        lastDirty = dirty
     }
 
     /**
-     * Estilos de mezcla (add-rhythmic-mix-styles D5): un chip por preset del servidor. Elegir uno pide su
-     * documento con los compases actuales; los chips se crean cuando llega la lista de presets.
+     * Cápsula animada que baja desde la barra superior: guardando → (v2) renderizando la mezcla en el servidor →
+     * lista. También aparece si se abre la pantalla mientras aún se renderiza un guardado anterior.
      */
-    private fun setupStyleChips(state: CrossfadeEditorState) {
-        if (mixModeChipViews.isNotEmpty() || state.availablePresets.isEmpty()) return
-        val scroll = HorizontalScrollView(requireContext()).apply {
-            isHorizontalScrollBarEnabled = false
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+    private fun renderCapsule(state: CrossfadeEditorState) {
+        val status = state.renderStatus
+        val rendering = state.v2 != null && !state.v2Dirty && status in RENDERING
+        when {
+            state.isSaving -> showCapsule(Capsule.SAVING, "Guardando transición…", null)
+            lastSaving && state.savedSuccess && rendering ->
+                showCapsule(Capsule.RENDERING, "Renderizando la mezcla", "Mientras tanto suena en directo")
+            lastSaving && state.savedSuccess -> showCapsule(Capsule.DONE, "Transición guardada", null, autoHideMs = 1800)
+            !lastSaving && state.savedSuccess -> showCapsule(Capsule.DONE, "Transición guardada", null, autoHideMs = 1800)
+            lastSaving && state.error != null -> dismissCapsule()
+            rendering && capsuleKind == null && lastRenderStatus == null ->
+                showCapsule(Capsule.RENDERING, "Renderizando la mezcla", "Mientras tanto suena en directo")
+            lastRenderStatus in RENDERING && status == "ready" && state.v2 != null ->
+                showCapsule(Capsule.DONE, "Mezcla lista", "Ya suena la versión renderizada", autoHideMs = 2400)
+            lastRenderStatus in RENDERING && status == "failed" && state.v2 != null ->
+                showCapsule(Capsule.FAILED, "El render falló", "La mezcla suena en directo", autoHideMs = 3200)
+            capsuleKind == Capsule.RENDERING && !rendering && status !in setOf("ready", "failed") -> dismissCapsule()
         }
-        val row = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 8.dp, 0, 2.dp)
-        }
-        state.availablePresets.sortedBy { it.sortOrder }.forEach { preset ->
-            val chip = createCompactChip(preset.name)
-            chip.contentDescription = "${preset.name}: ${preset.description}"
-            chip.setOnClickListener { viewModel.selectStyle(preset.code) }
-            row.addView(chip)
-            mixModeChipViews[preset.code] = chip
-        }
-        scroll.addView(row)
-        binding.mixModePanel.addView(scroll, 1)
+        lastSaving = state.isSaving
     }
 
-    /** Chip del estilo del documento marcado; descripción del estilo bajo los chips. */
-    private fun updateStyleChips(state: CrossfadeEditorState) {
-        setupStyleChips(state)
-        mixModeChipViews.forEach { (code, chip) ->
-            val selected = code == state.styleCode
-            chip.isSelected = selected
-            chip.setTextColor(if (selected) Color.WHITE else Color.parseColor("#CCFFFFFF"))
-            chip.alpha = if (state.styleLoading) 0.5f else 1f
-            chip.isEnabled = !state.styleLoading
+    private fun showCapsule(kind: Capsule, title: String, subtitle: String?, autoHideMs: Long = 0) {
+        val b = _binding ?: return
+        val capsule = b.statusCapsule
+        capsule.removeCallbacks(hideCapsule)
+        val wasShown = capsule.isVisible && capsuleKind != null
+        if (wasShown && capsuleKind != kind) {
+            TransitionManager.beginDelayedTransition(capsule, AutoTransition().setDuration(220))
         }
-        val style = state.availablePresets.firstOrNull { it.code == state.styleCode }
-        binding.mixModeSelectedLabel.text = style?.name ?: "Personalizada"
-        binding.mixModeDescription.text = style?.description
-            ?: "Mezcla con sus propios puntos. Elige un estilo para que los cambios caigan en los compases."
-        binding.mixModeDescription.visibility = View.VISIBLE
-    }
-
-    private fun setupEffectChips() {
-        if (effectChipContainer != null) return
-        val row = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            visibility = View.GONE
-            setPadding(0, 10.dp, 0, 0)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+        capsuleKind = kind
+        b.statusTitle.text = title
+        b.statusSubtitle.text = subtitle
+        b.statusSubtitle.isVisible = subtitle != null
+        val working = kind == Capsule.SAVING || kind == Capsule.RENDERING
+        b.statusPulse.isVisible = working
+        b.statusPulse.intensity = if (kind == Capsule.RENDERING) 1.2f else 0.8f
+        b.statusCheck.isVisible = !working
+        if (!working) {
+            b.statusCheck.setImageResource(if (kind == Capsule.DONE) R.drawable.ic_mx_check else R.drawable.ic_close)
+            b.statusCheck.imageTintList = ColorStateList.valueOf(if (kind == Capsule.DONE) COLOR_GOOD_ON_DARK else COLOR_BAD)
+            b.statusCheck.scaleX = 0.4f
+            b.statusCheck.scaleY = 0.4f
+            b.statusCheck.animate().scaleX(1f).scaleY(1f).setDuration(320).setInterpolator(OvershootInterpolator(2.2f)).start()
+            if (kind == Capsule.DONE) capsule.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
         }
-        listOf("Volumen", "EQ", "Filtrar").forEach { label ->
-            val chip = createCompactChip(label)
-            chip.setOnClickListener { applyEffectPreset(label) }
-            row.addView(chip)
-            effectChipViews[label] = chip
+        if (!wasShown) {
+            capsule.animate().cancel()
+            capsule.isVisible = true
+            capsule.alpha = 0f
+            capsule.translationY = (-18).dp.toFloat()
+            capsule.scaleX = 0.9f
+            capsule.scaleY = 0.9f
+            capsule.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                .setDuration(360).setInterpolator(OvershootInterpolator(1.1f)).start()
         }
-        effectChipContainer = row
-        val index = binding.visualizerPanel.indexOfChild(binding.advancedToggleButton) + 1
-        binding.visualizerPanel.addView(row, index)
+        if (autoHideMs > 0) capsule.postDelayed(hideCapsule, autoHideMs)
     }
 
-    private fun createCompactChip(text: String): TextView {
-        return TextView(requireContext()).apply {
-            this.text = text
-            setBackgroundResource(R.drawable.bg_preset_selector_chip)
-            typeface = resources.getFont(R.font.unageo_medium)
-            setTextColor(Color.parseColor("#CCFFFFFF"))
-            textSize = 12f
-            gravity = Gravity.CENTER
-            minWidth = 112.dp
-            setPadding(14.dp, 10.dp, 14.dp, 10.dp)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                42.dp
-            ).apply { marginEnd = 8.dp }
-        }
-    }
-
-    private fun applyEffectPreset(label: String) {
-        when (label) {
-            "Volumen" -> viewModel.setFadeCurveType("linear")
-            "EQ" -> {
-                viewModel.setBandFadeType("bass", "hold")
-                viewModel.setBandFadeType("mid", "linear")
-                viewModel.setBandFadeType("treble", "exponential")
-            }
-            "Filtrar" -> {
-                viewModel.setBandFadeType("bass", "cut")
-                viewModel.setBandFadeType("mid", "logarithmic")
-                viewModel.setBandFadeType("treble", "hold")
-            }
-        }
-        effectChipViews.forEach { (key, chip) ->
-            chip.isSelected = key == label
-            chip.setTextColor(if (key == label) Color.WHITE else Color.parseColor("#CCFFFFFF"))
-        }
-        updateWaveformMarkers()
-    }
-
-    private fun updateAdvancedControlsVisibility(state: CrossfadeEditorState?) {
-        binding.mixModeGraph.visibility = View.GONE
-        binding.fadeCurvePanel.visibility = View.GONE
-        binding.bandFadePanel.visibility = View.GONE
-        // Curvas por banda, EQ manual y hueco pertenecen al editor antiguo: el estilo y los compases los sustituyen.
-        effectChipContainer?.visibility = View.GONE
-        binding.gapSliderPanel.visibility = View.GONE
-    }
-
-    private fun updateCurveSelection(selected: String) {
-        val activeColor = Color.WHITE
-        val inactiveColor = Color.parseColor("#88FFFFFF")
-        val activeBg = R.drawable.bg_preset_chip_active
-        val inactiveBg = R.drawable.bg_preset_chip
-
-        val isCustom = selected == "custom" ||
-            selected == "hold" || selected == "cut"
-
-        binding.curveLinear.setTextColor(if (selected == "linear") activeColor else inactiveColor)
-        binding.curveLinear.setBackgroundResource(if (selected == "linear") activeBg else inactiveBg)
-        binding.curveLogarithmic.setTextColor(if (selected == "logarithmic") activeColor else inactiveColor)
-        binding.curveLogarithmic.setBackgroundResource(if (selected == "logarithmic") activeBg else inactiveBg)
-        binding.curveExponential.setTextColor(if (selected == "exponential") activeColor else inactiveColor)
-        binding.curveExponential.setBackgroundResource(if (selected == "exponential") activeBg else inactiveBg)
-
-        // Show subtitle hint when bands are individually configured
-        binding.curveCustomHint.visibility = if (isCustom) View.VISIBLE else View.GONE
-    }
-
-    private fun updateBandFadeSelection(bandFadeTypes: BandFadeTypesDTO) {
-        binding.bassSelectedLabel.text = bandFadeLabel(bandFadeTypes.bass)
-        binding.midSelectedLabel.text = bandFadeLabel(bandFadeTypes.mid)
-        binding.trebleSelectedLabel.text = bandFadeLabel(bandFadeTypes.treble)
-    }
-
-    private val bandFadeOptions = listOf(
-        "linear" to "Linear",
-        "logarithmic" to "Temprano",
-        "exponential" to "Tardío",
-        "hold" to "Mantener",
-        "cut" to "Corte"
-    )
-
-    private fun showBandFadeMenu(anchor: View, band: String) {
-        val current = when (band) {
-            "bass" -> viewModel.state.value?.bandFadeTypes?.bass
-            "mid" -> viewModel.state.value?.bandFadeTypes?.mid
-            "treble" -> viewModel.state.value?.bandFadeTypes?.treble
-            else -> null
-        } ?: "linear"
-
-        showStyledPopup(anchor, bandFadeOptions, current) { code ->
-            viewModel.setBandFadeType(band, code)
-            updateWaveformMarkers()
-        }
-    }
-
-    private fun setupBandFadePanel() {
-        binding.bandFadeInfoToggle.setOnClickListener {
-            val card = binding.bandFadeInfoCard
-            card.visibility = if (card.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-        }
-    }
-
-    private fun bandFadeLabel(type: String): String = when (type) {
-        "linear" -> "Linear"
-        "logarithmic" -> "Temprano"
-        "exponential" -> "Tardío"
-        "hold" -> "Mantener"
-        "cut" -> "Corte"
-        else -> type.replaceFirstChar { it.uppercase() }
-    }
-
-    private fun observeViewModel() {
-        viewModel.state.observe(viewLifecycleOwner) { state ->
-            if (state.isLoading) {
-                binding.lottieLoader.visibility = View.VISIBLE
-                binding.lottieLoader.playAnimation()
-            } else {
-                binding.lottieLoader.visibility = View.GONE
-                binding.lottieLoader.cancelAnimation()
-            }
-
-            state.waveformData?.let { data ->
-                populateSongHeaders(data.songA, data.songB)
-                val key = "${data.songA.songId}-${data.songB.songId}"
-                if (key != lastLoadedWaveformKey) {
-                    lastLoadedWaveformKey = key
-                    loadWaveforms(data)
-                }
-                if (key != lastLoadedArtworkKey) {
-                    lastLoadedArtworkKey = key
-                    loadSongArtwork(data)
-                }
-            }
-
-            if (state.v2 != null) {
-                bindV2(state)
-                updatePointLabels(state)
-                binding.measureDropdownButton.text = "${barsLabel(state.v2.window.bars)} ▾"
-                updatePreviewToggleButton()
-                updateWaveformPlaybackCursor()
-                handleMessages(state)
-                return@observe
-            }
-
-            updatePointLabels(state)
-            updateBeatPresetLabels(state)
-            updateDurationSlider(state)
-            updateStyleChips(state)
-            updateWaveformMarkers()
-            updateWaveformPlaybackCursor()
-            updatePrelistenButtons(state.prelistenTarget)
-            updateMeasureDropdownLabel(state.crossfadeDurationMs, state)
-            updatePreviewToggleButton()
-
-            // ─── Presets UI ─────────────────────────
-            binding.presetSelectorContainer.visibility = View.GONE
-            binding.activePresetBanner.visibility = View.GONE
-            updateAdvancedControlsVisibility(state)
-            updateModePanel(state)
-
-
-            handleMessages(state)
-        }
+    private fun dismissCapsule() {
+        val b = _binding ?: return
+        val capsule = b.statusCapsule
+        capsule.removeCallbacks(hideCapsule)
+        capsuleKind = null
+        if (!capsule.isVisible) return
+        capsule.animate().alpha(0f).translationY((-14).dp.toFloat()).scaleX(0.94f).scaleY(0.94f)
+            .setDuration(240).withEndAction { _binding?.statusCapsule?.isVisible = false }.start()
     }
 
     /** Avisa al servicio de que esta Playmix cambió: si está sonando, recarga el documento y el clip guardados. */
     private fun notifyPlaymixTransitionsChanged() {
-        val intent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+        val ctx = context ?: return
+        val intent = Intent(ctx, MusicPlaybackService::class.java).apply {
             action = MusicPlaybackService.ACTION_PLAYMIX_TRANSITIONS_CHANGED
             putExtra(MusicPlaybackService.EXTRA_PLAYMIX_ID, playmixId)
         }
-        runCatching { requireContext().startService(intent) }
-            .onFailure { Log.w("CrossfadeEditor", "No se pudo avisar al servicio", it) }
+        runCatching { ctx.startService(intent) }
+            .onFailure { Log.w(TAG, "No se pudo avisar al servicio", it) }
     }
 
     private fun handleMessages(state: CrossfadeEditorState) {
@@ -614,72 +782,113 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         if (renderStatus == "ready" && lastRenderStatus != null && lastRenderStatus != "ready") notifyPlaymixTransitionsChanged()
         lastRenderStatus = renderStatus
 
-        if (state.studioUnavailable && !studioUnavailableShown) {
+        if (state.studioUnavailable && !studioUnavailableShown && state.v2 == null) {
             studioUnavailableShown = true
-            Toast.makeText(requireContext(), "Resonant Studio no está disponible: solo se pueden guardar los puntos.", Toast.LENGTH_LONG).show()
+            showResonantSnackbar(
+                text = "Solo se pueden guardar los puntos de entrada y salida.",
+                type = SnackType.WARNING,
+                title = "Resonant Studio no disponible"
+            )
         }
-
         if (state.savedSuccess) {
             notifyPlaymixTransitionsChanged()
-            Toast.makeText(requireContext(), "Transición guardada", Toast.LENGTH_SHORT).show()
             viewModel.onSaveHandled()
+            if (exitAfterSave) {
+                exitAfterSave = false
+                unsavedCallback?.isEnabled = false
+                // La cápsula del editor se va con la pantalla: la confirmación viaja en un snackbar.
+                showResonantSnackbar(
+                    text = "Los cambios ya suenan en tu PlayMix",
+                    type = SnackType.SUCCESS,
+                    title = "Transición guardada"
+                )
+                findNavController().popBackStack()
+                return
+            }
         }
-
         state.error?.let {
-            Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+            exitAfterSave = false
+            showResonantSnackbar(text = it, type = SnackType.ERROR)
             viewModel.onSaveHandled()
         }
     }
 
-    private fun populateSongHeaders(songA: WaveformSongDTO, songB: WaveformSongDTO) {
-        binding.songATitle.text = songA.title ?: "Canción A"
-        binding.songAArtist.text = songA.artist ?: ""
-        
-        val bpmA = songA.bpm
-        if (bpmA != null && bpmA > 0.0) {
-            binding.songABpm.text = "${bpmA.toInt()} bpm"
-            binding.songABpm.visibility = View.VISIBLE
-        } else {
-            binding.songABpm.visibility = View.GONE
+    // ═══════════════════════════════════════════════
+    // DATOS: ONDAS Y PORTADAS
+    // ═══════════════════════════════════════════════
+
+    /** Ondas simples de A y B: del ViewModel si ya se descargaron; si no, se descargan una vez. */
+    private fun loadWaveforms(data: WaveformResponseDTO) {
+        val key = "${data.songA.songId}-${data.songB.songId}"
+        if (key == boundWaveformKey) return
+        boundWaveformKey = key
+        viewModel.cachedAmplitudes?.takeIf { it.first == key }?.let {
+            applyAmplitudes(data, it.second, it.third)
+            return
         }
-        
-        binding.songBTitle.text = songB.title ?: "Canción B"
-        binding.songBArtist.text = songB.artist ?: ""
-        
-        val bpmB = songB.bpm
-        if (bpmB != null && bpmB > 0.0) {
-            binding.songBBpm.text = "${bpmB.toInt()} bpm"
-            binding.songBBpm.visibility = View.VISIBLE
-        } else {
-            binding.songBBpm.visibility = View.GONE
+        val ctx = requireContext().applicationContext
+        val songManager = SongManager(ctx)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val (a, b) = withContext(Dispatchers.IO) {
+                val a = async { WaveformAmplitudes.load(ctx, data.songA, songManager) }
+                val b = async { WaveformAmplitudes.load(ctx, data.songB, songManager) }
+                a.await() to b.await()
+            }
+            viewModel.cacheAmplitudes(key, a, b)
+            if (_binding != null) applyAmplitudes(data, a, b)
         }
     }
 
-    private fun loadSongArtwork(data: WaveformResponseDTO) {
-        binding.songACover.setImageResource(R.drawable.ic_disc)
-        binding.songBCover.setImageResource(R.drawable.ic_disc)
+    private fun applyAmplitudes(data: WaveformResponseDTO, ampA: List<Float>, ampB: List<Float>) {
+        val songA = data.songA
+        val songB = data.songB
+        binding.mixEditorView.setFallbackWaveforms(ampA, ampB)
+        binding.waveformView.setWaveformData(ampA, ampB, songA.durationMs, songB.durationMs, songA.beatGrid, songB.beatGrid)
+        binding.waveformView.setStructureGrids(
+            songA.downbeatGrid, songA.phrases?.map { it.startMs },
+            songB.downbeatGrid, songB.phrases?.map { it.startMs }
+        )
+        // Rejilla exacta (bpmPrecise + primer downbeat): compases sin deriva y B al tempo de A.
+        binding.waveformView.setTempoGrids(
+            PhaseAlignment.gridOf(songA.bpmPrecise, songA.firstDownbeatMs, songA.beatsPerBar),
+            PhaseAlignment.gridOf(songB.bpmPrecise, songB.firstDownbeatMs, songB.beatsPerBar),
+            songA.beatsPerBar, songB.beatsPerBar
+        )
+        viewModel.state.value?.let { if (it.v2 == null) updateWaveformMarkers(it) }
+    }
 
+    /** Portadas de A y B en la cabecera y, desenfocadas, en el fondo. */
+    private fun loadSongArtwork(data: WaveformResponseDTO) {
+        val key = "${data.songA.songId}-${data.songB.songId}"
+        if (key == boundArtworkKey) return
+        boundArtworkKey = key
         val songManager = SongManager(requireContext())
         viewLifecycleOwner.lifecycleScope.launch {
-            val songA = withContext(Dispatchers.IO) { songManager.getSongById(data.songA.songId) }
-            val songB = withContext(Dispatchers.IO) { songManager.getSongById(data.songB.songId) }
+            val (songA, songB) = withContext(Dispatchers.IO) {
+                val a = async { runCatching { songManager.getSongById(data.songA.songId) }.getOrNull() }
+                val b = async { runCatching { songManager.getSongById(data.songB.songId) }.getOrNull() }
+                a.await() to b.await()
+            }
             val b = _binding ?: return@launch
-
             songA?.let { song ->
-                b.songATitle.text = song.title.ifBlank { data.songA.title ?: "Cancion A" }
-                b.songAArtist.text = song.artistName ?: data.songA.artist.orEmpty()
-                loadCoverInto(b.songACover, song.coverUrl ?: song.album?.url)
+                if (data.songA.title == null) b.songATitle.text = song.title
+                if (data.songA.artist == null) b.songAArtist.text = song.artistName.orEmpty()
+                val url = song.coverUrl ?: song.album?.url
+                loadCoverInto(b.songACover, url)
+                loadBackdrop(b.backdropCoverA, url)
             }
             songB?.let { song ->
-                b.songBTitle.text = song.title.ifBlank { data.songB.title ?: "Cancion B" }
-                b.songBArtist.text = song.artistName ?: data.songB.artist.orEmpty()
-                loadCoverInto(b.songBCover, song.coverUrl ?: song.album?.url)
+                if (data.songB.title == null) b.songBTitle.text = song.title
+                if (data.songB.artist == null) b.songBArtist.text = song.artistName.orEmpty()
+                val url = song.coverUrl ?: song.album?.url
+                loadCoverInto(b.songBCover, url)
+                loadBackdrop(b.backdropCoverB, url)
             }
+            b.backdropArt.animate().alpha(BACKDROP_ALPHA).setDuration(700).start()
         }
     }
 
     private fun loadCoverInto(imageView: ImageView, url: String?) {
-        Glide.with(imageView).clear(imageView)
         if (url.isNullOrBlank()) {
             imageView.setImageResource(R.drawable.ic_disc)
             return
@@ -689,410 +898,75 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             .centerCrop()
             .placeholder(R.drawable.ic_disc)
             .error(R.drawable.ic_disc)
+            .transition(DrawableTransitionOptions.withCrossFade(260))
             .into(imageView)
     }
 
-    private fun populateCompatibility(compat: CompatibilityDTO) {
-        // BPM chip
-        val bpmColor = chipColor(compat.bpmDelta, 2.0, 5.0, 10.0)
-        binding.chipBpm.text = "BPM: ${String.format("%.1f", compat.bpmDelta)}"
-        binding.chipBpm.setTextColor(bpmColor)
-
-        // Key chip
-        val keyColor = when (compat.keyCompatibility) {
-            "perfect", "compatible" -> Color.parseColor("#4CAF50")
-            "moderate" -> Color.parseColor("#FFC107")
-            "unknown" -> Color.GRAY
-            else -> Color.parseColor("#F44336")
-        }
-        binding.chipKey.text = "Key: ${compat.keyRelationship.replace("_", " ")}"
-        binding.chipKey.setTextColor(keyColor)
-
-        // Volume chip
-        val volColor = chipColor(compat.loudnessDeltaLufs, 1.5, 3.0, 6.0)
-        binding.chipVolume.text = "Vol: ±${String.format("%.1f", compat.loudnessDeltaLufs)} LUFS"
-        binding.chipVolume.setTextColor(volColor)
-
-        // Score
-        binding.overallScore.text = "${compat.overallScore}/100"
-
-        // Verdict
-        val (verdictColor, verdictText) = when (compat.verdict) {
-            "perfect" -> Color.parseColor("#4CAF50") to "TRANSICIÓN PERFECTA"
-            "good" -> Color.parseColor("#8BC34A") to "BUENA MEZCLA"
-            "moderate" -> Color.parseColor("#FFC107") to "MEZCLA MODERADA"
-            else -> Color.parseColor("#F44336") to "MEZCLA DIFÍCIL"
-        }
-        binding.verdictText.text = verdictText
-        binding.verdictText.setTextColor(verdictColor)
-
-        // Suggestions
-        binding.suggestionsContainer.removeAllViews()
-        compat.suggestions.forEach { suggestion ->
-            val tv = TextView(requireContext()).apply {
-                text = suggestion
-                setTextColor(Color.parseColor("#99FFFFFF"))
-                textSize = 13f
-                typeface = resources.getFont(R.font.unageo_regular)
-                setPadding(0, 4, 0, 4)
-            }
-            binding.suggestionsContainer.addView(tv)
-        }
+    private fun loadBackdrop(imageView: ImageView, url: String?) {
+        if (url.isNullOrBlank()) return
+        Glide.with(imageView)
+            .load(ImageRequestHelper.buildGlideModel(imageView.context, url))
+            .centerCrop()
+            .transition(DrawableTransitionOptions.withCrossFade(500))
+            .into(imageView)
     }
 
-    private fun chipColor(delta: Double, good: Double, moderate: Double, bad: Double): Int {
-        val absDelta = kotlin.math.abs(delta)
-        return when {
-            absDelta <= good -> Color.parseColor("#4CAF50")
-            absDelta <= moderate -> Color.parseColor("#FFC107")
-            absDelta <= bad -> Color.parseColor("#FF9800")
-            else -> Color.parseColor("#F44336")
-        }
-    }
-
-    private fun updatePointLabels(state: CrossfadeEditorState) {
-        binding.exitPointLabel.text = formatMs(state.exitPointMs)
-        binding.entryPointLabel.text = formatMs(state.entryPointMs)
-        val secs = state.crossfadeDurationMs / 1000
-        binding.crossfadeLabel.text = if (secs >= 1) "${secs}s" else "${state.crossfadeDurationMs}ms"
-    }
-
-    private fun setupTransitionDurationControls() {
-        binding.crossfadeDurationSlider.addOnChangeListener { _, value, fromUser ->
-            if (!fromUser) return@addOnChangeListener
-            val ms = value.toInt()
-            viewModel.setCrossfadeDuration(ms)
-            val clampedMs = viewModel.state.value?.crossfadeDurationMs ?: ms
-            binding.crossfadeLabel.text = formatDurationShort(clampedMs)
-            binding.durationMusicalLabel.text = buildDurationMusicalLabel(clampedMs, viewModel.state.value)
-            updateWaveformMarkers()
-        }
-    }
-
-    private fun updateDurationSlider(state: CrossfadeEditorState) {
-        val clamped = state.crossfadeDurationMs.toFloat().coerceIn(
-            binding.crossfadeDurationSlider.valueFrom,
-            binding.crossfadeDurationSlider.valueTo
-        )
-        if (abs(binding.crossfadeDurationSlider.value - clamped) > 1f) {
-            binding.crossfadeDurationSlider.value = clamped
-        }
-        binding.durationMusicalLabel.text = buildDurationMusicalLabel(state.crossfadeDurationMs, state)
-    }
-
-    private fun buildDurationMusicalLabel(durationMs: Int, state: CrossfadeEditorState?): String {
-        if (durationMs <= 0) return "Corte limpio, usa gap si necesitas silencio"
-        val bpm = state?.let { bestBpm(it) } ?: 0.0
-        if (bpm <= 0.0) return "Duracion libre"
-        val beatMs = 60000.0 / bpm
-        val beats = (durationMs / beatMs).roundToInt().coerceAtLeast(1)
-        return "$beats beats a ${bpm.roundToInt()} bpm"
-    }
-
-    private fun formatDurationShort(ms: Int): String {
-        return if (ms >= 1000) {
-            val whole = ms / 1000
-            val tenths = (ms % 1000) / 100
-            if (tenths == 0) "${whole}s" else "$whole.${tenths}s"
-        } else {
-            "${ms}ms"
-        }
-    }
-
-    private fun updateBeatPresetLabels(state: CrossfadeEditorState) {
-        binding.preset4beats.text = "2 compases"
-        binding.preset8beats.text = "4 compases"
-        binding.preset16beats.text = "8 compases"
-        binding.preset32beats.text = "16 compases"
-    }
-
-    private fun updateMeasureDropdownLabel(durationMs: Int, state: CrossfadeEditorState) {
-        val bpm = bestBpm(state)
-        val text = if (bpm > 0.0 && durationMs > 0) {
-            val beats = (durationMs / (60000.0 / bpm)).roundToInt().coerceAtLeast(1)
-            val measures = (beats / 4.0).roundToInt().coerceAtLeast(1)
-            "$measures compases ▾"
-        } else {
-            "Compases ▾"
-        }
-        binding.measureDropdownButton.text = text
-    }
+    // ═══════════════════════════════════════════════
+    // COMPASES
+    // ═══════════════════════════════════════════════
 
     private fun showMeasureMenu(anchor: View) {
-        viewModel.state.value?.v2?.let { v2 ->
+        val state = viewModel.state.value ?: return
+        state.v2?.let { v2 ->
             val bars = MixEditorV2.BAR_OPTIONS.map { it.toString() to barsLabel(it) }
             showStyledPopup(anchor, bars, v2.window.bars.toString()) { viewModel.v2SetBars(it.toInt()) }
             return
         }
-        val options = listOf(
-            "2" to "2 compases",
-            "4" to "4 compases",
-            "8" to "8 compases",
-            "16" to "16 compases"
-        )
-        val state = viewModel.state.value
-        val bpm = state?.let { bestBpm(it) } ?: 0.0
-        val currentMeasures = if (state?.bars != null) {
-            state.bars.toString()
-        } else if (state != null && bpm > 0.0 && state.crossfadeDurationMs > 0) {
-            (state.crossfadeDurationMs / (60000.0 / bpm) / 4.0).roundToInt().coerceAtLeast(1).toString()
-        } else {
-            "4"
-        }
-        showStyledPopup(anchor, options, currentMeasures) { measures ->
-            applyMeasurePreset(measures.toInt())
-        }
-    }
-
-    private fun applyBeatPreset(beats: Int) {
-        val state = viewModel.state.value ?: return
-        val bpm = if (state.bpmA > 0) state.bpmA else if (state.bpmB > 0) state.bpmB else return
-        val ms = ((60000.0 / bpm) * beats).toInt()
-        viewModel.setCrossfadeDurationWithAutoFit(ms)
-        val adjustedState = viewModel.state.value ?: return
-        binding.crossfadeLabel.text = formatDurationShort(adjustedState.crossfadeDurationMs)
-        updateMeasureDropdownLabel(adjustedState.crossfadeDurationMs, adjustedState)
-        updateWaveformMarkers()
+        val options = listOf(2, 4, 8, 16).map { it.toString() to barsLabel(it) }
+        val bpm = bestBpm(state)
+        val current = state.bars?.toString()
+            ?: if (bpm > 0.0 && state.crossfadeDurationMs > 0) {
+                (state.crossfadeDurationMs / (60000.0 / bpm) / 4.0).roundToInt().coerceAtLeast(1).toString()
+            } else "4"
+        showStyledPopup(anchor, options, current) { applyMeasurePreset(it.toInt()) }
     }
 
     private fun applyMeasurePreset(measures: Int) {
-        val state = viewModel.state.value
-        if (state?.document != null) {
+        val state = viewModel.state.value ?: return
+        if (state.document != null) {
             // Con documento la duración es en compases: el servidor rehace el estilo a esa duración.
             if (state.styleCode == null) {
-                Toast.makeText(requireContext(), "Elige un estilo para cambiar los compases", Toast.LENGTH_SHORT).show()
+                showResonantSnackbar("Elige un estilo para cambiar los compases", SnackType.INFO)
                 return
             }
             viewModel.selectBars(measures)
             return
         }
-        applyBeatPreset(measures * 4)
-    }
-
-    private fun applySmartTransitionSuggestion() {
-        val state = viewModel.state.value ?: return
-        val data = state.waveformData ?: run {
-            Toast.makeText(requireContext(), "Cargando datos, intentalo de nuevo", Toast.LENGTH_SHORT).show()
+        val bpm = if (state.bpmA > 0) state.bpmA else if (state.bpmB > 0) state.bpmB else 0.0
+        if (bpm <= 0.0) {
+            showResonantSnackbar("Sin tempo analizado no se puede medir en compases", SnackType.WARNING)
             return
         }
-
-        val bpm = bestBpm(state)
-        val compatibility = data.compatibility
-        val baseBeats = when {
-            compatibility.overallScore >= 88 -> 24
-            compatibility.overallScore >= 72 -> 16
-            compatibility.overallScore >= 54 -> 12
-            else -> 8
-        }
-        val bpmFactor = when {
-            bpm <= 0.0 -> 1.0
-            bpm >= 150.0 -> 0.75
-            bpm >= 128.0 -> 0.9
-            bpm <= 82.0 -> 1.25
-            bpm <= 100.0 -> 1.1
-            else -> 1.0
-        }
-        val harmonicFactor = when (compatibility.keyCompatibility) {
-            "perfect" -> 1.18
-            "compatible" -> 1.08
-            "moderate" -> 0.96
-            else -> 0.84
-        }
-        val loudnessDelta = abs(compatibility.loudnessDeltaLufs)
-        val loudnessFactor = when {
-            loudnessDelta <= 1.5 -> 1.08
-            loudnessDelta <= 4.0 -> 1.0
-            else -> 0.82
-        }
-
-        val beatMs = if (bpm > 0.0) 60000.0 / bpm else 500.0
-        val recommendedMs = (beatMs * baseBeats * bpmFactor * harmonicFactor * loudnessFactor)
-            .roundToInt()
-            .coerceIn(1500, 24000)
-        val snappedExit = nearestBeatOrCurrent(data.songA.beatGrid, state.exitPointMs)
-        val snappedEntry = nearestBeatOrCurrent(data.songB.beatGrid, state.entryPointMs)
-
-        viewModel.setCrossfadeDuration(recommendedMs)
-        viewModel.setExitPoint(snappedExit)
-        viewModel.setEntryPoint(snappedEntry)
-        binding.crossfadeLabel.text = formatDurationShort(recommendedMs)
-        binding.durationMusicalLabel.text = buildDurationMusicalLabel(recommendedMs, state)
-        updateWaveformMarkers()
-        Toast.makeText(requireContext(), "Mezcla ajustada con datos de BPM, tono y loudness", Toast.LENGTH_SHORT).show()
+        viewModel.setCrossfadeDurationWithAutoFit(((60000.0 / bpm) * measures * 4).toInt())
     }
 
-    private fun bestBpm(state: CrossfadeEditorState): Double {
-        return when {
-            state.bpmA > 0.0 && state.bpmB > 0.0 -> (state.bpmA + state.bpmB) / 2.0
-            state.bpmA > 0.0 -> state.bpmA
-            state.bpmB > 0.0 -> state.bpmB
-            else -> 0.0
-        }
+    private fun bestBpm(state: CrossfadeEditorState): Double = when {
+        state.bpmA > 0.0 && state.bpmB > 0.0 -> (state.bpmA + state.bpmB) / 2.0
+        state.bpmA > 0.0 -> state.bpmA
+        state.bpmB > 0.0 -> state.bpmB
+        else -> 0.0
     }
 
-    private fun nearestBeatOrCurrent(beats: List<Int>?, currentMs: Int): Int {
-        val grid = beats.orEmpty()
-        if (grid.isEmpty()) return currentMs
-        return grid.minByOrNull { abs(it - currentMs) } ?: currentMs
-    }
+    private fun barsLabel(bars: Int) = if (bars == 1) "1 compás" else "$bars compases"
 
-    private fun loadWaveforms(data: WaveformResponseDTO) {
-        val songA = data.songA
-        val songB = data.songB
-        val songManager = SongManager(requireContext())
-        val ctx = requireContext()
-
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val ampA = async { loadSongAmplitudes(songA, songManager, ctx) }
-            val ampB = async { loadSongAmplitudes(songB, songManager, ctx) }
-            val (ampAResult, ampBResult) = awaitAll(ampA, ampB)
-
-            Log.d("CrossfadeEditor", "ampA size=${ampAResult.size}, ampB size=${ampBResult.size}")
-
-            withContext(Dispatchers.Main) {
-                val b = _binding ?: return@withContext
-                amplitudesA = ampAResult
-                amplitudesB = ampBResult
-                mixEditorView?.setFallbackWaveforms(ampAResult, ampBResult)
-                b.waveformView.setWaveformData(
-                    ampAResult, ampBResult,
-                    songA.durationMs, songB.durationMs,
-                    songA.beatGrid, songB.beatGrid
-                )
-                b.waveformView.setStructureGrids(
-                    songA.downbeatGrid, songA.phrases?.map { it.startMs },
-                    songB.downbeatGrid, songB.phrases?.map { it.startMs }
-                )
-                // Rejilla exacta (bpmPrecise + primer downbeat): compases sin deriva y B al tempo de A.
-                b.waveformView.setTempoGrids(
-                    PhaseAlignment.gridOf(songA.bpmPrecise, songA.firstDownbeatMs, songA.beatsPerBar),
-                    PhaseAlignment.gridOf(songB.bpmPrecise, songB.firstDownbeatMs, songB.beatsPerBar),
-                    songA.beatsPerBar, songB.beatsPerBar
-                )
-                updateWaveformMarkers()
-            }
-        }
-    }
-
-    private suspend fun loadSongAmplitudes(
-        song: WaveformSongDTO,
-        songManager: SongManager,
-        ctx: android.content.Context
-    ): List<Float> {
-        // 1) Try waveformUrl from the waveforms endpoint
-        if (song.waveformUrl != null) {
-            val amps = downloadAmplitudes(song.waveformUrl, ctx)
-            if (amps.isNotEmpty()) return amps
-            Log.w("CrossfadeEditor", "waveformUrl download failed for ${song.songId}: ${song.waveformUrl}")
-        }
-
-        // 2) Fallback: call song analysis endpoint → segmentsUrl
-        val analysis = try { songManager.getSongAnalysis(song.songId) } catch (e: Exception) {
-            Log.e("CrossfadeEditor", "getSongAnalysis failed for ${song.songId}", e)
-            null
-        }
-        if (analysis?.segmentsUrl != null) {
-            val amps = downloadAmplitudes(analysis.segmentsUrl, ctx)
-            if (amps.isNotEmpty()) return amps
-            Log.w("CrossfadeEditor", "segmentsUrl download failed for ${song.songId}: ${analysis.segmentsUrl}")
-        }
-
-        // 3) Generate BPM-based placeholder from beat grid or random
-        Log.w("CrossfadeEditor", "Using placeholder waveform for ${song.songId}")
-        return generatePlaceholder(song.durationMs)
-    }
-
-    private fun downloadAmplitudes(url: String, ctx: android.content.Context): List<Float> {
-        return try {
-            val resolvedUrl = if (url.startsWith("http://") || url.startsWith("https://")) {
-                url
-            } else {
-                val base = ApiClient.baseUrl().trimEnd('/')
-                val path = if (url.startsWith("/")) url else "/$url"
-                "$base$path"
-            }
-            Log.d("CrossfadeEditor", "Downloading amplitudes from: $resolvedUrl")
-
-            val sessionManager = com.example.resonant.managers.SessionManager.getInstance(ctx)
-            val isPresigned = resolvedUrl.contains("X-Amz-Signature", ignoreCase = true)
-            val token = sessionManager.getAccessToken()
-            // Derivado del cliente HTTP compartido (dispatcher/connection pool comunes)
-            // en vez de un OkHttpClient nuevo por descarga.
-            val client = if (!token.isNullOrBlank() && !isPresigned) {
-                ApiClient.getMediaHttpClient().newBuilder()
-                    .addInterceptor { chain ->
-                        val req = chain.request().newBuilder()
-                            .header("Authorization", "Bearer $token")
-                            .build()
-                        chain.proceed(req)
-                    }
-                    .build()
-            } else {
-                ApiClient.getMediaHttpClient()
-            }
-
-            val request = Request.Builder().url(resolvedUrl).build()
-            val response = client.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                Log.e("CrossfadeEditor", "Download failed: HTTP ${response.code}")
-                return emptyList()
-            }
-
-            val body = response.body?.string() ?: return emptyList()
-            val jsonArray = JSONArray(body)
-            val raw = (0 until jsonArray.length()).map { i ->
-                val elem = jsonArray.get(i)
-                if (elem is org.json.JSONObject) {
-                    // Segments format: extract loudness field and convert to positive amplitude
-                    elem.optDouble("loudness", -60.0).toFloat()
-                } else {
-                    jsonArray.getDouble(i).toFloat()
-                }
-            }
-            // If values look like dB loudness (negative, < 0), normalize to [0..1]
-            if (raw.isNotEmpty() && raw.all { it <= 0f }) {
-                val minDb = raw.min()
-                val maxDb = raw.max()
-                val range = (maxDb - minDb).coerceAtLeast(0.001f)
-                raw.map { ((it - minDb) / range).coerceIn(0f, 1f) }
-            } else {
-                raw
-            }
-        } catch (e: Exception) {
-            Log.e("CrossfadeEditor", "downloadAmplitudes error: ${e.message}", e)
-            emptyList()
-        }
-    }
-
-    private fun generatePlaceholder(durationMs: Int): List<Float> {
-        val count = (durationMs / 50).coerceIn(10, 2000)
-        return (0 until count).map { (Math.random() * 0.5 + 0.2).toFloat() }
-    }
-
-    private fun updateWaveformMarkers() {
-        val state = viewModel.state.value ?: return
-        // Con documento se dibujan sus carriles (volumen y tres bandas); en blend automático no hay curvas que enseñar.
-        binding.waveformView.setMixDocument(state.document.takeIf { state.mixMode != PlaymixMixMode.SMART })
-        binding.waveformView.fadeCurveType = state.fadeCurveType
-        binding.waveformView.mixMode = state.mixMode
-        binding.waveformView.bandFadeTypeBass = state.bandFadeTypes.bass
-        binding.waveformView.bandFadeTypeMid = state.bandFadeTypes.mid
-        binding.waveformView.bandFadeTypeTreble = state.bandFadeTypes.treble
-        binding.waveformView.setTransitionPoints(
-            state.exitPointMs,
-            state.entryPointMs,
-            state.crossfadeDurationMs
-        )
-    }
+    // ═══════════════════════════════════════════════
+    // ESCUCHA
+    // ═══════════════════════════════════════════════
 
     private fun togglePreviewPlayback() {
         if (isPreviewStarting) return
         val state = viewModel.state.value ?: return
-        val data = state.waveformData ?: run {
-            Toast.makeText(requireContext(), "Cargando datos, intentalo de nuevo", Toast.LENGTH_SHORT).show()
-            return
-        }
+        val data = state.waveformData ?: return
 
         val currentSongId = PlaybackStateRepository.currentSong?.id
         val isCurrentPreview = currentSongId == data.songA.songId || currentSongId == data.songB.songId
@@ -1104,170 +978,129 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             updatePreviewToggleButton(forcePlaying = false)
             return
         }
-
-        if (state.v2 != null) startV2Preview() else startPreviewPlayback(state, data)
+        binding.previewToggleButton.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+        if (state.v2 != null) startV2Preview(data) else startPreviewPlayback(data, (state.exitPointMs - 10_000).coerceAtLeast(0))
     }
-
-    // ═══════════════════════════════════════════════
-    // EDITOR V2 (spotify-style-transition-engine D9)
-    // ═══════════════════════════════════════════════
-
-    /** Pinta el estado v2; la primera vez monta el editor v2 dentro del visualizador antiguo. */
-    private fun bindV2(state: CrossfadeEditorState) {
-        val v2 = state.v2 ?: return
-        val panel = v2Panel ?: createV2Layout()
-        mixEditorView?.setState(v2, MixEditorV2.coincidentBeats(v2))
-        panel.bind(v2, state.v2Dirty, state.renderStatus)
-    }
-
-    /**
-     * Editor v2 sobre el diseño de siempre: cabecera de A, visualizador (la onda pasa a ser [MixEditorView], con el
-     * botón de escucha encima), tiempos de salida/entrada con el desplegable de compases y la tarjeta de B. Debajo,
-     * en lugar del modo de mezcla y las curvas por banda, los presets y los carriles. El selector blend/avanzada no
-     * aplica: Automática es un preset más.
-     */
-    private fun createV2Layout(): MixEditorV2Panel {
-        val content = binding.editorContent
-        hiddenBySmartMode.clear()
-        for (i in 0 until content.childCount) {
-            val child = content.getChildAt(i)
-            child.visibility = if (child === binding.songHeaderPanel || child === binding.visualizerPanel) View.VISIBLE else View.GONE
-        }
-        listOf(
-            binding.transitionDurationPanel, binding.prelistenPanel, binding.advancedToggleButton,
-            binding.fadeCurvePanel, binding.bandFadePanel, binding.gapSliderPanel, binding.mixModePanel
-        ).forEach { it.visibility = View.GONE }
-
-        binding.waveformView.visibility = View.GONE
-        val editor = MixEditorView(requireContext()).apply {
-            onDragA = { ms, toBeat -> viewModel.v2DragA(ms, toBeat) }
-            onDragB = { ms, toBeat -> viewModel.v2DragB(ms, toBeat) }
-            setFallbackWaveforms(amplitudesA, amplitudesB)
-        }
-        binding.waveformContainer.addView(
-            editor, 0,
-            android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        )
-        mixEditorView = editor
-
-        val panel = MixEditorV2Panel(requireContext(), object : MixEditorV2Panel.Actions {
-            override fun selectPreset(code: String) = viewModel.v2SelectPreset(code)
-            override fun selectLaneOption(lane: String, code: String) = viewModel.v2SelectLaneOption(lane, code)
-            override fun moveWindow(deltaBars: Int) = viewModel.v2MoveWindow(deltaBars)
-            override fun setBeatSync(enabled: Boolean) = viewModel.v2SetBeatSync(enabled)
-        }) { anchor, options, current, onSelected -> showStyledPopup(anchor, options, current, onSelected) }
-        val visualizer = binding.visualizerPanel
-        visualizer.addView(panel.root, visualizer.indexOfChild(binding.mixModePanel))
-        // Carriles justo debajo de la onda: lo que se cambia se ve sin hacer scroll. Los tiempos y el resto, debajo.
-        val lanes = panel.lanesSection
-        (lanes.parent as? ViewGroup)?.removeView(lanes)
-        visualizer.addView(lanes, visualizer.indexOfChild(binding.waveformContainer) + 1)
-        binding.waveformContainer.layoutParams = binding.waveformContainer.layoutParams.apply { height = V2_WAVEFORM_HEIGHT_DP.dp }
-        mergeSongHeaders()
-        v2Panel = panel
-        return panel
-    }
-
-    /** Editor v2: A y B vuelven a la cabecera, una junto a otra, para dejar la onda y los carriles arriba. */
-    private fun mergeSongHeaders() {
-        val header = binding.songHeaderPanel
-        val songBBlock = binding.songBCover.parent?.parent as? View ?: return
-        if (songBBlock.parent === header) return
-        (songBBlock.parent as? ViewGroup)?.removeView(songBBlock)
-        val arrow = ImageView(requireContext()).apply {
-            setImageResource(R.drawable.ic_compare_arrows)
-            imageTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#66FFFFFF"))
-            layoutParams = LinearLayout.LayoutParams(20.dp, 20.dp).apply { marginStart = 6.dp; marginEnd = 6.dp }
-        }
-        songBBlock.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        header.addView(arrow)
-        header.addView(songBBlock)
-    }
-
-    private fun barsLabel(bars: Int) = if (bars == 1) "1 compás" else "$bars compases"
 
     /** Escucha el documento sin guardar: el servicio lo usa para esta pareja en lugar del guardado. */
-    private fun startV2Preview() {
-        if (isPreviewStarting) return
-        val state = viewModel.state.value ?: return
-        val data = state.waveformData ?: run {
-            Toast.makeText(requireContext(), "Cargando datos, inténtalo de nuevo", Toast.LENGTH_SHORT).show()
-            return
-        }
+    private fun startV2Preview(data: WaveformResponseDTO) {
         val request = viewModel.v2PreviewRequest() ?: return
         TransitionPreview.set(request.fromSongId, request.toSongId, request.document)
-        startPreviewPlayback(state, data, request.startPositionMs)
+        startPreviewPlayback(data, request.startPositionMs)
     }
 
-    private fun startPreviewPlayback(state: CrossfadeEditorState, data: WaveformResponseDTO, startAtMs: Int? = null) {
-        val startPositionMs = startAtMs ?: (state.exitPointMs - 10_000).coerceAtLeast(0)
-        val songManager = SongManager(requireContext())
-
-        isPreviewStarting = true
-        binding.previewToggleButton.isEnabled = false
-        binding.previewToggleButton.alpha = 0.6f
-
+    private fun startPreviewPlayback(data: WaveformResponseDTO, startPositionMs: Int) {
+        val ctx = requireContext().applicationContext
+        val songManager = SongManager(ctx)
+        setPreviewStarting(true)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val songA = withContext(Dispatchers.IO) { songManager.getSongById(data.songA.songId) }
-                val songB = withContext(Dispatchers.IO) { songManager.getSongById(data.songB.songId) }
+                val (songA, songB) = withContext(Dispatchers.IO) {
+                    val a = async { songManager.getSongById(data.songA.songId) }
+                    val b = async { songManager.getSongById(data.songB.songId) }
+                    a.await() to b.await()
+                }
                 if (songA == null || songB == null) {
-                    Toast.makeText(requireContext(), "No se pudo preparar la vista previa", Toast.LENGTH_SHORT).show()
+                    showResonantSnackbar("No se pudo preparar la escucha", SnackType.ERROR)
                     return@launch
                 }
-
-                val songList = ArrayList(listOf(songA, songB))
-                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+                val playIntent = Intent(ctx, MusicPlaybackService::class.java).apply {
                     action = MusicPlaybackService.ACTION_PLAY
                     putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, songA)
                     putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, 0)
-                    putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
+                    putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, ArrayList(listOf(songA, songB)))
                     putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.PLAYMIX)
                     putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, playmixId)
-                    if (startPositionMs > 0) {
-                        putExtra(MusicPlaybackService.EXTRA_START_POSITION_MS, startPositionMs)
-                    }
+                    if (startPositionMs > 0) putExtra(MusicPlaybackService.EXTRA_START_POSITION_MS, startPositionMs)
                 }
-                requireContext().startService(playIntent)
+                ctx.startService(playIntent)
                 updatePreviewToggleButton(forcePlaying = true)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.e("CrossfadeEditor", "Preview playback error", e)
-                Toast.makeText(requireContext(), "Error al reproducir la vista previa", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "Preview playback error", e)
+                showResonantSnackbar("Error al reproducir la escucha", SnackType.ERROR)
             } finally {
-                isPreviewStarting = false
-                binding.previewToggleButton.isEnabled = true
-                binding.previewToggleButton.alpha = 1f
+                setPreviewStarting(false)
             }
         }
     }
 
+    private fun setPreviewStarting(starting: Boolean) {
+        isPreviewStarting = starting
+        val button = _binding?.previewToggleButton ?: return
+        button.isEnabled = !starting
+        button.alpha = if (starting) 0.6f else 1f
+    }
+
+    private fun observePlayback() {
+        PlaybackStateRepository.isPlayingLiveData.observe(viewLifecycleOwner) {
+            updatePreviewToggleButton()
+            updatePlaybackCursor()
+        }
+        PlaybackStateRepository.currentSongLiveData.observe(viewLifecycleOwner) {
+            updatePreviewToggleButton()
+            updatePlaybackCursor()
+        }
+        PlaybackStateRepository.playbackPositionLiveData.observe(viewLifecycleOwner) {
+            updatePlaybackCursor()
+        }
+    }
+
     private fun updatePreviewToggleButton(forcePlaying: Boolean? = null) {
+        val b = _binding ?: return
         val data = viewModel.state.value?.waveformData
         val currentSongId = PlaybackStateRepository.currentSong?.id
-        val isCurrentPreview = data != null &&
-                (currentSongId == data.songA.songId || currentSongId == data.songB.songId)
+        val isCurrentPreview = data != null && (currentSongId == data.songA.songId || currentSongId == data.songB.songId)
         val playing = forcePlaying ?: (PlaybackStateRepository.isPlaying && isCurrentPreview)
-        binding.previewToggleButton.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
-        binding.previewToggleButton.contentDescription = if (playing) "Pausar vista previa" else "Reproducir vista previa"
+        b.previewToggleButton.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
+        b.previewToggleButton.contentDescription = if (playing) "Pausar la escucha" else "Escuchar la transición"
+        setPlayPulse(playing)
     }
 
-    private fun formatMs(ms: Int): String {
-        val totalSeconds = ms / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        val millis = ms % 1000
-        return String.format("%d:%02d.%03d", minutes, seconds, millis)
+    /** Onda que late alrededor del botón mientras suena la transición. */
+    private fun setPlayPulse(playing: Boolean) {
+        if (playing == (playPulse != null)) return
+        val ring = _binding?.previewPulseRing ?: return
+        playPulse?.cancel()
+        playPulse = null
+        if (!playing) {
+            ring.alpha = 0f
+            return
+        }
+        playPulse = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1400
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                // Hasta 1,25×: cabe en su marco de 64 dp sin recortarse.
+                ring.scaleX = 1f + 0.25f * f
+                ring.scaleY = 1f + 0.25f * f
+                ring.alpha = 0.7f * (1f - f)
+            }
+            start()
+        }
     }
 
-    private fun formatMsReadable(ms: Int): String {
-        val minutes = ms / 60000
-        val seconds = (ms % 60000) / 1000
-        val decimal = (ms % 1000) / 100
-        return "$minutes:${seconds.toString().padStart(2, '0')}.$decimal"
+    private fun updatePlaybackCursor() {
+        val b = _binding ?: return
+        val data = viewModel.state.value?.waveformData
+        if (data == null || !PlaybackStateRepository.isPlaying) {
+            b.waveformView.setPlaybackPosition(-1f, -1f)
+            b.mixEditorView.setPlayhead(-1f, -1f)
+            return
+        }
+        val currentSongId = PlaybackStateRepository.currentSong?.id
+        val positionMs = PlaybackStateRepository.playbackPositionLiveData.value?.position?.toFloat() ?: -1f
+        val a = if (currentSongId == data.songA.songId) positionMs else -1f
+        val bMs = if (currentSongId == data.songB.songId) positionMs else -1f
+        b.waveformView.setPlaybackPosition(a, bMs)
+        b.mixEditorView.setPlayhead(a, bMs)
     }
 
     // ═══════════════════════════════════════════════
-    // STYLED DROPDOWN POPUP (shared)
+    // UTILIDADES
     // ═══════════════════════════════════════════════
 
     private fun showStyledPopup(
@@ -1279,28 +1112,25 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         val ctx = requireContext()
         val popup = android.widget.ListPopupWindow(ctx)
         popup.anchorView = anchor
-        popup.width = anchor.width.coerceAtLeast(400)
-        popup.verticalOffset = (6 * ctx.resources.displayMetrics.density).toInt()
+        popup.width = anchor.width.coerceAtLeast(200.dp)
+        popup.verticalOffset = 6.dp
         popup.isModal = true
-        popup.setBackgroundDrawable(
-            androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_dropdown_popup)
-        )
-
-        val adapter = object : android.widget.BaseAdapter() {
+        popup.setBackgroundDrawable(ContextCompat.getDrawable(ctx, R.drawable.bg_dropdown_popup))
+        popup.setAdapter(object : android.widget.BaseAdapter() {
             override fun getCount() = options.size
             override fun getItem(pos: Int) = options[pos]
             override fun getItemId(pos: Int) = pos.toLong()
             override fun getView(pos: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                val view = convertView ?: android.view.LayoutInflater.from(ctx)
-                    .inflate(R.layout.item_dropdown_popup, parent, false)
+                val view = convertView ?: android.view.LayoutInflater.from(ctx).inflate(R.layout.item_dropdown_popup, parent, false)
                 val (code, label) = options[pos]
                 view.findViewById<TextView>(R.id.popupItemLabel).text = label
-                val check = view.findViewById<TextView>(R.id.popupItemCheck)
-                check.visibility = if (code == currentCode) View.VISIBLE else View.GONE
+                view.findViewById<TextView>(R.id.popupItemCheck).apply {
+                    visibility = if (code == currentCode) View.VISIBLE else View.GONE
+                    setTextColor(ResonantAccent.PLAYMIX.color)
+                }
                 return view
             }
-        }
-        popup.setAdapter(adapter)
+        })
         popup.setOnItemClickListener { _, _, pos, _ ->
             onSelected(options[pos].first)
             popup.dismiss()
@@ -1308,353 +1138,60 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         popup.show()
     }
 
-    // ═══════════════════════════════════════════════
-    // MIX MODE SELECTOR (dropdown)
-    // ═══════════════════════════════════════════════
-
-
-    // ═══════════════════════════════════════════════
-    // PRESET SELECTOR STRIP
-    // ═══════════════════════════════════════════════
-
-    private var presetChipViews = mutableMapOf<String?, TextView>() // null key = "Manual"
-
-    private fun setupPresetListeners() {
-        binding.presetRetryButton.setOnClickListener {
-            viewModel.retryLoadPresets()
-        }
-        binding.resetPresetButton.setOnClickListener {
-            viewModel.onResetPreset()
-        }
+    /** m:ss.d — décimas: los puntos caen en compases, los milisegundos solo estorban. */
+    private fun formatMs(ms: Int): String {
+        val safe = ms.coerceAtLeast(0)
+        val minutes = safe / 60000
+        val seconds = (safe % 60000) / 1000
+        val tenths = (safe % 1000) / 100
+        return "$minutes:${seconds.toString().padStart(2, '0')}.$tenths"
     }
 
-    private fun updatePresetSelectorUI(state: CrossfadeEditorState) {
-        binding.presetSelectorContainer.visibility = View.VISIBLE
+    private fun formatSeconds(ms: Int): String = String.format(SPANISH, "%.1f s", ms / 1000.0)
 
-        when {
-            state.presetsLoading -> {
-                binding.presetShimmer.visibility = View.VISIBLE
-                binding.presetScrollView.visibility = View.GONE
-                binding.presetErrorBanner.visibility = View.GONE
-            }
-            state.presetsError != null && state.availablePresets.isEmpty() -> {
-                binding.presetShimmer.visibility = View.GONE
-                binding.presetScrollView.visibility = View.GONE
-                binding.presetErrorBanner.visibility = View.VISIBLE
-            }
-            state.availablePresets.isNotEmpty() -> {
-                binding.presetShimmer.visibility = View.GONE
-                binding.presetScrollView.visibility = View.VISIBLE
-                binding.presetErrorBanner.visibility = View.GONE
-                buildPresetChips(state.availablePresets, state.activePresetCode, state.isPresetModified)
-            }
-            else -> {
-                // No presets and not loading / no error → hide
-                binding.presetSelectorContainer.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun buildPresetChips(presets: List<TransitionPresetDTO>, activeCode: String?, isModified: Boolean) {
-        val container = binding.presetChipsContainer
-        // Only rebuild chips if count changed (avoid flickering on every state update)
-        if (presetChipViews.size == presets.size + 1) {
-            // Just update selection state
-            updatePresetChipSelection(activeCode, isModified)
-            return
-        }
-
-        container.removeAllViews()
-        presetChipViews.clear()
-
-        // "Manual" chip
-        val manualChip = createPresetChip("◉ Manual", null, activeCode == null)
-        manualChip.setOnClickListener {
-            viewModel.onManualSelected()
-        }
-        container.addView(manualChip)
-        presetChipViews[null] = manualChip
-
-        // Preset chips
-        presets.sortedBy { it.sortOrder }.forEach { preset ->
-            val icon = getPresetIcon(preset.iconName, preset.code)
-            val label = "$icon ${preset.name}"
-            val chip = createPresetChip(label, preset.code, preset.code == activeCode)
-            chip.contentDescription = "Preset ${preset.name}: ${preset.description}"
-            chip.setOnClickListener {
-                viewModel.onPresetSelected(preset.code)
-            }
-            container.addView(chip)
-            presetChipViews[preset.code] = chip
-        }
-    }
-
-    private fun createPresetChip(text: String, code: String?, selected: Boolean): TextView {
-        return TextView(requireContext()).apply {
-            this.text = text
-            setBackgroundResource(R.drawable.bg_preset_selector_chip)
-            isSelected = selected
-            typeface = resources.getFont(R.font.unageo_medium)
-            setTextColor(if (selected) Color.WHITE else Color.parseColor("#CCFFFFFF"))
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setPadding(16.dp, 8.dp, 16.dp, 8.dp)
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            params.marginEnd = 8.dp
-            layoutParams = params
-        }
-    }
-
-    private fun updatePresetChipSelection(activeCode: String?, isModified: Boolean) {
-        presetChipViews.forEach { (code, chip) ->
-            val selected = code == activeCode
-            chip.isSelected = selected
-            chip.setTextColor(if (selected) Color.WHITE else Color.parseColor("#CCFFFFFF"))
-
-            // Add "(editado)" indicator for active preset that's been modified
-            if (selected && code != null && isModified) {
-                val preset = viewModel.state.value?.availablePresets?.find { it.code == code }
-                if (preset != null) {
-                    val icon = getPresetIcon(preset.iconName, preset.code)
-                    chip.text = "$icon ${preset.name} •"
-                }
-            } else if (code != null) {
-                val preset = viewModel.state.value?.availablePresets?.find { it.code == code }
-                if (preset != null) {
-                    val icon = getPresetIcon(preset.iconName, preset.code)
-                    chip.text = "$icon ${preset.name}"
-                }
-            }
-
-            // Scale animation for selected chip
-            if (selected) {
-                chip.animate().scaleX(1.05f).scaleY(1.05f).setDuration(150)
-                    .setInterpolator(AccelerateDecelerateInterpolator())
-                    .withEndAction {
-                        chip.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
-                    }.start()
-            }
-        }
-    }
-
-    private fun getPresetIcon(iconName: String, code: String): String = when {
-        iconName.isNotBlank() -> when (iconName) {
-            "smooth_fade", "wave" -> "🌊"
-            "beat_match", "music" -> "🎵"
-            "hard_cut", "scissors" -> "✂️"
-            "energy_boost", "bolt" -> "⚡"
-            "vocal_blend", "mic" -> "🎤"
-            else -> "🎛️"
-        }
-        else -> when (code) {
-            "smooth-fade" -> "🌊"
-            "beat-match" -> "🎵"
-            "hard-cut" -> "✂️"
-            "energy-boost" -> "⚡"
-            "vocal-blend" -> "🎤"
-            else -> "🎛️"
-        }
-    }
-
-    // ═══════════════════════════════════════════════
-    // ACTIVE PRESET BANNER
-    // ═══════════════════════════════════════════════
-
-    private fun updateActivePresetBanner(state: CrossfadeEditorState) {
-        if (state.activePresetCode != null) {
-            binding.activePresetBanner.visibility = View.VISIBLE
-            val icon = state.availablePresets.find { it.code == state.activePresetCode }
-                ?.let { getPresetIcon(it.iconName, it.code) } ?: "🎛️"
-
-            if (state.isPresetModified) {
-                binding.activePresetLabel.text = "$icon ${state.activePresetName ?: state.activePresetCode} (editado)"
-                binding.activePresetSubtitle.text = "Has modificado valores."
-            } else {
-                binding.activePresetLabel.text = "$icon ${state.activePresetName ?: state.activePresetCode} aplicado"
-                binding.activePresetSubtitle.text = "Puedes ajustar manualmente."
-            }
-        } else {
-            binding.activePresetBanner.visibility = View.GONE
-        }
-    }
-
-    // ═══════════════════════════════════════════════
-    // GAP SLIDER
-    // ═══════════════════════════════════════════════
-
-    private fun setupGapSlider() {
-        binding.gapSlider.addOnChangeListener { _, value, fromUser ->
-            if (fromUser) {
-                val ms = value.toInt()
-                viewModel.setGapMs(ms)
-                binding.gapValueLabel.text = "${ms}ms"
-            }
-        }
-    }
-
-    private fun updateGapSlider(state: CrossfadeEditorState) {
-        if (!showAdvancedControls) {
-            binding.gapSliderPanel.visibility = View.GONE
-            return
-        }
-        if (state.showGapSlider) {
-            binding.gapSliderPanel.visibility = View.VISIBLE
-            binding.gapValueLabel.text = "${state.gapMs}ms"
-            val clamped = state.gapMs.toFloat().coerceIn(
-                binding.gapSlider.valueFrom, binding.gapSlider.valueTo
-            )
-            if (binding.gapSlider.value != clamped) {
-                binding.gapSlider.value = clamped
-            }
-        } else {
-            binding.gapSliderPanel.visibility = View.GONE
-        }
-    }
-
-    // ═══════════════════════════════════════════════
-    // PRE-LISTEN (individual song preview from marker)
-    // ═══════════════════════════════════════════════
-
-    private fun togglePrelisten(target: String) {
-        val current = viewModel.state.value?.prelistenTarget
-        if (current == target) {
-            // Stop current preview
-            stopPrelisten()
-            return
-        }
-        startPrelisten(target)
-    }
-
-    private fun startPrelisten(target: String) {
-        val state = viewModel.state.value ?: return
-        val data = state.waveformData ?: run {
-            Toast.makeText(requireContext(), "Cargando datos, inténtalo de nuevo", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val songInfo = if (target == "songA") data.songA else data.songB
-        val startMs = if (target == "songA") state.exitPointMs else state.entryPointMs
-
-        viewModel.setPrelistenTarget(target)
-        updatePrelistenButtons(target)
-
-        val songManager = SongManager(requireContext())
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val song = withContext(Dispatchers.IO) { songManager.getSongById(songInfo.songId) }
-                if (song == null) {
-                    Toast.makeText(requireContext(), "No se pudo cargar la canción", Toast.LENGTH_SHORT).show()
-                    stopPrelisten()
-                    return@launch
-                }
-
-                val songList = ArrayList(listOf(song))
-                val playIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-                    action = MusicPlaybackService.ACTION_PLAY
-                    putExtra(MusicPlaybackService.EXTRA_CURRENT_SONG, song)
-                    putExtra(MusicPlaybackService.EXTRA_CURRENT_INDEX, 0)
-                    putParcelableArrayListExtra(MusicPlaybackService.SONG_LIST, songList)
-                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE, QueueSource.PLAYMIX)
-                    putExtra(MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, playmixId)
-                    if (startMs > 0) {
-                        putExtra(MusicPlaybackService.EXTRA_START_POSITION_MS, startMs)
-                    }
-                }
-                requireContext().startService(playIntent)
-            } catch (e: Exception) {
-                Log.e("CrossfadeEditor", "Pre-listen error", e)
-                Toast.makeText(requireContext(), "Error al reproducir", Toast.LENGTH_SHORT).show()
-                stopPrelisten()
-            }
-        }
-    }
-
-    private fun stopPrelisten() {
-        viewModel.setPrelistenTarget(null)
-        updatePrelistenButtons(null)
-        val pauseIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
-            action = MusicPlaybackService.ACTION_PAUSE
-        }
-        requireContext().startService(pauseIntent)
-    }
-
-    private fun updatePrelistenButtons(target: String?) {
-        val exitActive = target == "songA"
-        val entryActive = target == "songB"
-
-        binding.prelistenExitButton.text = if (exitActive) "■ Detener" else "▶ Salida"
-        binding.prelistenExitButton.setTextColor(
-            Color.parseColor(if (exitActive) "#FFFFFF" else "#E21616")
-        )
-        binding.prelistenExitButton.setBackgroundResource(
-            if (exitActive) R.drawable.bg_preview_button else R.drawable.bg_preset_chip
-        )
-
-        binding.prelistenEntryButton.text = if (entryActive) "■ Detener" else "▶ Entrada"
-        binding.prelistenEntryButton.setTextColor(
-            Color.parseColor(if (entryActive) "#FFFFFF" else "#BB86FC")
-        )
-        binding.prelistenEntryButton.setBackgroundResource(
-            if (entryActive) R.drawable.bg_preview_button else R.drawable.bg_preset_chip
-        )
-    }
-
-    private fun observePlaybackForPrelisten() {
-        PlaybackStateRepository.isPlayingLiveData.observe(viewLifecycleOwner) { isPlaying ->
-            updatePreviewToggleButton()
-            updateWaveformPlaybackCursor()
-            if (!isPlaying && viewModel.state.value?.prelistenTarget != null) {
-                viewModel.setPrelistenTarget(null)
-                updatePrelistenButtons(null)
-            }
-        }
-        PlaybackStateRepository.currentSongLiveData.observe(viewLifecycleOwner) {
-            updatePreviewToggleButton()
-            updateWaveformPlaybackCursor()
-        }
-        PlaybackStateRepository.playbackPositionLiveData.observe(viewLifecycleOwner) {
-            updateWaveformPlaybackCursor()
-        }
-    }
-
-    private fun updateWaveformPlaybackCursor() {
-        val b = _binding ?: return
-        val data = viewModel.state.value?.waveformData ?: run {
-            b.waveformView.setPlaybackPosition(-1f, -1f)
-            return
-        }
-        if (!PlaybackStateRepository.isPlaying) {
-            b.waveformView.setPlaybackPosition(-1f, -1f)
-            mixEditorView?.setPlayhead(-1f, -1f)
-            return
-        }
-        val currentSongId = PlaybackStateRepository.currentSong?.id
-        val positionMs = PlaybackStateRepository.playbackPositionLiveData.value?.position?.toFloat() ?: -1f
-        when (currentSongId) {
-            data.songA.songId -> b.waveformView.setPlaybackPosition(positionMs, -1f)
-            data.songB.songId -> b.waveformView.setPlaybackPosition(-1f, positionMs)
-            else -> b.waveformView.setPlaybackPosition(-1f, -1f)
-        }
-        // Línea de reproducción del editor v2: la canción que suena y su posición.
-        mixEditorView?.setPlayhead(
-            if (currentSongId == data.songA.songId) positionMs else -1f,
-            if (currentSongId == data.songB.songId) positionMs else -1f
-        )
-    }
+    private fun themeColor(id: Int): Int = ContextCompat.getColor(requireContext(), id)
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
         TransitionPreview.clear()
+        playPulse?.cancel()
+        playPulse = null
+        skeletonPulse?.cancel()
+        skeletonPulse = null
+        _binding?.statusCapsule?.removeCallbacks(hideCapsule)
+        modeSelector = null
         v2Panel = null
-        mixEditorView = null
+        unsavedCallback = null
+        exitAfterSave = false
+        styleChips.clear()
+        boundWaveformKey = null
+        boundArtworkKey = null
+        lastRenderStatus = null
+        lastSaving = false
+        lastDirty = false
+        lastSelectedStyle = null
+        contentRevealed = false
+        isPreviewStarting = false
+        capsuleKind = null
         super.onDestroyView()
         _binding = null
     }
-}
 
-/** Alto de la onda del editor v2: con la cabecera y los carriles cabe todo sin hacer scroll. */
-private const val V2_WAVEFORM_HEIGHT_DP = 290
+    private companion object {
+        const val TAG = "CrossfadeEditor"
+        const val PREFS = "playmix_editor"
+        const val KEY_LANES_EXPANDED = "lanes_expanded"
+        const val BACKDROP_BLUR = 90f
+        const val BACKDROP_ALPHA = 0.85f
+        const val REVEAL_MS = 480L
+        const val REVEAL_STAGGER_MS = 70L
+        val RENDERING = setOf("pending", "rendering")
+        val SPANISH: Locale = Locale("es", "ES")
+        val STAGE_SCREEN = Color.parseColor("#0E0E12")
+        val COLOR_GOOD = Color.parseColor("#1FB866")
+        val COLOR_GOOD_ON_DARK = Color.parseColor("#7CF2B0")
+        val COLOR_FAIR = Color.parseColor("#E09A1A")
+        val COLOR_BAD = Color.parseColor("#FF6B6B")
+    }
+}

@@ -376,6 +376,76 @@
         <item name="android:textColor">@color/textTheme</item>
     </style>
     <!-- Título de sección del editor de transición v2 (PRESET, VENTANA). -->
+    <!-- Marca Resonant (Inicio y menú lateral): rótulo pequeño, título de sección y acceso rápido. -->
+    <style name="RsEyebrow">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:letterSpacing">0.18</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <!-- Título y subtítulo de sección de Inicio: los mismos que las cabeceras de Explorar. -->
+    <style name="RsSectionTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">19sp</item>
+    </style>
+
+    <style name="RsSectionSubtitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="RsShortcut">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:background">@drawable/bg_rs_glass_pill</item>
+        <item name="android:drawablePadding">8dp</item>
+        <item name="android:drawableTint">@color/white</item>
+        <item name="android:fontFamily">@font/unageo_semi_bold</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">13.5sp</item>
+    </style>
+
+    <!-- Editor de transiciones de PlayMix: rótulo de sección y pastilla de datos (BPM, Camelot). -->
+    <style name="MxEyebrow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:letterSpacing">0.16</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <style name="MxTag">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">22dp</item>
+        <item name="android:background">@drawable/bg_mx_tag</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minWidth">30dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">10.5sp</item>
+    </style>
+
     <style name="MixV2SectionTitle">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Inicio. Capas, de atrás adelante:
+      1. homeAurora: luz de marca que deriva despacio y toma los colores de lo último que sonó (parallax al hacer scroll).
+      2. homeScrollView: barra (avatar, campana, buscar), saludo, buscador, accesos rápidos, "Sigue escuchando" y secciones.
+      3. Cabecera de búsqueda flotante (ScrollHeaderBehavior), que aparece al bajar.
+    Lo controla HomeFragment.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -7,13 +14,33 @@
     android:background="@color/primaryColorTheme"
     tools:context=".ui.fragments.HomeFragment">
 
+    <!-- ═══ Capa 1: aurora ═══ -->
+    <FrameLayout
+        android:id="@+id/homeAuroraLayer"
+        android:layout_width="match_parent"
+        android:layout_height="460dp"
+        android:importantForAccessibility="noHideDescendants">
+
+        <com.example.resonant.ui.views.AuroraView
+            android:id="@+id/homeAurora"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_mx_scrim" />
+    </FrameLayout>
+
     <androidx.core.widget.NestedScrollView
         android:id="@+id/homeScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:overScrollMode="never">
 
     <LinearLayout
+        android:id="@+id/homeContent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
@@ -107,29 +134,239 @@
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
+        <!-- ─── Saludo ─── -->
+        <LinearLayout
+            android:id="@+id/homeGreetingBlock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="22dp">
+
+            <TextView
+                android:id="@+id/homeDateEyebrow"
+                style="@style/RsEyebrow"
+                tools:text="SÁBADO · 18 DE OCTUBRE" />
+
+            <TextView
+                android:id="@+id/homeGreeting"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="@font/unageo_bold"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.02"
+                android:textColor="@color/white"
+                android:textSize="34sp"
+                tools:text="Buenas noches," />
+
+            <TextView
+                android:id="@+id/homeGreetingName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="@font/unageo_extra_bold"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.02"
+                android:maxLines="1"
+                android:textColor="@color/white"
+                android:textSize="34sp"
+                tools:text="Ionut" />
+
+            <TextView
+                android:id="@+id/homeGreetingSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fontFamily="@font/unageo_medium"
+                android:textColor="@color/textTheme"
+                android:textSize="14sp"
+                tools:text="Algo tranquilo para cerrar el día." />
+        </LinearLayout>
+
+        <!-- ─── Buscador ─── -->
+        <LinearLayout
+            android:id="@+id/homeSearchPill"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="22dp"
+            android:background="@drawable/bg_rs_glass_pill"
+            android:clickable="true"
+            android:contentDescription="Buscar en Resonant"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="18dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_search"
+                app:tint="@color/white" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:fontFamily="@font/unageo_medium"
+                android:text="¿Qué te apetece escuchar?"
+                android:textColor="@color/textTheme"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <!-- ─── Accesos rápidos (los rellena HomeFragment) ─── -->
+        <HorizontalScrollView
+            android:id="@+id/homeShortcutsScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingHorizontal="16dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/homeShortcuts"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- ─── Sigue escuchando ─── -->
+        <FrameLayout
+            android:id="@+id/homeHeroCard"
+            android:layout_width="match_parent"
+            android:layout_height="196dp"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_rs_hero_card"
+            android:clickable="true"
+            android:elevation="10dp"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:outlineSpotShadowColor="@color/rs_brand_start"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ImageView
+                android:id="@+id/homeHeroBackdrop"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="centerCrop" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_rs_hero_scrim" />
+
+            <FrameLayout
+                android:id="@+id/homeHeroCoverFrame"
+                android:layout_width="124dp"
+                android:layout_height="124dp"
+                android:layout_gravity="center_vertical|end"
+                android:layout_marginEnd="20dp"
+                android:background="@drawable/bg_mx_cover"
+                android:elevation="16dp"
+                android:rotation="-5">
+
+                <ImageView
+                    android:id="@+id/homeHeroCover"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no"
+                    android:scaleType="centerCrop" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="160dp"
+                android:gravity="center_vertical"
+                android:orientation="vertical"
+                android:paddingStart="20dp">
+
+                <TextView
+                    android:id="@+id/homeHeroEyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="22dp"
+                    android:background="@drawable/bg_rs_hero_tag"
+                    android:fontFamily="@font/unageo_bold"
+                    android:gravity="center"
+                    android:letterSpacing="0.14"
+                    android:paddingHorizontal="9dp"
+                    android:text="SIGUE ESCUCHANDO"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="9.5sp" />
+
+                <TextView
+                    android:id="@+id/homeHeroTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_bold"
+                    android:maxLines="2"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="20sp"
+                    tools:text="Don't Stop The Music" />
+
+                <TextView
+                    android:id="@+id/homeHeroArtist"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/unageo_medium"
+                    android:maxLines="1"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="13sp"
+                    tools:text="Rihanna" />
+
+                <ImageButton
+                    android:id="@+id/homeHeroPlay"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_rs_play_white"
+                    android:contentDescription="Reproducir"
+                    android:elevation="4dp"
+                    android:padding="14dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_play"
+                    app:tint="#FF111111" />
+            </LinearLayout>
+        </FrameLayout>
+
         <!-- HISTORY SECTION -->
         <RelativeLayout
             android:id="@+id/historyPrincipalContainer"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
 
-            <FrameLayout
+            <LinearLayout
                 android:id="@+id/historyTextContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="15dp">
+                android:orientation="vertical"
+                android:paddingHorizontal="20dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="6dp">
 
                 <TextView
                     android:id="@+id/historyFeatured"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_bold"
-                    android:text="Retoma desde donde lo has dejado"
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    android:layout_gravity="start"/>
+                    style="@style/RsSectionTitle"
+                    android:text="Retoma desde donde lo has dejado" />
 
-            </FrameLayout>
+                <TextView
+                    style="@style/RsSectionSubtitle"
+                    android:text="Vuelve a lo que estabas escuchando" />
+            </LinearLayout>
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -173,7 +410,7 @@
                         android:layout_width="40dp"
                         android:layout_height="40dp"
                         android:src="@android:drawable/ic_dialog_alert"
-                        app:tint="#808080" />
+                        app:tint="@color/textTheme" />
 
                     <TextView
                         android:id="@+id/tvErrorHistory"
@@ -182,13 +419,10 @@
                         android:layout_marginTop="8dp"
                         android:fontFamily="@font/unageo_medium"
                         android:text="No hay historial"
-                        android:textColor="#808080"
+                        android:textColor="@color/textTheme"
                         android:textSize="14sp"/>
-
                 </LinearLayout>
-
             </RelativeLayout>
-
         </RelativeLayout>
 
         <!-- RECENT FAVORITES SECTION ("lo que te ha gustado") -->
@@ -198,23 +432,24 @@
             android:layout_height="wrap_content"
             android:visibility="gone">
 
-            <FrameLayout
+            <LinearLayout
                 android:id="@+id/recentFavoritesTextContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="15dp">
+                android:orientation="vertical"
+                android:paddingHorizontal="20dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="6dp">
 
                 <TextView
                     android:id="@+id/recentFavoritesFeatured"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_bold"
-                    android:text="Favoritos recientes"
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    android:layout_gravity="start"/>
+                    style="@style/RsSectionTitle"
+                    android:text="Favoritos recientes" />
 
-            </FrameLayout>
+                <TextView
+                    style="@style/RsSectionSubtitle"
+                    android:text="Lo último que has guardado con un corazón" />
+            </LinearLayout>
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -245,9 +480,7 @@
                         <include layout="@layout/item_song_shimmer_placeholder"/>
                     </LinearLayout>
                 </com.facebook.shimmer.ShimmerFrameLayout>
-
             </RelativeLayout>
-
         </RelativeLayout>
 
         <RelativeLayout
@@ -256,21 +489,24 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <FrameLayout
+            <LinearLayout
                 android:id="@+id/artistTextContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="15dp">
+                android:orientation="vertical"
+                android:paddingHorizontal="20dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="10dp">
+
                 <TextView
                     android:id="@+id/artistFeatured"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_bold"
-                    android:text=""
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    android:layout_gravity="start"/>
-            </FrameLayout>
+                    style="@style/RsSectionTitle"
+                    android:text="" />
+
+                <TextView
+                    style="@style/RsSectionSubtitle"
+                    android:text="Elegidos según lo que escuchas" />
+            </LinearLayout>
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -300,11 +536,6 @@
                             <include layout="@layout/item_artist_shimmer_placeholder"/>
                             <include layout="@layout/item_artist_shimmer_placeholder"/>
                         </LinearLayout>
-                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                            <include layout="@layout/item_artist_shimmer_placeholder"/>
-                            <include layout="@layout/item_artist_shimmer_placeholder"/>
-                            <include layout="@layout/item_artist_shimmer_placeholder"/>
-                        </LinearLayout>
                     </LinearLayout>
                 </com.facebook.shimmer.ShimmerFrameLayout>
 
@@ -315,8 +546,8 @@
                     android:gravity="center"
                     android:orientation="vertical"
                     android:visibility="gone">
-                    <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
-                    <TextView android:id="@+id/tvErrorArtists" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No se pudieron cargar" android:textColor="#808080" android:textSize="14sp"/>
+                    <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="@color/textTheme" />
+                    <TextView android:id="@+id/tvErrorArtists" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No se pudieron cargar" android:textColor="@color/textTheme" android:textSize="14sp"/>
                 </LinearLayout>
             </RelativeLayout>
         </RelativeLayout>
@@ -328,21 +559,24 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <FrameLayout
+            <LinearLayout
                 android:id="@+id/albumTextContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="15dp">
+                android:orientation="vertical"
+                android:paddingHorizontal="20dp"
+                android:paddingTop="22dp"
+                android:paddingBottom="10dp">
+
                 <TextView
                     android:id="@+id/albumsFeatured"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="@font/unageo_bold"
-                    android:text=""
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    android:layout_gravity="center_vertical|left"/>
-            </FrameLayout>
+                    style="@style/RsSectionTitle"
+                    android:text="" />
+
+                <TextView
+                    style="@style/RsSectionSubtitle"
+                    android:text="Discos que encajan con tu gusto" />
+            </LinearLayout>
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -380,30 +614,31 @@
                     android:gravity="center"
                     android:orientation="vertical"
                     android:visibility="gone">
-                    <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
-                    <TextView android:id="@+id/tvErrorAlbums" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No disponible" android:textColor="#808080" android:textSize="14sp"/>
+                    <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="@color/textTheme" />
+                    <TextView android:id="@+id/tvErrorAlbums" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No disponible" android:textColor="@color/textTheme" android:textSize="14sp"/>
                 </LinearLayout>
             </RelativeLayout>
         </RelativeLayout>
 
         <!-- RECOMMENDED SONGS SECTION (entre Álbumes para ti y Artistas que más escuchas) -->
-        <FrameLayout
+        <LinearLayout
             android:id="@+id/titleSongsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:paddingHorizontal="20dp"
-            android:paddingTop="15dp"
-            android:paddingBottom="5dp">
+            android:paddingTop="22dp"
+            android:paddingBottom="6dp">
+
             <TextView
                 android:id="@+id/songsFeatured"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:text=""
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="center_vertical|start"/>
-        </FrameLayout>
+                style="@style/RsSectionTitle"
+                android:text="" />
+
+            <TextView
+                style="@style/RsSectionSubtitle"
+                android:text="Canciones seleccionadas para ti" />
+        </LinearLayout>
 
         <RelativeLayout
             android:id="@+id/listSongs"
@@ -441,28 +676,35 @@
                 android:gravity="center"
                 android:orientation="vertical"
                 android:visibility="gone">
-                <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="#808080" />
-                <TextView android:id="@+id/tvErrorSongs" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No se encontraron canciones" android:textColor="#808080" android:textSize="14sp"/>
+                <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@android:drawable/ic_dialog_alert" app:tint="@color/textTheme" />
+                <TextView android:id="@+id/tvErrorSongs" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/unageo_medium" android:text="No se encontraron canciones" android:textColor="@color/textTheme" android:textSize="14sp"/>
             </LinearLayout>
         </RelativeLayout>
 
         <!-- TOP ARTISTS SECTION (Artistas que más escuchas) -->
-        <TextView
-            android:id="@+id/tvTopArtistsTitle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/topArtistsHeader"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="15dp"
-            android:layout_marginTop="20dp"
-            android:fontFamily="@font/unageo_bold"
-            android:text="Artistas que más escuchas"
-            android:textColor="@color/white"
-            android:textSize="20sp" />
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="24dp">
+
+            <TextView
+                android:id="@+id/tvTopArtistsTitle"
+                style="@style/RsSectionTitle"
+                android:text="Artistas que más escuchas" />
+
+            <TextView
+                style="@style/RsSectionSubtitle"
+                android:text="Los que más suenan en tu cuenta" />
+        </LinearLayout>
 
         <FrameLayout
             android:id="@+id/topArtistsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="10dp">
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/listTopArtists"
@@ -488,26 +730,32 @@
                     <include layout="@layout/item_artist_shimmer_placeholder"/>
                 </LinearLayout>
             </com.facebook.shimmer.ShimmerFrameLayout>
-
         </FrameLayout>
 
         <!-- TOP ALBUMS SECTION (Álbumes más escuchados) -->
-        <TextView
-            android:id="@+id/tvTopAlbumsTitle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/topAlbumsHeader"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="15dp"
-            android:layout_marginTop="20dp"
-            android:fontFamily="@font/unageo_bold"
-            android:text="Álbumes más escuchados"
-            android:textColor="@color/white"
-            android:textSize="20sp" />
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="24dp">
+
+            <TextView
+                android:id="@+id/tvTopAlbumsTitle"
+                style="@style/RsSectionTitle"
+                android:text="Álbumes más escuchados" />
+
+            <TextView
+                style="@style/RsSectionSubtitle"
+                android:text="Los discos a los que más vuelves" />
+        </LinearLayout>
 
         <FrameLayout
             android:id="@+id/topAlbumsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="10dp">
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/listTopAlbums"
@@ -533,27 +781,27 @@
                     <include layout="@layout/item_album_shimmer_placeholder"/>
                 </LinearLayout>
             </com.facebook.shimmer.ShimmerFrameLayout>
-
         </FrameLayout>
 
         <!-- MOST LISTENED SONGS SECTION -->
-        <FrameLayout
+        <LinearLayout
             android:id="@+id/titleTopSongsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:paddingHorizontal="20dp"
-            android:paddingTop="20dp"
-            android:paddingBottom="5dp">
+            android:paddingTop="24dp"
+            android:paddingBottom="6dp">
+
             <TextView
                 android:id="@+id/tvTopSongsTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Tus más escuchadas"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_gravity="center_vertical|start"/>
-        </FrameLayout>
+                style="@style/RsSectionTitle"
+                android:text="Tus más escuchadas" />
+
+            <TextView
+                style="@style/RsSectionSubtitle"
+                android:text="Tu top personal de canciones" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/listTopSongs"
@@ -589,35 +837,33 @@
                         <include layout="@layout/item_song_shimmer_placeholder"/>
                     </LinearLayout>
                 </com.facebook.shimmer.ShimmerFrameLayout>
-
             </FrameLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSeeMoreTopSongs"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
+                android:layout_height="44dp"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginVertical="10dp"
-                android:text="Ver más"
-                android:textColor="@color/white"
-                android:textStyle="bold"
-                android:textSize="13sp"
-                android:fontFamily="@font/unageo_medium"
-                android:backgroundTint="@color/discTheme"
-                app:cornerRadius="25dp"
-                android:paddingVertical="8dp"
-                android:paddingHorizontal="24dp"
-                app:icon="@drawable/ic_keyboard_arrow_down"
-                app:iconGravity="textEnd"
-                app:iconTint="@color/white"
-                app:iconSize="16dp"
-                android:visibility="gone"
+                android:layout_marginVertical="12dp"
+                android:backgroundTint="@color/rs_glass"
+                android:fontFamily="@font/unageo_semi_bold"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
+                android:paddingHorizontal="22dp"
+                android:text="Ver más"
+                android:textAllCaps="false"
+                android:textColor="@color/white"
+                android:textSize="13.5sp"
+                android:visibility="gone"
+                app:cornerRadius="22dp"
+                app:icon="@drawable/ic_keyboard_arrow_down"
+                app:iconGravity="textEnd"
+                app:iconSize="18dp"
+                app:iconTint="@color/white"
+                app:strokeColor="@color/rs_glass_stroke"
+                app:strokeWidth="1dp"
                 tools:visibility="visible"/>
-
         </LinearLayout>
-
     </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>

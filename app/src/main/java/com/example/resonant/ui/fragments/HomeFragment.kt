@@ -45,12 +45,40 @@ import androidx.core.view.isVisible
 import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.NotificationsManager
 import com.example.resonant.notifications.NotificationBadge
+import android.graphics.Bitmap
+import android.graphics.LinearGradient
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.graphics.drawable.Drawable
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
+import androidx.core.content.ContextCompat
+import androidx.palette.graphics.Palette
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
+import com.example.resonant.ui.views.AuroraView
+import com.example.resonant.utils.ImageRequestHelper
+import com.google.firebase.auth.FirebaseAuth
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     companion object {
         private const val TOP_SONGS_COLLAPSED_COUNT = 5
+        private const val HERO_BLUR = 60f
+        private const val PALETTE_SIZE = 120
+        private const val REVEAL_CHILDREN = 6
+        private const val REVEAL_MS = 520L
+        private const val REVEAL_STAGGER_MS = 70L
     }
+
+    /** La entrada animada solo la primera vez (volver de otra pantalla no la repite). */
+    private var savedHomeRevealDone = false
 
     private lateinit var recyclerViewHistory: RecyclerView
     private lateinit var historyAdapter: SongAdapter
@@ -126,6 +154,14 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     private var scrollBehavior: ScrollHeaderBehavior? = null
 
+    // ─── Marca: aurora, saludo y "Sigue escuchando" ───
+    private lateinit var topArtistsHeader: View
+    private lateinit var topAlbumsHeader: View
+    private var aurora: AuroraView? = null
+    private var auroraLayer: View? = null
+    private var heroSongId: String? = null
+    private var heroPaletteTarget: CustomTarget<Bitmap>? = null
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -143,6 +179,14 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         super.onResume()
         exitTransition = androidx.transition.Fade().apply { duration = 50L }
         refreshNotificationBell()
+        aurora?.setAnimating(true)
+        // La hora puede haber cambiado (mañana → tarde) mientras la pantalla estaba en segundo plano.
+        view?.let { bindGreeting(it) }
+    }
+
+    override fun onPause() {
+        aurora?.setAnimating(false)
+        super.onPause()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -156,8 +200,9 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             searchHeader  = searchHeader,
             onSearchClick = { exitTransition = null; findNavController().navigate(R.id.action_homeFragment_to_searchFragment) }
         )
-        scrollBehavior?.attachToNestedScrollView(homeScrollView)
+        scrollBehavior?.attachToNestedScrollView(homeScrollView) { scrollY -> applyHomeParallax(scrollY) }
 
+        setupBrandHeader(view)
         loadHomeContent()
         // view.findViewById<View>(R.id.historyPrincipalContainer)?.visibility = View.GONE // Removed
 
@@ -216,6 +261,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         recyclerViewTopArtists = view.findViewById(R.id.listTopArtists)
         shimmerTopArtists = view.findViewById(R.id.shimmerTopArtists)
 
+        topArtistsHeader = view.findViewById(R.id.topArtistsHeader)
+        topAlbumsHeader = view.findViewById(R.id.topAlbumsHeader)
         tvTopAlbumsTitle = view.findViewById(R.id.tvTopAlbumsTitle)
         topAlbumsContainer = view.findViewById(R.id.topAlbumsContainer)
         recyclerViewTopAlbums = view.findViewById(R.id.listTopAlbums)
@@ -520,6 +567,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                 historyAdapter.submitList(history)
                 updateSectionState(false, false, recyclerViewHistory, shimmerHistoryLayout, layoutErrorHistory)
             }
+            bindHero(history?.firstOrNull())
         }
         homeViewModel.historyLoading.observe(viewLifecycleOwner) { isLoading ->
             if (isLoading) {
@@ -627,10 +675,10 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         homeViewModel.topArtists.observe(viewLifecycleOwner) { artists ->
             if (artists.isNullOrEmpty()) {
                 topArtistsContainer.visibility = View.GONE
-                tvTopArtistsTitle.visibility = View.GONE
+                topArtistsHeader.visibility = View.GONE
             } else {
                 topArtistsContainer.visibility = View.VISIBLE
-                tvTopArtistsTitle.visibility = View.VISIBLE
+                topArtistsHeader.visibility = View.VISIBLE
                 topArtistAdapter.submitArtists(artists)
                 shimmerTopArtists.stopShimmer()
                 shimmerTopArtists.visibility = View.GONE
@@ -647,7 +695,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         homeViewModel.topArtistsError.observe(viewLifecycleOwner) { error ->
             if (error != null) {
                 topArtistsContainer.visibility = View.GONE
-                tvTopArtistsTitle.visibility = View.GONE
+                topArtistsHeader.visibility = View.GONE
             }
         }
 
@@ -656,10 +704,10 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         homeViewModel.topAlbums.observe(viewLifecycleOwner) { albums ->
             if (albums.isNullOrEmpty()) {
                 topAlbumsContainer.visibility = View.GONE
-                tvTopAlbumsTitle.visibility = View.GONE
+                topAlbumsHeader.visibility = View.GONE
             } else {
                 topAlbumsContainer.visibility = View.VISIBLE
-                tvTopAlbumsTitle.visibility = View.VISIBLE
+                topAlbumsHeader.visibility = View.VISIBLE
                 topAlbumAdapter.updateList(albums)
                 shimmerTopAlbums.stopShimmer()
                 shimmerTopAlbums.visibility = View.GONE
@@ -676,7 +724,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         homeViewModel.topAlbumsError.observe(viewLifecycleOwner) { error ->
             if (error != null) {
                 topAlbumsContainer.visibility = View.GONE
-                tvTopAlbumsTitle.visibility = View.GONE
+                topAlbumsHeader.visibility = View.GONE
             }
         }
 
@@ -831,7 +879,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             }
         }
 
-        adapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        adapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
 
         adapter.onSettingsClick = { song ->
             lifecycleScope.launch {
@@ -844,7 +892,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                         val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                         findNavController().navigate(R.id.action_homeFragment_to_detailedSongFragment, bundle)
                     },
-                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
+                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong)) },
                     onAddToPlaylistClick = { songToAdd ->
                         val sheet = SelectPlaylistBottomSheet(
                             song = songToAdd,
@@ -883,7 +931,182 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         }
     }
 
+    // ═══════════════════════════════════════════════
+    // MARCA: saludo, buscador, accesos, "Sigue escuchando" y aurora
+    // ═══════════════════════════════════════════════
+
+    private fun setupBrandHeader(view: View) {
+        aurora = view.findViewById(R.id.homeAurora)
+        auroraLayer = view.findViewById(R.id.homeAuroraLayer)
+        bindGreeting(view)
+        view.findViewById<View>(R.id.homeSearchPill).setOnClickListener {
+            exitTransition = null
+            findNavController().navigate(R.id.action_homeFragment_to_searchFragment)
+        }
+        buildShortcuts(view.findViewById(R.id.homeShortcuts))
+        view.findViewById<View>(R.id.homeHeroCoverFrame).clipToOutline = true
+        view.findViewById<View>(R.id.homeHeroCard).clipToOutline = true
+        view.findViewById<View>(R.id.homeHeroBackdrop).setRenderEffect(
+            RenderEffect.createBlurEffect(HERO_BLUR, HERO_BLUR, Shader.TileMode.CLAMP)
+        )
+        if (savedHomeRevealDone) return
+        savedHomeRevealDone = true
+        revealHome(view.findViewById(R.id.homeContent))
+    }
+
+    /** Fecha, saludo según la hora y el nombre con el degradado de la marca. */
+    private fun bindGreeting(view: View) {
+        val now = Calendar.getInstance()
+        val hour = now.get(Calendar.HOUR_OF_DAY)
+        val (greeting, subtitle) = when (hour) {
+            in 6..11 -> "Buenos días," to "Empieza el día con buen ritmo."
+            in 12..19 -> "Buenas tardes," to "Tu banda sonora para esta tarde."
+            in 20..23 -> "Buenas noches," to "Algo especial para esta noche."
+            else -> "Hola, noctámbulo," to "Para los que siguen despiertos."
+        }
+        val date = SimpleDateFormat("EEEE · d 'de' MMMM", Locale("es", "ES")).format(now.time)
+        view.findViewById<TextView>(R.id.homeDateEyebrow).text = date.uppercase(Locale("es", "ES"))
+        view.findViewById<TextView>(R.id.homeGreeting).text = greeting
+        view.findViewById<TextView>(R.id.homeGreetingSubtitle).text = subtitle
+
+        val nameView = view.findViewById<TextView>(R.id.homeGreetingName)
+        val fullName = FirebaseAuth.getInstance().currentUser?.displayName
+            ?: requireContext().getSharedPreferences("user_data", android.content.Context.MODE_PRIVATE).getString("name", null)
+        val firstName = fullName?.trim()?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
+        nameView.text = firstName ?: "melómano"
+        nameView.post {
+            val width = nameView.paint.measureText(nameView.text.toString())
+            nameView.paint.shader = LinearGradient(
+                0f, 0f, width, 0f,
+                intArrayOf(AuroraView.DEFAULT_A, AuroraView.DEFAULT_B, AuroraView.DEFAULT_C), null, Shader.TileMode.CLAMP
+            )
+            nameView.invalidate()
+        }
+    }
+
+    private data class Shortcut(val label: String, val icon: Int, val destination: Int)
+
+    /** Accesos rápidos a pantallas que no están en la barra inferior. */
+    private fun buildShortcuts(row: LinearLayout) {
+        row.removeAllViews()
+        val iconSize = dpToPx(18)
+        listOf(
+            Shortcut("PlayMix", R.drawable.ic_playmix, R.id.playmixListFragment),
+            Shortcut("Descargas", R.drawable.ic_download, R.id.downloadedSongsFragment),
+            Shortcut("Historial", R.drawable.ic_recent, R.id.historyFragment),
+            Shortcut("Estadísticas", R.drawable.ic_rs_stats, R.id.listeningStatsFragment)
+        ).forEach { shortcut ->
+            val chip = TextView(requireContext(), null, 0, R.style.RsShortcut).apply {
+                text = shortcut.label
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dpToPx(44)).apply {
+                    marginEnd = dpToPx(8)
+                }
+                val icon = ContextCompat.getDrawable(requireContext(), shortcut.icon)?.mutate()?.apply {
+                    setBounds(0, 0, iconSize, iconSize)
+                    setTint(ContextCompat.getColor(requireContext(), R.color.white))
+                }
+                setCompoundDrawablesRelative(icon, null, null, null)
+                setOnClickListener {
+                    exitTransition = null
+                    findNavController().navigate(shortcut.destination)
+                }
+            }
+            row.addView(chip)
+        }
+    }
+
+    /**
+     * "Sigue escuchando": lo último que sonó, con su portada desenfocada de fondo. Su paleta tiñe la aurora de arriba
+     * (si no hay historial, la aurora conserva los colores de la marca).
+     */
+    private fun bindHero(song: com.example.resonant.data.models.Song?) {
+        val root = view ?: return
+        val card = root.findViewById<View>(R.id.homeHeroCard)
+        if (song == null) {
+            card.isVisible = false
+            heroSongId = null
+            return
+        }
+        val firstTime = !card.isVisible
+        card.isVisible = true
+        root.findViewById<TextView>(R.id.homeHeroTitle).text = song.title
+        root.findViewById<TextView>(R.id.homeHeroArtist).text =
+            song.artists?.joinToString(", ") { it.name }?.takeIf { it.isNotBlank() } ?: song.artistName.orEmpty()
+        val play = { historyAdapter.onItemClick?.invoke(song to null) }
+        card.setOnClickListener { play() }
+        root.findViewById<View>(R.id.homeHeroPlay).setOnClickListener { button ->
+            button.animate().scaleX(0.88f).scaleY(0.88f).setDuration(90).withEndAction {
+                button.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(OvershootInterpolator(2f)).start()
+            }.start()
+            play()
+        }
+        if (firstTime) {
+            card.alpha = 0f
+            card.translationY = dpToPx(20).toFloat()
+            card.animate().alpha(1f).translationY(0f).setDuration(520).setInterpolator(DecelerateInterpolator(1.6f)).start()
+        }
+        if (song.id == heroSongId) return
+        heroSongId = song.id
+
+        val url = song.coverUrl ?: song.album?.url
+        val cover = root.findViewById<ImageView>(R.id.homeHeroCover)
+        val backdrop = root.findViewById<ImageView>(R.id.homeHeroBackdrop)
+        if (url.isNullOrBlank()) {
+            cover.setImageResource(R.drawable.ic_disc)
+            return
+        }
+        val model = ImageRequestHelper.buildGlideModel(requireContext(), url)
+        Glide.with(cover).load(model).centerCrop().transition(DrawableTransitionOptions.withCrossFade(300)).into(cover)
+        Glide.with(backdrop).load(model).centerCrop().transition(DrawableTransitionOptions.withCrossFade(500)).into(backdrop)
+
+        heroPaletteTarget?.let { Glide.with(this).clear(it) }
+        heroPaletteTarget = object : CustomTarget<Bitmap>(PALETTE_SIZE, PALETTE_SIZE) {
+            override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                Palette.from(resource).generate { palette ->
+                    val p = palette ?: return@generate
+                    aurora?.setPalette(
+                        p.getVibrantColor(AuroraView.DEFAULT_A),
+                        p.getDarkVibrantColor(p.getMutedColor(AuroraView.DEFAULT_B)),
+                        p.getLightVibrantColor(p.getDominantColor(AuroraView.DEFAULT_C))
+                    )
+                }
+            }
+            override fun onLoadCleared(placeholder: Drawable?) = Unit
+        }
+        Glide.with(this).asBitmap().load(model).into(heroPaletteTarget!!)
+    }
+
+    /** La aurora sube a media velocidad y se apaga al bajar; deja de animarse cuando ya no se ve. */
+    private fun applyHomeParallax(scrollY: Int) {
+        val layer = auroraLayer ?: return
+        val height = layer.height.takeIf { it > 0 } ?: return
+        val progress = (scrollY / (height * 0.8f)).coerceIn(0f, 1f)
+        layer.translationY = -scrollY * 0.5f
+        aurora?.intensity = 1f - progress
+        aurora?.setAnimating(progress < 1f && isResumed)
+    }
+
+    /** Entrada escalonada de la cabecera y las primeras secciones la primera vez que se abre Inicio. */
+    private fun revealHome(content: LinearLayout) {
+        val rise = dpToPx(24).toFloat()
+        for (i in 0 until minOf(content.childCount, REVEAL_CHILDREN)) {
+            val child = content.getChildAt(i)
+            child.alpha = 0f
+            child.translationY = rise
+            child.animate().alpha(1f).translationY(0f)
+                .setStartDelay(REVEAL_STAGGER_MS * i)
+                .setDuration(REVEAL_MS)
+                .setInterpolator(DecelerateInterpolator(1.6f))
+                .start()
+        }
+    }
+
     override fun onDestroyView() {
+        heroPaletteTarget?.let { runCatching { Glide.with(this).clear(it) } }
+        heroPaletteTarget = null
+        heroSongId = null
+        aurora = null
+        auroraLayer = null
         super.onDestroyView()
         scrollBehavior?.reset()
         scrollBehavior = null

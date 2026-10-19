@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class SearchFragment : Fragment() {
 
@@ -396,7 +397,7 @@ class SearchFragment : Fragment() {
         }
 
         searchResultAdapter.onFavoriteClick = { song, wasFavorite ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         searchResultAdapter.onSettingsClick = { song ->
@@ -410,7 +411,7 @@ class SearchFragment : Fragment() {
                         val bundle = Bundle().apply { putParcelable("song", selectedSong) }
                         requireActivity().findNavController(R.id.nav_host_fragment).navigate(R.id.detailedSongFragment, bundle)
                     },
-                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong) },
+                    onFavoriteToggled = { toggledSong -> favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong)) },
                     onAddToPlaylistClick = { songToAdd ->
                         val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
                             song = songToAdd,

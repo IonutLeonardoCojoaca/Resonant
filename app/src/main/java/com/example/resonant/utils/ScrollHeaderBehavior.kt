@@ -55,12 +55,14 @@ class ScrollHeaderBehavior(
         })
     }
 
-    fun attachToNestedScrollView(scrollView: NestedScrollView) {
+    /** [onScroll] recibe además cada scrollY (p. ej. para un parallax), ya que el NestedScrollView solo admite un listener. */
+    fun attachToNestedScrollView(scrollView: NestedScrollView, onScroll: ((scrollY: Int) -> Unit)? = null) {
         scrollView.setOnScrollChangeListener(
             NestedScrollView.OnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
                 val dy = scrollY - oldScrollY
                 totalScrolled = scrollY.toFloat()
                 onScrollChanged(dy)
+                onScroll?.invoke(scrollY)
             }
         )
     }

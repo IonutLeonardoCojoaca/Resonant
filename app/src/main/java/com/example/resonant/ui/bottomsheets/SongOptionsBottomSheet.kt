@@ -32,6 +32,8 @@ import com.example.resonant.data.models.Artist
 import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.QueueCommands
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class SongOptionsBottomSheet(
     private val song: Song,
@@ -190,7 +192,6 @@ class SongOptionsBottomSheet(
                 OptionRows.setTone(addToPlaylistButton, OptionRows.Tone.DESTRUCTIVE)
                 addToPlaylistButton.setOnClickListener {
                     onRemoveFromPlaylistClick?.invoke(song, playlistId)
-                    showResonantSnackbar(text = "Canción eliminada de la playlist", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
                     dismiss()
                 }
             } else {
@@ -224,12 +225,13 @@ class SongOptionsBottomSheet(
                 updateFavoriteButtonUI(addToFavoriteButton, isFavorite)
             }
             addToFavoriteButton.setOnClickListener {
-                onFavoriteToggled?.invoke(song)
-                val isCurrentlyFavorite = favoritesViewModel.favoriteSongIds.value?.contains(song.id) ?: false
-                if (!isCurrentlyFavorite) {
-                    showResonantSnackbar(text = "¡Añadida a favoritos!", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                // El resultado lo comunica quien hace el toggle (favoriteSongFeedback), cuando el
+                // servidor responde: aquí aún no se sabe si saldrá bien.
+                val toggle = onFavoriteToggled
+                if (toggle != null) {
+                    toggle(song)
                 } else {
-                    showResonantSnackbar(text = "Eliminada de favoritos", colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                    favoritesViewModel.toggleFavoriteSong(song, requireActivity().favoriteSongFeedback(song))
                 }
                 dismiss()
             }

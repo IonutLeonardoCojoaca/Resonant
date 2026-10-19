@@ -90,6 +90,8 @@ import com.google.android.material.tabs.TabLayout
 import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class SongFragment : DialogFragment() {
 
@@ -485,15 +487,15 @@ class SongFragment : DialogFragment() {
                     updateFavoriteButtonUI(isNowFavorite)
 
                     showResonantSnackbar(
-                        text = if (isNowFavorite) "¡Canción añadida a favoritos!" else "Canción eliminada de favoritos",
-                        colorRes = R.color.successColor,
-                        iconRes = R.drawable.ic_success
+                        text = song.title,
+                        type = if (isNowFavorite) SnackType.LIKE else SnackType.UNLIKE,
+                        title = if (isNowFavorite) "Añadida a tus favoritos" else "Eliminada de favoritos"
                     )
                 } else {
                     showResonantSnackbar(
-                        text = "Error al actualizar favoritos",
-                        colorRes = R.color.errorColor,
-                        iconRes = R.drawable.ic_error
+                        text = "Comprueba tu conexión e inténtalo de nuevo",
+                        type = SnackType.ERROR,
+                        title = "No se pudieron actualizar tus favoritos"
                     )
                 }
             }
@@ -610,7 +612,7 @@ class SongFragment : DialogFragment() {
                     this@SongFragment.dismiss()
                 },
                 onFavoriteToggled = { toggledSong ->
-                    favoritesViewModel.toggleFavoriteSong(toggledSong)
+                    favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong))
                 },
                 onAddToPlaylistClick = { songToAdd ->
                     val selectPlaylistBottomSheet = SelectPlaylistBottomSheet(
@@ -1254,7 +1256,7 @@ class SongFragment : DialogFragment() {
             requireActivity().findNavController(R.id.nav_host_fragment)
                 .navigate(R.id.action_global_to_detailedSongFragment, bundle)
         }
-        songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
         songAdapter.onSettingsClick = { showSongOptions(it) }
         songAdapter.showPlayButton = true
         songAdapter.onPlayClick = { _, position -> playRelatedSongAt(position) }

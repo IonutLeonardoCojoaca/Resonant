@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pastilla pequeña de datos (BPM, Camelot, estado); se tiñe en código cuando hace falta. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surfaceCardOverlay" />
+    <corners android:radius="9dp" />
+</shape>

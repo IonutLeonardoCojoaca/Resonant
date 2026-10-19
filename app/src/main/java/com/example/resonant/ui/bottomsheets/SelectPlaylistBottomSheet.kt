@@ -24,6 +24,7 @@ import com.example.resonant.ui.viewmodels.PlaylistsListViewModelFactory
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
 
 class SelectPlaylistBottomSheet(
     private val song: Song,
@@ -103,9 +104,9 @@ class SelectPlaylistBottomSheet(
                         )
                         if (alreadyInPlaylist) {
                             showResonantSnackbar(
-                                text = "La canción ya está en la lista",
-                                colorRes = R.color.adviseColor,
-                                iconRes = R.drawable.ic_warning
+                                text = selectedPlaylist.name,
+                                type = SnackType.INFO,
+                                title = "Ya está en esta playlist"
                             )
                         } else {
                             // Nota: requireContext() aquí es redundante si el método
@@ -116,9 +117,9 @@ class SelectPlaylistBottomSheet(
                                 selectedPlaylist.id!!
                             )
                             showResonantSnackbar(
-                                text = "¡Canción añadida a '${selectedPlaylist.name}'!",
-                                colorRes = R.color.successColor,
-                                iconRes = R.drawable.ic_success
+                                text = "${song.title} · ${selectedPlaylist.name}",
+                                type = SnackType.SUCCESS,
+                                title = "Añadida a la playlist"
                             )
 
                             playlistAdapter.clearCacheForPlaylist(selectedPlaylist.id!!)
@@ -128,6 +129,11 @@ class SelectPlaylistBottomSheet(
                         dismiss()
                     } catch (e: Exception) {
                         Log.i("SelectPlaylistBS", "Hubo un error al añadir la canción: ${e.message}")
+                        showResonantSnackbar(
+                            text = "Comprueba tu conexión e inténtalo de nuevo",
+                            type = SnackType.ERROR,
+                            title = "No se pudo añadir a la playlist"
+                        )
                         dismiss()
                     }
                 }

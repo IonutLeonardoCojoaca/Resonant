@@ -32,8 +32,9 @@ import com.example.resonant.ui.viewmodels.RecapStoriesViewModel.UiState
 import com.example.resonant.utils.ImageRequestHelper
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 /**
  * Resumen mensual como historias a pantalla completa (destino `recapStoriesFragment`, argumento
@@ -333,20 +334,23 @@ class RecapStoriesFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             val shared = RecapShare.share(requireContext(), cardView, periodKey, story.index, card.type)
             if (buttonWasVisible) playlistButton?.visibility = View.VISIBLE
-            if (!shared) Snackbar.make(requireView(), R.string.recap_share_failed, Snackbar.LENGTH_SHORT).show()
+            if (!shared) showResonantSnackbar(getString(R.string.recap_share_failed), SnackType.ERROR)
         }
     }
 
     private fun onPlaylistEvent(event: PlaylistEvent?) {
         event ?: return
         viewModel.consumePlaylistEvent()
-        val root = view ?: return
+        view ?: return
         when (event) {
-            is PlaylistEvent.Saved -> Snackbar.make(root, R.string.recap_playlist_saved, Snackbar.LENGTH_LONG)
-                .setAction(R.string.recap_playlist_open) { openPlaylist(event.playlistId) }
-                .show()
-            PlaylistEvent.Empty -> Snackbar.make(root, R.string.recap_playlist_empty, Snackbar.LENGTH_LONG).show()
-            PlaylistEvent.Failed -> Snackbar.make(root, R.string.recap_playlist_failed, Snackbar.LENGTH_SHORT).show()
+            is PlaylistEvent.Saved -> showResonantSnackbar(
+                text = getString(R.string.recap_playlist_saved),
+                type = SnackType.SUCCESS,
+                actionText = getString(R.string.recap_playlist_open),
+                onAction = { openPlaylist(event.playlistId) }
+            )
+            PlaylistEvent.Empty -> showResonantSnackbar(getString(R.string.recap_playlist_empty), SnackType.INFO)
+            PlaylistEvent.Failed -> showResonantSnackbar(getString(R.string.recap_playlist_failed), SnackType.ERROR)
         }
     }
 

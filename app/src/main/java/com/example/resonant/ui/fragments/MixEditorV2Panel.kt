@@ -1,61 +1,54 @@
 package com.example.resonant.ui.fragments
 
-import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.Color
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.example.resonant.R
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
 import com.example.resonant.data.network.MixLaneOptionDTO
 import com.example.resonant.databinding.ItemMixV2LaneBinding
 import com.example.resonant.databinding.ViewMixV2ControlsBinding
 import com.example.resonant.playback.MixComposer
-import com.example.resonant.ui.detail.SongInsightsFormatter
 import com.example.resonant.ui.viewmodels.MixEditorV2
 import com.example.resonant.ui.viewmodels.MixEditorV2State
 import com.example.resonant.ui.views.MixEditorView
 
 /**
- * Controles del editor v2 (spotify-style-transition-engine D9) que se añaden al visualizador del editor de
- * transición: los carriles ([lanesSection], una tarjeta por carril en dos columnas, justo debajo de la onda) y,
- * debajo de los tiempos, estado del render, presets (con Personalizada), ventana por compases, tonalidad y
- * beatmatching.
+ * Controles del editor v2 (spotify-style-transition-engine D9) bajo los estilos: el ajuste fino por carriles (una
+ * tarjeta por carril en dos columnas, plegable, con el resumen de lo elegido en la cabecera) y el beatmatching.
+ * Los estilos, los compases y la ventana los lleva el propio editor.
  */
 class MixEditorV2Panel(
-    private val context: Context,
+    private val binding: ViewMixV2ControlsBinding,
     private val actions: Actions,
+    /** Si el ajuste fino empieza desplegado (se recuerda entre sesiones). */
+    lanesExpanded: Boolean,
+    private val onLanesExpandedChanged: (Boolean) -> Unit,
     /** Desplegable del editor (opciones código → nombre, código actual, elegido). */
     private val popup: (anchor: View, options: List<Pair<String, String>>, current: String, onSelected: (String) -> Unit) -> Unit
 ) {
     interface Actions {
-        fun selectPreset(code: String)
         fun selectLaneOption(lane: String, code: String)
-        fun moveWindow(deltaBars: Int)
         fun setBeatSync(enabled: Boolean)
     }
 
-    private val binding = ViewMixV2ControlsBinding.inflate(LayoutInflater.from(context))
-    val root: View get() = binding.root
-    /** Los carriles: el editor los saca de [root] y los pone justo debajo de la onda. */
-    val lanesSection: View get() = binding.mixV2LanesSection
-
+    private val context = binding.root.context
     private val density = context.resources.displayMetrics.density
     private val Int.dp: Int get() = (this * density).toInt()
 
-    private val presetChips = linkedMapOf<String, TextView>()
     private val laneLabels = mutableMapOf<String, TextView>()
     private var bound: MixEditorV2State? = null
+    private var expanded = lanesExpanded
 
     init {
-        binding.mixV2WindowEarlier.setOnClickListener { actions.moveWindow(-1) }
-        binding.mixV2WindowLater.setOnClickListener { actions.moveWindow(1) }
         binding.mixV2BeatSync.setOnCheckedChangeListener { button, checked ->
             if (button.isPressed) actions.setBeatSync(checked)
         }
-        // Dos tarjetas por fila: los cinco carriles caben bajo la onda sin hacer scroll.
+        binding.mixV2LanesHeader.setOnClickListener { setExpanded(!expanded, animate = true) }
+        // Dos tarjetas por fila: los cinco carriles caben sin hacer scroll.
         LANES.chunked(2).forEachIndexed { index, pair ->
             val row = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -65,6 +58,20 @@ class MixEditorV2Panel(
             binding.mixV2Lanes.addView(row)
             pair.forEachIndexed { column, lane -> addLane(row, lane, column) }
         }
+        setExpanded(expanded, animate = false)
+    }
+
+    private fun setExpanded(value: Boolean, animate: Boolean) {
+        if (animate) {
+            (binding.root.parent?.parent as? ViewGroup ?: binding.root as ViewGroup).let {
+                TransitionManager.beginDelayedTransition(it, AutoTransition().setDuration(240))
+            }
+        }
+        expanded = value
+        binding.mixV2LanesSection.visibility = if (value) View.VISIBLE else View.GONE
+        binding.mixV2LanesChevron.animate().rotation(if (value) 180f else 0f).setDuration(if (animate) 240 else 0).start()
+        binding.mixV2LanesHeader.contentDescription = if (value) "Ocultar el ajuste fino" else "Mostrar el ajuste fino"
+        if (animate) onLanesExpandedChanged(value)
     }
 
     private fun addLane(row: LinearLayout, laneSpec: Triple<String, String, Int>, column: Int) {
@@ -73,7 +80,6 @@ class MixEditorV2Panel(
         (cell.root.layoutParams as LinearLayout.LayoutParams).apply { if (column > 0) marginStart = 8.dp }
         row.addView(cell.root)
         cell.laneName.text = title
-        cell.laneName.setTextColor(color)
         cell.laneDot.backgroundTintList = ColorStateList.valueOf(color)
         cell.laneDropdown.setOnClickListener { anchor ->
             val s = bound ?: return@setOnClickListener
@@ -84,16 +90,8 @@ class MixEditorV2Panel(
         laneLabels[lane] = cell.laneSelected
     }
 
-    /** [dirty]: el documento en pantalla no es el guardado. [renderStatus]: estado del clip del servidor. */
-    fun bind(state: MixEditorV2State, dirty: Boolean, renderStatus: String?) {
+    fun bind(state: MixEditorV2State) {
         bound = state
-        binding.mixV2Status.text = MixEditorV2.statusLabel(dirty, renderStatus)
-        binding.mixV2Status.setTextColor(
-            Color.parseColor(if (dirty) "#FFFFB74D" else if (renderStatus == "ready") "#FF69F0AE" else "#CCFFFFFF")
-        )
-
-        bindPresets(state)
-        binding.mixV2PresetDescription.text = MixEditorV2.describe(state)
 
         // Se puede forzar con tempos a ≤ 6 % aunque el análisis vea poco estable alguno (solo cambia el defecto).
         val canSync = MixComposer.canSync(state.songA, state.songB)
@@ -101,18 +99,22 @@ class MixEditorV2Panel(
         binding.mixV2BeatSync.isChecked = canSync && state.document.beatSync == true
         binding.mixV2BeatSyncHint.text = beatSyncHint(state, MixComposer.tempoClash(state.songA, state.songB))
 
-        bindCamelot(binding.mixV2KeyA, state.songA.keyCamelot)
-        bindCamelot(binding.mixV2KeyB, state.songB.keyCamelot)
-
-        LANES.forEach { (lane, _, _) ->
+        val names = LANES.map { (lane, _, _) ->
             val code = currentFor(state, lane)
-            laneLabels[lane]?.text = optionsFor(state, lane).firstOrNull { it.code == code }?.name ?: code
+            val name = optionsFor(state, lane).firstOrNull { it.code == code }?.name ?: code
+            laneLabels[lane]?.text = name
+            code to name
         }
+        val active = names.filter { it.first != MixComposer.NONE }.map { it.second }
+        binding.mixV2LanesSummary.text = if (active.isEmpty()) "Sin efectos: corte directo" else active.joinToString(" · ")
     }
 
     /** Por qué no hay beatmatching, con la misma regla que [MixComposer.tempoClash]: distancia de tempo o estabilidad. */
     private fun beatSyncHint(state: MixEditorV2State, clash: Boolean): String {
-        if (!clash) return "La segunda canción se ajusta al tempo de la primera"
+        if (!clash) {
+            return if (state.document.beatSync == true) "La segunda canción se ajusta al tempo de la primera"
+                else "Desactivado: cada canción a su velocidad"
+        }
         val delta = MixComposer.bpmDeltaPct(state.songA.bpmPrecise ?: state.songA.bpm, state.songB.bpmPrecise ?: state.songB.bpm)
         return when {
             delta == null -> "Falta el tempo de alguna canción: se mezclan sin cambiar su velocidad"
@@ -120,38 +122,6 @@ class MixEditorV2Panel(
             state.document.beatSync == true -> "Forzado: el análisis no ve estable el tempo de alguna canción"
             else -> "El análisis no ve estable el tempo de alguna canción; puedes activarlo si cuadran"
         }
-    }
-
-    private fun bindPresets(state: MixEditorV2State) {
-        val sorted = state.presets.sortedBy { it.sortOrder }
-        val codes = sorted.map { it.code } + MixEditorV2.CUSTOM
-        if (presetChips.keys.toList() != codes) {
-            binding.mixV2PresetRow.removeAllViews()
-            presetChips.clear()
-            sorted.forEach { preset -> presetChips[preset.code] = chip(preset.name) { actions.selectPreset(preset.code) } }
-            // Personalizada no se elige: aparece al tocar un carril o arrastrar una canción.
-            presetChips[MixEditorV2.CUSTOM] = chip("Personalizada", null)
-            presetChips.values.forEach { binding.mixV2PresetRow.addView(it) }
-        }
-        presetChips.forEach { (code, chip) ->
-            val selected = code == state.presetCode
-            chip.isSelected = selected
-            chip.setTextColor(if (selected) Color.WHITE else Color.parseColor("#CCFFFFFF"))
-            chip.visibility = if (code == MixEditorV2.CUSTOM && !selected) View.GONE else View.VISIBLE
-        }
-    }
-
-    /** Chip con el mismo aspecto que los estilos del editor antiguo (`createCompactChip`). */
-    private fun chip(text: String, onClick: (() -> Unit)?) = TextView(context).apply {
-        this.text = text
-        setBackgroundResource(R.drawable.bg_preset_selector_chip)
-        typeface = context.resources.getFont(R.font.unageo_medium)
-        textSize = 12f
-        gravity = Gravity.CENTER
-        minWidth = 96.dp
-        setPadding(14.dp, 10.dp, 14.dp, 10.dp)
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 42.dp).apply { marginEnd = 8.dp }
-        if (onClick != null) setOnClickListener { onClick() }
     }
 
     private fun optionsFor(state: MixEditorV2State, lane: String): List<MixLaneOptionDTO> = when (lane) {
@@ -164,28 +134,13 @@ class MixEditorV2Panel(
 
     private fun currentFor(state: MixEditorV2State, lane: String): String = MixEditorV2.optionOf(state.selection, lane)
 
-    /** Pastilla Camelot con el color de su número en la rueda (más clara en el anillo B, mayor). */
-    private fun bindCamelot(view: TextView, code: String?) {
-        val position = SongInsightsFormatter.camelotPosition(code)
-        view.text = code ?: "—"
-        if (position == null) {
-            view.backgroundTintList = null
-            view.setTextColor(Color.parseColor("#99FFFFFF"))
-        } else {
-            val hue = ((position.first - 1) * 30f + 150f) % 360f
-            view.backgroundTintList = ColorStateList.valueOf(
-                Color.HSVToColor(floatArrayOf(hue, if (position.second) 0.55f else 0.35f, 0.95f))
-            )
-            view.setTextColor(Color.BLACK)
-        }
-    }
-
     companion object {
         private val LANES = listOf(
             Triple(MixEditorV2.LANE_VOLUME, "VOLUMEN", MixEditorView.COLOR_VOLUME),
             Triple(MixEditorV2.LANE_EQ, "EQ", MixEditorView.COLOR_EQ),
             Triple(MixEditorV2.LANE_FILTER, "FILTRO", MixEditorView.COLOR_FILTER),
-            Triple(MixEditorV2.LANE_FX, "EFECTOS", MixEditorView.COLOR_FX),
+            // El blanco de los efectos sobre la pantalla oscura no se vería en la tarjeta del tema claro.
+            Triple(MixEditorV2.LANE_FX, "EFECTOS", android.graphics.Color.parseColor("#A3A3AD")),
             Triple(MixEditorV2.LANE_LOOP, "LOOP", MixEditorView.COLOR_LOOP)
         )
     }

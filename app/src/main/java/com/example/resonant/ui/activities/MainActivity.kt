@@ -30,6 +30,7 @@ import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
+import com.example.resonant.ui.components.DrawerMenu
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -136,6 +137,7 @@ import com.example.resonant.ui.bottomsheets.AriaQuickSheet
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.example.resonant.utils.SnackType
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListener {
@@ -165,6 +167,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
     private lateinit var homeFragment: HomeFragment
     private lateinit var drawerLayout: DrawerLayout
+    /** Menú lateral de la marca: filas, pantalla actual y animación de apertura. */
+    private val drawerMenu by lazy { DrawerMenu(findViewById(R.id.drawer), findViewById(R.id.main)) }
 
     private lateinit var dimOverlay: View // Variable para la sombra
     private lateinit var miniPlayer: View
@@ -369,23 +373,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
         drawerLayout.setScrimColor(Color.TRANSPARENT)
 
-        val mainContent = findViewById<View>(R.id.main)
         drawerLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
-            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
-                val slideX = drawerView.width * slideOffset
-                mainContent.translationX = slideX
-                val scale = 1f - (slideOffset * 0.06f)
-                mainContent.scaleX = scale
-                mainContent.scaleY = scale
-            }
+            // Cascada de filas y pantalla de detrás como tarjeta redondeada (DrawerMenu).
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) = drawerMenu.onSlide(drawerView, slideOffset)
 
             override fun onDrawerOpened(drawerView: View) {}
 
-            override fun onDrawerClosed(drawerView: View) {
-                mainContent.translationX = 0f
-                mainContent.scaleX = 1f
-                mainContent.scaleY = 1f
-            }
+            override fun onDrawerClosed(drawerView: View) = drawerMenu.onClosed()
 
             override fun onDrawerStateChanged(newState: Int) {}
         })
@@ -432,6 +426,25 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         downloadProgressBar = findViewById(R.id.downloadProgressBar)
         downloadText = findViewById(R.id.downloadText)
         downloadPercentText = findViewById(R.id.downloadPercentText)
+
+        // Resultados de descargas (borrar, álbum terminado…): se escuchan aquí y no en cada
+        // pantalla para que el aviso llegue aunque se haya lanzado desde un menú o se haya salido.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                downloadViewModel.downloadEvent.collect { message ->
+                    when {
+                        message.startsWith("Álbum descargado parcialmente") ->
+                            showResonantSnackbar(message, SnackType.WARNING)
+                        message.startsWith("Álbum descargado") ->
+                            showResonantSnackbar(message.substringAfter(": "), SnackType.DOWNLOAD, title = "Álbum disponible sin conexión", iconRes = R.drawable.ic_download_done)
+                        message.contains("sigue disponible") ->
+                            showResonantSnackbar(message, SnackType.INFO)
+                        else ->
+                            showResonantSnackbar(message, SnackType.SUCCESS, iconRes = R.drawable.ic_download_delete)
+                    }
+                }
+            }
+        }
 
         lifecycleScope.launch {
             // Usamos repeatOnLifecycle para evitar actualizaciones en background
@@ -508,15 +521,15 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             favoritesViewModel.toggleFavoriteSong(song) { success, isNowFavorite ->
                 if (success) {
                     showResonantSnackbar(
-                        text = if (isNowFavorite) "¡Canción añadida a favoritos!" else "Canción eliminada de favoritos",
-                        colorRes = R.color.successColor,
-                        iconRes = R.drawable.ic_success
+                        text = song.title,
+                        type = if (isNowFavorite) SnackType.LIKE else SnackType.UNLIKE,
+                        title = if (isNowFavorite) "Añadida a tus favoritos" else "Eliminada de favoritos"
                     )
                 } else {
                     showResonantSnackbar(
-                        text = "Error al actualizar favoritos",
-                        colorRes = R.color.errorColor,
-                        iconRes = R.drawable.ic_error
+                        text = "Comprueba tu conexión e inténtalo de nuevo",
+                        type = SnackType.ERROR,
+                        title = "No se pudieron actualizar tus favoritos"
                     )
                 }
             }
@@ -621,6 +634,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
             currentDestinationId = destination.id
+            drawerMenu.setCurrentDestination(destination.id)
             if (AriaScreenMapper.isAriaDestination(destination.id)) {
                 AriaScreenContextHolder.enterAriaDestination()
             } else {
@@ -875,14 +889,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     private fun setupDrawerNavigation() {
-        val displayMetrics = Resources.getSystem().displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val drawerWidth = (screenWidth * 0.85).toInt()
-
-        val drawer: View = findViewById(R.id.navigationView)
-        val params = drawer.layoutParams
-        params.width = drawerWidth
-        drawer.layoutParams = params
+        drawerMenu.applyWidth(findViewById(R.id.navigationView), Resources.getSystem().displayMetrics.widthPixels)
 
         val version = this@MainActivity.packageManager
             .getPackageInfo(this@MainActivity.packageName, 0)
@@ -892,14 +899,25 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         val versionText = findViewById<TextView>(R.id.versionText)
         versionText?.text = "Resonant $version"
 
-        // Referencias a los botones del menú lateral
-        val homeButton = findViewById<TextView>(R.id.homeButton)
-        val exploreButton = findViewById<TextView>(R.id.exploreButton)
-        val settingsButton = findViewById<TextView>(R.id.settingsButton)
-        val searchButton = findViewById<TextView>(R.id.searchButton)
-        val savedButton = findViewById<TextView>(R.id.savedButton)
-        val downloadsButton = findViewById<TextView>(R.id.downloadsButton)
-        val historyButton = findViewById<TextView>(R.id.historyButton)
+        // Filas del menú lateral (buscadas dentro del menú: Inicio repite algunos ids).
+        val homeButton = drawerMenu.row(R.id.homeButton)
+        val exploreButton = drawerMenu.row(R.id.exploreButton)
+        val settingsButton = drawerMenu.row(R.id.settingsButton)
+        val searchButton = drawerMenu.row(R.id.searchButton)
+        val savedButton = drawerMenu.row(R.id.savedButton)
+        val downloadsButton = drawerMenu.row(R.id.downloadsButton)
+        val historyButton = drawerMenu.row(R.id.historyButton)
+
+        drawerMenu.row(R.id.playmixButton)?.setOnClickListener {
+            navController.navigate(R.id.playmixListFragment)
+            drawerLayout.closeDrawers()
+        }
+        drawerMenu.row(R.id.statsButton)?.setOnClickListener {
+            if (navController.currentDestination?.id != R.id.listeningStatsFragment) {
+                navController.navigate(R.id.listeningStatsFragment)
+            }
+            drawerLayout.closeDrawers()
+        }
 
         homeButton?.setOnClickListener {
             navigateToTopLevelDestination(R.id.homeFragment)
@@ -949,7 +967,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             navController.navigate(R.id.settingsFragment)
         }
 
-        val logoutButton = findViewById<TextView>(R.id.logoutButton)
+        val logoutButton = findViewById<View>(R.id.logoutButton)
         logoutButton?.setOnClickListener {
             logoutButton.isEnabled = false
             // Mismo cierre de sesión que en Ajustes: revoca el token, para la música y limpia la cuenta.
@@ -1928,7 +1946,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startMusicService()
             } else {
-                Toast.makeText(this, "Necesitas permitir notificaciones para usar la app", Toast.LENGTH_LONG).show()
+                showResonantSnackbar("Necesitas permitir notificaciones para usar la app", SnackType.WARNING)
             }
         }
     }
@@ -1986,10 +2004,10 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
                     description = "Descargando actualización"
                 )
                 updateManager.enqueueDownload(minimal, presigned)
-                Toast.makeText(this@MainActivity, "Descarga iniciada", Toast.LENGTH_SHORT).show()
+                showResonantSnackbar("Te avisaremos cuando esté lista para instalar", SnackType.DOWNLOAD, title = "Descargando Resonant $version")
             } catch (e: Exception) {
                 Log.e("AppUpdate", "Error resolviendo URL prefirmada", e)
-                Toast.makeText(this@MainActivity, "No se pudo iniciar la descarga", Toast.LENGTH_LONG).show()
+                showResonantSnackbar("No se pudo iniciar la descarga de la actualización", SnackType.ERROR)
             }
         }
     }

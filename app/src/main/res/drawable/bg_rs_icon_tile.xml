@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cuadradito del icono de cada fila del menú: relleno plano; degradado de marca en la pantalla actual. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:endColor="@color/rs_brand_mid"
+                android:startColor="@color/rs_brand_start" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/rs_glass" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</selector>

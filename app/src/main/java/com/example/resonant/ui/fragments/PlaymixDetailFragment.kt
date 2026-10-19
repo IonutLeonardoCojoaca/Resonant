@@ -1,13 +1,10 @@
 package com.example.resonant.ui.fragments
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Bundle
 import android.view.View
-import android.widget.EditText
-import android.widget.Toast
 import com.example.resonant.ui.bottomsheets.CopyTransitionBottomSheet
 import com.google.android.material.appbar.AppBarLayout
 import kotlin.math.abs
@@ -33,10 +30,13 @@ import com.example.resonant.ui.adapters.PlaymixSongTransitionAdapter
 import com.example.resonant.ui.bottomsheets.PlaymixOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.PlaymixSongOptionsBottomSheet
 import com.example.resonant.ui.bottomsheets.WaveformPreviewBottomSheet
+import com.example.resonant.ui.dialogs.PlaymixDialog
 import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModel
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModelFactory
 import com.example.resonant.ui.components.DefaultCover
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
 
@@ -96,7 +96,13 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                             .setMessage("¿Eliminar \"${s.title ?: "esta canción"}\" del PlayMix?")
                             .setDestructive()
                             .setPositiveButton("Eliminar") {
-                                viewModel.removeSong(s.playmixSongId)
+                                viewModel.removeSong(s.playmixSongId) {
+                                    showResonantSnackbar(
+                                        text = s.title ?: "Canción eliminada",
+                                        type = SnackType.SUCCESS,
+                                        title = "Eliminada de la PlayMix"
+                                    )
+                                }
                             }
                             .setNegativeButton("Cancelar")
                             .show()
@@ -145,7 +151,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                 b2.playButton.alpha = 1f
 
                 if (result == null) {
-                    Toast.makeText(requireContext(), "No se pudieron cargar las canciones", Toast.LENGTH_SHORT).show()
+                    showResonantSnackbar("No se pudieron cargar las canciones", SnackType.ERROR)
                     return@launch
                 }
 
@@ -164,7 +170,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                 val b2 = _binding ?: return@launch
                 b2.playButton.isEnabled = true
                 b2.playButton.alpha = 1f
-                Toast.makeText(requireContext(), "Error al cargar canciones", Toast.LENGTH_SHORT).show()
+                showResonantSnackbar("Error al cargar las canciones de la PlayMix", SnackType.ERROR)
             }
         }
     }
@@ -214,13 +220,13 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             }
 
             state.error?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+                showResonantSnackbar(it, SnackType.ERROR)
             }
         }
 
         viewModel.error.observe(viewLifecycleOwner) { msg ->
             msg?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+                showResonantSnackbar(it, SnackType.ERROR)
             }
         }
     }
@@ -271,11 +277,11 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                     .setPositiveButton("Eliminar") {
                         viewModel.deletePlaymix(
                             onSuccess = {
-                                Toast.makeText(requireContext(), "PlayMix eliminado", Toast.LENGTH_SHORT).show()
+                                showResonantSnackbar(detail.name, SnackType.SUCCESS, title = "PlayMix eliminada")
                                 findNavController().popBackStack()
                             },
                             onError = { msg ->
-                                Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                                showResonantSnackbar(msg, SnackType.ERROR, title = "No se pudo eliminar la PlayMix")
                             }
                         )
                     }
@@ -286,35 +292,31 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     }
 
     private fun showRenameDialog(currentName: String) {
-        val input = EditText(requireContext()).apply {
-            setText(currentName)
-            selectAll()
-            setSingleLine()
-        }
-        val padding = (16 * resources.displayMetrics.density).toInt()
-        input.setPadding(padding, padding / 2, padding, padding / 2)
-
-        AlertDialog.Builder(requireContext())
+        PlaymixDialog(requireContext())
+            .setIcon(R.drawable.ic_edit)
+            .setEyebrow("PlayMix")
             .setTitle("Editar nombre")
-            .setView(input)
-            .setPositiveButton("Guardar") { _, _ ->
-                val newName = input.text.toString().trim()
-                if (newName.isBlank()) {
-                    Toast.makeText(requireContext(), "El nombre no puede estar vacío", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
+            // Mismo límite que al crearla (CreatePlaymixFragment.MAX_NAME).
+            .setInput(currentName, hint = "Nombre de la PlayMix", maxLength = PLAYMIX_NAME_MAX) { name ->
+                if (name.isBlank()) "El nombre no puede estar vacío" else null
+            }
+            .setPrimary("Guardar") { newName ->
                 viewModel.renamePlaymix(
                     newName = newName,
                     onSuccess = {
-                        binding.playmixName.text = newName
-                        binding.playmixTitle.text = newName
+                        // La respuesta puede llegar con la vista ya destruida.
+                        _binding?.let {
+                            it.playmixName.text = newName
+                            it.playmixTitle.text = newName
+                        }
+                        showResonantSnackbar(newName, SnackType.SUCCESS, title = "Nombre actualizado")
                     },
                     onError = { msg ->
-                        Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                        showResonantSnackbar(msg, SnackType.ERROR, title = "No se pudo cambiar el nombre")
                     }
                 )
             }
-            .setNegativeButton("Cancelar", null)
+            .setTertiary("Cancelar")
             .show()
     }
 
@@ -350,3 +352,6 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         _binding = null
     }
 }
+
+/** Largo máximo del nombre de una PlayMix: el mismo que al crearla (`CreatePlaymixFragment.MAX_NAME`). */
+private const val PLAYMIX_NAME_MAX = 30

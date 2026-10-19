@@ -367,6 +367,100 @@ class CrossfadeEditorViewModelTest {
         assertEquals("crossfade", viewModel.state.value!!.mixMode)
     }
 
+    // ─── Robustez: recarga, reintento, guardado y presets en caché ─────────
+
+    @Test
+    fun `loading the same transition again keeps the unsaved edits`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse(exitPointMs = 200000)
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+        viewModel.setExitPoint(150000)
+
+        // La vista se recrea (volver a la pantalla, girar) y vuelve a pedir la carga.
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        assertEquals(150000, viewModel.state.value!!.exitPointMs)
+        assertEquals(1, fakePlaymixManager.waveformCalls)
+    }
+
+    @Test
+    fun `a failed load can be retried`() = runTest {
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value!!.loadFailed)
+        assertNull(viewModel.state.value!!.waveformData)
+
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        viewModel.retryLoad()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value!!.loadFailed)
+        assertNotNull(viewModel.state.value!!.waveformData)
+    }
+
+    @Test
+    fun `a second save while the first is running is ignored`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+        viewModel.setExitPoint(150000)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        fakePlaymixManager.updateGate = gate
+
+        viewModel.saveTransition()
+        viewModel.saveTransition()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, fakePlaymixManager.updateRequests.size)
+        assertTrue(viewModel.state.value!!.savedSuccess)
+    }
+
+    @Test
+    fun `stored presets show without network and a failed refresh is not an error`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        fakePresetManager.stored = listOf(createPresetDTO("smooth-fade", "Smooth Fade", 1))
+        fakePresetManager.shouldFailPresets = true
+
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value!!
+        assertEquals(listOf("smooth-fade"), state.availablePresets.map { it.code })
+        assertNull(state.presetsError)
+        assertFalse(state.presetsLoading)
+    }
+
+    @Test
+    fun `fresh stored presets skip the network`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        fakePresetManager.stored = listOf(createPresetDTO("smooth-fade", "Smooth Fade", 1))
+        fakePresetManager.fresh = true
+
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        assertEquals(0, fakePresetManager.getPresetsCalls)
+        assertEquals(1, viewModel.state.value!!.availablePresets.size)
+    }
+
+    @Test
+    fun `retrying presets forces a network refresh`() = runTest {
+        fakePlaymixManager.waveformResponse = createWaveformResponse()
+        fakePresetManager.stored = listOf(createPresetDTO("smooth-fade", "Smooth Fade", 1))
+        fakePresetManager.fresh = true
+        fakePresetManager.presets = listOf(createPresetDTO("smooth-fade", "Smooth Fade", 1), createPresetDTO("hard-cut", "Hard Cut", 2))
+        viewModel.loadWaveformData("pmx1", "t1")
+        advanceUntilIdle()
+
+        viewModel.retryLoadPresets()
+        advanceUntilIdle()
+
+        assertEquals(1, fakePresetManager.getPresetsCalls)
+        assertEquals(2, viewModel.state.value!!.availablePresets.size)
+    }
+
     // ─── Helpers ────────────────────────────────
 
     private fun createWaveformResponse(
@@ -442,8 +536,12 @@ class CrossfadeEditorViewModelTest {
         var waveformResponse: WaveformResponseDTO? = null
         val updateRequests = mutableListOf<PlaymixTransitionUpdateDTO>()
         var updateError: Throwable? = null
+        var waveformCalls = 0
+        /** Si no es null, el guardado espera a que se complete (para probar toques repetidos). */
+        var updateGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
         override suspend fun getWaveformData(playmixId: String, transitionId: String): WaveformResponseDTO {
+            waveformCalls++
             return waveformResponse ?: throw Exception("No waveform response configured")
         }
 
@@ -451,6 +549,7 @@ class CrossfadeEditorViewModelTest {
             playmixId: String, transitionId: String, update: PlaymixTransitionUpdateDTO
         ): PlaymixTransitionDTO {
             updateRequests.add(update)
+            updateGate?.await()
             updateError?.let { throw it }
             return PlaymixTransitionDTO(
                 id = transitionId, fromPlaymixSongId = "ps1", toPlaymixSongId = "ps2",
@@ -476,8 +575,17 @@ class CrossfadeEditorViewModelTest {
         var shouldFailPreview = false
         var applyResponse: PlaymixTransitionDTO? = null
         var resetResponse: PlaymixTransitionDTO? = null
+        /** Copia guardada en el dispositivo (null = nunca se descargaron). */
+        var stored: List<TransitionPresetDTO>? = null
+        var fresh = false
+        var getPresetsCalls = 0
+
+        override fun peekCachedPresets(): List<TransitionPresetDTO>? = stored
+
+        override fun hasFreshPresets(): Boolean = fresh
 
         override suspend fun getPresets(forceRefresh: Boolean): List<TransitionPresetDTO> {
+            getPresetsCalls++
             if (shouldFailPresets) throw Exception("Network error")
             return presets
         }

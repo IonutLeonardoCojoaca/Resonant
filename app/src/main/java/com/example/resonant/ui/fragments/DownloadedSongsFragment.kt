@@ -52,6 +52,7 @@ import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 @OptIn(UnstableApi::class)
 class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs) {
@@ -383,13 +384,13 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
         songAdapter.onItemClick = { (song, bitmap) ->
             playDownloaded(songAdapter.currentList, song, bitmap)
         }
-        songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song) }
+        songAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
         songAdapter.onSettingsClick = { song ->
             if (song.artistName.isNullOrEmpty()) song.artistName = "Artista desconocido"
             val bottomSheet = SongOptionsBottomSheet(
                 song = song,
                 onSeeSongClick = { findNavController().navigate(R.id.action_global_to_detailedSongFragment, Bundle().apply{putParcelable("song", it)}) },
-                onFavoriteToggled = { favoritesViewModel.toggleFavoriteSong(it) },
+                onFavoriteToggled = { favoritesViewModel.toggleFavoriteSong(it, favoriteSongFeedback(it)) },
                 onAddToPlaylistClick = { songToAdd ->
                     val sheet = SelectPlaylistBottomSheet(
                         song = songToAdd,
@@ -406,12 +407,8 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
                     )
                 },
                 onRemoveDownloadClick = { songToDelete ->
+                    // El resultado lo muestra MainActivity (downloadEvent).
                     downloadViewModel.deleteSong(songToDelete)
-                    showResonantSnackbar(
-                        text = "Descarga eliminada",
-                        colorRes = R.color.successColor,
-                        iconRes = R.drawable.ic_success
-                    )
                 },
                 onGoToAlbumClick = { albumId ->
                     val bundle = Bundle().apply { putString("albumId", albumId) }

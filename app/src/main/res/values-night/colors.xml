@@ -108,6 +108,11 @@
     <color name="genreMiniOverlay">#2C2C2C</color>
 
 
+    <!-- Marca Resonant: superficies de cristal sobre la aurora (tema oscuro). -->
+    <color name="rs_glass">#1AFFFFFF</color>
+    <color name="rs_glass_stroke">#1FFFFFFF</color>
+    <color name="rs_selected_tint">#26E21616</color>
+
     <!-- Aria (rediseño agente): superficies translúcidas sobre el fondo ambiental. -->
     <color name="aria_glass">#C7121214</color>
     <color name="aria_glass_stroke">#1FFFFFFF</color>
@@ -116,5 +121,18 @@
     <color name="aria_bg_clear">#00000000</color>
     <color name="aria_card_scrim_top">#66121214</color>
     <color name="aria_live">#2BD576</color>
+
+    <!-- Resonant snackbar (ver utils/ResonantSnackbar.kt). Superficie elevada sobre el fondo negro. -->
+    <color name="snackbar_surface">#F5232328</color>
+    <color name="snackbar_stroke">#1FFFFFFF</color>
+    <color name="snackbar_title">#FFFFFFFF</color>
+    <color name="snackbar_message">#B3FFFFFF</color>
+    <color name="snackbar_track">#14FFFFFF</color>
+    <color name="snackbar_success">#2FD27A</color>
+    <color name="snackbar_error">#FF5A5F</color>
+    <color name="snackbar_warning">#FFB547</color>
+    <color name="snackbar_info">#6AA8FF</color>
+    <color name="snackbar_brand">#FF3B4E</color>
+    <color name="snackbar_neutral">#D9FFFFFF</color>
 
 </resources>

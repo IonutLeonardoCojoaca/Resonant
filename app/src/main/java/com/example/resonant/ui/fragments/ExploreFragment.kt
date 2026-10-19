@@ -10,7 +10,6 @@ import android.view.ViewTreeObserver
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
@@ -63,6 +62,8 @@ import com.example.resonant.utils.Utils
 import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class ExploreFragment : Fragment() {
 
@@ -462,7 +463,7 @@ class ExploreFragment : Fragment() {
 
         viewModel.ariaMessage.observe(viewLifecycleOwner) { message ->
             if (message != null) {
-                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                showResonantSnackbar(message, SnackType.INFO)
                 viewModel.consumeAriaMessage()
             }
         }
@@ -611,7 +612,7 @@ class ExploreFragment : Fragment() {
         }
 
         viewModel.error.observe(viewLifecycleOwner) { errorMsg ->
-            if (errorMsg != null) Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_LONG).show()
+            if (errorMsg != null) showResonantSnackbar(errorMsg, SnackType.ERROR)
         }
     }
 

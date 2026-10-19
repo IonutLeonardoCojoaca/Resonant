@@ -4,7 +4,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
@@ -17,6 +16,8 @@ import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.viewmodels.PlaymixListViewModel
 import com.example.resonant.ui.viewmodels.PlaymixListViewModelFactory
 import com.google.android.material.button.MaterialButton
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
 
@@ -121,6 +122,7 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
         playmixViewModel.playmixCreated.observe(viewLifecycleOwner) { isCreated ->
             if (isCreated) {
                 playmixViewModel.onPlaymixCreationHandled()
+                showResonantSnackbar(nameField.text, SnackType.SUCCESS, title = "PlayMix creada")
 
                 val navOptions = androidx.navigation.NavOptions.Builder()
                     .setPopUpTo(R.id.createPlaymixFragment, true)
@@ -132,7 +134,7 @@ class CreatePlaymixFragment : BaseFragment(R.layout.fragment_create_playmix) {
 
         playmixViewModel.error.observe(viewLifecycleOwner) { errorMessage ->
             errorMessage?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+                showResonantSnackbar(it, SnackType.ERROR, title = "No se pudo crear la PlayMix")
                 playmixViewModel.onPlaymixCreationHandled()
                 isCreating = false
                 CreateCta.setLoading(createButton, false, CTA_TEXT)

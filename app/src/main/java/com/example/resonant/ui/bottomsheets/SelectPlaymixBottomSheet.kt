@@ -23,6 +23,7 @@ import com.google.android.material.imageview.ShapeableImageView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.resonant.utils.SnackType
 
 class SelectPlaymixBottomSheet(
     private val song: Song,
@@ -97,18 +98,18 @@ class SelectPlaymixBottomSheet(
                         playmixManager.addSongToPlaymix(selectedPlaymix.id, song.id)
                     }
                     showResonantSnackbar(
-                        text = "¡Canción añadida a '${selectedPlaymix.name}'!",
-                        colorRes = R.color.successColor,
-                        iconRes = R.drawable.ic_success
+                        text = "${song.title} · ${selectedPlaymix.name}",
+                        type = SnackType.SUCCESS,
+                        title = "Añadida a la PlayMix"
                     )
                     playmixListViewModel.refreshPlaymixes()
                     dismiss()
                 } catch (e: Exception) {
                     Log.e("SelectPlaymixBS", "Error al añadir la canción: ${e.message}")
                     showResonantSnackbar(
-                        text = "Error al añadir la canción",
-                        colorRes = R.color.errorColor,
-                        iconRes = R.drawable.ic_error
+                        text = "Comprueba tu conexión e inténtalo de nuevo",
+                        type = SnackType.ERROR,
+                        title = "No se pudo añadir a la PlayMix"
                     )
                     dismiss()
                 }

@@ -10,7 +10,6 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -44,6 +43,8 @@ import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.utils.Utils
 import kotlinx.coroutines.launch
 import com.example.resonant.ui.components.DefaultCover
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
 
@@ -124,11 +125,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         }
         playlistViewModel.error.observe(viewLifecycleOwner) { message ->
             if (!message.isNullOrBlank()) {
-                showResonantSnackbar(
-                    message,
-                    R.color.adviseColor,
-                    R.drawable.ic_warning
-                )
+                showResonantSnackbar(message, SnackType.ERROR)
             }
         }
 
@@ -140,7 +137,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                 playlistViewModel.loadPlaylistScreenData(playlistId)
             }
         } else {
-            Toast.makeText(requireContext(), "No se encontró la playlist", Toast.LENGTH_SHORT).show()
+            showResonantSnackbar("No se encontró la playlist", SnackType.ERROR)
         }
 
         // --- CAMBIO IMPORTANTE ---
@@ -228,7 +225,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         val playlist = playlistViewModel.screenState.value?.playlistDetails
 
         if (playlist == null || playlist.id.isNullOrEmpty()) {
-            Toast.makeText(requireContext(), "Error: No se ha cargado la información.", Toast.LENGTH_SHORT).show()
+            showResonantSnackbar("La playlist aún se está cargando", SnackType.INFO)
             return
         }
 
@@ -259,7 +256,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                         findNavController().popBackStack()
                     },
                     onError = { errorMsg ->
-                        Toast.makeText(requireContext(), "Error: $errorMsg", Toast.LENGTH_SHORT).show()
+                        showResonantSnackbar(errorMsg, SnackType.ERROR, title = "No se pudo eliminar la playlist")
                     }
                 )
             },
@@ -272,11 +269,14 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                     playlistId = pl.id!!,
                     currentIsPublic = pl.isPublic ?: false,
                     onSuccess = { newIsPublic ->
-                        val msg = if (newIsPublic) "Playlist ahora es pública" else "Playlist ahora es privada"
-                        showResonantSnackbar(text = msg, colorRes = R.color.successColor, iconRes = R.drawable.ic_success)
+                        showResonantSnackbar(
+                            text = if (newIsPublic) "Cualquiera puede encontrarla y escucharla" else "Solo tú puedes verla",
+                            type = SnackType.SUCCESS,
+                            title = if (newIsPublic) "Playlist pública" else "Playlist privada"
+                        )
                     },
                     onError = { err ->
-                        Toast.makeText(requireContext(), "Error: $err", Toast.LENGTH_SHORT).show()
+                        showResonantSnackbar(err, SnackType.ERROR, title = "No se pudo cambiar la visibilidad")
                     }
                 )
             }
@@ -479,7 +479,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         }
 
         songAdapter.onFavoriteClick = { song, wasFavorite ->
-            favoritesViewModel.toggleFavoriteSong(song)
+            favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song))
         }
 
         songAdapter.onSettingsClick = settings@ { song ->
@@ -500,7 +500,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                         )
                     },
                     onFavoriteToggled = { toggledSong ->
-                        favoritesViewModel.toggleFavoriteSong(toggledSong)
+                        favoritesViewModel.toggleFavoriteSong(toggledSong, favoriteSongFeedback(toggledSong))
                     },
                     // Null si es de solo lectura: el bottomsheet ocultará la opción eliminar
                     playlistId = if (
@@ -519,15 +519,18 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                     onRemoveFromPlaylistClick = { songToRemove, id ->
                         viewLifecycleOwner.lifecycleScope.launch {
                             try {
+                                // Los fallos llegan por playlistViewModel.error; el éxito, al confirmarse.
                                 playlistViewModel.removeSongFromPlaylist(
                                     songId = songToRemove.id,
                                     playlistId = id,
-                                    context = requireContext()
-                                )
-                                showResonantSnackbar(
-                                    text = "Canción eliminada de la playlist",
-                                    colorRes = R.color.successColor,
-                                    iconRes = R.drawable.ic_success
+                                    context = requireContext(),
+                                    onSuccess = {
+                                        showResonantSnackbar(
+                                            text = songToRemove.title,
+                                            type = SnackType.SUCCESS,
+                                            title = "Eliminada de la playlist"
+                                        )
+                                    }
                                 )
 
                                 findNavController().previousBackStackEntry?.savedStateHandle?.set(

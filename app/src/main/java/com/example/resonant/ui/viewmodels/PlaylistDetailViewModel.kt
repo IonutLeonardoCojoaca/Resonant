@@ -111,13 +111,15 @@ class PlaylistDetailViewModel(
     fun removeSongFromPlaylist(
         songId: String,
         playlistId: String,
-        context: Context
+        context: Context,
+        onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     playlistManager.deleteSongFromPlaylist(songId, playlistId)
                 }
+                onSuccess()
                 notifySongMarkedForDeletion(context, playlistId, songId)
                 refreshPlaylistData(playlistId)
             } catch (error: Exception) {

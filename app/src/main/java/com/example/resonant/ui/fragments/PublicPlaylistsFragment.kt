@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -24,6 +23,8 @@ import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.adapters.PublicPlaylistAdapter
 import com.example.resonant.ui.viewmodels.PublicPlaylistsViewModel
 import com.example.resonant.ui.viewmodels.PublicPlaylistsViewModel.Filter
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 class PublicPlaylistsFragment : Fragment() {
 
@@ -186,7 +187,7 @@ class PublicPlaylistsFragment : Fragment() {
                 if (userRefreshing && viewModel.error.value != null &&
                     !viewModel.publicPlaylists.value.isNullOrEmpty()
                 ) {
-                    Toast.makeText(requireContext(), "No se pudo actualizar la lista", Toast.LENGTH_SHORT).show()
+                    showResonantSnackbar("No se pudo actualizar la lista", SnackType.ERROR)
                 }
                 userRefreshing = false
             }

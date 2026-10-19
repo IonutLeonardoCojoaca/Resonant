@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Acción principal de los diálogos de PlayMix (pastilla con el degradado; apagada si no se puede usar). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33FFFFFF">
+    <item>
+        <selector>
+            <item android:state_enabled="false">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/cardsTheme" />
+                    <corners android:radius="24dp" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="0"
+                        android:endColor="@color/playmix_accent_end"
+                        android:startColor="@color/playmix_accent" />
+                    <corners android:radius="24dp" />
+                </shape>
+            </item>
+        </selector>
+    </item>
+</ripple>

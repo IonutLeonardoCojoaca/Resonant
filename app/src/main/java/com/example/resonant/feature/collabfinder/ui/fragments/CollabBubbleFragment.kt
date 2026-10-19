@@ -8,7 +8,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -31,6 +30,8 @@ import com.example.resonant.ui.components.ChartPeriodSelector
 import com.example.resonant.ui.components.ResonantMotion
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
 @AndroidEntryPoint
 class CollabBubbleFragment : Fragment() {
@@ -131,7 +132,7 @@ class CollabBubbleFragment : Fragment() {
                         is CollabBubbleUiState.Success -> showResult(state.result)
                         is CollabBubbleUiState.Error -> {
                             binding.bubbleOrbitView.setLoading(false)
-                            Toast.makeText(context, "No se pudieron cargar las colaboraciones", Toast.LENGTH_LONG).show()
+                            showResonantSnackbar("No se pudieron cargar las colaboraciones", SnackType.ERROR)
                         }
                         is CollabBubbleUiState.Idle -> Unit
                     }
