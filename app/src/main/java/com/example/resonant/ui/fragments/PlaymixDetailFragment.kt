@@ -84,6 +84,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         setupParallaxTitle()
         observeViewModel()
         observeDownload()
+        enableSharingWhenCapabilitiesArrive()
 
         viewModel.loadPlaymixDetail(playmixId)
         // Descargada y con red: se sincroniza al abrir (collection-queue-offline D6).
@@ -102,8 +103,9 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
                         chip.isVisible = state.isDownloaded
                         chip.text = when {
                             state.unavailable -> "Ya no disponible"
-                            state.isRunning || !state.progress.isComplete -> "Descargando ${state.progress.percent} %"
+                            state.isRunning -> "Descargando ${state.progress.percent} %"
                             state.pendingUpdate -> "Pendiente de actualizar"
+                            !state.progress.isComplete -> "Descargando ${state.progress.percent} %"
                             else -> "Descargada"
                         }
                     }
@@ -450,6 +452,21 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             message ?: return@observe
             showResonantSnackbar(message, SnackType.INFO)
             sharingViewModel.consumeMessage()
+        }
+    }
+
+    /**
+     * Abierta desde un enlace con la app cerrada, el detalle puede llegar antes que las capacidades: se piden
+     * (con caché) y, si compartir pasa a estar activo, se muestran la fila social y el compartir de transiciones.
+     */
+    private fun enableSharingWhenCapabilitiesArrive() {
+        if (sharingUi.enabled) return
+        val appContext = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            runCatching { com.example.resonant.managers.CapabilitiesManager.refresh(appContext) }
+            if (_binding == null || !sharingUi.enabled) return@launch
+            adapter.onShareTransitionClick = { transition -> sharingUi.shareTransition(transition) }
+            viewModel.screenState.value?.detail?.let(::applyOwnership)
         }
     }
 

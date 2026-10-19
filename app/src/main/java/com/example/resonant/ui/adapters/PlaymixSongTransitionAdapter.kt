@@ -48,8 +48,16 @@ class PlaymixSongTransitionAdapter(
     private val onCopyTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null,
     isReadOnly: Boolean = false,
     /** Compartir el enlace de una transición (playmix-sharing-discovery); null = sin la opción. */
-    private val onShareTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null
+    onShareTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    /** Se puede activar después: las capacidades pueden llegar tras crear la lista (enlace con la app cerrada). */
+    var onShareTransitionClick: ((PlaymixTransitionDTO) -> Unit)? = onShareTransitionClick
+        set(value) {
+            if (field === value) return
+            field = value
+            notifyDataSetChanged()
+        }
 
     /** Solo lectura (Playmix ajena): se decide con `isOwner` del detalle al cargarlo. */
     var isReadOnly: Boolean = isReadOnly

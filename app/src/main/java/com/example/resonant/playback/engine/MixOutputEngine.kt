@@ -479,6 +479,14 @@ class BusSource(private val engine: BusHost, val name: String) {
 
     fun availableFrames(): Int = synchronized(lock) { (writeIndex - readIndex).toInt() }
 
+    /**
+     * Frames escritos que aún no han sonado: los del búfer más los que el motor ya leyó sin reproducir. Es lo que
+     * va por delante de la posición del player el punto donde Media3 aplica un cambio de velocidad (TempoReturn).
+     */
+    fun pendingFrames(): Long = synchronized(lock) {
+        (writeIndex - readIndex) + (consumedSinceFlush - playedFrames()).coerceAtLeast(0L)
+    }
+
     /** Posición de medio (µs) del siguiente frame que se leerá, o null sin datos. */
     fun nextMediaTimeUs(): Long? = synchronized(lock) {
         if (writeIndex == readIndex) return null

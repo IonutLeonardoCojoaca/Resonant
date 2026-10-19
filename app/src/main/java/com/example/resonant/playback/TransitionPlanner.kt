@@ -193,10 +193,11 @@ object TransitionPlanner {
      */
     fun playmixPlan(doc: MixDocumentDTO, label: String, a: Track?, b: Track?, extendedEnabled: Boolean): Plan {
         val extendedDoc = extendedEnabled && doc.extendedSync == true
+        val syncAllowed = !doc.isV2 || doc.beatSync == true
         val ratio = if (a != null && b != null) {
-            beatmatchRatio(a, b) ?: if (extendedDoc) extendedBeatmatchRatio(a, b) else null
+            beatmatchRatio(a, b) ?: if (extendedDoc && syncAllowed) extendedBeatmatchRatio(a, b) else null
         } else null
-        val sync = ratio != null && (!doc.isV2 || doc.beatSync == true)
+        val sync = ratio != null && syncAllowed
         val extended = sync && extendedDoc && abs(ratio!! - 1.0) > BEATMATCH_TOLERANCE
         return Plan(doc, label, beatSync = sync, bpmRatio = ratio ?: 1.0, extendedSync = extended)
     }

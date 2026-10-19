@@ -272,6 +272,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         pages.getValue(Tab.ARTISTS).list.adapter = artistsAdapter
         pages.getValue(Tab.ALBUMS).list.adapter = albumsAdapter
         val liked = LikedPlaymixesSection(this).also { likedPlaymixes = it }
+        liked.onChanged = { renderPlaymixes(playmixListViewModel.playmixes.value) }
         pages.getValue(Tab.PLAYMIXES).list.adapter = ConcatAdapter(
             listOf(HeaderViewAdapter(buildPlaymixHeader(pages.getValue(Tab.PLAYMIXES).list)), playmixAdapter) +
                 liked.adapters
@@ -564,9 +565,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         }
 
         playmixListViewModel.playmixes.observe(viewLifecycleOwner) { playmixes ->
-            playmixAdapter.submitList(playmixes ?: emptyList()) {
-                render(Tab.PLAYMIXES, loaded = playmixes != null, isEmpty = playmixes.isNullOrEmpty())
-            }
+            playmixAdapter.submitList(playmixes ?: emptyList()) { renderPlaymixes(playmixes) }
             playmixes?.let { setCount(Tab.PLAYMIXES, it.size) }
         }
 
@@ -596,6 +595,15 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     }
 
     /** Skeleton mientras no hay datos, estado vacío con acción si no hay filas y entrada escalonada la 1ª vez. */
+    /** Vacía solo sin PlayMix propias ni con me gusta: si no, "Aún no tienes PlayMix" taparía "Me gustan". */
+    private fun renderPlaymixes(playmixes: List<*>?) {
+        render(
+            Tab.PLAYMIXES,
+            loaded = playmixes != null,
+            isEmpty = playmixes.isNullOrEmpty() && likedPlaymixes?.hasItems != true
+        )
+    }
+
     private fun render(tab: Tab, loaded: Boolean, isEmpty: Boolean) {
         val page = pages[tab] ?: return
         val showSkeleton = !loaded

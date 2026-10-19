@@ -38,6 +38,7 @@ import com.example.resonant.managers.AudioQuality
 import com.example.resonant.playback.AudioEqualizerController
 import com.example.resonant.playback.ListenClock
 import com.example.resonant.playback.PlaybackCache
+import com.example.resonant.playback.OfflineDownloadProvider
 import com.example.resonant.playback.PlaymixMixMode
 import com.example.resonant.playback.PlaymixResolution
 import com.example.resonant.playback.QueueMixIndex
@@ -915,6 +916,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         serviceScope.launch { FlowPreferencesManager.syncOnStart(applicationContext) }
         // Escuchas que quedaron pendientes (sin red, proceso muerto…): se reenvían al arrancar.
         serviceScope.launch { runCatching { StreamReporter.flush(applicationContext) } }
+        // collection-queue-offline: al crear el DownloadManager se carga el índice de clips descargados
+        // (OfflineClips); sin esto, tras matar el proceso los clips de una Playmix descargada no se ven como locales.
+        serviceScope.launch { runCatching { OfflineDownloadProvider.getDownloadManager(applicationContext) } }
         observeSettings() // <-- Movido aquí
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -1243,6 +1247,21 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     unregisterBecomingNoisyReceiver()
                     stopSeekBarUpdates()
                 }
+            }
+
+            // playmix-extended-beatmatch: una pausa o un seek que no pasan por pause()/seekTo() del servicio
+            // (notificación, auriculares, bloqueo, Auto, foco de audio, seek de la sesión sin límites) también
+            // cortan la vuelta al tempo; lo que sigue suena a 1,0. Un rebuffer no (solo cambia isPlaying).
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady) cancelTempoReturn("pausa")
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) cancelTempoReturn("búsqueda")
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -3122,24 +3141,32 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             PlaybackStateRepository.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
             else -> Player.REPEAT_MODE_OFF
         }
-        // Playmix: una sesión guardada más allá del límite de la canción se restaura en el límite (D7).
         val restoredDurationMs = restored.durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        val restoredPositionMs = currentPlaymixBounds(restoredDurationMs.toLong())
-            ?.clampSeek(restored.positionMs)
-            ?: restored.positionMs
-        if (restoredPositionMs != restored.positionMs) {
-            Log.d("MusicService", "📏 Seek acotado (restauración): ${restored.positionMs}ms → ${restoredPositionMs}ms")
-        }
-        publishPosition(restoredPositionMs, restoredDurationMs)
+        publishPosition(restored.positionMs, restoredDurationMs)
         player.setMediaItems(
             queue.songs.map(playbackMediaItemFactory::create),
             queue.currentIndex,
-            restoredPositionMs
+            restored.positionMs
         )
         applyLoudnessNormalization(currentSong)
         updateMediaSessionMetadata()
         maybePrefetchRadio()
-        reloadRestoredMixes(queue)
+        // Playmix: una sesión guardada más allá del límite de la canción se restaura en el límite (D7). Se acota
+        // cuando llegan sus transiciones: antes el límite saldría del plan automático, no de la mezcla diseñada.
+        reloadRestoredMixes(queue) { clampRestoredPosition(currentSong.id, restoredDurationMs) }
+    }
+
+    /** D7: lleva al límite de la Playmix una sesión restaurada que aún no ha empezado a sonar. */
+    @androidx.annotation.MainThread
+    private fun clampRestoredPosition(songId: String, durationMs: Int) {
+        val player = exoPlayer ?: return
+        if (player.playWhenReady || PlaybackStateRepository.currentSong?.id != songId) return
+        val positionMs = player.currentPosition
+        val clampedMs = currentPlaymixBounds(durationMs.toLong())?.clampSeek(positionMs) ?: return
+        if (clampedMs == positionMs) return
+        Log.d("MusicService", "📏 Seek acotado (restauración): ${positionMs}ms → ${clampedMs}ms")
+        player.seekTo(clampedMs)
+        publishPosition(clampedMs, durationMs)
     }
 
     /**
@@ -3147,11 +3174,11 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
      * se quedaba sin ellas) y una cola con bloques de Playmix recarga los DTO de su índice, del servidor o del
      * paquete descargado. Si falla, esas transiciones suenan con el modo normal.
      */
-    private fun reloadRestoredMixes(queue: PlaybackQueue) {
+    private fun reloadRestoredMixes(queue: PlaybackQueue, onPlaymixLoaded: (() -> Unit)? = null) {
         playmixTransitions = emptyMap()
         playmixSongIdMap = emptyMap()
         if (queue.sourceType == QueueSource.PLAYMIX && queue.sourceId.isNotBlank()) {
-            loadPlaymixTransitions(queue.sourceId)
+            loadPlaymixTransitions(queue.sourceId, onPlaymixLoaded)
         } else {
             queue.mixIndex.playmixIds().forEach(::loadQueueMixTransitions)
         }
@@ -4249,7 +4276,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
     }
 
     /** Carga las transiciones de la Playmix (con sus clips de Studio) en segundo plano. */
-    private fun loadPlaymixTransitions(playmixId: String) {
+    private fun loadPlaymixTransitions(playmixId: String, onLoaded: (() -> Unit)? = null) {
         serviceScope.launch(Dispatchers.IO) {
             try {
                 val detail = fetchPlaymixDetail(playmixId)
@@ -4272,6 +4299,7 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
                     playmixSongIdMap   = songIdToPlaymixId
                     playmixTransitions = transitionMap
                     Log.d("MusicService", "🔌 PlayMix transitions loaded: ${transitionMap.size}")
+                    onLoaded?.invoke()
                 }
             } catch (e: Exception) {
                 Log.e("MusicService", "Failed to load PlayMix transitions", e)
@@ -4577,12 +4605,26 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             runCatching { player.playbackParameters = PlaybackParameters.DEFAULT }
             return
         }
+        val songId = player.currentMediaItem?.mediaId
+        // Rejilla de B: los escalones de la rampa caen en sus beats (sin ella, a intervalos fijos).
+        val grid = PlaybackStateRepository.currentSong?.takeIf { it.id == songId }?.audioAnalysis?.let {
+            com.example.resonant.playback.PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar)
+        }
         tempoReturn.start(object : TempoReturn.Target {
             override fun setSpeed(speed: Float) {
                 if (exoPlayer === player) player.playbackParameters = PlaybackParameters(speed)
             }
-        }, fromRate, player.currentMediaItem?.mediaId)
-        Log.i("TempoReturn", "Vuelta al tempo desde ${"%.4f".format(fromRate)} en ${TempoReturn.TEMPO_RETURN_MS} ms")
+
+            // Un cambio de velocidad se aplica a lo que Media3 está escribiendo, que con el motor va hasta ~0,5 s por
+            // delante de lo que suena: esa es la posición que tiene que caer en el beat. Sin motor, la del player.
+            override fun positionMs(): Long? {
+                if (exoPlayer !== player) return null
+                val pendingFrames = mixEngine?.players?.sourceOf(player)?.latest()?.pendingFrames() ?: 0L
+                val leadMs = pendingFrames * 1000L / MixOutputEngine.SAMPLE_RATE * player.playbackParameters.speed
+                return player.currentPosition + leadMs.toLong()
+            }
+        }, fromRate, songId, grid = grid)
+        Log.i("TempoReturn", "Vuelta al tempo desde ${"%.4f".format(fromRate)} en ${TempoReturn.TEMPO_RETURN_MS} ms (${if (grid != null) "por beats" else "por intervalos"})")
     }
 
     /** Corta la vuelta al tempo con 1,0 inmediato (búsqueda, salto, pausa, otra canción o transición, Live/Unisound). */
@@ -4763,6 +4805,9 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             else -> Player.REPEAT_MODE_OFF
         }
         synchronizeExoPlayerQueue()
+        // La cancelación liberó a B (era la precarga): se vuelve a precargar para que la mezcla rearmada no
+        // arranque B en frío al llegar otra vez al disparo.
+        PlaybackStateRepository.activeQueue?.let { prepareNextTransitionPlayer(it.currentIndex) }
         return true
     }
 

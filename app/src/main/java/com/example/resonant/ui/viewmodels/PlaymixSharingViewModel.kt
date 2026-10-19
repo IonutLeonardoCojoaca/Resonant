@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.network.PlaymixDetailDTO
 import com.example.resonant.data.network.PlaymixSongDTO
 import com.example.resonant.managers.PlaymixSharingManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -27,9 +29,15 @@ class PlaymixSharingViewModel(private val manager: PlaymixSharingManager) : View
     private val _message = MutableLiveData<String?>()
     val message: LiveData<String?> get() = _message
 
-    /** Toma el estado del detalle salvo que haya un cambio de me gusta en curso. */
+    /** Me gusta del último detalle tomado: al recrear la vista se reemite el mismo y no debe pisar un cambio local. */
+    private var boundDetail: Triple<String, Boolean, Int>? = null
+
+    /** Toma el estado del detalle salvo que haya un cambio de me gusta en curso o sea el mismo ya tomado. */
     fun bind(detail: PlaymixDetailDTO) {
         if (_like.value?.pending == true) return
+        val key = Triple(detail.id, detail.isLiked, detail.likeCount)
+        if (key == boundDetail) return
+        boundDetail = key
         _like.value = PlaymixLikeState(detail.isLiked, detail.likeCount)
     }
 
@@ -44,7 +52,7 @@ class PlaymixSharingViewModel(private val manager: PlaymixSharingManager) : View
                 manager.setLiked(playmixId, liked)
                 _like.value = optimistic.copy(pending = false)
             } catch (e: Exception) {
-                Log.w(TAG, "like failed: ${e.javaClass.simpleName}")
+                logWarning(TAG, "like failed: ${e.javaClass.simpleName}")
                 _like.value = current
                 _message.value = if (liked) "No se pudo dar me gusta" else "No se pudo quitar el me gusta"
             }
@@ -56,7 +64,7 @@ class PlaymixSharingViewModel(private val manager: PlaymixSharingManager) : View
             try {
                 onDone(manager.setVisibility(playmixId, visibility))
             } catch (e: Exception) {
-                Log.w(TAG, "visibility failed: ${e.javaClass.simpleName}")
+                logWarning(TAG, "visibility failed: ${e.javaClass.simpleName}")
                 _message.value = "No se pudo cambiar la visibilidad"
             }
         }
@@ -67,7 +75,7 @@ class PlaymixSharingViewModel(private val manager: PlaymixSharingManager) : View
             try {
                 onDone(manager.copyPlaymix(playmixId, name))
             } catch (e: Exception) {
-                Log.w(TAG, "copy failed: ${e.javaClass.simpleName}")
+                logWarning(TAG, "copy failed: ${e.javaClass.simpleName}")
                 _message.value = when ((e as? HttpException)?.code()) {
                     404 -> "Esta Playmix no está disponible"
                     422 -> "El nombre no es válido (máximo 120 caracteres)"
@@ -82,7 +90,7 @@ class PlaymixSharingViewModel(private val manager: PlaymixSharingManager) : View
             try {
                 onDone(manager.mergePlaymixes(playmixIds, name))
             } catch (e: Exception) {
-                Log.w(TAG, "merge failed: ${e.javaClass.simpleName}")
+                logWarning(TAG, "merge failed: ${e.javaClass.simpleName}")
                 _message.value = when ((e as? HttpException)?.code()) {
                     404 -> "Alguna Playmix ya no está disponible"
                     422 -> "No se pueden fusionar: entre 2 y 5 Playmix y como mucho 200 canciones"
@@ -117,16 +125,22 @@ class PlaymixSortViewModel(private val manager: PlaymixSharingManager) : ViewMod
     private val _state = MutableLiveData(PlaymixSortState())
     val state: LiveData<PlaymixSortState> get() = _state
 
+    /** Vista previa en curso: una nueva la cancela, para que una respuesta lenta no pise el criterio elegido. */
+    private var previewJob: Job? = null
+
     /** Pide el orden propuesto; no guarda nada. En aleatorio, cada vista previa trae una semilla nueva. */
     fun preview(playmixId: String, criterion: String, direction: String) {
         val base = PlaymixSortState(criterion = criterion, direction = direction, isLoading = true)
         _state.value = base
-        viewModelScope.launch {
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
             try {
                 val result = manager.sortPlaymix(playmixId, criterion, direction, preview = true)
                 _state.value = base.copy(isLoading = false, preview = result.songs.orEmpty(), seed = result.seed)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.w("PlaymixSortVM", "preview failed: ${e.javaClass.simpleName}")
+                logWarning("PlaymixSortVM", "preview failed: ${e.javaClass.simpleName}")
                 _state.value = base.copy(isLoading = false, error = "No se pudo calcular el orden")
             }
         }
@@ -143,7 +157,7 @@ class PlaymixSortViewModel(private val manager: PlaymixSharingManager) : ViewMod
                 manager.sortPlaymix(playmixId, criterion, current.direction, preview = false, seed = current.seed)
                 _state.value = current.copy(isLoading = false, applied = true)
             } catch (e: Exception) {
-                Log.w("PlaymixSortVM", "apply failed: ${e.javaClass.simpleName}")
+                logWarning("PlaymixSortVM", "apply failed: ${e.javaClass.simpleName}")
                 _state.value = current.copy(isLoading = false, error = "No se pudo aplicar el orden")
             }
         }
@@ -159,4 +173,9 @@ class PlaymixSharingViewModelFactory(private val manager: PlaymixSharingManager)
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
+}
+
+/** Log tolerante a tests JVM (android.util.Log no está implementado ahí), como en CrossfadeEditorViewModel. */
+private fun logWarning(tag: String, message: String) {
+    runCatching { Log.w(tag, message) }
 }

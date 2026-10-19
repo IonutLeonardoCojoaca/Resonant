@@ -250,8 +250,9 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
                         status.text = when {
                             !state.isDownloaded -> "Descargar"
                             state.unavailable -> "Ya no disponible"
-                            state.isRunning || !state.progress.isComplete -> "Descargando ${state.progress.percent} %"
+                            state.isRunning -> "Descargando ${state.progress.percent} %"
                             state.pendingUpdate -> "Pendiente de actualizar"
+                            !state.progress.isComplete -> "Descargando ${state.progress.percent} %"
                             else -> "Descargada"
                         }
                     }

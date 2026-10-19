@@ -122,17 +122,19 @@
     <color name="aria_card_scrim_top">#66121214</color>
     <color name="aria_live">#2BD576</color>
 
-    <!-- Resonant snackbar (ver utils/ResonantSnackbar.kt). Superficie elevada sobre el fondo negro. -->
-    <color name="snackbar_surface">#F5232328</color>
+    <!-- Resonant snackbar (ver utils/SnackbarUtils.kt). Superficie elevada gris carbón sobre el
+         fondo negro; acentos = colores de marca (successColor/errorColor/adviseColor/secondaryColorTheme)
+         aclarados para mantener contraste sobre la superficie oscura. -->
+    <color name="snackbar_surface">#FF1E1E22</color>
     <color name="snackbar_stroke">#1FFFFFFF</color>
-    <color name="snackbar_title">#FFFFFFFF</color>
-    <color name="snackbar_message">#B3FFFFFF</color>
+    <color name="snackbar_title">#FFF5F5F7</color>
+    <color name="snackbar_message">#B3F5F5F7</color>
     <color name="snackbar_track">#14FFFFFF</color>
-    <color name="snackbar_success">#2FD27A</color>
-    <color name="snackbar_error">#FF5A5F</color>
-    <color name="snackbar_warning">#FFB547</color>
-    <color name="snackbar_info">#6AA8FF</color>
-    <color name="snackbar_brand">#FF3B4E</color>
-    <color name="snackbar_neutral">#D9FFFFFF</color>
+    <color name="snackbar_success">#34D065</color>
+    <color name="snackbar_error">#FF4D4D</color>
+    <color name="snackbar_warning">#F0C02E</color>
+    <color name="snackbar_info">#5FA8FF</color>
+    <color name="snackbar_brand">#FF3B3B</color>
+    <color name="snackbar_neutral">#C7F5F5F7</color>
 
 </resources>

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -116,7 +117,9 @@ class CollectionDownloadViewModel(application: Application) : AndroidViewModel(a
 
     fun remove(type: String, id: String, title: String) {
         viewModelScope.launch {
-            jobs.remove(key(type, id))?.cancel()
+            // Se espera a que la descarga/sincronización en curso se detenga: si no, podría volver a registrar
+            // la colección después de quitarla.
+            jobs.remove(key(type, id))?.cancelAndJoin()
             when (type) {
                 TYPE_PLAYLIST -> manager.removePlaylist(id)
                 TYPE_PLAYMIX -> manager.removePlaymix(id)

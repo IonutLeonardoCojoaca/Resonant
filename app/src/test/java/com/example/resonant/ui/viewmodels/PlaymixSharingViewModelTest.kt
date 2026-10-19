@@ -130,6 +130,21 @@ class PlaymixSharingViewModelTest {
         assertEquals("No se pudo quitar el me gusta", vm.message.value)
     }
 
+    @Test
+    fun `re-emitted detail does not undo a local like but a new one applies`() {
+        val vm = PlaymixSharingViewModel(manager)
+        vm.bind(detail(liked = false, count = 3))
+        vm.toggleLike("pm")
+
+        // Al volver al detalle se reemite el mismo detalle cacheado.
+        vm.bind(detail(liked = false, count = 3))
+        assertEquals(PlaymixLikeState(liked = true, count = 4), vm.like.value)
+
+        // Un detalle nuevo del servidor sí manda.
+        vm.bind(detail(liked = true, count = 5))
+        assertEquals(PlaymixLikeState(liked = true, count = 5), vm.like.value)
+    }
+
     private fun detail(liked: Boolean, count: Int) = PlaymixDetailDTO(
         id = "pm", name = "Set", description = null, numberOfTracks = 0, duration = 0, isPublic = true,
         coverUrl = null, songs = emptyList(), transitions = emptyList(),

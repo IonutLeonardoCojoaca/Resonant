@@ -148,4 +148,58 @@ class TempoReturnTest {
         assertFalse(driver.isActive)
         assertTrue(scheduler.tasks.isEmpty())
     }
+
+    // ── Escalones (cada cambio de velocidad reinicia Sonic: pocos y en los beats) ─────
+
+    /** B sonando: la posición avanza con el reloj; anota en qué posición llegó cada cambio de velocidad. */
+    private inner class PositionedPlayer(private val startPositionMs: Long) : TempoReturn.Target {
+        private val startedAt = now
+        val changes = mutableListOf<Pair<Long, Float>>()
+        override fun setSpeed(speed: Float) { changes += positionMs() to speed }
+        override fun positionMs(): Long = startPositionMs + (now - startedAt)
+    }
+
+    @Test
+    fun `steps land on downbeats, are few and small, and end at one on a downbeat`() {
+        val grid = PhaseAlignment.Grid(bpm = 96.77, firstDownbeatMs = 300, beatsPerBar = 4)
+        val barMs = PhaseAlignment.barMs(grid)
+        val player = PositionedPlayer(startPositionMs = 60_000)
+        driver.start(player, 1.085, "gasolina", grid = grid)
+        advance(TempoReturn.TEMPO_RETURN_MS + 3_000)
+
+        assertFalse(driver.isActive)
+        val speeds = player.changes.map { it.second }
+        assertEquals(1f, speeds.last(), 0f)
+        // ~6,5 compases en 16 s: el inicio, un escalón por compás y el 1,0 final (antes, ~120 cambios).
+        assertTrue("cambios: ${speeds.size}", speeds.size in 6..10)
+        speeds.zipWithNext().forEach { (a, b) -> assertTrue("salto ${a} → ${b}", kotlin.math.abs(a - b) < 0.025f) }
+        // Todos salvo el inicial, en el primer tick tras cruzar un downbeat.
+        player.changes.drop(1).forEach { (position, _) ->
+            val intoBar = ((position - grid.firstDownbeatMs) % barMs)
+            assertTrue("posición $position a ${intoBar} ms del downbeat", intoBar < TempoReturn.TICK_MS)
+        }
+    }
+
+    @Test
+    fun `without a grid it steps at fixed intervals`() {
+        val player = FakePlayer()
+        driver.start(player, 1.085, "x")
+        advance(TempoReturn.TEMPO_RETURN_MS)
+
+        assertFalse(driver.isActive)
+        assertEquals(1f, player.last, 0f)
+        assertTrue("cambios: ${player.speeds.size}", player.speeds.size <= TempoReturn.TEMPO_RETURN_MS / TempoReturn.FALLBACK_STEP_MS + 1)
+    }
+
+    @Test
+    fun `beat and bar index follow the grid`() {
+        val grid = PhaseAlignment.Grid(bpm = 120.0, firstDownbeatMs = 1_000, beatsPerBar = 4)
+        assertEquals(0L, TempoReturn.beatIndex(1_000, grid))
+        assertEquals(0L, TempoReturn.beatIndex(1_499, grid))
+        assertEquals(1L, TempoReturn.beatIndex(1_500, grid))
+        assertEquals(-1L, TempoReturn.beatIndex(999, grid))
+        assertEquals(0L, TempoReturn.barIndex(2_999, grid))
+        assertEquals(1L, TempoReturn.barIndex(3_000, grid))
+        assertEquals(-1L, TempoReturn.barIndex(999, grid))
+    }
 }

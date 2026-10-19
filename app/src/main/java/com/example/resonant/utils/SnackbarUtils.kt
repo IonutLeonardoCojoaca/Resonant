@@ -248,6 +248,9 @@ class ResonantSnackbarHandle internal constructor(activity: Activity, rootOverri
             layout.layoutParams = params
         }
         layout.setPadding(0, 0, 0, 0)
+        // Material 3 tiñe el fondo con ?attr/colorSurfaceInverse (casi blanco en tema oscuro),
+        // lo que taparía el color propio del drawable. Se quita el tinte antes de asignarlo.
+        layout.backgroundTintList = null
         layout.background = ContextCompat.getDrawable(activity, R.drawable.bg_resonant_snackbar)
         layout.clipToOutline = true
         layout.elevation = 10 * density

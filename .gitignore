@@ -14,3 +14,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Skill local de diseño de Claude Code
+/.claude/skills/resonant-android-design/

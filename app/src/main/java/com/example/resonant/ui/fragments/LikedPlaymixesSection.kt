@@ -40,10 +40,17 @@ class LikedPlaymixesSection(private val fragment: Fragment) {
 
     val adapters: List<RecyclerView.Adapter<out RecyclerView.ViewHolder>> = listOf(header, list)
 
+    /** `true` si la sección muestra alguna Playmix (la página no está vacía aunque no haya propias). */
+    val hasItems: Boolean get() = header.isVisible
+
+    /** Se llama cuando cambia [hasItems], para que la página recalcule su estado vacío. */
+    var onChanged: (() -> Unit)? = null
+
     fun refresh() {
         if (!CapabilitiesManager.isPlaymixSharingEnabled()) {
             header.isVisible = false
             list.submitList(emptyList())
+            onChanged?.invoke()
             return
         }
         fragment.viewLifecycleOwner.lifecycleScope.launch {
@@ -56,6 +63,7 @@ class LikedPlaymixesSection(private val fragment: Fragment) {
             if (!fragment.isAdded) return@launch
             header.isVisible = items.isNotEmpty()
             list.submitList(items)
+            onChanged?.invoke()
         }
     }
 

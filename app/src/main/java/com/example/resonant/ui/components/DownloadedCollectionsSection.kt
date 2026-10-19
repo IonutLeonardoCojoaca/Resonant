@@ -53,8 +53,8 @@ class DownloadedCollectionsSection(
 
     private fun statusText(item: DownloadedCollectionItem): String = when {
         item.unavailable -> "Ya no disponible"
-        !item.isComplete -> "Descargando ${item.summary.completedCount}/${item.summary.songCount}"
         item.pendingUpdate -> "Pendiente de actualizar"
+        !item.isComplete -> "Descargando ${item.summary.completedCount}/${item.summary.songCount}"
         else -> "Descargada"
     }
 

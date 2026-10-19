@@ -64,7 +64,7 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
                 )
             } catch (e: Exception) {
                 Log.e("PlaymixDetailVM", "Error loading detail", e)
-                if (e is retrofit2.HttpException && e.code() == 404) {
+                if (e is retrofit2.HttpException && (e.code() == 404 || e.code() == 403)) { // privada ajena: como en CollectionSyncDiff
                     _screenState.postValue(PlaymixDetailScreenState(isLoading = false, notFound = true))
                     return@launch
                 }
