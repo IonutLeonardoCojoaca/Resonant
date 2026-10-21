@@ -27,6 +27,7 @@ import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.OnImageTopBar
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -52,7 +53,7 @@ class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_
     private lateinit var songListRecycler: RecyclerView
     private lateinit var songAdapter: SongAdapter
     private lateinit var loadingView: ProgressBar
-    private lateinit var backButton: View
+    private lateinit var backButton: ImageView
     private lateinit var appBarLayout: AppBarLayout
     private lateinit var emptyStateContainer: LinearLayout
     private lateinit var actionButtonsContainer: LinearLayout
@@ -215,13 +216,16 @@ class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_
     }
 
     private fun setupAppBarBehavior() {
+        OnImageTopBar.prepare(backButton)
         appBarLayout.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBar, verticalOffset ->
             val totalRange = appBar.totalScrollRange
             if (totalRange == 0) return@OnOffsetChangedListener
             val progress = abs(verticalOffset).toFloat() / totalRange.toFloat()
 
-            // Fade in toolbar title when collapsed
-            toolbarTitle.alpha = progress
+            // Último 25 % del plegado (como ChartHero/DetailHero): título y atrás con el color del tema.
+            val collapsed = ((progress - 0.75f) / 0.25f).coerceIn(0f, 1f)
+            toolbarTitle.alpha = collapsed
+            OnImageTopBar.update(collapsed, backButton)
         })
     }
 

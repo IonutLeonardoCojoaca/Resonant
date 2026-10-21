@@ -5,7 +5,7 @@
     android:id="@+id/ariaPickCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="14dp"
+    android:layout_marginTop="12dp"
     android:background="@drawable/bg_aria_glass_panel"
     android:clipToOutline="true"
     android:orientation="vertical"
@@ -16,12 +16,12 @@
         android:id="@+id/ariaPickSource"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:fontFamily="@font/unageo_medium"
-        android:letterSpacing="0.12"
+        android:layout_marginBottom="12dp"
+        android:fontFamily="@font/unageo_bold"
+        android:letterSpacing="0.14"
         android:textAllCaps="true"
         android:textColor="@color/aria_accent_text"
-        android:textSize="9sp"
+        android:textSize="10.5sp"
         android:visibility="gone" />
 
     <LinearLayout
@@ -36,8 +36,8 @@
 
         <ImageView
             android:id="@+id/ariaPickCover"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
             android:layout_marginEnd="12dp"
             android:background="@drawable/bg_aria_cover_placeholder"
             android:clipToOutline="true"
@@ -55,7 +55,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:fontFamily="@font/unageo_bold"
+                android:fontFamily="@font/unageo_medium"
                 android:maxLines="1"
                 android:textColor="@color/white"
                 android:textSize="15sp" />
@@ -65,9 +65,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:fontFamily="@font/unageo_regular"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/unageo_medium"
                 android:maxLines="1"
-                android:textColor="@color/textTertiaryAlpha"
+                android:textColor="@color/textTheme"
                 android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
@@ -78,8 +79,9 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:fontFamily="@font/unageo_medium"
-        android:textColor="@color/textEmphasisHigh"
-        android:textSize="13sp"
+        android:lineSpacingExtra="2dp"
+        android:textColor="@color/white"
+        android:textSize="14sp"
         android:visibility="gone" />
 
     <HorizontalScrollView

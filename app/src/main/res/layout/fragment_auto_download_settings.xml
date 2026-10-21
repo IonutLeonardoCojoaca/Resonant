@@ -1,43 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme"
+    android:orientation="vertical"
     tools:context=".ui.fragments.AutoDownloadSettingsFragment">
+
+    <!-- Barra fija fuera del scroll -->
+    <LinearLayout style="@style/TopBar">
+
+        <ImageButton
+            android:id="@+id/autoDownloadBack"
+            style="@style/TopBar.Back"
+            android:contentDescription="Volver" />
+
+        <TextView
+            style="@style/TopBar.Title"
+            android:text="@string/auto_download_settings_title" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingHorizontal="16dp"
-        android:paddingTop="16dp"
         android:paddingBottom="@dimen/screen_bottom_inset">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageView
-                android:id="@+id/autoDownloadBack"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:contentDescription="@null"
-                android:padding="8dp"
-                android:src="@drawable/ic_arrow_back" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:fontFamily="@font/unageo_bold"
-                android:text="@string/auto_download_settings_title"
-                android:textColor="@color/white"
-                android:textSize="20sp" />
-        </LinearLayout>
 
         <TextView
             android:id="@+id/autoDownloadDisabledText"
@@ -193,4 +187,5 @@
             android:layout_height="wrap_content"
             android:nestedScrollingEnabled="false" />
     </LinearLayout>
-</androidx.core.widget.NestedScrollView>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

@@ -21,51 +21,34 @@
             android:orientation="vertical"
             android:paddingBottom="@dimen/screen_bottom_inset">
 
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <!-- Barra de pestaña (components.md §0): misma que Inicio. -->
+            <LinearLayout
                 android:id="@+id/superiorToolbar"
-                android:layout_width="match_parent"
-                android:layout_height="54dp"
-                android:paddingHorizontal="14dp">
+                style="@style/TopBar">
 
                 <com.google.android.material.imageview.ShapeableImageView
                     android:id="@+id/userProfile"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="12dp"
+                    android:importantForAccessibility="no"
                     android:scaleType="centerCrop"
                     android:src="@drawable/ic_user"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
                     app:shapeAppearanceOverlay="@style/CircularUserImage" />
 
                 <TextView
                     android:id="@+id/textView2"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    style="@style/TopBar.Title"
                     android:layout_marginStart="12dp"
-                    android:fontFamily="@font/unageo_bold"
                     android:text="Explorar"
-                    android:textColor="@color/white"
-                    android:textSize="20sp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toEndOf="@id/userProfile"
-                    app:layout_constraintTop_toTopOf="parent" />
+                    android:textSize="22sp" />
 
-                <ImageView
+                <ImageButton
                     android:id="@+id/searchButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:padding="9dp"
-                    android:src="@drawable/ic_search"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:tint="@color/white" />
-
-            </androidx.constraintlayout.widget.ConstraintLayout>
+                    style="@style/TopBar.Action"
+                    android:contentDescription="Buscar"
+                    android:src="@drawable/ic_search" />
+            </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/exploreIntro"
@@ -73,7 +56,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingHorizontal="18dp"
+                android:paddingHorizontal="16dp"
                 android:paddingTop="8dp"
                 android:paddingBottom="12dp">
 
@@ -101,14 +84,14 @@
             <!-- ── Resumen mensual sin ver: solo con features.monthlyRecap ── -->
             <include layout="@layout/view_recap_banner" />
 
-            <!-- ── Lo más top: cabecera de sección (título + subtítulo) ── -->
+            <!-- ── Lo más top ── -->
             <LinearLayout
                 android:id="@+id/quickActionsHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:orientation="vertical"
-                android:paddingHorizontal="18dp"
+                android:paddingHorizontal="16dp"
                 android:paddingBottom="8dp">
 
                 <TextView
@@ -119,16 +102,6 @@
                     android:text="Lo más top"
                     android:textColor="@color/white"
                     android:textSize="19sp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:includeFontPadding="false"
-                    android:text="Los rankings de Resonant, a un toque"
-                    android:textColor="@color/textTheme"
-                    android:textSize="13sp" />
             </LinearLayout>
 
             <HorizontalScrollView
@@ -145,7 +118,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="8dp">
+                    android:paddingHorizontal="11dp">
 
                     <include
                         android:id="@+id/btnArtistas"
@@ -220,7 +193,7 @@
                             android:layout_height="180dp"
                             android:fontFamily="@font/unageo_regular"
                             android:gravity="center_vertical"
-                            android:paddingHorizontal="18dp"
+                            android:paddingHorizontal="16dp"
                             android:text="Escucha algo para recibir recomendaciones."
                             android:textColor="@color/textTheme"
                             android:textSize="14sp"
@@ -257,7 +230,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:paddingHorizontal="18dp"
+                        android:paddingHorizontal="16dp"
                         android:paddingBottom="8dp">
 
                         <TextView
@@ -268,16 +241,6 @@
                             android:text="En el momento"
                             android:textColor="@color/white"
                             android:textSize="19sp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="@font/unageo_medium"
-                            android:includeFontPadding="false"
-                            android:text="Lo que está pasando ahora mismo"
-                            android:textColor="@color/textTheme"
-                            android:textSize="13sp" />
                     </LinearLayout>
 
                     <HorizontalScrollView
@@ -294,7 +257,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:orientation="horizontal"
-                            android:paddingHorizontal="8dp">
+                            android:paddingHorizontal="11dp">
 
                             <include
                                 android:id="@+id/btnTendencias"
@@ -342,7 +305,7 @@
                             android:layout_height="180dp"
                             android:fontFamily="@font/unageo_regular"
                             android:gravity="center_vertical"
-                            android:paddingHorizontal="18dp"
+                            android:paddingHorizontal="16dp"
                             android:text="No hay albumes recientes."
                             android:textColor="@color/textTheme"
                             android:textSize="14sp"
@@ -380,7 +343,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:paddingHorizontal="18dp"
+                        android:paddingHorizontal="16dp"
                         android:paddingBottom="8dp">
 
                         <TextView
@@ -391,16 +354,6 @@
                             android:text="Esto es…"
                             android:textColor="@color/white"
                             android:textSize="19sp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="@font/unageo_medium"
-                            android:includeFontPadding="false"
-                            android:text="Lo esencial de los artistas del momento"
-                            android:textColor="@color/textTheme"
-                            android:textSize="13sp" />
                     </LinearLayout>
 
                     <androidx.recyclerview.widget.RecyclerView
@@ -452,7 +405,7 @@
                             android:layout_height="180dp"
                             android:fontFamily="@font/unageo_regular"
                             android:gravity="center_vertical"
-                            android:paddingHorizontal="18dp"
+                            android:paddingHorizontal="16dp"
                             android:text="Escucha algo para recibir recomendaciones."
                             android:textColor="@color/textTheme"
                             android:textSize="14sp"
@@ -515,7 +468,7 @@
                             android:layout_height="132dp"
                             android:fontFamily="@font/unageo_regular"
                             android:gravity="center_vertical"
-                            android:paddingHorizontal="18dp"
+                            android:paddingHorizontal="16dp"
                             android:text="No hay generos disponibles."
                             android:textColor="@color/textTheme"
                             android:textSize="14sp"
@@ -552,7 +505,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:paddingHorizontal="18dp"
+                        android:paddingHorizontal="16dp"
                         android:paddingBottom="8dp">
 
                         <TextView
@@ -563,32 +516,45 @@
                             android:text="Descubre"
                             android:textColor="@color/white"
                             android:textSize="19sp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="@font/unageo_medium"
-                            android:includeFontPadding="false"
-                            android:text="Para cuando quieras ir más allá"
-                            android:textColor="@color/textTheme"
-                            android:textSize="13sp" />
                     </LinearLayout>
 
+                    <!-- Collab Finder: tarjeta propia con el motivo de órbitas (ExploreCollabFinderCard). -->
                     <include
                         android:id="@+id/btnCollabFinder"
-                        layout="@layout/view_explore_collab_finder_card" />
+                        layout="@layout/view_explore_collab_finder_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="172dp"
+                        android:layout_marginHorizontal="16dp"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="6dp" />
 
-                    <!-- PlayMix públicas (playmix-sharing-discovery); oculta con la capacidad apagada -->
-                    <include
-                        android:id="@+id/btnPublicPlaymixes"
-                        layout="@layout/view_library_shortcut"
+                    <!-- PlayMix de la comunidad (playmix-sharing-discovery): estantería con las públicas más populares.
+                         Oculta con la capacidad apagada o sin PlayMix; la rellena PublicPlaymixShelf. -->
+                    <LinearLayout
+                        android:id="@+id/publicPlaymixesShelf"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginHorizontal="13dp"
-                        android:layout_marginTop="4dp"
-                        android:layout_marginBottom="6dp"
-                        android:visibility="gone" />
+                        android:layout_marginTop="16dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <include
+                            android:id="@+id/publicPlaymixesHeader"
+                            layout="@layout/view_explore_section_header"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/publicPlaymixesList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipToPadding="false"
+                            android:nestedScrollingEnabled="false"
+                            android:overScrollMode="never"
+                            android:paddingHorizontal="16dp"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="8dp" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- ── Playlists (horizontal) ── -->
@@ -629,7 +595,7 @@
                             android:layout_height="180dp"
                             android:fontFamily="@font/unageo_regular"
                             android:gravity="center_vertical"
-                            android:paddingHorizontal="18dp"
+                            android:paddingHorizontal="16dp"
                             android:text="Aun no hay playlists publicas."
                             android:textColor="@color/textTheme"
                             android:textSize="14sp"
@@ -667,7 +633,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:paddingHorizontal="18dp"
+                        android:paddingHorizontal="16dp"
                         android:paddingBottom="8dp">
 
                         <TextView
@@ -678,16 +644,6 @@
                             android:text="Radios de artistas"
                             android:textColor="@color/white"
                             android:textSize="19sp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:fontFamily="@font/unageo_medium"
-                            android:includeFontPadding="false"
-                            android:text="Música sin fin a partir de un artista"
-                            android:textColor="@color/textTheme"
-                            android:textSize="13sp" />
                     </LinearLayout>
 
                     <androidx.recyclerview.widget.RecyclerView
@@ -739,7 +695,7 @@
                             android:layout_height="132dp"
                             android:fontFamily="@font/unageo_regular"
                             android:gravity="center_vertical"
-                            android:paddingHorizontal="18dp"
+                            android:paddingHorizontal="16dp"
                             android:text="No hay mas generos disponibles."
                             android:textColor="@color/textTheme"
                             android:textSize="14sp"

@@ -969,8 +969,22 @@ class SongFragment : DialogFragment() {
                 dynamicBackgroundColor = backgroundColor
                 applyIconTintToStatefulButtons()
                 applyDynamicTabPanelColor(backgroundColor)
+                applyTopBarTint(root, iconColor)
             }
         )
+    }
+
+    /**
+     * La barra superior (atrás, álbum y ajustes) sigue el contraste del fondo de la canción, como el título:
+     * con una portada clara en tema oscuro (o una oscura en tema claro) quedaba invisible. Los iconos van como
+     * fondo de la vista, así que se tiñen con backgroundTintList.
+     */
+    private fun applyTopBarTint(root: View, color: Int) {
+        val tint = ColorStateList.valueOf(color)
+        root.findViewById<View>(R.id.arrowGoBackButton)?.backgroundTintList = tint
+        root.findViewById<View>(R.id.settingsButton)?.backgroundTintList = tint
+        root.findViewById<TextView>(R.id.songAlbumName)?.setTextColor(color)
+        root.findViewById<TextView>(R.id.songAlbumType)?.setTextColor(ColorUtils.setAlphaComponent(color, 0x99))
     }
 
     /**

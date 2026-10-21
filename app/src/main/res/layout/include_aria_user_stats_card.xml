@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de datos del usuario en Aria: título, una fila de 3 cifras clave y, debajo, el ranking.
+     Sin rejilla de tiles ni etiquetas en mayúsculas por bloque. -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/ariaUserStatsCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="14dp"
+    android:layout_marginTop="12dp"
     android:background="@drawable/bg_aria_glass_panel"
     android:clipToOutline="true"
     android:visibility="gone">
@@ -15,7 +18,7 @@
         android:layout_gravity="top|end"
         android:layout_marginTop="-110dp"
         android:layout_marginEnd="-90dp"
-        android:alpha="0.4"
+        android:alpha="0.3"
         android:background="@drawable/bg_aria_ai_glow"
         android:importantForAccessibility="no" />
 
@@ -25,458 +28,244 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Header: kind label + title -->
-        <TextView
-            android:id="@+id/userStatsKindLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/aria_accent_text"
-            android:textSize="9sp"
-            android:fontFamily="@font/unageo_medium"
-            android:textAllCaps="true"
-            android:letterSpacing="0.12"
-            android:layout_marginBottom="2dp"
-            android:visibility="gone"/>
-
         <TextView
             android:id="@+id/userStatsTitle"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/white"
-            android:textSize="18sp"
+            android:accessibilityHeading="true"
+            android:ellipsize="end"
             android:fontFamily="@font/unageo_bold"
-            android:layout_marginBottom="14dp"/>
+            android:maxLines="2"
+            android:textColor="@color/white"
+            android:textSize="18sp" />
 
-        <!-- ── Stats grid: 2-column layout for key metrics ── -->
+        <!-- Cifras clave: una sola fila de 3 -->
         <LinearLayout
             android:id="@+id/userStatsGridContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:layout_marginTop="16dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal"
             android:visibility="gone">
 
-            <!-- Row 1 -->
             <LinearLayout
-                android:id="@+id/userStatsRow1"
-                android:layout_width="match_parent"
+                android:id="@+id/userStatsPlaysCol"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="8dp">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/userStatsTotalPlaysValue"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_aria_stat_tile"
-                    android:padding="12dp"
-                    android:layout_marginEnd="4dp">
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
 
-                    <TextView
-                        android:id="@+id/userStatsTotalPlaysValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:textSize="22sp"
-                        android:includeFontPadding="false"
-                        android:fontFamily="@font/unageo_bold"/>
-                    <TextView
-                        android:id="@+id/userStatsTotalPlaysLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="reproducciones"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="10sp"
-                        android:fontFamily="@font/unageo_regular"/>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_aria_stat_tile"
-                    android:padding="12dp"
-                    android:layout_marginStart="4dp">
-
-                    <TextView
-                        android:id="@+id/userStatsListenHoursValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:textSize="22sp"
-                        android:includeFontPadding="false"
-                        android:fontFamily="@font/unageo_bold"/>
-                    <TextView
-                        android:id="@+id/userStatsListenHoursLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="horas escuchadas"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="10sp"
-                        android:fontFamily="@font/unageo_regular"/>
-                </LinearLayout>
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:maxLines="1"
+                    android:text="reproducciones"
+                    android:textColor="@color/textTheme"
+                    android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- Row 2 -->
             <LinearLayout
-                android:id="@+id/userStatsRow2"
-                android:layout_width="match_parent"
+                android:id="@+id/userStatsHoursCol"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="8dp">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/userStatsListenHoursValue"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_aria_stat_tile"
-                    android:padding="12dp"
-                    android:layout_marginEnd="4dp">
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
 
-                    <TextView
-                        android:id="@+id/userStatsPlaylistsValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:textSize="22sp"
-                        android:includeFontPadding="false"
-                        android:fontFamily="@font/unageo_bold"/>
-                    <TextView
-                        android:id="@+id/userStatsPlaylistsLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="playlists"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="10sp"
-                        android:fontFamily="@font/unageo_regular"/>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_aria_stat_tile"
-                    android:padding="12dp"
-                    android:layout_marginStart="4dp">
-
-                    <TextView
-                        android:id="@+id/userStatsDaysActiveValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:textSize="22sp"
-                        android:includeFontPadding="false"
-                        android:fontFamily="@font/unageo_bold"/>
-                    <TextView
-                        android:id="@+id/userStatsDaysActiveLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="días activo"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="10sp"
-                        android:fontFamily="@font/unageo_regular"/>
-                </LinearLayout>
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:maxLines="1"
+                    android:text="horas"
+                    android:textColor="@color/textTheme"
+                    android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- Row 3: avg/day + last 7d -->
             <LinearLayout
-                android:id="@+id/userStatsRow3"
-                android:layout_width="match_parent"
+                android:id="@+id/userStatsDaysCol"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="4dp">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/userStatsDaysActiveValue"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_aria_stat_tile"
-                    android:padding="12dp"
-                    android:layout_marginEnd="4dp">
+                    android:fontFamily="@font/unageo_bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/white"
+                    android:textSize="22sp" />
 
-                    <TextView
-                        android:id="@+id/userStatsAvgPerDayValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:textSize="22sp"
-                        android:includeFontPadding="false"
-                        android:fontFamily="@font/unageo_bold"/>
-                    <TextView
-                        android:id="@+id/userStatsAvgPerDayLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="plays / día"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="10sp"
-                        android:fontFamily="@font/unageo_regular"/>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_aria_stat_tile"
-                    android:padding="12dp"
-                    android:layout_marginStart="4dp">
-
-                    <TextView
-                        android:id="@+id/userStatsLast7dValue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/white"
-                        android:textSize="22sp"
-                        android:includeFontPadding="false"
-                        android:fontFamily="@font/unageo_bold"/>
-                    <TextView
-                        android:id="@+id/userStatsLast7dLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="últimos 7 días"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="10sp"
-                        android:fontFamily="@font/unageo_regular"/>
-                </LinearLayout>
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="@font/unageo_medium"
+                    android:maxLines="1"
+                    android:text="días activo"
+                    android:textColor="@color/textTheme"
+                    android:textSize="12sp" />
             </LinearLayout>
-
         </LinearLayout>
 
-        <!-- ── Divider ── -->
-        <View
-            android:id="@+id/userStatsDivider1"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/dividerOverlay"
-            android:layout_marginTop="6dp"
-            android:layout_marginBottom="10dp"
-            android:visibility="gone"/>
-
-        <!-- ── Favorite highlight row ── -->
-        <LinearLayout
-            android:id="@+id/userStatsFavRow"
+        <!-- Datos secundarios en una línea (playlists · media diaria · últimos 7 días · favoritos) -->
+        <TextView
+            android:id="@+id/userStatsMetaLine"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:visibility="gone"
-            android:layout_marginBottom="6dp">
+            android:layout_marginTop="12dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="3"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
+            android:visibility="gone" />
 
-            <LinearLayout
-                android:id="@+id/userStatsFavArtistCol"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginEnd="4dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="ARTISTA FAVORITO"
-                    android:textColor="@color/textTertiaryAlpha"
-                    android:textSize="9sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textAllCaps="true"
-                    android:letterSpacing="0.08"/>
-                <TextView
-                    android:id="@+id/userStatsFavArtistName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/white"
-                    android:textSize="13sp"
-                    android:fontFamily="@font/unageo_bold"
-                    android:layout_marginTop="2dp"
-                    android:maxLines="1"
-                    android:ellipsize="end"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/userStatsFavGenreCol"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginStart="4dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="GÉNERO FAVORITO"
-                    android:textColor="@color/textTertiaryAlpha"
-                    android:textSize="9sp"
-                    android:fontFamily="@font/unageo_medium"
-                    android:textAllCaps="true"
-                    android:letterSpacing="0.08"/>
-                <TextView
-                    android:id="@+id/userStatsFavGenreName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/white"
-                    android:textSize="13sp"
-                    android:fontFamily="@font/unageo_bold"
-                    android:layout_marginTop="2dp"
-                    android:maxLines="1"
-                    android:ellipsize="end"/>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- ── Divider 2 ── -->
-        <View
-            android:id="@+id/userStatsDivider2"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/dividerOverlay"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="10dp"
-            android:visibility="gone"/>
-
-        <!-- ── Top artists list ── -->
+        <!-- Ranking de artistas -->
         <LinearLayout
             android:id="@+id/userStatsTopArtistsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:orientation="vertical"
             android:visibility="gone">
 
             <TextView
+                android:id="@+id/userStatsTopArtistsLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="TOP ARTISTAS"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="9sp"
-                android:fontFamily="@font/unageo_medium"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="6dp"/>
+                android:layout_marginBottom="4dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Top artistas"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
 
             <LinearLayout
                 android:id="@+id/userStatsTopArtistsList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:orientation="vertical" />
         </LinearLayout>
 
-        <!-- ── Top genres list ── -->
+        <!-- Géneros: ranking si es el tema de la tarjeta; si no, píldoras -->
         <LinearLayout
             android:id="@+id/userStatsTopGenresContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:orientation="vertical"
-            android:visibility="gone"
-            android:layout_marginTop="8dp">
+            android:visibility="gone">
 
             <TextView
+                android:id="@+id/userStatsTopGenresLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="TOP GÉNEROS"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="9sp"
-                android:fontFamily="@font/unageo_medium"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="6dp"/>
+                android:layout_marginBottom="8dp"
+                android:fontFamily="@font/unageo_bold"
+                android:text="Tus géneros"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
 
             <LinearLayout
                 android:id="@+id/userStatsTopGenresList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:orientation="vertical" />
+
+            <com.google.android.flexbox.FlexboxLayout
+                android:id="@+id/userStatsTopGenresChips"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:flexWrap="wrap" />
         </LinearLayout>
 
-        <!-- ── Favorites list (for user_favorites kind) ── -->
+        <!-- Favoritas (user_favorites) -->
         <LinearLayout
             android:id="@+id/userStatsFavoritesContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:orientation="vertical"
             android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="TUS FAVORITAS"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="9sp"
-                android:fontFamily="@font/unageo_medium"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="6dp"/>
 
             <LinearLayout
                 android:id="@+id/userStatsFavoritesList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:orientation="vertical" />
         </LinearLayout>
 
-        <!-- ── Mood (for user_mood kind) ── -->
+        <!-- Mood (user_mood) -->
         <LinearLayout
             android:id="@+id/userStatsMoodContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:orientation="vertical"
             android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="TU MOOD ACTUAL"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="9sp"
-                android:fontFamily="@font/unageo_medium"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="4dp"/>
 
             <TextView
                 android:id="@+id/userStatsMoodValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:fontFamily="@font/unageo_bold"/>
+                android:fontFamily="@font/unageo_bold"
+                android:includeFontPadding="false"
+                android:textColor="@color/aria_accent_text"
+                android:textSize="22sp" />
 
             <TextView
                 android:id="@+id/userStatsMoodTrend"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/textSecondaryAlpha"
-                android:textSize="11sp"
-                android:fontFamily="@font/unageo_regular"
-                android:layout_marginTop="2dp"
-                android:visibility="gone"/>
+                android:layout_marginTop="4dp"
+                android:fontFamily="@font/unageo_medium"
+                android:textColor="@color/textTheme"
+                android:textSize="12sp"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <!-- ── History (for user_history kind) ── -->
+        <!-- Historial (user_history) -->
         <LinearLayout
             android:id="@+id/userStatsHistoryContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:orientation="vertical"
             android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="HISTORIAL RECIENTE"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="9sp"
-                android:fontFamily="@font/unageo_medium"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1"
-                android:layout_marginBottom="6dp"/>
 
             <LinearLayout
                 android:id="@+id/userStatsHistoryList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:orientation="vertical" />
         </LinearLayout>
 
     </LinearLayout>

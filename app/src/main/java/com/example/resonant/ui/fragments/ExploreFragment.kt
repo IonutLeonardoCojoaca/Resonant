@@ -47,6 +47,7 @@ import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.components.ResonantMotion
 import com.example.resonant.ui.explore.ExploreCollabFinderCard
 import com.example.resonant.ui.explore.ExploreQuickCard
+import com.example.resonant.ui.explore.PublicPlaymixShelf
 import com.example.resonant.ui.explore.ExploreSectionsRenderer
 import com.example.resonant.ui.viewmodels.ExploreViewModel
 import com.example.resonant.ui.activities.MainActivity
@@ -77,6 +78,8 @@ class ExploreFragment : Fragment() {
     private lateinit var viewModel: ExploreViewModel
     private lateinit var userProfileImage: ImageView
     private lateinit var scrollView: NestedScrollView
+    private lateinit var collabFinderCard: View
+    private var collabCardAnimated = false
 
     private lateinit var playlistsSection: View
     private lateinit var albumsSection: View
@@ -150,7 +153,6 @@ class ExploreFragment : Fragment() {
     private var recommendedArtistsRequested = false
     private var progressiveLoadPending = false
     private var quickCardsAnimated = false
-    private var collabCardAnimated = false
 
     // Bloques fijos intercalados entre las secciones (En el momento, Esto es…, Descubre,
     // Radios). En el Explorar fijo viven en el XML; en Explorar v2 los recoloca el renderer.
@@ -158,7 +160,6 @@ class ExploreFragment : Fragment() {
     private lateinit var artistEssentialsBlock: View
     private lateinit var discoverBlock: View
     private lateinit var artistRadiosBlock: View
-    private lateinit var collabFinderCard: View
     private var legacyBlockAnchors: List<Pair<View, View>> = emptyList()
     private lateinit var recyclerViewArtistEssentials: RecyclerView
     private lateinit var recyclerViewArtistRadios: RecyclerView
@@ -186,6 +187,7 @@ class ExploreFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupFloatingSearchHeader(view)
         setupProgressiveLoading()
+        bindPublicPlaymixShelf(view)
 
         viewModel.loadExplore()
         viewModel.loadArtistMixes()
@@ -279,9 +281,7 @@ class ExploreFragment : Fragment() {
         recyclerViewArtistEssentials = view.findViewById(R.id.recyclerViewArtistEssentials)
         recyclerViewArtistRadios = view.findViewById(R.id.recyclerViewArtistRadios)
 
-        collabFinderCard = view.findViewById(R.id.btnCollabFinder)
-        ExploreCollabFinderCard.bind(collabFinderCard, ::openCollabFinder)
-        bindPublicPlaymixesEntry(view.findViewById(R.id.btnPublicPlaymixes))
+        bindDiscoverPills(view)
 
         viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfileImage) }
 
@@ -316,27 +316,31 @@ class ExploreFragment : Fragment() {
             ), { navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231") })
         )
         cards.forEachIndexed { index, (card, spec, onClick) ->
-            ExploreQuickCard.bind(card, spec, onClick)
+            ExploreQuickCard.bind(card, spec, showEyebrow = false, onClick = onClick)
             if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
         quickCardsAnimated = true
     }
 
-    /** Entrada a las PlayMix públicas (playmix-sharing-discovery), solo con la capacidad activa. */
-    private fun bindPublicPlaymixesEntry(card: View) {
-        card.visibility = if (com.example.resonant.managers.CapabilitiesManager.isPlaymixSharingEnabled()) View.VISIBLE else View.GONE
-        val accent = ResonantAccent.PLAYMIX.color
-        card.findViewById<View>(R.id.shortcutBadge).background = android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.OVAL
-            setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(accent, 0x2E))
-        }
-        card.findViewById<android.widget.ImageView>(R.id.shortcutIcon).apply {
-            setImageResource(R.drawable.ic_playmix)
-            imageTintList = android.content.res.ColorStateList.valueOf(accent)
-        }
-        card.findViewById<android.widget.TextView>(R.id.shortcutTitle).text = "PlayMix públicas"
-        card.findViewById<android.widget.TextView>(R.id.shortcutSubtitle).text = "Sesiones con transiciones de la comunidad"
-        card.setOnClickListener { findNavController().navigate(R.id.action_global_to_publicPlaymixesFragment) }
+    /** "Descubre": tarjeta de Collab Finder con su motivo de órbitas (anima al entrar en pantalla). */
+    private fun bindDiscoverPills(view: View) {
+        collabFinderCard = view.findViewById(R.id.btnCollabFinder)
+        ExploreCollabFinderCard.bind(collabFinderCard, ::openCollabFinder)
+    }
+
+    /** "PlayMix de la comunidad" (necesita la vista creada: carga en viewLifecycleOwner). */
+    private fun bindPublicPlaymixShelf(view: View) {
+        PublicPlaymixShelf.bind(
+            shelf = view.findViewById(R.id.publicPlaymixesShelf),
+            scope = viewLifecycleOwner.lifecycleScope,
+            onOpen = { playmix ->
+                findNavController().navigate(
+                    R.id.action_global_to_playmixDetailFragment,
+                    Bundle().apply { putString("playmixId", playmix.id) }
+                )
+            },
+            onSeeAll = { findNavController().navigate(R.id.action_global_to_publicPlaymixesFragment) }
+        )
     }
 
     /** Live channel cards go first in "En el momento", before Tendencias. */
@@ -658,7 +662,8 @@ class ExploreFragment : Fragment() {
             is ExploreMode.Dynamic -> {
                 legacyContainer.isVisible = false
                 dynamicContainer.isVisible = true
-                heroTitle.text = mode.greeting ?: defaultHeroTitle
+                // El saludo con el nombre ya está en Inicio: Explorar mantiene su propio título.
+                heroTitle.text = defaultHeroTitle
                 val sections = mode.state.visibleSections
                 renderedSections = sections
                 sectionsRenderer?.render(sections, interleavedBlocks(sections))
@@ -917,16 +922,6 @@ class ExploreFragment : Fragment() {
         block.animate().alpha(1f).setDuration(320).setInterpolator(ResonantMotion.expoOut).start()
     }
 
-    /** La tarjeta de Collab Finder anima su entrada cuando llega a la pantalla, no al cargar. */
-    private fun revealCollabCardIfVisible() {
-        if (collabCardAnimated || !collabFinderCard.isShown) return
-        val rect = android.graphics.Rect()
-        if (collabFinderCard.getLocalVisibleRect(rect) && rect.height() > collabFinderCard.height / 3) {
-            collabCardAnimated = true
-            ExploreCollabFinderCard.animateIn(collabFinderCard)
-        }
-    }
-
     private fun setupProgressiveLoading() {
         val listener = ViewTreeObserver.OnScrollChangedListener {
             loadVisibleSections()
@@ -934,6 +929,16 @@ class ExploreFragment : Fragment() {
         }
         scrollChangedListener = listener
         scrollView.viewTreeObserver.addOnScrollChangedListener(listener)
+    }
+
+    /** La tarjeta de Collab Finder anima su entrada cuando llega a la pantalla, no al cargar. */
+    private fun revealCollabCardIfVisible() {
+        if (collabCardAnimated || !::collabFinderCard.isInitialized || !collabFinderCard.isShown) return
+        val rect = android.graphics.Rect()
+        if (collabFinderCard.getLocalVisibleRect(rect) && rect.height() > collabFinderCard.height / 3) {
+            collabCardAnimated = true
+            ExploreCollabFinderCard.animateIn(collabFinderCard)
+        }
     }
 
     private fun loadVisibleSections() {

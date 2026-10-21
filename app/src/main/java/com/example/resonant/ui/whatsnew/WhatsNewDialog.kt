@@ -252,13 +252,6 @@ class WhatsNewDialog : DialogFragment() {
                 val row = LayoutInflater.from(itemView.context).inflate(R.layout.item_whats_new_point, points, false)
                 row.findViewById<TextView>(R.id.pointTitle).text = point.title
                 row.findViewById<TextView>(R.id.pointDescription).text = point.description
-                row.findViewById<TextView>(R.id.pointBadge).apply {
-                    setTextColor(page.accent.color)
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(ColorUtils.setAlphaComponent(page.accent.color, 0x2E))
-                    }
-                }
                 points.addView(row)
             }
             // Hasta que la página se muestra por primera vez, todo espera oculto

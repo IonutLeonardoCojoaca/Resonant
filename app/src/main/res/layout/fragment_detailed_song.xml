@@ -24,10 +24,11 @@
             android:id="@+id/collapsing"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:contentScrim="@color/primaryColorTheme"
+            app:contentScrim="@color/songBackgroundFallback"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:scrimAnimationDuration="250"
-            app:titleEnabled="false">
+            app:titleEnabled="false"
+            app:toolbarId="@id/detailToolbar">
 
             <include
                 android:id="@+id/hero"
@@ -70,8 +71,10 @@
                 tools:visibility="visible">
 
                 <TextView
-                    style="@style/DetailSectionLabel"
-                    android:text="ADN SONORO" />
+                    style="@style/RsSectionTitle"
+                    android:accessibilityHeading="true"
+                    android:text="ADN sonoro"
+                    android:textSize="18sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -310,9 +313,11 @@
             <!-- ═══ Estilo: géneros, etiquetas y letra ═══ -->
             <TextView
                 android:id="@+id/styleLabel"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="26dp"
-                android:text="ESTILO"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:accessibilityHeading="true"
+                android:text="Estilo"
+                android:textSize="18sp"
                 android:visibility="gone"
                 tools:visibility="visible" />
 
@@ -336,26 +341,27 @@
                     android:orientation="horizontal" />
             </HorizontalScrollView>
 
-            <!-- ═══ Álbum ═══ -->
+            <!-- ═══ Álbum: fila normal (portada + textos), como las de la lista ═══ -->
             <LinearLayout
                 android:id="@+id/albumCard"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="26dp"
-                android:background="@drawable/bg_surface_panel"
+                android:layout_height="70dp"
+                android:layout_marginHorizontal="-8dp"
+                android:layout_marginTop="20dp"
+                android:background="?attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:padding="12dp"
+                android:paddingHorizontal="8dp"
                 android:visibility="gone"
                 tools:visibility="visible">
 
                 <com.google.android.material.imageview.ShapeableImageView
                     android:id="@+id/albumCover"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
+                    android:layout_width="55dp"
+                    android:layout_height="55dp"
+                    android:importantForAccessibility="no"
                     android:scaleType="centerCrop"
                     app:shapeAppearanceOverlay="@style/RoundedCornersImage" />
 
@@ -363,25 +369,31 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="14dp"
+                    android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/albumEyebrow"
-                        style="@style/DetailTileLabel"
-                        android:text="DEL ÁLBUM" />
 
                     <TextView
                         android:id="@+id/songAlbum"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
                         android:ellipsize="end"
-                        android:fontFamily="@font/unageo_bold"
+                        android:fontFamily="@font/unageo_medium"
                         android:maxLines="1"
                         android:textColor="@color/white"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         tools:text="WE DON'T TRUST YOU" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_medium"
+                        android:maxLines="1"
+                        android:text="Del álbum"
+                        android:textColor="@color/textTheme"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
                 <ImageView
@@ -396,9 +408,11 @@
             <!-- ═══ Artistas ═══ -->
             <TextView
                 android:id="@+id/artistText"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="26dp"
-                android:text="ARTISTAS" />
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:accessibilityHeading="true"
+                android:text="Artistas"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/artistList"
@@ -413,7 +427,7 @@
                 android:id="@+id/relatedSongsHeaderRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="24dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:visibility="gone"
@@ -421,10 +435,12 @@
 
                 <TextView
                     android:id="@+id/relatedSongsHeader"
-                    style="@style/DetailSectionLabel"
+                    style="@style/RsSectionTitle"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:text="SUENA PARECIDO" />
+                    android:accessibilityHeading="true"
+                    android:text="Suena parecido"
+                    android:textSize="18sp" />
 
                 <ImageButton
                     android:id="@+id/btnPlayRelated"

@@ -3,7 +3,6 @@ package com.example.resonant.ui.fragments
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -88,6 +87,40 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         val skeleton: ShimmerFrameLayout = root.findViewById(R.id.pageSkeleton)
         val state: View = root.findViewById(R.id.pageState)
         var listAnimated = false
+
+        /** Margen superior del estado vacío definido en el layout (se suma a la altura de la cabecera). */
+        private val stateBaseTop = (state.layoutParams as ViewGroup.MarginLayoutParams).topMargin
+
+        /**
+         * Cabecera de la lista (atajos "Descargas"/"Nueva playlist", "Nueva PlayMix", acciones de canciones). Va dentro
+         * del RecyclerView, así que el skeleton y el estado vacío, que se dibujan encima de la lista, se colocan por
+         * debajo de ella: si no, la tapaban mientras carga o sin elementos.
+         */
+        var header: View? = null
+            set(value) {
+                field = value
+                // Se aplaza con post: estos avisos llegan en mitad de un layout.
+                value?.addOnLayoutChangeListener { v, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                    if (bottom - top != oldBottom - oldTop) v.post { applyHeaderOffset() }
+                }
+                value?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(v: View) { v.post { applyHeaderOffset() } }
+                    override fun onViewDetachedFromWindow(v: View) { root.post { applyHeaderOffset() } }
+                })
+            }
+
+        fun applyHeaderOffset() {
+            val headerHeight = header?.takeIf { it.isAttachedToWindow && it.isShown }?.height ?: 0
+            setTopMargin(skeleton, headerHeight)
+            setTopMargin(state, headerHeight + stateBaseTop)
+        }
+
+        private fun setTopMargin(view: View, top: Int) {
+            val params = view.layoutParams as ViewGroup.MarginLayoutParams
+            if (params.topMargin == top) return
+            params.topMargin = top
+            view.layoutParams = params
+        }
     }
 
     // Views
@@ -253,10 +286,10 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             pages[tab] = page
         }
 
-        pages.getValue(Tab.PLAYLISTS).list.adapter = ConcatAdapter(
-            HeaderViewAdapter(buildPlaylistsHeader(pages.getValue(Tab.PLAYLISTS).list)),
-            playlistAdapter
-        )
+        val playlistsPage = pages.getValue(Tab.PLAYLISTS)
+        val playlistsHeader = buildPlaylistsHeader(playlistsPage.list)
+        playlistsPage.header = playlistsHeader
+        playlistsPage.list.adapter = ConcatAdapter(HeaderViewAdapter(playlistsHeader), playlistAdapter)
         val songsPage = pages.getValue(Tab.SONGS)
         songsActions = layoutInflater.inflate(R.layout.view_collection_actions, songsPage.list, false).apply {
             setPadding(paddingLeft, (4 * resources.displayMetrics.density).toInt(), paddingRight, (12 * resources.displayMetrics.density).toInt())
@@ -268,14 +301,17 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             onShuffle = { favoritesViewModel.favoriteSongs.value?.shuffled()?.let { playFavorites(it, 0) } }
         )
         songsHeader = HeaderViewAdapter(songsActions).apply { isVisible = false }
+        songsPage.header = songsActions
         songsPage.list.adapter = ConcatAdapter(songsHeader, songsAdapter)
         pages.getValue(Tab.ARTISTS).list.adapter = artistsAdapter
         pages.getValue(Tab.ALBUMS).list.adapter = albumsAdapter
         val liked = LikedPlaymixesSection(this).also { likedPlaymixes = it }
         liked.onChanged = { renderPlaymixes(playmixListViewModel.playmixes.value) }
-        pages.getValue(Tab.PLAYMIXES).list.adapter = ConcatAdapter(
-            listOf(HeaderViewAdapter(buildPlaymixHeader(pages.getValue(Tab.PLAYMIXES).list)), playmixAdapter) +
-                liked.adapters
+        val playmixPage = pages.getValue(Tab.PLAYMIXES)
+        val playmixHeader = buildPlaymixHeader(playmixPage.list)
+        playmixPage.header = playmixHeader
+        playmixPage.list.adapter = ConcatAdapter(
+            listOf(HeaderViewAdapter(playmixHeader), playmixAdapter) + liked.adapters
         )
     }
 
@@ -374,10 +410,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         subtitle: String,
         onClick: () -> Unit
     ) {
-        view.findViewById<View>(R.id.shortcutBadge).background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(ColorUtils.setAlphaComponent(accent.color, 0x2E))
-        }
         view.findViewById<ImageView>(R.id.shortcutIcon).apply {
             setImageResource(icon)
             imageTintList = ColorStateList.valueOf(accent.color)
@@ -606,6 +638,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
     private fun render(tab: Tab, loaded: Boolean, isEmpty: Boolean) {
         val page = pages[tab] ?: return
+        page.applyHeaderOffset()
         val showSkeleton = !loaded
         if (page.skeleton.isVisible != showSkeleton) {
             page.skeleton.isVisible = showSkeleton

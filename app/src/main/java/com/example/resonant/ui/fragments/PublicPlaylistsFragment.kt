@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -40,7 +39,6 @@ class PublicPlaylistsFragment : Fragment() {
     private lateinit var btnStateAction: View
     private lateinit var hero: View
     private lateinit var chipGroupFilter: ChipGroup
-    private lateinit var toolbar: Toolbar
     private lateinit var appBarLayout: AppBarLayout
 
     /** true solo mientras dura un pull-to-refresh lanzado por el usuario. */
@@ -71,7 +69,6 @@ class PublicPlaylistsFragment : Fragment() {
     }
 
     private fun initViews(view: View) {
-        toolbar = view.findViewById(R.id.toolbar)
         appBarLayout = view.findViewById(R.id.appBarLayout)
         swipeRefreshLayout = view.findViewById(R.id.swipeRefreshLayout)
         rvPlaylists = view.findViewById(R.id.rvPublicPlaylists)
@@ -95,8 +92,7 @@ class PublicPlaylistsFragment : Fragment() {
             viewModel.loadPublicPlaylists(forceRefresh = true)
         }
 
-        // Back button via Toolbar navigation icon
-        toolbar.setNavigationOnClickListener {
+        view.findViewById<View>(R.id.btnBack).setOnClickListener {
             findNavController().navigateUp()
         }
     }
@@ -110,7 +106,7 @@ class PublicPlaylistsFragment : Fragment() {
             title = "Comunidad",
             subtitle = "Colecciones reales, listas para descubrir música nueva."
         )
-        ChartHero.attachParallax(appBarLayout, hero)
+        ChartHero.attachParallax(appBarLayout, hero, requireView().findViewById(R.id.tvToolbarTitle))
         if (!heroAnimated) {
             ChartHero.animateIn(hero)
             heroAnimated = true

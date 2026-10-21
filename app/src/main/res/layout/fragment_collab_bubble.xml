@@ -62,45 +62,10 @@
                 android:orientation="vertical"
                 android:paddingBottom="@dimen/screen_bottom_inset">
 
-                <FrameLayout
+                <!-- Hueco de la barra fija (superiorToolbar), que flota sobre el scroll -->
+                <Space
                     android:layout_width="match_parent"
-                    android:layout_height="54dp"
-                    android:paddingHorizontal="12dp">
-
-                    <ImageButton
-                        android:id="@+id/btnBack"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_gravity="start|center_vertical"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Atrás"
-                        android:padding="8dp"
-                        android:src="@drawable/ic_arrow_back"
-                        app:tint="@color/white" />
-
-                    <TextView
-                        android:id="@+id/tvTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:fontFamily="@font/unageo_extra_bold"
-                        android:letterSpacing="0.18"
-                        android:text="COLLAB FINDER"
-                        android:textColor="#8C9DFF"
-                        android:textSize="12sp" />
-
-                    <ImageButton
-                        android:id="@+id/btnSearchAnother"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_gravity="end|center_vertical"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Buscar otro artista"
-                        android:padding="9dp"
-                        android:scaleType="fitCenter"
-                        android:src="@drawable/ic_search"
-                        app:tint="@color/white" />
-                </FrameLayout>
+                    android:layout_height="56dp" />
 
                 <LinearLayout
                     android:id="@+id/headerBlock"
@@ -226,5 +191,31 @@
             </LinearLayout>
         </FrameLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <!-- Barra fija sobre la foto desenfocada: botones OnImage (círculo translúcido, blanco literal). -->
+    <LinearLayout
+        android:id="@+id/superiorToolbar"
+        style="@style/TopBar"
+        android:layout_width="0dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            style="@style/TopBar.Back.OnImage"
+            android:contentDescription="Volver" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/btnSearchAnother"
+            style="@style/TopBar.Action.OnImage"
+            android:contentDescription="Buscar otro artista"
+            android:src="@drawable/ic_search" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

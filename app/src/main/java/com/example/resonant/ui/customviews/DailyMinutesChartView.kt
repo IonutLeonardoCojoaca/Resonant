@@ -6,10 +6,16 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import com.example.resonant.R
 
-/** Gráfico de barras de minutos escuchados (Canvas, sin librerías). Etiquetas solo si caben. */
+/**
+ * Gráfico de barras de minutos escuchados (Canvas, sin librerías). Etiquetas solo si caben.
+ * Barras en el acento de la pantalla: la del máximo a color pleno y el resto al ~45 %.
+ */
 class DailyMinutesChartView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -17,9 +23,8 @@ class DailyMinutesChartView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val density = resources.displayMetrics.density
-    private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = ContextCompat.getColor(context, R.color.secondaryColorTheme)
-    }
+    private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val peakPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = ContextCompat.getColor(context, R.color.dividerOnSurface)
     }
@@ -27,8 +32,27 @@ class DailyMinutesChartView @JvmOverloads constructor(
         color = ContextCompat.getColor(context, R.color.textTheme)
         textSize = 10f * resources.displayMetrics.scaledDensity
         textAlign = Paint.Align.CENTER
+        typeface = ResourcesCompat.getFont(context, R.font.unageo_medium)
     }
     private val rect = RectF()
+
+    /** Acento de las barras (por defecto el texto principal, neutro en ambos temas). */
+    @ColorInt
+    var accentColor: Int = ContextCompat.getColor(context, R.color.white)
+        set(value) {
+            field = value
+            applyAccent()
+            invalidate()
+        }
+
+    init {
+        applyAccent()
+    }
+
+    private fun applyAccent() {
+        peakPaint.color = accentColor
+        barPaint.color = ColorUtils.setAlphaComponent(accentColor, (255 * 0.45f).toInt())
+    }
 
     var bars: List<TimelineBar> = emptyList()
         set(value) {
@@ -65,7 +89,12 @@ class DailyMinutesChartView @JvmOverloads constructor(
             val right = left + slot - gap
             val barHeight = ((chartBottom - chartTop) * bar.minutes / max).coerceAtLeast(minBar)
             rect.set(left, chartBottom - barHeight, right, chartBottom)
-            canvas.drawRoundRect(rect, radius, radius, if (bar.minutes > 0) barPaint else emptyPaint)
+            val paint = when {
+                bar.minutes <= 0 -> emptyPaint
+                bar.minutes == max -> peakPaint
+                else -> barPaint
+            }
+            canvas.drawRoundRect(rect, radius, radius, paint)
             if (index % labelStep == 0) {
                 canvas.drawText(bar.label, (left + right) / 2, height - paddingBottom - 2 * density, labelPaint)
             }

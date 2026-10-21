@@ -32,7 +32,6 @@ import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.DetailHero
 import com.example.resonant.ui.components.InsightTile
-import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.detail.DetailFormat
 import com.example.resonant.ui.detail.fixedCardWidth
 import com.example.resonant.ui.viewmodels.ArtistViewModel
@@ -50,6 +49,9 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
     private val binding get() = _binding!!
 
     private var artist: Artist? = null
+
+    /** Acento de la foto (DetailHero.applyPalette); null hasta que llega → tarjetas en neutro. */
+    private var accentColor: Int? = null
     private lateinit var artistViewModel: ArtistViewModel
     private lateinit var songViewModel: SongViewModel
 
@@ -70,6 +72,7 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
         songViewModel = ViewModelProvider(requireActivity())[SongViewModel::class.java]
         setupHeader()
         setupAdapters()
+        paintTiles()
 
         artist = arguments?.getParcelable("artist")
         artist?.let { bindArtist(it) }
@@ -118,7 +121,9 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
                     val b = _binding ?: return
                     DetailHero.setArtwork(b.hero.root, resource)
                     DetailHero.applyPalette(b.hero.root, resource, b.collapsing) { colors ->
-                        _binding?.let { InsightTile.paint(it.aboutCard, colors.accent, it.aboutLabel) }
+                        if (_binding == null) return@applyPalette
+                        accentColor = colors.accent
+                        paintTiles()
                     }
                 }
 
@@ -179,14 +184,15 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
         val b = binding
         b.statsSection.isVisible = stats != null
         if (stats == null) return
-        bindStat(b.statStreams, ResonantAccent.ARTISTS.color, "REPRODUCCIONES",
+        bindStat(b.statStreams, "REPRODUCCIONES",
             DetailFormat.compactCount(stats.totalStreams.toLong()), "en todo Resonant")
-        bindStat(b.statFavorites, ResonantAccent.PLAYLISTS.color, "FAVORITOS",
+        bindStat(b.statFavorites, "FAVORITOS",
             DetailFormat.compactCount(stats.totalFavorites.toLong()), "lo tienen guardado")
-        bindStat(b.statSongs, ResonantAccent.SONGS.color, "CANCIONES",
+        bindStat(b.statSongs, "CANCIONES",
             stats.totalSongs.toString(), "en el catálogo")
-        bindStat(b.statAlbums, ResonantAccent.ALBUMS.color, "ÁLBUMES",
+        bindStat(b.statAlbums, "ÁLBUMES",
             stats.totalAlbums.toString(), "publicados")
+        paintTiles()
         updateHeroChips()
     }
 
@@ -198,8 +204,16 @@ class DetailedArtistFragment : BaseFragment(R.layout.fragment_detailed_artist) {
         ))
     }
 
-    private fun bindStat(tile: ViewDetailStatTileBinding, color: Int, label: String, value: String, caption: String?) {
-        InsightTile.paint(tile.root, color, tile.statLabel)
+    /** Todas las tarjetas de la ficha en un solo color: el de la foto (o neutro sin ella). */
+    private fun paintTiles() {
+        val b = _binding ?: return
+        val accent = accentColor
+        listOf(b.statStreams, b.statFavorites, b.statSongs, b.statAlbums)
+            .forEach { InsightTile.paint(it.root, accent, it.statLabel) }
+        InsightTile.paint(b.aboutCard, accent, b.aboutLabel)
+    }
+
+    private fun bindStat(tile: ViewDetailStatTileBinding, label: String, value: String, caption: String?) {
         tile.statLabel.text = label
         tile.statValue.text = value
         tile.statCaption.text = caption

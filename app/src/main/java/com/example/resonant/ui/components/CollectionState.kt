@@ -41,7 +41,12 @@ object CollectionState {
         root.findViewById<MaterialButton>(R.id.stateAction).apply {
             isVisible = actionText != null && onAction != null
             text = actionText
-            backgroundTintList = ColorStateList.valueOf(ColorUtils.blendARGB(accent.color, Color.BLACK, 0.3f))
+            val fill = ColorUtils.blendARGB(accent.color, Color.BLACK, 0.3f)
+            backgroundTintList = ColorStateList.valueOf(fill)
+            // Acentos claros (lima de Descargas, oro de Historial): texto oscuro para que se lea.
+            val onFill = if (ColorUtils.calculateLuminance(fill) > 0.3) Color.BLACK else Color.WHITE
+            setTextColor(onFill)
+            iconTint = ColorStateList.valueOf(onFill)
             setOnClickListener { onAction?.invoke() }
         }
         root.isVisible = true

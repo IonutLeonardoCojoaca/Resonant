@@ -29,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:textColor="@color/white"
+            android:textColor="@android:color/white"
             android:textSize="15sp"
             android:maxLines="1"
             android:ellipsize="end"
@@ -42,6 +42,8 @@
             android:gravity="center"
             android:textColor="#80FFFFFF"
             android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:fontFamily="@font/unageo_medium"
             android:layout_marginTop="2dp" />
 

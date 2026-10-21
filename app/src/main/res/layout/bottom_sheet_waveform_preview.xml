@@ -19,7 +19,7 @@
             android:layout_width="18dp"
             android:layout_height="18dp"
             android:src="@drawable/ic_visibility"
-            app:tint="#CCFFFFFF"
+            app:tint="@color/textEmphasisHigh"
             android:layout_marginEnd="10dp" />
 
         <TextView
@@ -37,7 +37,7 @@
             android:layout_height="32dp"
             android:padding="6dp"
             android:src="@drawable/ic_close"
-            app:tint="#88FFFFFF"
+            app:tint="@color/textSecondaryAlpha"
             android:background="?attr/selectableItemBackgroundBorderless" />
 
     </LinearLayout>
@@ -69,7 +69,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:gravity="end"
-            android:textColor="#CCFFFFFF"
+            android:textColor="@color/textEmphasisHigh"
             android:fontFamily="@font/unageo_medium"
             android:textSize="11sp" />
 
@@ -126,7 +126,7 @@
         android:gravity="center"
         android:paddingHorizontal="16dp"
         android:paddingTop="8dp"
-        android:textColor="#EF5350"
+        android:textColor="@color/errorColor"
         android:fontFamily="@font/unageo_medium"
         android:textSize="12sp"
         android:visibility="gone" />

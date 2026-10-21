@@ -34,7 +34,6 @@ import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.DetailHero
 import com.example.resonant.ui.components.InsightTile
-import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.detail.DetailFormat
 import com.example.resonant.ui.detail.fixedCardWidth
 import com.example.resonant.ui.viewmodels.SongViewModel
@@ -56,6 +55,9 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
     private lateinit var moreAdapter: AlbumAdapter
     private lateinit var songViewModel: SongViewModel
 
+    /** Acento de la portada (DetailHero.applyPalette); null hasta que llega → tarjetas en neutro. */
+    private var accentColor: Int? = null
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDetailedAlbumBinding.inflate(inflater, container, false)
         return binding.root
@@ -66,6 +68,7 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
         songViewModel = ViewModelProvider(requireActivity())[SongViewModel::class.java]
         setupHeader()
         setupLists()
+        paintTiles()
 
         album = arguments?.getParcelable("album")
         album?.let { bindAlbum(it) }
@@ -125,7 +128,8 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
                     DetailHero.setArtwork(b.hero.root, resource)
                     DetailHero.applyPalette(b.hero.root, resource, b.collapsing) { colors ->
                         val bb = _binding ?: return@applyPalette
-                        InsightTile.paint(bb.tempoSection, colors.accent, bb.tempoLabel)
+                        accentColor = colors.accent
+                        paintTiles()
                         bb.tempoFlow.setColors(colors.accent, colors.accentAlt)
                     }
                 }
@@ -166,14 +170,15 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
         val tracks = stats?.totalSongs?.takeIf { it > 0 } ?: album?.numberOfTracks?.takeIf { it > 0 } ?: songs.size
         val avg = if (tracks > 0 && seconds > 0) seconds / tracks else 0
 
-        bindStat(b.statStreams, ResonantAccent.ARTISTS.color, "REPRODUCCIONES",
+        bindStat(b.statStreams, "REPRODUCCIONES",
             DetailFormat.compactCount(streams), "en todo Resonant")
-        bindStat(b.statDuration, ResonantAccent.TRENDING.color, "DURACIÓN",
+        bindStat(b.statDuration, "DURACIÓN",
             DetailFormat.longDuration(seconds), if (avg > 0) "${DetailFormat.longDuration(avg)} de media" else null)
-        bindStat(b.statFavorites, ResonantAccent.PLAYLISTS.color, "FAVORITOS",
+        bindStat(b.statFavorites, "FAVORITOS",
             DetailFormat.compactCount((stats?.totalFavorites ?: 0).toLong()), "lo tienen guardado")
-        bindStat(b.statTracks, ResonantAccent.ALBUMS.color, "CANCIONES",
+        bindStat(b.statTracks, "CANCIONES",
             tracks.toString(), album?.releaseYear?.takeIf { it > 0 }?.let { "publicado en $it" })
+        paintTiles()
         b.statsSection.isVisible = streams > 0 || seconds > 0 || tracks > 0
 
         // Curva de tempo con el BPM de cada canción (si el análisis viene con ellas).
@@ -186,8 +191,16 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
         }
     }
 
-    private fun bindStat(tile: ViewDetailStatTileBinding, color: Int, label: String, value: String, caption: String?) {
-        InsightTile.paint(tile.root, color, tile.statLabel)
+    /** Todas las tarjetas de la ficha en un solo color: el de la portada (o neutro sin ella). */
+    private fun paintTiles() {
+        val b = _binding ?: return
+        val accent = accentColor
+        listOf(b.statStreams, b.statDuration, b.statFavorites, b.statTracks)
+            .forEach { InsightTile.paint(it.root, accent, it.statLabel) }
+        InsightTile.paint(b.tempoSection, accent, b.tempoLabel)
+    }
+
+    private fun bindStat(tile: ViewDetailStatTileBinding, label: String, value: String, caption: String?) {
         tile.statLabel.text = label
         tile.statValue.text = value
         tile.statCaption.text = caption
@@ -197,7 +210,7 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
     private fun bindTracks(songs: List<Song>) {
         trackAdapter.submitList(songs)
         binding.tracksLabel.isVisible = songs.isNotEmpty()
-        binding.tracksLabel.text = if (songs.isEmpty()) "CANCIONES" else "CANCIONES · ${songs.size}"
+        binding.tracksLabel.text = if (songs.isEmpty()) "Canciones" else "Canciones · ${songs.size}"
         updatePlayIcon()
     }
 
@@ -207,7 +220,7 @@ class DetailedAlbumFragment : BaseFragment(R.layout.fragment_detailed_album) {
         b.moreAlbums.isVisible = albums.isNotEmpty()
         b.moreLabel.isVisible = albums.isNotEmpty()
         val artistName = album?.artists?.firstOrNull()?.name
-        b.moreLabel.text = if (artistName.isNullOrBlank()) "MÁS DEL ARTISTA" else "MÁS DE ${artistName.uppercase()}"
+        b.moreLabel.text = if (artistName.isNullOrBlank()) "Más del artista" else "Más de $artistName"
     }
 
     private fun setupLists() {

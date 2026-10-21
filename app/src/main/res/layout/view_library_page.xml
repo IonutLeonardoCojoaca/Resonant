@@ -14,7 +14,7 @@
         android:overScrollMode="never"
         android:paddingHorizontal="8dp"
         android:paddingTop="4dp"
-        android:paddingBottom="200dp" />
+        android:paddingBottom="@dimen/screen_bottom_inset" />
 
     <com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/pageSkeleton"
@@ -45,7 +45,13 @@
         </LinearLayout>
     </com.facebook.shimmer.ShimmerFrameLayout>
 
+    <!-- Arriba y no centrado: bajo la cabecera plegable el área se sale de pantalla y el estado quedaba
+         tapado por el mini player. Con width/height, el include sustituye la gravedad y el margen del layout. -->
     <include
         android:id="@+id/pageState"
-        layout="@layout/view_collection_state" />
+        layout="@layout/view_collection_state"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="48dp" />
 </FrameLayout>

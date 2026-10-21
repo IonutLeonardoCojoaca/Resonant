@@ -29,20 +29,14 @@ import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.example.resonant.R
 import android.content.res.ColorStateList
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.animation.ValueAnimator
-import androidx.core.graphics.ColorUtils
-import com.example.resonant.explore.ExploreGreeting
 import com.example.resonant.ui.components.ResonantMotion
 import com.example.resonant.ui.views.AriaAgentOrbView
 import com.example.resonant.ui.views.AriaAmbientView
-import com.example.resonant.ui.views.AriaConversationMotifView
 import androidx.core.widget.NestedScrollView
 import com.example.resonant.managers.AlbumManager
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import java.util.Calendar
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.SessionIdManager
@@ -83,7 +77,6 @@ import androidx.core.view.WindowInsetsCompat
 class AriaFragment : BaseFragment(R.layout.fragment_aria) {
 
     companion object {
-        private val ARIA_PINK = Color.parseColor("#FF2EA8")
         private const val TAG = "AriaFragment"
         private const val MAX_PROMPT_LENGTH = 500
         private const val CHAR_DELAY_MS = 18L
@@ -170,8 +163,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         super.onViewCreated(view, savedInstanceState)
 
         bindViews(view)
-        setupWelcomeHero()
-        setupCapabilityCards()
         setupWelcomeParallax()
         setupRecyclerView()
         setupChatInsets()
@@ -196,6 +187,7 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
             showWelcomeState()
         }
         observeViewModel()
+        observePrefillFromInfo()
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -349,151 +341,27 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Welcome hero (motivo de conversación de Aria + saludo + sugerencias)
+    // Bienvenida (pregunta directa + peticiones de ejemplo)
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun setupWelcomeHero() {
-        val v = view ?: return
-        v.findViewById<View>(R.id.ariaHeroGlow).background = GradientDrawable().apply {
-            gradientType = GradientDrawable.RADIAL_GRADIENT
-            colors = intArrayOf(ColorUtils.setAlphaComponent(ARIA_PINK, 0x40), 0x00000000)
-            setGradientCenter(0.62f, 0.45f)
-            gradientRadius = 220 * resources.displayMetrics.density
-        }
-        // Cada sugerencia toma un tono del degradado de Aria (rojo → rosa → violeta).
-        listOf(
-            Triple(R.id.ariaPromptBadge1, R.id.ariaPromptIcon1, Color.parseColor("#FF3B55")),
-            Triple(R.id.ariaPromptBadge2, R.id.ariaPromptIcon2, Color.parseColor("#FF2E8A")),
-            Triple(R.id.ariaPromptBadge3, R.id.ariaPromptIcon3, Color.parseColor("#F21FD8")),
-            Triple(R.id.ariaPromptBadge4, R.id.ariaPromptIcon4, Color.parseColor("#B65CFF"))
-        ).forEach { (badgeId, iconId, color) ->
-            v.findViewById<View>(badgeId).background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(ColorUtils.setAlphaComponent(color, 0x2E))
-            }
-            v.findViewById<ImageView>(iconId).imageTintList = ColorStateList.valueOf(color)
-        }
-        v.findViewById<TextView>(R.id.ariaGreeting).text = greetingForNow()
-    }
-
-    /** Tarjetas informativas de lo que sabe hacer el agente; al tocarlas preparan su ejemplo. */
-    private data class AriaCapability(
-        val iconRes: Int,
-        val color: Int,
-        val tool: String,
-        val title: String,
-        val description: String,
-        val example: String
-    )
-
-    private fun setupCapabilityCards() {
-        val row = view?.findViewById<ViewGroup>(R.id.ariaCapabilitiesRow) ?: return
-        row.removeAllViews()
-        val inflater = LayoutInflater.from(requireContext())
-        listOf(
-            AriaCapability(
-                R.drawable.ic_playlist_stack, Color.parseColor("#FF3B55"), "PLAYLISTS",
-                "Crea playlists al momento",
-                "Por mood, género, plan o artistas. Las guardo en tu biblioteca.",
-                "Crea una playlist para correr con rock enérgico"
-            ),
-            AriaCapability(
-                R.drawable.ic_search_small, Color.parseColor("#FF2E8A"), "CATÁLOGO",
-                "Busca y recomienda",
-                "Canciones y artistas parecidos a lo que te gusta, con su ficha.",
-                "Recomiéndame canciones parecidas a las que más escucho"
-            ),
-            AriaCapability(
-                R.drawable.ic_trending_up, Color.parseColor("#F21FD8"), "TUS DATOS",
-                "Analiza lo que escuchas",
-                "Top artistas y géneros, historial, horas de escucha y tu mood.",
-                "¿Cuáles son mis artistas más escuchados?"
-            ),
-            AriaCapability(
-                R.drawable.ic_play, Color.parseColor("#B65CFF"), "REPRODUCCIÓN",
-                "Controla la música",
-                "Pon, pausa, salta o encola canciones solo con pedirlo.",
-                "Pon algo tranquilo para concentrarme"
-            )
-        ).forEach { cap ->
-            val card = inflater.inflate(R.layout.item_aria_capability_card, row, false)
-            card.findViewById<View>(R.id.capabilityBadge).background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(ColorUtils.setAlphaComponent(cap.color, 0x2E))
-            }
-            card.findViewById<ImageView>(R.id.capabilityIcon).apply {
-                setImageResource(cap.iconRes)
-                imageTintList = ColorStateList.valueOf(cap.color)
-            }
-            card.findViewById<TextView>(R.id.capabilityTool).text = cap.tool
-            card.findViewById<TextView>(R.id.capabilityTitle).text = cap.title
-            card.findViewById<TextView>(R.id.capabilityDescription).text = cap.description
-            card.findViewById<TextView>(R.id.capabilityExample).text = "“${cap.example}”"
-            card.setOnClickListener {
-                inputField.setText(cap.example)
-                inputField.setSelection(inputField.text.length)
-                inputField.requestFocus()
-                val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(inputField, InputMethodManager.SHOW_IMPLICIT)
-            }
-            row.addView(card)
-        }
-    }
-
-    /**
-     * Parallax de la bienvenida: la tarjeta de marca se queda atrás y se desvanece
-     * mientras el contenido sube; el fondo ambiental se mueve a su propia velocidad.
-     */
+    /** El fondo ambiental acompaña el scroll de la bienvenida a su propia velocidad. */
     private fun setupWelcomeParallax() {
         val scroll = welcomeContainer as? NestedScrollView ?: return
-        val hero = view?.findViewById<View>(R.id.ariaHeroCard) ?: return
-        val motif = view?.findViewById<View>(R.id.ariaHeroMotif) ?: return
         scroll.setOnScrollChangeListener(NestedScrollView.OnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
             ambientView.onScrollBy(scrollY - oldScrollY)
-            val h = hero.height.takeIf { it > 0 } ?: return@OnScrollChangeListener
-            val progress = (scrollY.toFloat() / h).coerceIn(0f, 1f)
-            hero.translationY = scrollY * 0.45f
-            hero.alpha = 1f - progress * 0.85f
-            hero.scaleX = 1f - progress * 0.06f
-            hero.scaleY = hero.scaleX
-            // Capa interior: el motivo se desplaza más que la tarjeta (profundidad).
-            motif.translationY = scrollY * 0.12f
         })
     }
 
-    /** "Buenas tardes, Ana" según la hora local (mismo formato que el saludo de Explorar). */
-    private fun greetingForNow(): String {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        val daypart = when (hour) {
-            in 6..12 -> "morning"
-            in 13..20 -> "afternoon"
-            else -> "night"
-        }
-        val name = requireContext().getSharedPreferences("user_data", Context.MODE_PRIVATE).getString("NAME", null)
-        return ExploreGreeting.of(daypart, name) ?: "Hola"
-    }
-
-    /** Entrada de la bienvenida: la conversación se "escribe", luego textos y sugerencias en cascada. */
+    /** Entrada de la bienvenida: título y peticiones suben en cascada corta. */
     private fun animateWelcomeIn() {
         val v = view ?: return
-        v.findViewById<AriaConversationMotifView>(R.id.ariaHeroMotif).replay()
         if (!ValueAnimator.areAnimatorsEnabled()) return
         val density = resources.displayMetrics.density
-        val hero = v.findViewById<View>(R.id.ariaHeroCard)
-        hero.alpha = 0f
-        hero.scaleX = 0.96f
-        hero.scaleY = 0.96f
-        hero.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(600)
-            .setInterpolator(ResonantMotion.expoOut).start()
-        listOf(
-            R.id.ariaGreeting, R.id.ariaTitleText, R.id.ariaWelcomeSubtitle,
-            R.id.ariaCapabilitiesLabel, R.id.ariaCapabilitiesScroll, R.id.ariaPromptLabel,
-            R.id.ariaPromptRow1, R.id.ariaPromptRow2
-        ).forEachIndexed { i, id ->
+        listOf(R.id.ariaTitleText, R.id.ariaPromptScroll).forEachIndexed { i, id ->
             v.findViewById<View>(id).apply {
                 alpha = 0f
                 translationY = 16 * density
-                animate().alpha(1f).translationY(0f).setStartDelay(420L + i * 70L).setDuration(600)
+                animate().alpha(1f).translationY(0f).setStartDelay(120L + i * 70L).setDuration(500)
                     .setInterpolator(ResonantMotion.expoOut).start()
             }
         }
@@ -514,6 +382,27 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         }
     }
 
+    /**
+     * "Qué puede hacer Aria" devuelve una petición de ejemplo por el savedStateHandle de esta
+     * entrada de navegación: se deja escrita en el campo (sin enviarla) para que el usuario la complete.
+     */
+    private fun observePrefillFromInfo() {
+        val handle = runCatching { findNavController().currentBackStackEntry?.savedStateHandle }.getOrNull() ?: return
+        handle.getLiveData<String>(AriaInfoFragment.KEY_PREFILL_PROMPT).observe(viewLifecycleOwner) { prompt ->
+            if (prompt.isNullOrBlank()) return@observe
+            handle.remove<String>(AriaInfoFragment.KEY_PREFILL_PROMPT)
+            prefillInput(prompt)
+        }
+    }
+
+    private fun prefillInput(prompt: String) {
+        inputField.setText(prompt)
+        inputField.setSelection(inputField.text.length)
+        inputField.requestFocus()
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        inputField.post { imm.showSoftInput(inputField, InputMethodManager.SHOW_IMPLICIT) }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Welcome / Chat state transitions
     // ─────────────────────────────────────────────────────────────────────────
@@ -525,8 +414,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
         welcomeContainer.visibility = View.VISIBLE
         welcomeContainer.alpha = 1f
         (welcomeContainer as? NestedScrollView)?.scrollTo(0, 0)
-        view?.findViewById<View>(R.id.ariaHeroCard)?.translationY = 0f
-        view?.findViewById<View>(R.id.ariaHeroMotif)?.translationY = 0f
         animateWelcomeIn()
     }
 

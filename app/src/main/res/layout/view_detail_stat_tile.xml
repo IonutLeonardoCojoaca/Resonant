@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tarjeta de dato de las fichas: etiqueta en su color, valor grande y apunte. Color en InsightTile. -->
+<!-- Tarjeta de dato de las fichas: etiqueta, valor grande y apunte. Fondo y color de etiqueta en InsightTile
+     (un solo color por ficha: el acento de la portada; neutro hasta que llega la paleta). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     style="@style/DetailTile"

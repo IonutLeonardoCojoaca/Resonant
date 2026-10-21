@@ -47,9 +47,17 @@
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_regular"
             android:text="Mensaje del diálogo"
-            android:textColor="#70FFFFFF"
+            android:textColor="@color/textSecondaryAlpha"
             android:textSize="14sp"
             android:lineSpacingMultiplier="1.5"/>
+
+        <!-- Opciones de elección única (ResonantDialog.setChoices); filas item_settings_choice -->
+        <LinearLayout
+            android:id="@+id/dialogChoices"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"/>
 
     </LinearLayout>
 
@@ -58,7 +66,7 @@
         android:id="@+id/divider"
         android:layout_width="match_parent"
         android:layout_height="0.5dp"
-        android:background="#18FFFFFF"/>
+        android:background="@color/dividerOverlay"/>
 
     <!-- Botones -->
     <LinearLayout
@@ -74,7 +82,7 @@
             android:fontFamily="@font/unageo_medium"
             android:gravity="center"
             android:text="Cancelar"
-            android:textColor="#40FFFFFF"
+            android:textColor="@color/textSecondaryAlpha"
             android:textSize="15sp"
             android:background="?attr/selectableItemBackground"
             android:visibility="gone"/>
@@ -83,7 +91,7 @@
             android:id="@+id/buttonDivider"
             android:layout_width="0.5dp"
             android:layout_height="match_parent"
-            android:background="#18FFFFFF"
+            android:background="@color/dividerOverlay"
             android:visibility="gone"/>
 
         <TextView

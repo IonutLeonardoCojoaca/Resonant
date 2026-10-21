@@ -5,7 +5,7 @@
     android:id="@+id/searchHeader"
     android:layout_width="match_parent"
     android:layout_height="56dp"
-    android:paddingHorizontal="12dp"
+    android:paddingHorizontal="16dp"
     android:background="@drawable/bg_search_header"
     android:elevation="8dp"
     android:translationY="-56dp"
@@ -19,7 +19,7 @@
         app:cardBackgroundColor="@color/cardsTheme"
         app:cardCornerRadius="10dp"
         app:cardElevation="0dp"
-        android:layout_marginEnd="10dp"
+        android:layout_marginEnd="12dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/searchHeaderAvatar"
         app:layout_constraintTop_toTopOf="parent"
@@ -38,6 +38,7 @@
             <ImageView
                 android:layout_width="16dp"
                 android:layout_height="16dp"
+                android:importantForAccessibility="no"
                 android:src="@drawable/ic_search"
                 android:layout_marginEnd="8dp"
                 app:tint="@color/textTheme"/>
@@ -56,11 +57,12 @@
 
     </androidx.cardview.widget.CardView>
 
-    <!-- Avatar usuario -->
+    <!-- Avatar usuario: 40dp, como en la barra de las pestañas -->
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/searchHeaderAvatar"
-        android:layout_width="34dp"
-        android:layout_height="34dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:importantForAccessibility="no"
         android:src="@drawable/ic_user"
         android:scaleType="centerCrop"
         app:shapeAppearanceOverlay="@style/CircularUserImage"

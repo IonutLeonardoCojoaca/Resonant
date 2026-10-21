@@ -37,6 +37,7 @@ import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SelectPlaymixBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.OnImageTopBar
 import com.example.resonant.ui.components.ResonantMotion
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
@@ -152,13 +153,15 @@ class CollabDetailFragment : Fragment() {
 
     /** Capas al hacer scroll: glow lento, fotos del banner con parallax y barra que se vuelve opaca. */
     private fun setupScrollLayers() {
+        OnImageTopBar.prepare(binding.btnBack)
         binding.contentScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val y = scrollY.toFloat()
             binding.backdropGlow.translationY = -y * 0.4f
             binding.duoBanner.setParallax(y)
             val progress = (y / binding.bannerFrame.height.coerceAtLeast(1)).coerceIn(0f, 1f)
             binding.topBarBackground.alpha = progress
-            binding.tvToolbarTitle.alpha = ((progress - 0.6f) / 0.4f).coerceIn(0f, 1f)
+            binding.tvToolbarTitle.alpha = ((progress - 0.75f) / 0.25f).coerceIn(0f, 1f)
+            OnImageTopBar.update(progress, binding.btnBack)
         }
     }
 

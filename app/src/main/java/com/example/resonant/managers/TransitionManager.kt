@@ -1315,6 +1315,7 @@ class TransitionManager(
         var session: MixSession? = null
         var audible = false
         var lastProgressReportUptime = 0L
+        var aListener: Player.Listener? = null
     }
 
     private var engineRun: EngineRun? = null
@@ -1362,6 +1363,18 @@ class TransitionManager(
             override fun onFailed(reason: String) = failEngineRun(job, reason)
         }, bSpeed = if (plan.beatSync) plan.bpmRatio else 1.0)
 
+        // A terminó sin que la mezcla llegara a empezar: se da por fallida para que el servicio avance (con la
+        // transición abierta ignora STATE_ENDED y la reproducción se quedaba parada al final de A).
+        val aListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED && job.session?.state == MixSession.State.WAITING) {
+                    failEngineRun(job, "A terminó antes de empezar la mezcla")
+                }
+            }
+        }
+        job.aListener = aListener
+        oldPlayer.addListener(aListener)
+
         val runnable = object : Runnable {
             override fun run() {
                 if (engineRun !== job) return
@@ -1389,6 +1402,8 @@ class TransitionManager(
     private fun detachEngineRun(job: EngineRun) {
         engineRunnable?.let { mainHandler.removeCallbacks(it) }
         engineRunnable = null
+        job.aListener?.let { runCatching { job.oldPlayer.removeListener(it) } }
+        job.aListener = null
         if (engineRun === job) engineRun = null
     }
 

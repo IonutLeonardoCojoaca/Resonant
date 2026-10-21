@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botón de barra superior sobre portada o foto: círculo translúcido de 40dp centrado en un área táctil de 48dp
+     (el mismo óvalo que bg_detail_toolbar_button), legible sobre cualquier imagen. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/bg_detail_toolbar_button"
+    android:inset="4dp" />

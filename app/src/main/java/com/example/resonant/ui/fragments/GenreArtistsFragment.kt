@@ -7,7 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
-import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -32,9 +32,9 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
     private lateinit var genreNameTopBar: TextView
     private lateinit var genreNameTextView: TextView
     private lateinit var artistsCountTextView: TextView
-    private lateinit var arrowGoBackButton: FrameLayout
+    private lateinit var arrowGoBackButton: ImageButton
     private lateinit var nestedScroll: NestedScrollView
-    private lateinit var topBar: ConstraintLayout
+    private lateinit var topBar: View
     private lateinit var recyclerViewArtists: RecyclerView
     private lateinit var progressIndicator: CircularProgressIndicator
     private lateinit var emptyStateContainer: ConstraintLayout
@@ -77,7 +77,7 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
         genreNameTextView = view.findViewById(R.id.genreName)
         genreNameTopBar = view.findViewById(R.id.genreTopBarText)
         artistsCountTextView = view.findViewById(R.id.artistsCount)
-        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackButton)
         nestedScroll = view.findViewById(R.id.nested_scroll)
         topBar = view.findViewById(R.id.topBar)
         recyclerViewArtists = view.findViewById(R.id.artistsRecyclerView)
@@ -199,8 +199,9 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
     }
 
     private fun setupScrollListener() {
-        val startFade = 200
-        val endFade = 500
+        val density = resources.displayMetrics.density
+        val startFade = 200 * density
+        val endFade = 500 * density
 
         val themeColor = if (!isNightMode) genreTopColor else ContextCompat.getColor(requireContext(), R.color.primaryColorTheme)
         val red = Color.red(themeColor)
@@ -217,7 +218,7 @@ class GenreArtistsFragment : BaseFragment(R.layout.fragment_genre_artists) {
                 genreImage.translationY = offset
             }
 
-            val progress = ((scrollY - startFade).toFloat() / (endFade - startFade).toFloat()).coerceIn(0f, 1f)
+            val progress = ((scrollY - startFade) / (endFade - startFade)).coerceIn(0f, 1f)
             val alpha = (progress * 255).toInt()
 
             topBar.setBackgroundColor(Color.argb(alpha, red, green, blue))

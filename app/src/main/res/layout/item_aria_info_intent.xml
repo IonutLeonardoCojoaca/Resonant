@@ -1,33 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fila plana de capacidad: título + descripción, divisor fino abajo. Si la capacidad tiene ejemplo,
+     el adapter la hace pulsable (ripple) y al tocarla deja la petición escrita en el campo de Aria. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_aria_suggestion_chip"
-    android:layout_marginHorizontal="16dp">
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/intentTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="crear_playlist"
-        android:textColor="@color/white"
-        android:textSize="14sp"
-        android:fontFamily="@font/unageo_medium"
-        android:layout_marginBottom="4dp" />
-
-    <TextView
-        android:id="@+id/intentDescription"
+    <LinearLayout
+        android:id="@+id/intentRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Description of the intent here."
-        android:textColor="#BBBBBB"
-        android:textSize="13sp"
-        android:fontFamily="@font/unageo_regular"
-        android:lineSpacingMultiplier="1.2" />
+        android:minHeight="64dp"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp">
 
+        <TextView
+            android:id="@+id/intentTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/unageo_medium"
+            android:maxLines="2"
+            android:textColor="@color/white"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/intentDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/unageo_medium"
+            android:lineSpacingExtra="2dp"
+            android:textColor="@color/textTheme"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginHorizontal="16dp"
+        android:background="@color/dividerOverlay"
+        android:importantForAccessibility="no" />
 </LinearLayout>

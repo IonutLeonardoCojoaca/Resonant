@@ -24,6 +24,7 @@
             android:layout_height="match_parent"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:titleEnabled="false"
+            app:toolbarId="@id/topBar"
             app:contentScrim="@color/primaryColorTheme">
 
             <!-- Cover image – parallax background (full bleed) -->
@@ -238,63 +239,29 @@
 
             </LinearLayout>
 
-            <!-- Pinned top bar (back + title on collapse + settings) -->
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <!-- Barra estándar fija (TopBar): atrás + título al plegar + opciones. Sobre la portada usa las
+                 variantes OnImage; al plegar, los iconos pasan a la variante del tema (OnImageTopBar). -->
+            <LinearLayout
                 android:id="@+id/topBar"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
+                style="@style/TopBar"
                 android:layout_gravity="top"
-                android:paddingHorizontal="10dp"
                 app:layout_collapseMode="pin">
 
                 <ImageButton
                     android:id="@+id/arrowGoBackButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="@null"
-                    android:src="@drawable/ic_arrow_back"
-                    app:tint="@color/white"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
+                    style="@style/TopBar.Back.OnImage" />
 
                 <TextView
                     android:id="@+id/playmixTitle"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:alpha="0"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_medium"
-                    android:gravity="center"
-                    android:maxLines="1"
-                    android:textColor="@color/white"
-                    android:textSize="16sp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toStartOf="@+id/settingsBackground"
-                    app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
-                    app:layout_constraintTop_toTopOf="parent" />
+                    style="@style/TopBar.Title.Collapsed" />
 
-                <FrameLayout
-                    android:id="@+id/settingsBackground"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent">
-
-                    <ImageView
-                        android:id="@+id/settingsButton"
-                        android:layout_width="30dp"
-                        android:layout_height="30dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_item_settings_vertical"
-                        app:tint="@color/white"
-                        android:clickable="false"
-                        android:focusable="false" />
-
-                </FrameLayout>
-
-            </androidx.constraintlayout.widget.ConstraintLayout>
+                <ImageButton
+                    android:id="@+id/settingsButton"
+                    style="@style/TopBar.Action.OnImage"
+                    android:contentDescription="Opciones"
+                    android:src="@drawable/ic_item_settings_vertical"
+                    android:tooltipText="Opciones" />
+            </LinearLayout>
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 

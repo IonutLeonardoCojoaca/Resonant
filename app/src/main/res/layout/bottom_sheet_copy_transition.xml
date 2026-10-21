@@ -33,7 +33,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="COPIAR TRANSICIÓN"
-                android:textColor="#88FFFFFF"
+                android:textColor="@color/textSecondaryAlpha"
                 android:textSize="10sp"
                 android:fontFamily="@font/unageo_medium"
                 android:letterSpacing="0.1" />
@@ -53,7 +53,7 @@
                 android:id="@+id/songBTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#AAFFFFFF"
+                android:textColor="@color/subtitleBottomSheet"
                 android:textSize="12sp"
                 android:fontFamily="@font/unageo_medium"
                 android:maxLines="1"

@@ -30,10 +30,16 @@ object ExploreQuickCard {
     private const val STAGGER_MS = 90L
     private const val GLOW_ALPHA = 0x47
 
-    fun bind(card: View, spec: Spec, onClick: () -> Unit) {
+    /**
+     * Con [showEyebrow] = false (Explorar) la tarjeta solo pinta el título: un eyebrow por tarjeta en una fila
+     * de cinco es ruido. [Spec.eyebrow] sigue en la descripción de accesibilidad. Las vistas previas de
+     * creación (CreateCoverPreview) lo mantienen.
+     */
+    fun bind(card: View, spec: Spec, showEyebrow: Boolean = true, onClick: () -> Unit) {
         card.findViewById<TextView>(R.id.quickCardEyebrow).apply {
             text = spec.eyebrow
             setTextColor(spec.accent.color)
+            visibility = if (showEyebrow) View.VISIBLE else View.GONE
         }
         card.findViewById<TextView>(R.id.quickCardTitle).text = spec.title
         card.findViewById<ImageView>(R.id.quickCardIconTop).setImageResource(spec.accent.icon)

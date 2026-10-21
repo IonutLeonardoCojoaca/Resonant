@@ -64,6 +64,25 @@
         tools:text="Si sales ahora se perderán los cambios de esta transición."
         tools:visibility="visible" />
 
+    <!-- Lista de opciones (visibilidad, fusionar…): la monta PlaymixDialog.setChoices / setMultiChoices. -->
+    <ScrollView
+        android:id="@+id/playmixDialogChoicesScroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:fadeScrollbars="true"
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="none"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:id="@+id/playmixDialogChoices"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
     <EditText
         android:id="@+id/playmixDialogInput"
         android:layout_width="match_parent"

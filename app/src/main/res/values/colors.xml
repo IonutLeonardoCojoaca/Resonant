@@ -166,4 +166,6 @@
     <color name="snackbar_brand">#FF3B3B</color>
     <color name="snackbar_neutral">#C7F5F5F7</color>
 
+    <!-- Texto en el amarillo de Radio (ResonantAccent.RADIO): oscurecido en claro para que se lea sobre cardsTheme. -->
+    <color name="radio_accent_text">#9A7400</color>
 </resources>

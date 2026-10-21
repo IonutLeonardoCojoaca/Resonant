@@ -281,6 +281,24 @@ class BusMixerTest {
     }
 
     @Test
+    fun aThatEndsBeforeTheMixStartsFailsInsteadOfWaitingForever() {
+        val mixer = BusMixer()
+        // A se acaba 100 ms antes de a.startMs (o la espera por B empujó el inicio más allá de su final).
+        val a = source("a", 4_410, 9_800_000L, 0.1f)
+        val b = BusSource(host, "b").also { it.play() }
+        mixer.sources += a; mixer.sources += b
+        val events = Events()
+        mixer.session = MixSession(doc(), a, b, null, events, { it.run() }, {})
+
+        run(mixer, 20)
+        a.stop()
+        run(mixer, 5)
+
+        assertEquals(listOf("failed"), events.log)
+        assertNull(mixer.session)
+    }
+
+    @Test
     fun limiterKeepsTheSumBelowMinusOneDbfs() {
         val mixer = BusMixer()
         mixer.sources += source("a", 10_000, 0L, 0.9f)

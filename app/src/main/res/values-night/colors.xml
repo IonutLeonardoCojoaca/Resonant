@@ -137,4 +137,5 @@
     <color name="snackbar_brand">#FF3B3B</color>
     <color name="snackbar_neutral">#C7F5F5F7</color>
 
+    <color name="radio_accent_text">#FFD43B</color>
 </resources>

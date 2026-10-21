@@ -12,6 +12,12 @@ import androidx.navigation.fragment.findNavController
 import com.example.resonant.R
 
 class AriaInfoFragment : Fragment() {
+
+    companion object {
+        /** Clave del savedStateHandle de AriaFragment con la petición que debe quedar escrita en su campo. */
+        const val KEY_PREFILL_PROMPT = "aria_prefill_prompt"
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -29,7 +35,12 @@ class AriaInfoFragment : Fragment() {
         recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
         
         val flatList = com.example.resonant.aria.AriaCapabilities.getFlatList()
-        recyclerView.adapter = com.example.resonant.ui.adapters.AriaInfoAdapter(flatList)
+        recyclerView.adapter = com.example.resonant.ui.adapters.AriaInfoAdapter(flatList) { example ->
+            // Vuelve a Aria con la petición escrita en el campo (sin enviarla), para que el usuario la complete.
+            val nav = findNavController()
+            nav.previousBackStackEntry?.savedStateHandle?.set(KEY_PREFILL_PROMPT, example)
+            nav.navigateUp()
+        }
 
         // Parallax and fade effect on scroll
         recyclerView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {

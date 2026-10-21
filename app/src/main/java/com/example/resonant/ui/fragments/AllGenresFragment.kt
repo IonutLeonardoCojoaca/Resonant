@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -28,7 +27,7 @@ class AllGenresFragment : BaseFragment(R.layout.fragment_all_genres) {
     private lateinit var progressBar: ProgressBar
     private lateinit var layoutError: LinearLayout
     private lateinit var btnRetry: MaterialButton
-    private lateinit var backButton: FrameLayout
+    private lateinit var backButton: View
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

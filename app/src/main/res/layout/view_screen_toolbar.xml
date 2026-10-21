@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barra superior estándar de las pantallas sin cabecera (listas, ajustes, formularios): atrás + título a la
+     izquierda. Para acciones a la derecha, compón la barra con los estilos TopBar.* en el propio layout. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/TopBar">
+
+    <ImageButton
+        android:id="@+id/screenBack"
+        style="@style/TopBar.Back" />
+
+    <TextView
+        android:id="@+id/screenTitle"
+        style="@style/TopBar.Title" />
+</LinearLayout>

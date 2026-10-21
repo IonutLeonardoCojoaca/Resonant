@@ -7,9 +7,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
@@ -33,6 +33,7 @@ import com.example.resonant.ui.viewmodels.SongViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.OnImageTopBar
 import com.example.resonant.utils.Utils
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.network.services.AlbumService
@@ -51,15 +52,15 @@ import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class AlbumFragment : BaseFragment(R.layout.fragment_album) {
 
-    private lateinit var arrowGoBackButton: FrameLayout
+    private lateinit var arrowGoBackButton: ImageButton
     private lateinit var albumName: TextView
     private lateinit var albumArtistName: TextView
     private lateinit var albumImage: ImageView
     private lateinit var recyclerViewSongs: RecyclerView
     private lateinit var nestedScroll: NestedScrollView
-    private lateinit var topBar: ConstraintLayout
+    private lateinit var topBar: View
     private lateinit var albumTopBarText: TextView
-    private lateinit var favoriteButton: FrameLayout
+    private lateinit var favoriteButton: ImageButton
     private lateinit var albumMetadataText: TextView
     private lateinit var albumDownloadStatus: TextView
     private lateinit var albumDownloadBackground: FrameLayout
@@ -147,7 +148,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
     }
 
     private fun initViews(view: View) {
-        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackButton)
         recyclerViewSongs = view.findViewById(R.id.albumSongsContainer)
         recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
 
@@ -167,8 +168,8 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         albumDownloadBackground = view.findViewById(R.id.albumDownloadBackground)
         albumDownloadButton = view.findViewById(R.id.albumDownloadButton)
         nestedScroll = view.findViewById(R.id.nested_scroll)
-        favoriteButton = view.findViewById(R.id.favoriteBackground)
-        favoriteIcon = view.findViewById(R.id.favoriteButton)
+        favoriteButton = view.findViewById(R.id.favoriteButton)
+        favoriteIcon = favoriteButton
         playButton = view.findViewById(R.id.playButton)
     }
 
@@ -185,22 +186,25 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         val green = Color.green(themeColor)
         val blue = Color.blue(themeColor)
 
-        val startFade = 200
-        val endFade = 500
+        val density = resources.displayMetrics.density
+        val startFade = 200 * density
+        val endFade = 500 * density
 
         albumTopBarText.visibility = View.INVISIBLE
         albumTopBarText.alpha = 0f
+        OnImageTopBar.prepare(arrowGoBackButton, favoriteButton)
 
         nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val parallaxFactor = 0.3f
             val offset = -scrollY * parallaxFactor
             albumImage.translationY = offset
 
-            val progress = ((scrollY - startFade).toFloat() / (endFade - startFade).toFloat()).coerceIn(0f, 1f)
+            val progress = ((scrollY - startFade) / (endFade - startFade)).coerceIn(0f, 1f)
             val alpha = (progress * 255).toInt()
 
             // 2. APLICAR EL COLOR GRIS OSCURO (#121212) CON LA TRANSPARENCIA CALCULADA
             topBar.setBackgroundColor(Color.argb(alpha, red, green, blue))
+            OnImageTopBar.update(progress, arrowGoBackButton, favoriteButton)
 
             if (progress > 0f) {
                 if (albumTopBarText.visibility != View.VISIBLE) albumTopBarText.visibility = View.VISIBLE

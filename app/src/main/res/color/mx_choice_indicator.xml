@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Radio/casilla de las opciones de PlayMix: acento marcado, texto secundario sin marcar (legible en los dos temas). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/playmix_accent" android:state_checked="true" />
+    <item android:color="@color/textTheme" />
+</selector>

@@ -1202,6 +1202,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     companion object {
+        /** Margen para que la precarga de Explorar no compita con la carga de Inicio al abrir. */
+        private const val EXPLORE_PREFETCH_DELAY_MS = 1_500L
         private const val QUEUE_SHEET_TAG = "PlaybackQueueBottomSheet"
         private const val ARIA_SCRIM_COLLAPSED_ALPHA = 0x52
         private const val ARIA_SCRIM_EXPANDED_ALPHA = 0xA0
@@ -1438,6 +1440,26 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
             } else {
                 com.example.resonant.autodownload.AutoDownloadScheduler.cancel(appContext)
             }
+        }
+    }
+
+    /**
+     * Precarga Explore v2 y los directos poco después de abrir la app, para que la primera visita a Explorar pinte
+     * la copia de sesión al instante en lugar de esperar a la red (ETag: si no ha cambiado, el servidor responde 304).
+     */
+    private fun prefetchExploreOnStart() {
+        val appContext = applicationContext
+        if (!SessionManager.getInstance(appContext).hasLocalCredentials()) return
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(EXPLORE_PREFETCH_DELAY_MS)
+            val features = CapabilitiesManager.refresh(appContext)
+            if (features.exploreV2) {
+                runCatching {
+                    com.example.resonant.data.network.ExploreRepository.get(appContext)
+                        .load(java.time.ZoneId.systemDefault().id)
+                }
+            }
+            if (features.live) runCatching { LiveManager.get(appContext).loadChannels() }
         }
     }
 
@@ -1905,6 +1927,7 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         AppForegroundState.isInForeground = true
         refreshNotificationsOnStart()
         refreshAutoDownloadsOnStart()
+        prefetchExploreOnStart()
     }
 
     override fun onStop() {

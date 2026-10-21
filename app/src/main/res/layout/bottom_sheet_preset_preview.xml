@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#1A1A1A"
+    android:background="@drawable/bg_bottom_sheet"
     android:orientation="vertical"
     android:paddingBottom="24dp">
 
@@ -36,7 +36,7 @@
             android:layout_marginTop="12dp"
             android:fontFamily="@font/unageo_medium"
             android:text="Calculando preview..."
-            android:textColor="#99FFFFFF"
+            android:textColor="@color/textSecondaryAlpha"
             android:textSize="14sp" />
 
     </LinearLayout>
@@ -69,7 +69,7 @@
             android:layout_marginTop="8dp"
             android:fontFamily="@font/unageo_regular"
             android:gravity="center"
-            android:textColor="#99FFFFFF"
+            android:textColor="@color/textSecondaryAlpha"
             android:textSize="13sp" />
 
         <!-- Mini waveform preview -->
@@ -99,7 +99,7 @@
                     android:layout_weight="1"
                     android:fontFamily="@font/unageo_medium"
                     android:text="Crossfade"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="@color/textSecondaryAlpha"
                     android:textSize="12sp" />
 
                 <TextView
@@ -124,7 +124,7 @@
                     android:layout_weight="1"
                     android:fontFamily="@font/unageo_medium"
                     android:text="Curva"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="@color/textSecondaryAlpha"
                     android:textSize="12sp" />
 
                 <TextView
@@ -149,7 +149,7 @@
                     android:layout_weight="1"
                     android:fontFamily="@font/unageo_medium"
                     android:text="Salida"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="@color/textSecondaryAlpha"
                     android:textSize="12sp" />
 
                 <TextView
@@ -157,7 +157,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="@font/unageo_bold"
-                    android:textColor="#E21616"
+                    android:textColor="@color/secondaryColorTheme"
                     android:textSize="12sp" />
 
             </LinearLayout>
@@ -174,7 +174,7 @@
                     android:layout_weight="1"
                     android:fontFamily="@font/unageo_medium"
                     android:text="Entrada"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="@color/textSecondaryAlpha"
                     android:textSize="12sp" />
 
                 <TextView
@@ -201,7 +201,7 @@
                     android:layout_weight="1"
                     android:fontFamily="@font/unageo_medium"
                     android:text="Gap"
-                    android:textColor="#99FFFFFF"
+                    android:textColor="@color/textSecondaryAlpha"
                     android:textSize="12sp" />
 
                 <TextView

@@ -6,7 +6,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -76,7 +75,7 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
     private lateinit var favoritesViewModel: FavoritesViewModel
 
     private var firstRenderDone = false
-    private lateinit var settingsButtonContainer: FrameLayout
+    private lateinit var settingsButtonContainer: View
     private var isReadOnly = false
 
     // New views for redesigned layout

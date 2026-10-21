@@ -1,28 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Sugerencia mientras se escribe: lupa en el hueco de la portada (alineada con el resto de filas) + texto y tipo. -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/item_song_background"
     android:layout_width="match_parent"
     android:layout_height="60dp"
-    android:layout_marginVertical="4dp"
-    android:paddingHorizontal="5dp">
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:paddingHorizontal="8dp">
 
     <ImageView
         android:id="@+id/imageView2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:background="@drawable/ic_search"
-        android:backgroundTint="@color/white"
+        android:layout_width="55dp"
+        android:layout_height="22dp"
+        android:importantForAccessibility="no"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_search_small"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@color/textTheme" />
 
-    <RelativeLayout
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="20dp"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/imageView2"
@@ -32,30 +37,24 @@
             android:id="@+id/suggestionText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
             android:ellipsize="end"
-            android:fontFamily="@font/unageo_regular"
-            android:gravity="start|center_vertical"
+            android:fontFamily="@font/unageo_medium"
             android:maxLines="1"
-            android:text="Future"
             android:textColor="@color/white"
-            android:textSize="16sp" />
+            android:textSize="14sp"
+            tools:text="Future" />
 
         <TextView
             android:id="@+id/suggestionType"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/suggestionText"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
-            android:fontFamily="@font/unageo_regular"
-            android:gravity="start|center_vertical"
+            android:fontFamily="@font/unageo_medium"
             android:maxLines="1"
-            android:text="Artista"
-            android:textColor="@color/numberTime"
-            android:textSize="13sp" />
-
-
-    </RelativeLayout>
-
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
+            tools:text="Artista" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

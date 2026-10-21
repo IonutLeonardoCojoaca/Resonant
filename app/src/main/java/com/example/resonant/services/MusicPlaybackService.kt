@@ -3319,7 +3319,16 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         if (sourceType == QueueSource.PLAYMIX && sourceId.isNotBlank()) {
             playmixTransitions = emptyMap()
             playmixSongIdMap   = emptyMap()
-            loadPlaymixTransitions(sourceId)
+            loadPlaymixTransitions(sourceId) {
+                // Si B ya se precargó sin las mezclas (punto de entrada automático), se precarga otra vez en el de
+                // la mezcla diseñada. Si la canción aún no ha arrancado, playSongFromQueue lo hará con ellas.
+                val queue = PlaybackStateRepository.activeQueue
+                if (queue != null && !transitionManager.isTransitioning &&
+                    exoPlayer?.currentMediaItem?.mediaId == queue.songs.getOrNull(queue.currentIndex)?.id
+                ) {
+                    prepareNextTransitionPlayer(queue.currentIndex)
+                }
+            }
         } else {
             playmixTransitions = emptyMap()
             playmixSongIdMap   = emptyMap()
@@ -4592,7 +4601,12 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
         maybePrefetchRadio()
 
         val nextSong = PlaybackStateRepository.getNextSong(newQueueIndex.takeIf { it >= 0 } ?: newPlayer.currentMediaItemIndex)
-        transitionManager.preloadNextSong(nextSong)
+        // En su punto de entrada, como prepareNextTransitionPlayer: precargada en 0 la mezcla siguiente tenía que
+        // hacer seek y rebufferizar B justo en el disparo, y sin audio de B a tiempo la mezcla se posponía.
+        val nextEntryMs = if (nextSong != null && activeQueue != null && newQueueIndex >= 0) {
+            resolveNextEntryPointMs(activeQueue, newQueueIndex, nextSong)
+        } else 0L
+        transitionManager.preloadNextSong(nextSong, nextEntryMs)
     }
 
     /**

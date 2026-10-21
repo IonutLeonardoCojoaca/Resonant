@@ -41,6 +41,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.resonant.ui.viewmodels.PlaymixDetailViewModelFactory
 import com.example.resonant.ui.components.DefaultCover
+import com.example.resonant.ui.components.OnImageTopBar
 import com.example.resonant.utils.SnackType
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 
@@ -169,9 +170,14 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     }
 
     private fun setupParallaxTitle() {
+        OnImageTopBar.prepare(binding.arrowGoBackButton, binding.settingsButton)
         binding.appBarLayout.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBar, offset ->
+            if (appBar.totalScrollRange == 0) return@OnOffsetChangedListener
             val ratio = abs(offset).toFloat() / appBar.totalScrollRange.toFloat()
-            binding.playmixTitle.alpha = if (ratio > 0.7f) (ratio - 0.7f) / 0.3f else 0f
+            // Último 25 % del plegado (como ChartHero/DetailHero): título y paso a los iconos del tema.
+            val collapsed = ((ratio - 0.75f) / 0.25f).coerceIn(0f, 1f)
+            binding.playmixTitle.alpha = collapsed
+            OnImageTopBar.update(collapsed, binding.arrowGoBackButton, binding.settingsButton)
         })
     }
 
@@ -180,11 +186,11 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             findNavController().popBackStack()
         }
 
-        binding.settingsBackground.setOnClickListener {
+        binding.settingsButton.setOnClickListener {
             showSettingsMenu()
         }
         // También en una Playmix ajena: cola y descarga (collection-queue-offline). Editar y borrar solo el dueño.
-        binding.settingsBackground.visibility = View.VISIBLE
+        binding.settingsButton.visibility = View.VISIBLE
 
         binding.playButton.setOnClickListener {
             playPlaymix()
@@ -243,7 +249,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             if (state.notFound) {
                 binding.songTransitionList.visibility = View.GONE
                 binding.noSongsText.visibility = View.GONE
-                binding.settingsBackground.visibility = View.GONE
+                binding.settingsButton.visibility = View.GONE
                 binding.playButton.visibility = View.GONE
             }
 

@@ -1,10 +1,7 @@
 package com.example.resonant.ui.fragments
 
-import android.app.AlertDialog
 import android.os.Bundle
-import android.widget.EditText
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -21,9 +18,12 @@ import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.PlaymixSharingManager
 import com.example.resonant.ui.bottomsheets.PlaymixSheetSharing
 import com.example.resonant.ui.bottomsheets.PlaymixSortBottomSheet
+import com.example.resonant.ui.dialogs.PlaymixDialog
 import com.example.resonant.ui.viewmodels.PlaymixLikeState
 import com.example.resonant.ui.viewmodels.PlaymixSharingViewModel
 import com.example.resonant.utils.ShareUtils
+import com.example.resonant.utils.SnackType
+import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
 import kotlinx.coroutines.launch
 
 /**
@@ -129,17 +129,24 @@ class PlaymixDetailSharing(
             share(detail)
             return
         }
-        val options = arrayOf("Con enlace (solo quien tenga el enlace)", "Pública (aparece en búsquedas)")
-        AlertDialog.Builder(context)
+        PlaymixDialog(context)
+            .setIcon(R.drawable.ic_share)
+            .setEyebrow("Compartir")
             .setTitle("Esta PlayMix es privada")
-            .setItems(options) { _, which ->
+            .setMessage("Para compartirla, elige quién podrá verla.")
+            .setChoices(
+                listOf(
+                    PlaymixDialog.Choice("Con enlace", "Solo quien tenga el enlace"),
+                    PlaymixDialog.Choice("Pública", "Aparece en búsquedas")
+                )
+            ) { which ->
                 val visibility = if (which == 0) PlaymixVisibility.UNLISTED else PlaymixVisibility.PUBLIC
                 viewModel.setVisibility(detail.id, visibility) { updated ->
                     reload()
                     share(updated)
                 }
             }
-            .setNegativeButton("Cancelar", null)
+            .setTertiary("Cancelar")
             .show()
     }
 
@@ -147,44 +154,42 @@ class PlaymixDetailSharing(
 
     fun chooseVisibility(playmixId: String, current: String) {
         val values = arrayOf(PlaymixVisibility.PRIVATE, PlaymixVisibility.UNLISTED, PlaymixVisibility.PUBLIC)
-        val labels = arrayOf(
-            "Privada · solo tú",
-            "Con enlace · quien tenga el enlace",
-            "Pública · aparece en búsquedas"
+        val choices = listOf(
+            PlaymixDialog.Choice("Privada", "Solo tú"),
+            PlaymixDialog.Choice("Con enlace", "Quien tenga el enlace"),
+            PlaymixDialog.Choice("Pública", "Aparece en búsquedas")
         )
-        AlertDialog.Builder(context)
+        PlaymixDialog(context)
+            .setIcon(R.drawable.ic_public)
+            .setEyebrow("PlayMix")
             .setTitle("Visibilidad")
-            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
-                dialog.dismiss()
-                if (values[which] == current) return@setSingleChoiceItems
+            .setChoices(choices, values.indexOf(current).coerceAtLeast(0)) { which ->
+                if (values[which] == current) return@setChoices
                 viewModel.setVisibility(playmixId, values[which]) {
-                    Toast.makeText(context, "Visibilidad: ${PlaymixSheetSharing.label(values[which])}", Toast.LENGTH_SHORT).show()
+                    fragment.showResonantSnackbar("Visibilidad: ${PlaymixSheetSharing.label(values[which])}", SnackType.SUCCESS)
                     reload()
                 }
             }
-            .setNegativeButton("Cancelar", null)
+            .setTertiary("Cancelar")
             .show()
     }
 
     // ─── Duplicar / copiar ───
 
     fun copyToLibrary(detail: PlaymixDetailDTO, isOwner: Boolean) {
-        val input = nameInput("${detail.name} (copia)".take(MAX_NAME))
-        AlertDialog.Builder(context)
+        PlaymixDialog(context)
+            .setIcon(R.drawable.ic_unisound_copy)
+            .setEyebrow("PlayMix")
             .setTitle(if (isOwner) "Duplicar PlayMix" else "Copiar a mi biblioteca")
-            .setView(input)
-            .setPositiveButton(if (isOwner) "Duplicar" else "Copiar") { _, _ ->
-                val name = input.text.toString().trim()
-                if (name.length > MAX_NAME) {
-                    Toast.makeText(context, "Máximo $MAX_NAME caracteres", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
+            // Vacío vale (el servidor pone el nombre por defecto), y la sugerencia sin tocar también.
+            .setInput("${detail.name} (copia)".take(MAX_NAME), "Nombre de la copia", MAX_NAME, requireChange = false) { null }
+            .setPrimary(if (isOwner) "Duplicar" else "Copiar") { name ->
                 viewModel.copy(detail.id, name.ifBlank { null }) { copy ->
-                    Toast.makeText(context, "PlayMix copiada a tu biblioteca", Toast.LENGTH_SHORT).show()
+                    fragment.showResonantSnackbar("PlayMix copiada a tu biblioteca", SnackType.SUCCESS)
                     openPlaymix(copy.id)
                 }
             }
-            .setNegativeButton("Cancelar", null)
+            .setTertiary("Cancelar")
             .show()
     }
 
@@ -206,59 +211,53 @@ class PlaymixDetailSharing(
             val candidates: List<PlaymixDTO> = (own + liked).distinctBy { it.id }.filter { it.id != detail.id }
             if (!fragment.isAdded) return@launch
             if (candidates.isEmpty()) {
-                Toast.makeText(context, "No tienes otras PlayMix para fusionar", Toast.LENGTH_SHORT).show()
+                fragment.showResonantSnackbar("No tienes otras PlayMix para fusionar", SnackType.INFO)
                 return@launch
             }
-            val labels = candidates.map { p ->
+            val choices = candidates.map { p ->
                 val owner = if (p.isOwner == false && !p.ownerName.isNullOrBlank()) " · de ${p.ownerName}" else ""
-                "${p.name} (${p.numberOfTracks})$owner"
-            }.toTypedArray()
-            val checked = BooleanArray(candidates.size)
-            AlertDialog.Builder(context)
+                PlaymixDialog.Choice(p.name, "${p.numberOfTracks} canciones$owner")
+            }
+            val mergeDialog = PlaymixDialog(context)
+            mergeDialog
+                .setIcon(R.drawable.ic_playmix)
+                .setEyebrow("Fusionar")
                 .setTitle("Fusionar \"${detail.name}\" con…")
-                .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
-                .setPositiveButton("Siguiente") { _, _ ->
-                    val selected = candidates.filterIndexed { i, _ -> checked[i] }.map { it.id }
-                    if (selected.isEmpty() || selected.size > MAX_MERGE - 1) {
-                        Toast.makeText(context, "Elige entre 1 y ${MAX_MERGE - 1} PlayMix", Toast.LENGTH_SHORT).show()
-                        return@setPositiveButton
+                .setMultiChoices(choices) { checked ->
+                    when {
+                        checked.isEmpty() -> "Elige al menos una PlayMix"
+                        checked.size > MAX_MERGE - 1 -> "Como máximo ${MAX_MERGE - 1} PlayMix"
+                        else -> null
                     }
+                }
+                .setPrimary("Siguiente") {
+                    val selected = mergeDialog.checkedChoices().sorted().map { candidates[it].id }
                     askMergeName(listOf(detail.id) + selected, "${detail.name} + ${selected.size}")
                 }
-                .setNegativeButton("Cancelar", null)
+                .setTertiary("Cancelar")
                 .show()
         }
     }
 
     private fun askMergeName(ids: List<String>, suggested: String) {
-        val input = nameInput(suggested.take(MAX_NAME))
-        AlertDialog.Builder(context)
+        PlaymixDialog(context)
+            .setIcon(R.drawable.ic_playmix)
+            .setEyebrow("Fusionar")
             .setTitle("Nombre de la nueva PlayMix")
-            .setView(input)
-            .setPositiveButton("Fusionar") { _, _ ->
-                val name = input.text.toString().trim()
-                if (name.isBlank() || name.length > MAX_NAME) {
-                    Toast.makeText(context, "El nombre debe tener entre 1 y $MAX_NAME caracteres", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
+            .setInput(suggested.take(MAX_NAME), "Nombre de la PlayMix", MAX_NAME, requireChange = false) { name ->
+                if (name.isBlank()) "El nombre no puede estar vacío" else null
+            }
+            .setPrimary("Fusionar") { name ->
                 viewModel.merge(ids, name) { merged ->
-                    Toast.makeText(context, "PlayMix fusionada", Toast.LENGTH_SHORT).show()
+                    fragment.showResonantSnackbar("PlayMix fusionada", SnackType.SUCCESS)
                     openPlaymix(merged.id)
                 }
             }
-            .setNegativeButton("Cancelar", null)
+            .setTertiary("Cancelar")
             .show()
     }
 
     // ─── Utilidades ───
-
-    private fun nameInput(text: String) = EditText(context).apply {
-        setText(text)
-        selectAll()
-        setSingleLine()
-        val padding = (16 * resources.displayMetrics.density).toInt()
-        setPadding(padding, padding / 2, padding, padding / 2)
-    }
 
     private fun openPlaymix(playmixId: String) {
         if (!fragment.isAdded) return

@@ -17,9 +17,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.transition.AutoTransition
-import androidx.transition.TransitionManager
-import com.google.android.material.button.MaterialButton
 import com.example.resonant.utils.ScrollHeaderBehavior
 import com.example.resonant.R
 import com.example.resonant.playback.PlaySourceMapper
@@ -61,15 +58,17 @@ import com.bumptech.glide.request.transition.Transition
 import com.example.resonant.ui.views.AuroraView
 import com.example.resonant.utils.ImageRequestHelper
 import com.google.firebase.auth.FirebaseAuth
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
 import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
 class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
     companion object {
-        private const val TOP_SONGS_COLLAPSED_COUNT = 5
+        /** Filas por página en las listas de canciones horizontales (Favoritos, Recomendadas, Más escuchadas). */
+        private const val SONG_PAGE_ROWS = 4
+        /** Lo que asoma la página siguiente, para que se lea como deslizable. */
+        private const val SONG_PAGE_PEEK_DP = 48
+        private const val SONG_PAGE_MAX_DP = 420
         private const val HERO_BLUR = 60f
         private const val PALETTE_SIZE = 120
         private const val REVEAL_CHILDREN = 6
@@ -105,9 +104,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
     private lateinit var topSongAdapter: SongAdapter
     private lateinit var listTopSongsContainer: LinearLayout
     private lateinit var shimmerTopSongs: ShimmerFrameLayout
-    private lateinit var btnSeeMoreTopSongs: MaterialButton
-    private var fullTopSongsList: List<com.example.resonant.data.models.Song> = emptyList()
-    private var isTopSongsExpanded = false
 
     private lateinit var recyclerViewTopArtists: RecyclerView
     private lateinit var topArtistAdapter: ArtistAdapter
@@ -254,7 +250,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         listTopSongsContainer = view.findViewById(R.id.listTopSongs)
         recyclerViewTopSongs = view.findViewById(R.id.allTopSongList)
         shimmerTopSongs = view.findViewById(R.id.shimmerTopSongs)
-        btnSeeMoreTopSongs = view.findViewById(R.id.btnSeeMoreTopSongs)
 
         tvTopArtistsTitle = view.findViewById(R.id.tvTopArtistsTitle)
         topArtistsContainer = view.findViewById(R.id.topArtistsContainer)
@@ -321,8 +316,8 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         recyclerViewHistory.adapter = historyAdapter
         recyclerViewHistory.isNestedScrollingEnabled = false
 
-        // Recent favorites — lista vertical normal (no grid, no carrusel).
-        recyclerViewRecentFavorites.layoutManager = LinearLayoutManager(requireContext())
+        // Recent favorites — páginas horizontales de filas.
+        setupSongPages(recyclerViewRecentFavorites)
         recentFavoritesAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         recyclerViewRecentFavorites.adapter = recentFavoritesAdapter
         recyclerViewRecentFavorites.isNestedScrollingEnabled = false
@@ -435,15 +430,15 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         recyclerViewAlbums.adapter = albumsAdapter
         recyclerViewAlbums.isNestedScrollingEnabled = false
 
-        // Recomendado para ti (canciones) — listado vertical, entre
+        // Recomendado para ti (canciones) — páginas horizontales de filas, entre
         // Álbumes para ti y Artistas que más escuchas.
-        recyclerViewSongs.layoutManager = LinearLayoutManager(requireContext())
+        setupSongPages(recyclerViewSongs)
         songAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         recyclerViewSongs.adapter = songAdapter
         recyclerViewSongs.isNestedScrollingEnabled = false
 
-        // Top Songs — vertical list
-        recyclerViewTopSongs.layoutManager = LinearLayoutManager(requireContext())
+        // Top Songs — páginas horizontales de filas (sustituye a la lista vertical con "Ver más").
+        setupSongPages(recyclerViewTopSongs)
         topSongAdapter = SongAdapter(SongAdapter.Companion.VIEW_TYPE_FULL)
         recyclerViewTopSongs.adapter = topSongAdapter
         recyclerViewTopSongs.isNestedScrollingEnabled = false
@@ -543,6 +538,26 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         topAlbumAdapter.itemWidthOverride = dpToPx(horizontalAlbumWidthDp)
 
         setupSongClickListeners()
+    }
+
+    /**
+     * Canciones en páginas horizontales de [SONG_PAGE_ROWS] filas (se leen por columnas) con la página siguiente
+     * asomando, en vez de una lista vertical larga. Reutiliza la fila completa de [SongAdapter] (play, me gusta,
+     * opciones): solo cambia el layout manager y el ancho de cada fila, que se fija al adjuntarla, antes de medirla.
+     */
+    private fun setupSongPages(recycler: RecyclerView) {
+        recycler.layoutManager = GridLayoutManager(requireContext(), SONG_PAGE_ROWS, RecyclerView.HORIZONTAL, false)
+        val pageWidth = minOf(
+            resources.displayMetrics.widthPixels - dpToPx(SONG_PAGE_PEEK_DP),
+            dpToPx(SONG_PAGE_MAX_DP)
+        )
+        recycler.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
+            override fun onChildViewAttachedToWindow(view: View) {
+                view.layoutParams?.let { if (it.width != pageWidth) it.width = pageWidth }
+            }
+
+            override fun onChildViewDetachedFromWindow(view: View) = Unit
+        })
     }
 
     private fun setupViewModels() {
@@ -736,11 +751,10 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             } else {
                 listTopSongsContainer.visibility = View.VISIBLE
                 view?.findViewById<View>(R.id.titleTopSongsContainer)?.visibility = View.VISIBLE
-                fullTopSongsList = songs
+                topSongAdapter.submitList(songs)
                 shimmerTopSongs.stopShimmer()
                 shimmerTopSongs.visibility = View.GONE
                 recyclerViewTopSongs.visibility = View.VISIBLE
-                updateTopSongsListDisplay()
             }
         }
         homeViewModel.topSongsLoading.observe(viewLifecycleOwner) { isLoading ->
@@ -755,45 +769,6 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                 listTopSongsContainer.visibility = View.GONE
                 view?.findViewById<View>(R.id.titleTopSongsContainer)?.visibility = View.GONE
             }
-        }
-
-        btnSeeMoreTopSongs.setOnClickListener {
-            val transition = AutoTransition()
-            transition.duration = 200
-            transition.excludeChildren(recyclerViewTopSongs, true)
-            TransitionManager.beginDelayedTransition(listTopSongsContainer, transition)
-
-            isTopSongsExpanded = !isTopSongsExpanded
-            updateTopSongsListDisplay()
-        }
-    }
-
-    /** Muestra solo las primeras [TOP_SONGS_COLLAPSED_COUNT] canciones hasta que el usuario pide ver más — mismo patrón que ArtistFragment.updateSongsListDisplay(). */
-    private fun updateTopSongsListDisplay() {
-        if (fullTopSongsList.isEmpty()) {
-            btnSeeMoreTopSongs.visibility = View.GONE
-            return
-        }
-
-        val listToShow = if (isTopSongsExpanded) {
-            fullTopSongsList
-        } else {
-            fullTopSongsList.take(TOP_SONGS_COLLAPSED_COUNT)
-        }
-        topSongAdapter.submitList(listToShow)
-
-        if (fullTopSongsList.size > TOP_SONGS_COLLAPSED_COUNT) {
-            btnSeeMoreTopSongs.visibility = View.VISIBLE
-            if (isTopSongsExpanded) {
-                btnSeeMoreTopSongs.text = "Ver menos"
-                btnSeeMoreTopSongs.setIconResource(R.drawable.ic_keyboard_arrow_up)
-            } else {
-                val remaining = fullTopSongsList.size - TOP_SONGS_COLLAPSED_COUNT
-                btnSeeMoreTopSongs.text = "Ver $remaining más"
-                btnSeeMoreTopSongs.setIconResource(R.drawable.ic_keyboard_arrow_down)
-            }
-        } else {
-            btnSeeMoreTopSongs.visibility = View.GONE
         }
     }
 
@@ -954,20 +929,15 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         revealHome(view.findViewById(R.id.homeContent))
     }
 
-    /** Fecha, saludo según la hora y el nombre con el degradado de la marca. */
+    /** Saludo según la hora y el nombre con el degradado de la marca, en una sola línea. */
     private fun bindGreeting(view: View) {
-        val now = Calendar.getInstance()
-        val hour = now.get(Calendar.HOUR_OF_DAY)
-        val (greeting, subtitle) = when (hour) {
-            in 6..11 -> "Buenos días," to "Empieza el día con buen ritmo."
-            in 12..19 -> "Buenas tardes," to "Tu banda sonora para esta tarde."
-            in 20..23 -> "Buenas noches," to "Algo especial para esta noche."
-            else -> "Hola, noctámbulo," to "Para los que siguen despiertos."
+        val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+            in 6..11 -> "Buenos días,"
+            in 12..19 -> "Buenas tardes,"
+            in 20..23 -> "Buenas noches,"
+            else -> "Hola, noctámbulo,"
         }
-        val date = SimpleDateFormat("EEEE · d 'de' MMMM", Locale("es", "ES")).format(now.time)
-        view.findViewById<TextView>(R.id.homeDateEyebrow).text = date.uppercase(Locale("es", "ES"))
         view.findViewById<TextView>(R.id.homeGreeting).text = greeting
-        view.findViewById<TextView>(R.id.homeGreetingSubtitle).text = subtitle
 
         val nameView = view.findViewById<TextView>(R.id.homeGreetingName)
         val fullName = FirebaseAuth.getInstance().currentUser?.displayName

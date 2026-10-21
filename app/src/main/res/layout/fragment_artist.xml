@@ -499,70 +499,28 @@
 
     </androidx.core.widget.NestedScrollView>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <!-- Barra estándar (TopBar) sobre la foto: el fondo y el nombre aparecen al hacer scroll
+         (ArtistFragment) y los iconos pasan de la variante OnImage a la del tema (OnImageTopBar). -->
+    <LinearLayout
         android:id="@+id/topBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="15dp"
-        android:background="#00000000">
+        style="@style/TopBar"
+        android:background="@android:color/transparent">
 
-        <FrameLayout
-            android:id="@+id/arrowGoBackBackground"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginVertical="10dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/arrowGoBackButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:scaleX="0.8"
-                android:scaleY="0.8"
-                android:layout_gravity="center"
-                android:background="@drawable/ic_arrow_back"
-                android:clickable="false"
-                android:focusable="false"/>
-
-        </FrameLayout>
+        <ImageButton
+            android:id="@+id/arrowGoBackButton"
+            style="@style/TopBar.Back.OnImage" />
 
         <TextView
             android:id="@+id/albumTopBarText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_bold"
-            android:text=""
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            style="@style/TopBar.Title.Collapsed" />
 
-        <FrameLayout
-            android:id="@+id/favoriteBackground"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/favoriteButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:background="@drawable/ic_favorite_border"
-                android:clickable="false"
-                android:focusable="false"
-                android:scaleX="1.3"
-                android:scaleY="1.3" />
-
-        </FrameLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        <ImageButton
+            android:id="@+id/favoriteButton"
+            style="@style/TopBar.Action.OnImage"
+            android:contentDescription="Me gusta"
+            android:src="@drawable/ic_favorite_border"
+            android:tooltipText="Me gusta" />
+    </LinearLayout>
 
     <View
         android:id="@+id/gradientTopBar"

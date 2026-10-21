@@ -13,17 +13,19 @@
         android:id="@+id/relatedArtistsLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:accessibilityHeading="true"
+        android:ellipsize="end"
         android:fontFamily="@font/unageo_bold"
-        android:letterSpacing="0.14"
-        android:textColor="@color/aria_accent_text"
-        android:textSize="9.5sp" />
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="18sp" />
 
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="-16dp"
         android:layout_marginEnd="-16dp"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="12dp"
         android:clipToPadding="false"
         android:overScrollMode="never"
         android:paddingHorizontal="16dp"

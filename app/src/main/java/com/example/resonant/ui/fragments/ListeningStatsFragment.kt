@@ -9,13 +9,14 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
+import com.airbnb.lottie.LottieAnimationView
 import com.bumptech.glide.Glide
 import com.example.resonant.R
 import com.example.resonant.data.models.Song
@@ -23,12 +24,13 @@ import com.example.resonant.data.network.ListeningTopItemDTO
 import com.example.resonant.managers.ListeningStatsManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.components.SlidingPillTabs
 import com.example.resonant.ui.customviews.DailyMinutesChartView
 import com.example.resonant.ui.viewmodels.ListeningStatsUiState
 import com.example.resonant.ui.viewmodels.ListeningStatsViewModel
 import com.example.resonant.ui.viewmodels.ListeningStatsViewModelFactory
 import com.example.resonant.ui.viewmodels.StatsPeriod
-import com.google.android.material.button.MaterialButtonToggleGroup
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -40,11 +42,11 @@ class ListeningStatsFragment : Fragment() {
 
     private lateinit var viewModel: ListeningStatsViewModel
 
-    private lateinit var periodToggle: MaterialButtonToggleGroup
+    private lateinit var periodTabs: SlidingPillTabs
     private lateinit var tvPeriodLabel: TextView
     private lateinit var btnNextPeriod: ImageButton
     private lateinit var scrollContent: View
-    private lateinit var progressLoading: ProgressBar
+    private lateinit var progressLoading: LottieAnimationView
     private lateinit var errorState: View
     private lateinit var tvErrorMessage: TextView
     private lateinit var btnRetry: View
@@ -76,7 +78,7 @@ class ListeningStatsFragment : Fragment() {
     }
 
     private fun bindViews(view: View) {
-        periodToggle = view.findViewById(R.id.periodToggle)
+        periodTabs = view.findViewById(R.id.periodTabs)
         tvPeriodLabel = view.findViewById(R.id.tvPeriodLabel)
         btnNextPeriod = view.findViewById(R.id.btnNextPeriod)
         scrollContent = view.findViewById(R.id.scrollContent)
@@ -100,14 +102,15 @@ class ListeningStatsFragment : Fragment() {
         btnNextPeriod.setOnClickListener { viewModel.nextPeriod() }
         btnRetry.setOnClickListener { viewModel.retry() }
 
-        periodToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            when (checkedId) {
-                R.id.btnPeriodWeek -> viewModel.selectPeriod(StatsPeriod.WEEK)
-                R.id.btnPeriodMonth -> viewModel.selectPeriod(StatsPeriod.MONTH)
-                R.id.btnPeriodYear -> viewModel.selectPeriod(StatsPeriod.YEAR)
-            }
-        }
+        // Periodo: píldora deslizante con un único acento (el de la sección de historial).
+        val periods = listOf(StatsPeriod.WEEK, StatsPeriod.MONTH, StatsPeriod.YEAR)
+        val initial = periods.indexOf(viewModel.state.value?.period ?: StatsPeriod.MONTH).coerceAtLeast(0)
+        periodTabs.setTabs(
+            labels = listOf("Semana", "Mes", "Año"),
+            tabAccents = periods.map { STATS_ACCENT.color },
+            initialIndex = initial
+        ) { index -> viewModel.selectPeriod(periods[index]) }
+        chartMinutes.accentColor = STATS_ACCENT.color
 
         view.findViewById<View>(R.id.btnPlayTopSongs).setOnClickListener {
             val songs = viewModel.state.value?.topSongs.orEmpty().mapNotNull { it.song }
@@ -119,18 +122,22 @@ class ListeningStatsFragment : Fragment() {
     }
 
     private fun render(state: ListeningStatsUiState) {
-        val checkedId = when (state.period) {
-            StatsPeriod.WEEK -> R.id.btnPeriodWeek
-            StatsPeriod.MONTH -> R.id.btnPeriodMonth
-            StatsPeriod.YEAR -> R.id.btnPeriodYear
+        val periodIndex = when (state.period) {
+            StatsPeriod.WEEK -> 0
+            StatsPeriod.MONTH -> 1
+            StatsPeriod.YEAR -> 2
         }
-        if (periodToggle.checkedButtonId != checkedId) periodToggle.check(checkedId)
+        if (periodTabs.selectedIndex != periodIndex) periodTabs.select(periodIndex, animate = false)
         tvPeriodLabel.text = state.periodLabel
         btnNextPeriod.isEnabled = state.canGoNext
         btnNextPeriod.alpha = if (state.canGoNext) 1f else 0.3f
 
         val summary = state.summary
-        progressLoading.isVisible = state.isLoading && summary == null
+        val showLoader = state.isLoading && summary == null
+        if (showLoader != progressLoading.isVisible) {
+            progressLoading.isVisible = showLoader
+            if (showLoader) progressLoading.playAnimation() else progressLoading.cancelAnimation()
+        }
         errorState.isVisible = !state.isLoading && (state.isError || state.isDisabled)
         tvErrorMessage.text = if (state.isDisabled) {
             "Las estadísticas no están disponibles ahora mismo"
@@ -253,6 +260,7 @@ class ListeningStatsFragment : Fragment() {
             row.addView(TextView(context).apply {
                 text = rank.toString()
                 textSize = 15f
+                typeface = ResourcesCompat.getFont(context, R.font.unageo_bold)
                 setTextColor(ContextCompat.getColor(context, R.color.textTheme))
                 minWidth = 28.dp
             })
@@ -271,7 +279,8 @@ class ListeningStatsFragment : Fragment() {
         }
         texts.addView(TextView(context).apply {
             text = title
-            textSize = 15f
+            textSize = 14f
+            typeface = ResourcesCompat.getFont(context, R.font.unageo_medium)
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(ContextCompat.getColor(context, R.color.white))
@@ -280,6 +289,7 @@ class ListeningStatsFragment : Fragment() {
             texts.addView(TextView(context).apply {
                 text = subtitle
                 textSize = 12f
+                typeface = ResourcesCompat.getFont(context, R.font.unageo_medium)
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 setTextColor(ContextCompat.getColor(context, R.color.textTheme))
@@ -292,6 +302,7 @@ class ListeningStatsFragment : Fragment() {
     private fun emptyRow(): View = TextView(requireContext()).apply {
         text = "Sin escuchas en este periodo"
         textSize = 13f
+        typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
         setPadding(0, 8.dp, 0, 8.dp)
         setTextColor(ContextCompat.getColor(requireContext(), R.color.textTheme))
     }
@@ -311,4 +322,9 @@ class ListeningStatsFragment : Fragment() {
     }
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
+
+    private companion object {
+        /** Acento de la pantalla: tus escuchas son tu historial. */
+        val STATS_ACCENT = ResonantAccent.HISTORY
+    }
 }

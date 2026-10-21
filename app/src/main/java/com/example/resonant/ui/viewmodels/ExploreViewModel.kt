@@ -126,14 +126,16 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     fun loadExplore() {
         if (exploreJob?.isActive == true) return
         exploreJob = viewModelScope.launch {
+            val tz = ZoneId.systemDefault().id
+            layoutTz = tz
+            // La copia de sesión se pinta antes de consultar las capacidades (que, caducadas, son una petición
+            // de red): solo existe si Explore v2 estaba activo en esta sesión, y si ya no lo está se pasa a legacy.
+            val copy = exploreRepository.cached(tz)
+            copy?.let { show(ExploreModeResolver.stateFrom(it, layoutReducer)) }
             if (!CapabilitiesManager.refresh(getApplication()).exploreV2) {
                 showLegacy()
                 return@launch
             }
-            val tz = ZoneId.systemDefault().id
-            layoutTz = tz
-            val copy = exploreRepository.cached(tz)
-            copy?.let { show(ExploreModeResolver.stateFrom(it, layoutReducer)) }
 
             val result = exploreRepository.load(tz)
             when (ExploreModeResolver.afterLoad(result, hasCopy = copy != null)) {
@@ -155,6 +157,12 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     /** On every visit; the manager keeps the listing 15 s, so quick returns do not ask again. */
     fun loadLiveChannels() {
         if (liveJob?.isActive == true) return
+        // La última lista conocida se pinta al instante (el ViewModel es nuevo en cada visita) y se revalida.
+        if (_liveChannels.value.isNullOrEmpty()) {
+            LiveManager.get(getApplication()).lastChannels()?.channels?.let {
+                _liveChannels.value = LiveCardMapper.map(it, System.currentTimeMillis(), ZoneId.systemDefault())
+            }
+        }
         liveJob = viewModelScope.launch {
             val response = LiveManager.get(getApplication()).loadChannels()
             _liveChannels.value = response?.channels

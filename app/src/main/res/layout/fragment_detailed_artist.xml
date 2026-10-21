@@ -24,10 +24,11 @@
             android:id="@+id/collapsing"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:contentScrim="@color/primaryColorTheme"
+            app:contentScrim="@color/songBackgroundFallback"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:scrimAnimationDuration="250"
-            app:titleEnabled="false">
+            app:titleEnabled="false"
+            app:toolbarId="@id/detailToolbar">
 
             <include
                 android:id="@+id/hero"
@@ -100,14 +101,16 @@
                 android:id="@+id/statsSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="24dp"
                 android:orientation="vertical"
                 android:visibility="gone"
                 tools:visibility="visible">
 
                 <TextView
-                    style="@style/DetailSectionLabel"
-                    android:text="EN CIFRAS" />
+                    style="@style/RsSectionTitle"
+                    android:text="En cifras"
+                    android:accessibilityHeading="true"
+                    android:textSize="18sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -161,11 +164,13 @@
             <!-- ═══ Géneros ═══ -->
             <TextView
                 android:id="@+id/genresHeader"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="26dp"
-                android:text="GÉNEROS"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:text="Géneros"
                 android:visibility="gone"
-                tools:visibility="visible" />
+                tools:visibility="visible"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/genresRecyclerView"
@@ -183,17 +188,19 @@
                 android:id="@+id/topSongsHeaderRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="26dp"
+                android:layout_marginTop="24dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:visibility="gone"
                 tools:visibility="visible">
 
                 <TextView
-                    style="@style/DetailSectionLabel"
+                    style="@style/RsSectionTitle"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:text="LO MÁS ESCUCHADO" />
+                    android:text="Lo más escuchado"
+                    android:accessibilityHeading="true"
+                    android:textSize="18sp" />
 
                 <ImageButton
                     android:id="@+id/btnPlayTop"
@@ -218,11 +225,13 @@
             <!-- ═══ Galería ═══ -->
             <TextView
                 android:id="@+id/galleryHeader"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="22dp"
-                android:text="GALERÍA"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:text="Galería"
                 android:visibility="gone"
-                tools:visibility="visible" />
+                tools:visibility="visible"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/galleryList"
@@ -240,7 +249,7 @@
                 android:id="@+id/albumsHeaderRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="26dp"
+                android:layout_marginTop="24dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:visibility="gone"
@@ -248,10 +257,12 @@
 
                 <TextView
                     android:id="@+id/albumsHeader"
-                    style="@style/DetailSectionLabel"
+                    style="@style/RsSectionTitle"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:text="DISCOGRAFÍA" />
+                    android:text="Discografía"
+                    android:accessibilityHeading="true"
+                    android:textSize="18sp" />
 
                 <TextView
                     android:id="@+id/albumCountText"
@@ -272,11 +283,13 @@
             <!-- ═══ Sencillos ═══ -->
             <TextView
                 android:id="@+id/singlesHeader"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="22dp"
-                android:text="SENCILLOS"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:text="Sencillos"
                 android:visibility="gone"
-                tools:visibility="visible" />
+                tools:visibility="visible"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/singlesList"
@@ -289,11 +302,13 @@
             <!-- ═══ Colaboradores ═══ -->
             <TextView
                 android:id="@+id/collaboratorsHeader"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="22dp"
-                android:text="HA COLABORADO CON"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:text="Ha colaborado con"
                 android:visibility="gone"
-                tools:visibility="visible" />
+                tools:visibility="visible"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/collaboratorsRecyclerView"

@@ -4,11 +4,10 @@
      la desambiguación "elige una versión". -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/ariaSongCardsContainer"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="14dp"
+    android:layout_marginTop="12dp"
     android:background="@drawable/bg_aria_glass_panel"
     android:clipToOutline="true"
     android:orientation="vertical"
@@ -21,30 +20,14 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="14dp"
-        android:paddingTop="14dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="10dp">
-
-        <FrameLayout
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_aria_brand_tile">
-
-            <ImageView
-                android:id="@+id/songCardsIcon"
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:layout_gravity="center"
-                android:importantForAccessibility="no"
-                android:src="@drawable/ic_song"
-                app:tint="@android:color/white" />
-        </FrameLayout>
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -56,28 +39,28 @@
                 android:letterSpacing="0.14"
                 android:text="CANCIONES RECOMENDADAS"
                 android:textColor="@color/aria_accent_text"
-                android:textSize="9.5sp" />
+                android:textSize="10.5sp" />
 
             <TextView
                 android:id="@+id/songCardsArtistName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="4dp"
                 android:ellipsize="end"
                 android:fontFamily="@font/unageo_bold"
                 android:maxLines="1"
                 android:textColor="@color/white"
-                android:textSize="15sp"
+                android:textSize="18sp"
                 android:visibility="gone" />
 
             <TextView
                 android:id="@+id/songCardsCatalogCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:fontFamily="@font/unageo_regular"
+                android:layout_marginTop="2dp"
+                android:fontFamily="@font/unageo_medium"
                 android:textColor="@color/textTheme"
-                android:textSize="11sp"
+                android:textSize="12sp"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -86,12 +69,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:background="@drawable/bg_aria_genre_chip"
-            android:fontFamily="@font/unageo_bold"
-            android:paddingHorizontal="9dp"
-            android:paddingVertical="4dp"
-            android:textColor="@color/textSecondaryAlpha"
-            android:textSize="10sp"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
             android:visibility="gone" />
     </LinearLayout>
 
@@ -109,15 +89,14 @@
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackground"
         android:drawableEnd="@drawable/ic_keyboard_arrow_down"
-        android:drawableTint="@color/textSecondaryAlpha"
-        android:fontFamily="@font/unageo_semi_bold"
+        android:drawableTint="@color/textTheme"
+        android:fontFamily="@font/unageo_medium"
         android:gravity="center_vertical"
+        android:minHeight="48dp"
         android:paddingStart="72dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="8dp"
-        android:textColor="@color/textSecondaryAlpha"
-        android:textSize="12sp"
+        android:paddingEnd="16dp"
+        android:textColor="@color/textTheme"
+        android:textSize="13sp"
         android:visibility="gone" />
 
 </LinearLayout>

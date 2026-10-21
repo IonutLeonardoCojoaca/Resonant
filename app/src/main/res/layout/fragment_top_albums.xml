@@ -17,48 +17,30 @@
             android:layout_height="270dp"
             app:contentScrim="@color/primaryColorTheme"
             app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
-            app:titleEnabled="false">
+            app:titleEnabled="false"
+            app:toolbarId="@id/topBar">
 
             <!-- Hero por capas con parallax (ChartHero) -->
             <include
                 android:id="@+id/chartHero"
                 layout="@layout/view_chart_hero" />
 
-            <androidx.appcompat.widget.Toolbar
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                app:contentInsetStart="0dp"
+            <!-- Barra estándar fija (TopBar): atrás + título que aparece al plegar (ChartHero). -->
+            <LinearLayout
+                android:id="@+id/topBar"
+                style="@style/TopBar"
+                android:layout_gravity="top"
                 app:layout_collapseMode="pin">
 
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent">
+                <ImageButton
+                    android:id="@+id/btnBack"
+                    style="@style/TopBar.Back" />
 
-                    <ImageButton
-                        android:id="@+id/btnBack"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_gravity="start|center_vertical"
-                        android:layout_marginStart="12dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Atrás"
-                        android:scaleX="0.8"
-                        android:scaleY="0.8"
-                        android:src="@drawable/ic_arrow_back"
-                        app:tint="@color/white" />
-
-                    <TextView
-                        android:id="@+id/tvToolbarTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:alpha="0"
-                        android:fontFamily="@font/unageo_bold"
-                        android:text="Top Álbumes"
-                        android:textColor="@color/white"
-                        android:textSize="18sp" />
-                </FrameLayout>
-            </androidx.appcompat.widget.Toolbar>
+                <TextView
+                    android:id="@+id/tvToolbarTitle"
+                    style="@style/TopBar.Title.Collapsed"
+                    android:text="Top Álbumes" />
+            </LinearLayout>
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 

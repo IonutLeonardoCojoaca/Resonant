@@ -7,54 +7,41 @@
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <!-- Gradient Background from Top to Bottom -->
+    <!-- Brillo ambiental de Aria (decorativo, se desenfoca en código) -->
     <ImageView
         android:id="@+id/ariaInfoGlowBg"
         android:layout_width="400dp"
         android:layout_height="400dp"
-        android:scaleType="centerCrop"
         android:alpha="0.75"
         android:background="@drawable/bg_circle_aria_gradient"
-        android:scaleX="1.0"
-        android:scaleY="1.0"
+        android:importantForAccessibility="no"
         android:translationX="80dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Superior Toolbar -->
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <LinearLayout
         android:id="@+id/superiorToolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="5dp"
+        style="@style/TopBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageButton
             android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_arrow_back"
-            android:padding="8dp"
-            app:tint="@color/white"
-            android:scaleY="0.8"
-            android:scaleX="0.8"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            style="@style/TopBar.Back" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        <TextView
+            style="@style/TopBar.Title"
+            android:text="Qué puede hacer Aria" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:clipToPadding="false"
+        android:overScrollMode="never"
         android:paddingBottom="@dimen/screen_bottom_inset_compact"
-        android:paddingTop="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@id/superiorToolbar" />
 

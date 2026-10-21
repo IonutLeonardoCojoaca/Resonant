@@ -43,74 +43,48 @@
         android:id="@+id/homeContent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:paddingBottom="@dimen/screen_bottom_inset">
 
-        <!-- TOOLBAR -->
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <!-- Barra de pestaña (components.md §0): avatar 40dp + título bold 22sp + acciones TopBar.Action. -->
+        <LinearLayout
             android:id="@+id/superiorToolbar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingVertical="5dp"
-            android:paddingHorizontal="14dp">
-
-            <TextView
-                android:id="@+id/textView2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:text="Inicio"
-                android:textColor="@color/white"
-                android:textSize="22sp"
-                android:layout_marginStart="14dp"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/userProfile"
-                app:layout_constraintTop_toTopOf="parent" />
+            style="@style/TopBar">
 
             <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/userProfile"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
+                android:layout_marginStart="12dp"
+                android:importantForAccessibility="no"
+                android:scaleType="centerCrop"
                 android:src="@drawable/ic_user"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
                 app:shapeAppearanceOverlay="@style/CircularUserImage" />
 
-            <ImageView
-                android:id="@+id/searchButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:padding="8dp"
-                android:src="@drawable/ic_search"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:tint="@color/white" />
+            <TextView
+                android:id="@+id/textView2"
+                style="@style/TopBar.Title"
+                android:layout_marginStart="12dp"
+                android:text="Inicio"
+                android:textSize="22sp" />
 
             <!-- Campana de la bandeja (add-notifications): solo visible con features.notifications. -->
             <FrameLayout
                 android:id="@+id/notificationBellButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="4dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
                 android:contentDescription="@string/notifications_bell_description"
                 android:focusable="true"
                 android:visibility="gone"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toStartOf="@+id/searchButton"
-                app:layout_constraintTop_toTopOf="parent"
                 tools:visibility="visible">
 
                 <ImageView
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:contentDescription="@null"
-                    android:padding="8dp"
+                    android:padding="12dp"
                     android:src="@drawable/ic_notifications_bell"
                     app:tint="@color/white" />
 
@@ -119,6 +93,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="18dp"
                     android:layout_gravity="top|end"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginEnd="4dp"
                     android:background="@drawable/bg_notification_badge"
                     android:fontFamily="@font/unageo_bold"
                     android:gravity="center"
@@ -132,57 +108,49 @@
                     tools:visibility="visible" />
             </FrameLayout>
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
+            <ImageButton
+                android:id="@+id/searchButton"
+                style="@style/TopBar.Action"
+                android:contentDescription="Buscar"
+                android:src="@drawable/ic_search" />
+        </LinearLayout>
 
-        <!-- ─── Saludo ─── -->
+        <!-- ─── Saludo: una línea, el nombre con el degradado de la marca ─── -->
         <LinearLayout
             android:id="@+id/homeGreetingBlock"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="20dp"
-            android:paddingTop="22dp">
-
-            <TextView
-                android:id="@+id/homeDateEyebrow"
-                style="@style/RsEyebrow"
-                tools:text="SÁBADO · 18 DE OCTUBRE" />
+            android:baselineAligned="true"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="16dp">
 
             <TextView
                 android:id="@+id/homeGreeting"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
                 android:fontFamily="@font/unageo_bold"
                 android:includeFontPadding="false"
-                android:letterSpacing="-0.02"
+                android:letterSpacing="-0.01"
+                android:maxLines="1"
                 android:textColor="@color/white"
-                android:textSize="34sp"
+                android:textSize="26sp"
                 tools:text="Buenas noches," />
 
             <TextView
                 android:id="@+id/homeGreetingName"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
                 android:ellipsize="end"
-                android:fontFamily="@font/unageo_extra_bold"
+                android:fontFamily="@font/unageo_bold"
                 android:includeFontPadding="false"
-                android:letterSpacing="-0.02"
+                android:letterSpacing="-0.01"
                 android:maxLines="1"
                 android:textColor="@color/white"
-                android:textSize="34sp"
+                android:textSize="26sp"
                 tools:text="Ionut" />
-
-            <TextView
-                android:id="@+id/homeGreetingSubtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:fontFamily="@font/unageo_medium"
-                android:textColor="@color/textTheme"
-                android:textSize="14sp"
-                tools:text="Algo tranquilo para cerrar el día." />
         </LinearLayout>
 
         <!-- ─── Buscador ─── -->
@@ -354,7 +322,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="20dp"
+                android:paddingHorizontal="16dp"
                 android:paddingTop="20dp"
                 android:paddingBottom="6dp">
 
@@ -362,10 +330,6 @@
                     android:id="@+id/historyFeatured"
                     style="@style/RsSectionTitle"
                     android:text="Retoma desde donde lo has dejado" />
-
-                <TextView
-                    style="@style/RsSectionSubtitle"
-                    android:text="Vuelve a lo que estabas escuchando" />
             </LinearLayout>
 
             <RelativeLayout
@@ -437,7 +401,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="20dp"
+                android:paddingHorizontal="16dp"
                 android:paddingTop="20dp"
                 android:paddingBottom="6dp">
 
@@ -445,25 +409,23 @@
                     android:id="@+id/recentFavoritesFeatured"
                     style="@style/RsSectionTitle"
                     android:text="Favoritos recientes" />
-
-                <TextView
-                    style="@style/RsSectionSubtitle"
-                    android:text="Lo último que has guardado con un corazón" />
             </LinearLayout>
 
             <RelativeLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_below="@id/recentFavoritesTextContainer"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="10dp">
+                android:paddingVertical="4dp">
 
+                <!-- Páginas horizontales de 4 filas (HomeFragment.setupSongPages). -->
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/listRecentFavoritesRecycler"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="8dp"
                     android:scrollbars="none"/>
 
                 <com.facebook.shimmer.ShimmerFrameLayout
@@ -474,7 +436,8 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:orientation="vertical"
+                        android:paddingHorizontal="8dp">
                         <include layout="@layout/item_song_shimmer_placeholder"/>
                         <include layout="@layout/item_song_shimmer_placeholder"/>
                         <include layout="@layout/item_song_shimmer_placeholder"/>
@@ -494,7 +457,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="20dp"
+                android:paddingHorizontal="16dp"
                 android:paddingTop="20dp"
                 android:paddingBottom="10dp">
 
@@ -502,10 +465,6 @@
                     android:id="@+id/artistFeatured"
                     style="@style/RsSectionTitle"
                     android:text="" />
-
-                <TextView
-                    style="@style/RsSectionSubtitle"
-                    android:text="Elegidos según lo que escuchas" />
             </LinearLayout>
 
             <RelativeLayout
@@ -564,7 +523,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="20dp"
+                android:paddingHorizontal="16dp"
                 android:paddingTop="22dp"
                 android:paddingBottom="10dp">
 
@@ -572,10 +531,6 @@
                     android:id="@+id/albumsFeatured"
                     style="@style/RsSectionTitle"
                     android:text="" />
-
-                <TextView
-                    style="@style/RsSectionSubtitle"
-                    android:text="Discos que encajan con tu gusto" />
             </LinearLayout>
 
             <RelativeLayout
@@ -626,7 +581,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="20dp"
+            android:paddingHorizontal="16dp"
             android:paddingTop="22dp"
             android:paddingBottom="6dp">
 
@@ -634,24 +589,22 @@
                 android:id="@+id/songsFeatured"
                 style="@style/RsSectionTitle"
                 android:text="" />
-
-            <TextView
-                style="@style/RsSectionSubtitle"
-                android:text="Canciones seleccionadas para ti" />
         </LinearLayout>
 
         <RelativeLayout
             android:id="@+id/listSongs"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="10dp">
+            android:layout_height="wrap_content">
 
+            <!-- Páginas horizontales de 4 filas (HomeFragment.setupSongPages). -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/allSongList"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
+                android:overScrollMode="never"
+                android:paddingHorizontal="8dp"
                 android:scrollbars="none"/>
 
             <com.facebook.shimmer.ShimmerFrameLayout
@@ -662,7 +615,8 @@
                     android:id="@+id/shimmerSongItems"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:paddingHorizontal="8dp">
                     <include layout="@layout/item_song_shimmer_placeholder" />
                     <include layout="@layout/item_song_shimmer_placeholder" />
                     <include layout="@layout/item_song_shimmer_placeholder" />
@@ -687,17 +641,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="20dp"
+            android:paddingHorizontal="16dp"
             android:paddingTop="24dp">
 
             <TextView
                 android:id="@+id/tvTopArtistsTitle"
                 style="@style/RsSectionTitle"
                 android:text="Artistas que más escuchas" />
-
-            <TextView
-                style="@style/RsSectionSubtitle"
-                android:text="Los que más suenan en tu cuenta" />
         </LinearLayout>
 
         <FrameLayout
@@ -738,17 +688,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="20dp"
+            android:paddingHorizontal="16dp"
             android:paddingTop="24dp">
 
             <TextView
                 android:id="@+id/tvTopAlbumsTitle"
                 style="@style/RsSectionTitle"
                 android:text="Álbumes más escuchados" />
-
-            <TextView
-                style="@style/RsSectionSubtitle"
-                android:text="Los discos a los que más vuelves" />
         </LinearLayout>
 
         <FrameLayout
@@ -789,7 +735,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="20dp"
+            android:paddingHorizontal="16dp"
             android:paddingTop="24dp"
             android:paddingBottom="6dp">
 
@@ -797,30 +743,27 @@
                 android:id="@+id/tvTopSongsTitle"
                 style="@style/RsSectionTitle"
                 android:text="Tus más escuchadas" />
-
-            <TextView
-                style="@style/RsSectionSubtitle"
-                android:text="Tu top personal de canciones" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/listTopSongs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="10dp"
-            android:paddingBottom="250dp">
+            android:orientation="vertical">
 
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
+                <!-- Páginas horizontales de 4 filas (HomeFragment.setupSongPages). -->
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/allTopSongList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="8dp"
                     android:scrollbars="none"/>
 
                 <com.facebook.shimmer.ShimmerFrameLayout
@@ -831,7 +774,8 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical">
+                        android:orientation="vertical"
+                        android:paddingHorizontal="8dp">
                         <include layout="@layout/item_song_shimmer_placeholder"/>
                         <include layout="@layout/item_song_shimmer_placeholder"/>
                         <include layout="@layout/item_song_shimmer_placeholder"/>
@@ -839,30 +783,6 @@
                 </com.facebook.shimmer.ShimmerFrameLayout>
             </FrameLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSeeMoreTopSongs"
-                android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginVertical="12dp"
-                android:backgroundTint="@color/rs_glass"
-                android:fontFamily="@font/unageo_semi_bold"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="22dp"
-                android:text="Ver más"
-                android:textAllCaps="false"
-                android:textColor="@color/white"
-                android:textSize="13.5sp"
-                android:visibility="gone"
-                app:cornerRadius="22dp"
-                app:icon="@drawable/ic_keyboard_arrow_down"
-                app:iconGravity="textEnd"
-                app:iconSize="18dp"
-                app:iconTint="@color/white"
-                app:strokeColor="@color/rs_glass_stroke"
-                app:strokeWidth="1dp"
-                tools:visibility="visible"/>
         </LinearLayout>
     </LinearLayout>
 

@@ -249,29 +249,22 @@ class AriaChatAdapter(
 
         // Estadísticas del usuario
         private val userStatsCard: View = view.findViewById(R.id.ariaUserStatsCard)
-        private val userStatsKindLabel: TextView = view.findViewById(R.id.userStatsKindLabel)
         private val userStatsTitle: TextView = view.findViewById(R.id.userStatsTitle)
         private val userStatsGridContainer: LinearLayout = view.findViewById(R.id.userStatsGridContainer)
+        private val userStatsPlaysCol: View = view.findViewById(R.id.userStatsPlaysCol)
+        private val userStatsHoursCol: View = view.findViewById(R.id.userStatsHoursCol)
+        private val userStatsDaysCol: View = view.findViewById(R.id.userStatsDaysCol)
         private val userStatsTotalPlaysValue: TextView = view.findViewById(R.id.userStatsTotalPlaysValue)
         private val userStatsListenHoursValue: TextView = view.findViewById(R.id.userStatsListenHoursValue)
-        private val userStatsPlaylistsValue: TextView = view.findViewById(R.id.userStatsPlaylistsValue)
         private val userStatsDaysActiveValue: TextView = view.findViewById(R.id.userStatsDaysActiveValue)
-        private val userStatsAvgPerDayValue: TextView = view.findViewById(R.id.userStatsAvgPerDayValue)
-        private val userStatsLast7dValue: TextView = view.findViewById(R.id.userStatsLast7dValue)
-        private val userStatsRow1: LinearLayout = view.findViewById(R.id.userStatsRow1)
-        private val userStatsRow2: LinearLayout = view.findViewById(R.id.userStatsRow2)
-        private val userStatsRow3: LinearLayout = view.findViewById(R.id.userStatsRow3)
-        private val userStatsDivider1: View = view.findViewById(R.id.userStatsDivider1)
-        private val userStatsFavRow: LinearLayout = view.findViewById(R.id.userStatsFavRow)
-        private val userStatsFavArtistCol: LinearLayout = view.findViewById(R.id.userStatsFavArtistCol)
-        private val userStatsFavArtistName: TextView = view.findViewById(R.id.userStatsFavArtistName)
-        private val userStatsFavGenreCol: LinearLayout = view.findViewById(R.id.userStatsFavGenreCol)
-        private val userStatsFavGenreName: TextView = view.findViewById(R.id.userStatsFavGenreName)
-        private val userStatsDivider2: View = view.findViewById(R.id.userStatsDivider2)
+        private val userStatsMetaLine: TextView = view.findViewById(R.id.userStatsMetaLine)
         private val userStatsTopArtistsContainer: LinearLayout = view.findViewById(R.id.userStatsTopArtistsContainer)
+        private val userStatsTopArtistsLabel: TextView = view.findViewById(R.id.userStatsTopArtistsLabel)
         private val userStatsTopArtistsList: LinearLayout = view.findViewById(R.id.userStatsTopArtistsList)
         private val userStatsTopGenresContainer: LinearLayout = view.findViewById(R.id.userStatsTopGenresContainer)
+        private val userStatsTopGenresLabel: TextView = view.findViewById(R.id.userStatsTopGenresLabel)
         private val userStatsTopGenresList: LinearLayout = view.findViewById(R.id.userStatsTopGenresList)
+        private val userStatsTopGenresChips: ViewGroup = view.findViewById(R.id.userStatsTopGenresChips)
         private val userStatsFavoritesContainer: LinearLayout = view.findViewById(R.id.userStatsFavoritesContainer)
         private val userStatsFavoritesList: LinearLayout = view.findViewById(R.id.userStatsFavoritesList)
         private val userStatsMoodContainer: LinearLayout = view.findViewById(R.id.userStatsMoodContainer)
@@ -300,7 +293,6 @@ class AriaChatAdapter(
 
         // Panel de canciones
         private val songCardsContainer: LinearLayout = view.findViewById(R.id.ariaSongCardsContainer)
-        private val songCardsIcon: ImageView = view.findViewById(R.id.songCardsIcon)
         private val songCardsKindLabel: TextView = view.findViewById(R.id.songCardsKindLabel)
         private val songCardsArtistName: TextView = view.findViewById(R.id.songCardsArtistName)
         private val songCardsCatalogCount: TextView = view.findViewById(R.id.songCardsCatalogCount)
@@ -641,22 +633,13 @@ class AriaChatAdapter(
             val kind = action.userStatsKind ?: "user_stats"
 
             listOf(
-                userStatsGridContainer, userStatsDivider1, userStatsFavRow, userStatsFavArtistCol,
-                userStatsFavGenreCol, userStatsDivider2, userStatsTopArtistsContainer,
+                userStatsGridContainer, userStatsMetaLine, userStatsTopArtistsContainer,
                 userStatsTopGenresContainer, userStatsFavoritesContainer, userStatsMoodContainer,
-                userStatsHistoryContainer, userStatsRow1, userStatsRow2, userStatsRow3
+                userStatsHistoryContainer
             ).forEach { it.visibility = View.GONE }
-
-            userStatsKindLabel.text = when (kind) {
-                "user_stats" -> "TU PERFIL"
-                "user_top_artists" -> "TOP ARTISTAS"
-                "user_top_genres" -> "TOP GÉNEROS"
-                "user_favorites" -> "FAVORITAS"
-                "user_history" -> "HISTORIAL"
-                "user_mood" -> "MOOD"
-                else -> "PERFIL"
-            }
-            userStatsKindLabel.visibility = View.VISIBLE
+            // Las etiquetas de sub-bloque solo hacen falta cuando la tarjeta mezcla varios datos.
+            userStatsTopArtistsLabel.visibility = View.GONE
+            userStatsTopGenresLabel.visibility = View.GONE
 
             userStatsTitle.text = when (kind) {
                 "user_stats" -> "Tus estadísticas"
@@ -678,72 +661,88 @@ class AriaChatAdapter(
             }
         }
 
+        /** Fila de 3 cifras clave; cada columna solo aparece si hay dato. */
+        private fun bindKeyNumbers(plays: Int?, hours: Double?, days: Int?) {
+            userStatsPlaysCol.visibility = if (plays != null) View.VISIBLE else View.GONE
+            userStatsHoursCol.visibility = if (hours != null) View.VISIBLE else View.GONE
+            userStatsDaysCol.visibility = if (days != null) View.VISIBLE else View.GONE
+            plays?.let { userStatsTotalPlaysValue.text = formatNumber(it) }
+            hours?.let { userStatsListenHoursValue.text = formatHours(it) }
+            days?.let { userStatsDaysActiveValue.text = it.toString() }
+            userStatsGridContainer.visibility =
+                if (plays != null || hours != null || days != null) View.VISIBLE else View.GONE
+        }
+
         private fun bindFullStats(action: AriaAction) {
-            userStatsGridContainer.visibility = View.VISIBLE
+            bindKeyNumbers(action.totalPlays, action.totalListenTimeHours, action.daysActive)
 
-            val hasPlays = action.totalPlays != null
-            val hasHours = action.totalListenTimeHours != null
-            val hasPlaylists = action.totalPlaylists != null
-            val hasDays = action.daysActive != null
-            val hasAvg = action.avgPlaysPerDay != null
-            val hasLast7 = action.totalPlaysLast7Days != null
+            val topArtists = action.topArtistsWithPlays.orEmpty()
+            val topGenres = action.topGenresWithPlays.orEmpty()
 
-            if (hasPlays || hasHours) {
-                userStatsRow1.visibility = View.VISIBLE
-                userStatsTotalPlaysValue.text = if (hasPlays) formatNumber(action.totalPlays!!) else "—"
-                userStatsListenHoursValue.text = if (hasHours) formatHours(action.totalListenTimeHours!!) else "—"
-            }
-            if (hasPlaylists || hasDays) {
-                userStatsRow2.visibility = View.VISIBLE
-                userStatsPlaylistsValue.text = if (hasPlaylists) action.totalPlaylists.toString() else "—"
-                userStatsDaysActiveValue.text = if (hasDays) action.daysActive.toString() else "—"
-            }
-            if (hasAvg || hasLast7) {
-                userStatsRow3.visibility = View.VISIBLE
-                userStatsAvgPerDayValue.text = if (hasAvg) String.format("%.1f", action.avgPlaysPerDay) else "—"
-                userStatsLast7dValue.text = if (hasLast7) formatNumber(action.totalPlaysLast7Days!!) else "—"
+            // Cifras secundarias y favoritos en una sola línea, en vez de más tiles y sub-bloques.
+            // El artista/género favorito solo se nombra si no aparece ya en el ranking.
+            val meta = mutableListOf<String>()
+            action.totalPlaylists?.let { meta.add(if (it == 1) "1 playlist" else "$it playlists") }
+            action.avgPlaysPerDay?.let { meta.add(String.format(Locale("es", "ES"), "%.1f al día", it)) }
+            action.totalPlaysLast7Days?.let { meta.add("${formatNumber(it)} en los últimos 7 días") }
+            if (topArtists.isEmpty()) action.favoriteArtist?.takeIf { it.isNotBlank() }?.let { meta.add("Artista favorito: $it") }
+            if (topGenres.isEmpty()) action.favoriteGenre?.takeIf { it.isNotBlank() }?.let { meta.add("Género favorito: $it") }
+            if (meta.isNotEmpty()) {
+                userStatsMetaLine.text = meta.joinToString(" · ")
+                userStatsMetaLine.visibility = View.VISIBLE
             }
 
-            val hasFavArtist = !action.favoriteArtist.isNullOrBlank()
-            val hasFavGenre = !action.favoriteGenre.isNullOrBlank()
-            if (hasFavArtist || hasFavGenre) {
-                userStatsDivider1.visibility = View.VISIBLE
-                userStatsFavRow.visibility = View.VISIBLE
-                if (hasFavArtist) {
-                    userStatsFavArtistCol.visibility = View.VISIBLE
-                    userStatsFavArtistName.text = action.favoriteArtist
-                }
-                if (hasFavGenre) {
-                    userStatsFavGenreCol.visibility = View.VISIBLE
-                    userStatsFavGenreName.text = action.favoriteGenre
-                }
-            }
-
-            if (!action.topArtistsWithPlays.isNullOrEmpty()) {
-                userStatsDivider2.visibility = View.VISIBLE
+            if (topArtists.isNotEmpty()) {
                 userStatsTopArtistsContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopArtistsList, action.topArtistsWithPlays)
+                userStatsTopArtistsLabel.visibility = View.VISIBLE
+                populateRankedList(userStatsTopArtistsList, topArtists)
             }
 
-            if (!action.topGenresWithPlays.isNullOrEmpty()) {
-                userStatsDivider2.visibility = View.VISIBLE
+            if (topGenres.isNotEmpty()) {
                 userStatsTopGenresContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays)
+                userStatsTopGenresLabel.visibility = View.VISIBLE
+                populateGenreChips(topGenres)
             }
         }
 
         private fun bindTopArtists(action: AriaAction) {
-            if (!action.topArtistsWithPlays.isNullOrEmpty()) {
+            val items = action.topArtistsWithPlays.orEmpty()
+            if (items.isNotEmpty()) {
                 userStatsTopArtistsContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopArtistsList, action.topArtistsWithPlays)
+                populateRankedList(userStatsTopArtistsList, items)
             }
         }
 
         private fun bindTopGenres(action: AriaAction) {
-            if (!action.topGenresWithPlays.isNullOrEmpty()) {
+            val items = action.topGenresWithPlays.orEmpty()
+            if (items.isNotEmpty()) {
                 userStatsTopGenresContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays)
+                userStatsTopGenresChips.visibility = View.GONE
+                userStatsTopGenresList.visibility = View.VISIBLE
+                populateRankedList(userStatsTopGenresList, items)
             }
+        }
+
+        /** Géneros como píldoras cuando acompañan a otro dato principal (no son el ranking en sí). */
+        private fun populateGenreChips(items: List<AriaNamePlays>) {
+            userStatsTopGenresList.removeAllViews()
+            userStatsTopGenresList.visibility = View.GONE
+            userStatsTopGenresChips.removeAllViews()
+            items.take(6).forEach { item ->
+                userStatsTopGenresChips.addView(genreChip(item.name).apply {
+                    textSize = 12f
+                    setTextColor(color(R.color.white))
+                    setPadding(dp(12f), dp(7f), dp(12f), dp(7f))
+                    layoutParams = ViewGroup.MarginLayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).also {
+                        it.marginEnd = dp(8f)
+                        it.bottomMargin = dp(8f)
+                    }
+                })
+            }
+            userStatsTopGenresChips.visibility = View.VISIBLE
         }
 
         private fun bindFavorites(action: AriaAction) {
@@ -751,23 +750,29 @@ class AriaChatAdapter(
             if (favs.isNullOrEmpty()) return
             userStatsFavoritesContainer.visibility = View.VISIBLE
             userStatsFavoritesList.removeAllViews()
-            val accent = color(R.color.aria_accent_text)
             favs.take(10).forEachIndexed { i, track ->
-                val number = String.format(Locale.ROOT, "%02d", i + 1)
-                userStatsFavoritesList.addView(TextView(context).apply {
-                    text = SpannableStringBuilder().apply {
-                        append(number)
-                        setSpan(ForegroundColorSpan(accent), 0, number.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                        append("   ")
-                        append(track.title)
-                    }
-                    setTextColor(color(if (i < 3) R.color.textEmphasisHigh else R.color.textSecondaryAlpha))
-                    textSize = 12.5f
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(6f), 0, dp(6f))
+                }
+                row.addView(TextView(context).apply {
+                    text = "${i + 1}"
+                    setTextColor(color(if (i == 0) R.color.aria_accent_text else R.color.textTheme))
+                    textSize = 13f
+                    typeface = fontBold
+                    layoutParams = LinearLayout.LayoutParams(dp(24f), LinearLayout.LayoutParams.WRAP_CONTENT)
+                })
+                row.addView(TextView(context).apply {
+                    text = track.title
+                    setTextColor(color(R.color.white))
+                    textSize = 14f
                     typeface = fontMedium
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
-                    setPadding(0, dp(5f), 0, dp(5f))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 })
+                userStatsFavoritesList.addView(row)
             }
         }
 
@@ -779,30 +784,27 @@ class AriaChatAdapter(
                 days.take(7).forEach { (date, plays) ->
                     val row = LinearLayout(context).apply {
                         orientation = LinearLayout.HORIZONTAL
-                        setPadding(0, dp(5f), 0, dp(5f))
+                        setPadding(0, dp(6f), 0, dp(6f))
                     }
                     row.addView(TextView(context).apply {
                         text = date
-                        setTextColor(color(R.color.textSecondaryAlpha))
-                        textSize = 12f
-                        typeface = fontRegular
+                        setTextColor(color(R.color.textTheme))
+                        textSize = 13f
+                        typeface = fontMedium
                         layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     })
                     row.addView(TextView(context).apply {
                         text = "$plays plays"
-                        setTextColor(color(R.color.textEmphasisHigh))
-                        textSize = 12f
-                        typeface = fontBold
+                        setTextColor(color(R.color.white))
+                        textSize = 13f
+                        typeface = fontMedium
                     })
                     userStatsHistoryList.addView(row)
                 }
             }
 
             if (action.totalPlays != null) {
-                userStatsGridContainer.visibility = View.VISIBLE
-                userStatsRow1.visibility = View.VISIBLE
-                userStatsTotalPlaysValue.text = formatNumber(action.totalPlays)
-                userStatsListenHoursValue.text = "—"
+                bindKeyNumbers(action.totalPlays, null, null)
             }
         }
 
@@ -815,14 +817,14 @@ class AriaChatAdapter(
             } else {
                 userStatsMoodTrend.visibility = View.GONE
             }
-            if (!action.topGenresWithPlays.isNullOrEmpty()) {
-                userStatsDivider1.visibility = View.VISIBLE
+            val genres = action.topGenresWithPlays.orEmpty()
+            if (genres.isNotEmpty()) {
                 userStatsTopGenresContainer.visibility = View.VISIBLE
-                populateRankedList(userStatsTopGenresList, action.topGenresWithPlays)
+                populateGenreChips(genres)
             }
         }
 
-        /** Ranking con barra proporcional; el primero con el degradado de Aria. */
+        /** Ranking con barra proporcional; el primero con el acento de Aria. */
         private fun populateRankedList(container: LinearLayout, items: List<AriaNamePlays>) {
             container.removeAllViews()
             val maxPlays = items.maxOfOrNull { it.plays }?.takeIf { it > 0 } ?: 1
@@ -863,16 +865,9 @@ class AriaChatAdapter(
                 }
                 bar.addView(View(context).apply {
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, fraction)
-                    background = if (i == 0) {
-                        GradientDrawable(
-                            GradientDrawable.Orientation.LEFT_RIGHT,
-                            intArrayOf(Color.parseColor("#FF1F3D"), Color.parseColor("#F21FD8"))
-                        ).apply { cornerRadius = 4 * density }
-                    } else {
-                        GradientDrawable().apply {
-                            cornerRadius = 4 * density
-                            setColor(color(R.color.textTertiaryAlpha))
-                        }
+                    background = GradientDrawable().apply {
+                        cornerRadius = 4 * density
+                        setColor(color(if (i == 0) R.color.aria_accent_text else R.color.textTertiaryAlpha))
                     }
                 })
                 bar.addView(View(context).apply {
@@ -910,7 +905,6 @@ class AriaChatAdapter(
         private fun bindSongDisambiguation(action: AriaAction, onChoiceClick: (String) -> Unit) {
             songCardsList.removeAllViews()
             songCardsList.dividerDrawable = ContextCompat.getDrawable(context, R.drawable.divider_aria_choice_row)
-            songCardsIcon.setImageResource(R.drawable.ic_song)
             songCardsKindLabel.text = AriaSongDisambiguationUi.CARD_TITLE
             songCardsArtistName.visibility = View.GONE
             songCardsCatalogCount.text = "Toca la que quieras y sigo"
@@ -1021,13 +1015,6 @@ class AriaChatAdapter(
                 isPreview && action.type == "descubrir" -> "DESCUBRIMIENTOS"
                 else -> "CANCIONES RECOMENDADAS"
             }
-            songCardsIcon.setImageResource(
-                when {
-                    isPreview && action.type == "crear_playlist" -> R.drawable.ic_playlist_stack
-                    isPreview && action.type == "añadir_canciones" -> R.drawable.ic_queue_add
-                    else -> R.drawable.ic_song
-                }
-            )
 
             if (!action.songRecArtistName.isNullOrBlank()) {
                 songCardsArtistName.text = action.songRecArtistName
@@ -1199,10 +1186,10 @@ class AriaChatAdapter(
         ) {
             relatedArtistsList.removeAllViews()
             relatedArtistsLabel.text = if (action.seedSource == "perfil") {
-                "BASADO EN LO QUE ESCUCHAS"
+                "Basado en lo que escuchas"
             } else {
                 val reference = action.referenceArtist ?: action.entityName
-                reference?.let { "PARECIDOS A ${it.uppercase()}" } ?: "ARTISTAS RELACIONADOS"
+                reference?.let { "Parecidos a $it" } ?: "Artistas relacionados"
             }
 
             val inflater = LayoutInflater.from(context)
@@ -1256,11 +1243,13 @@ class AriaChatAdapter(
                 followupsRow.addView(TextView(context).apply {
                     text = prompt
                     setTextColor(color(R.color.white))
-                    textSize = 12.5f
+                    textSize = 13f
                     typeface = fontMedium
                     gravity = Gravity.CENTER_VERTICAL
                     background = ContextCompat.getDrawable(context, R.drawable.bg_aria_prompt_chip)
-                    setPadding(dp(12f), dp(9f), dp(14f), dp(9f))
+                    minHeight = dp(40f)
+                    maxLines = 1
+                    setPadding(dp(14f), dp(8f), dp(16f), dp(8f))
                     compoundDrawablePadding = dp(7f)
                     val star = ContextCompat.getDrawable(context, R.drawable.ic_star_ai)?.mutate()?.apply {
                         setBounds(0, 0, dp(12f), dp(12f))

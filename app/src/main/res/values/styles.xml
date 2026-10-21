@@ -454,4 +454,111 @@
         <item name="android:textColor">#80FFFFFF</item>
         <item name="android:textSize">10sp</item>
     </style>
+
+    <!-- ═══ Barra superior: la misma en todas las pantallas ═══
+         TopBar (LinearLayout horizontal de 56dp) + TopBar.Back + TopBar.Title + TopBar.Action.
+         El paddingHorizontal de 4dp más el padding de 12dp de los botones de 48dp deja el icono a 16dp del borde,
+         alineado con el margen de pantalla. Pantallas fijas: título bold 20sp a la izquierda. Fichas y cabeceras
+         plegables: TopBar.Title.Collapsed (16sp) que aparece al plegar. Sobre portada: variantes OnImage. -->
+    <style name="TopBar">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingEnd">4dp</item>
+    </style>
+
+    <style name="TopBar.Back">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:src">@drawable/ic_nav_back</item>
+        <item name="tint">@color/white</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:contentDescription">Volver</item>
+        <item name="android:tooltipText">Volver</item>
+    </style>
+
+    <!-- Sobre portada o foto: círculo translúcido y blanco literal (el fondo es la imagen, no el tema). -->
+    <style name="TopBar.Back.OnImage">
+        <item name="android:padding">13dp</item>
+        <item name="android:background">@drawable/bg_top_bar_button_on_image</item>
+        <item name="tint">@android:color/white</item>
+    </style>
+
+    <style name="TopBar.Title">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:accessibilityHeading">true</item>
+    </style>
+
+    <!-- Título de barra que aparece al plegar una cabecera (fichas, rankings, biblioteca). -->
+    <style name="TopBar.Title.Collapsed">
+        <item name="android:textSize">16sp</item>
+        <item name="android:alpha">0</item>
+    </style>
+
+    <style name="TopBar.Title.Collapsed.OnImage">
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
+    <style name="TopBar.Action">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="tint">@color/white</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+    </style>
+
+    <style name="TopBar.Action.OnImage">
+        <item name="android:padding">13dp</item>
+        <item name="android:background">@drawable/bg_top_bar_button_on_image</item>
+        <item name="tint">@android:color/white</item>
+    </style>
+
+    <!-- Chip de filtro (Buscar): píldora rellena sin borde, 36dp visibles y 48dp de área táctil. -->
+    <style name="FilterChip" parent="Widget.MaterialComponents.Chip.Choice">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:checkable">true</item>
+        <item name="android:textColor">@color/chip_text_color_selector</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">@font/unageo_medium</item>
+        <item name="chipBackgroundColor">@color/chip_filter_background</item>
+        <item name="chipCornerRadius">18dp</item>
+        <item name="chipMinHeight">36dp</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipStartPadding">6dp</item>
+        <item name="chipEndPadding">6dp</item>
+        <item name="textStartPadding">8dp</item>
+        <item name="textEndPadding">8dp</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="ensureMinTouchTargetSize">true</item>
+    </style>
+
+    <!-- Acción de texto en la barra ("Marcar todo", "Guardar"): rojo de marca, 48dp de alto. -->
+    <style name="TopBar.TextAction">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/secondaryColorTheme</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+    </style>
 </resources>

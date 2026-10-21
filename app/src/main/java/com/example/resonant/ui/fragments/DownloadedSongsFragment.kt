@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.StatFs
 import android.text.format.Formatter
@@ -15,7 +14,6 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.OptIn
-import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.Lifecycle
@@ -127,10 +125,6 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
         storageFreeText = header.findViewById(R.id.storageFreeText)
         storageProgress = header.findViewById(R.id.storageProgress)
         storageProgress.setIndicatorColor(accent.color)
-        header.findViewById<View>(R.id.tipIconBadge).background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(ColorUtils.setAlphaComponent(accent.color, 0x2E))
-        }
         header.findViewById<ImageView>(R.id.tipIcon).imageTintList = ColorStateList.valueOf(accent.color)
 
         setupTip()

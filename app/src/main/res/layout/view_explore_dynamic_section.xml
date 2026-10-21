@@ -22,7 +22,7 @@
         android:ellipsize="end"
         android:fontFamily="@font/unageo_regular"
         android:maxLines="1"
-        android:paddingHorizontal="18dp"
+        android:paddingHorizontal="16dp"
         android:textColor="@color/textTheme"
         android:textSize="13sp"
         android:visibility="gone"

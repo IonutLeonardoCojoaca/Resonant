@@ -12,47 +12,20 @@
         android:orientation="vertical">
 
         <!-- Top Bar -->
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <LinearLayout
             android:id="@+id/topBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@android:color/transparent"
-            android:padding="16dp">
+            style="@style/TopBar">
 
-            <FrameLayout
+            <ImageButton
                 android:id="@+id/arrowGoBackButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/background_circle_transparent"
-                android:clickable="true"
-                android:focusable="true"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent">
-
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_arrow_back"
-                    app:tint="@color/white" />
-
-            </FrameLayout>
+                style="@style/TopBar.Back"
+                android:contentDescription="Volver" />
 
             <TextView
                 android:id="@+id/title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Todos los Géneros"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:layout_marginStart="16dp"
-                android:fontFamily="@font/unageo_bold"
-                app:layout_constraintStart_toEndOf="@id/arrowGoBackButton"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"/>
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
+                style="@style/TopBar.Title"
+                android:text="Todos los Géneros" />
+        </LinearLayout>
 
         <FrameLayout
             android:layout_width="match_parent"

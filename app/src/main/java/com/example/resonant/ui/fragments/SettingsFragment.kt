@@ -46,7 +46,6 @@ import com.example.resonant.ui.dialogs.ResonantDialog
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.whatsnew.WhatsNewDialog
 import com.example.resonant.utils.VersionProvider
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +93,10 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         settingsManager = SettingsManager(requireContext())
+
+        binding.settingsBack.setOnClickListener {
+            runCatching { NavHostFragment.findNavController(this).navigateUp() }
+        }
 
         setupTransitionStyle()
         setupAlbumGapless()
@@ -435,13 +438,12 @@ class SettingsFragment : Fragment() {
         bindNavRow(binding.rowLiveDj, R.drawable.ic_radio, R.string.live_dj_setting_label, null) {
             viewLifecycleOwner.lifecycleScope.launch {
                 val current = settingsManager.liveDjModeFlow.first()
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(R.string.live_dj_setting_label)
-                    .setSingleChoiceItems(modes.map { it.second }.toTypedArray(), modes.indexOfFirst { it.first == current }) { dialog, which ->
+                ResonantDialog(requireContext())
+                    .setTitle(getString(R.string.live_dj_setting_label))
+                    .setChoices(modes.map { it.second }, modes.indexOfFirst { it.first == current }) { which ->
                         viewLifecycleOwner.lifecycleScope.launch { settingsManager.setLiveDjMode(modes[which].first) }
-                        dialog.dismiss()
                     }
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNegativeButton(getString(android.R.string.cancel))
                     .show()
             }
         }

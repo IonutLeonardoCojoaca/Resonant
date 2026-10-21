@@ -50,7 +50,7 @@
         android:letterSpacing="0.16"
         android:text="● Radio"
         android:textAllCaps="true"
-        android:textColor="#FFD43B"
+        android:textColor="@color/radio_accent_text"
         android:textSize="9sp" />
 
     <TextView
@@ -64,7 +64,7 @@
         android:includeFontPadding="false"
         android:maxLines="1"
         android:paddingHorizontal="12dp"
-        android:textColor="@android:color/white"
+        android:textColor="@color/white"
         android:textSize="15sp"
         tools:text="Bad Bunny" />
 
@@ -76,6 +76,6 @@
         android:fontFamily="@font/unageo_medium"
         android:includeFontPadding="false"
         android:text="Mezcla sin fin"
-        android:textColor="#99FFFFFF"
+        android:textColor="@color/textSecondaryAlpha"
         android:textSize="11sp" />
 </LinearLayout>

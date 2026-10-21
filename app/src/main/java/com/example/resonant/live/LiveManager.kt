@@ -101,6 +101,9 @@ class LiveManager internal constructor(
         return body
     }
 
+    /** Last channel listing of this app session, whatever its age (to paint at once while [loadChannels] revalidates). */
+    fun lastChannels(): LiveChannelsResponseDTO? = channelsCache
+
     /** `/now` for the broadcast screen without tuning in. */
     suspend fun peek(slug: String): LiveNowResult {
         if (!isFeatureEnabled(false)) return LiveNowResult.Failure(LiveFailure.DISABLED, LiveErrors.MESSAGE_DISABLED)

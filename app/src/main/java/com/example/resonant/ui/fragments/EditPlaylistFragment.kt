@@ -12,7 +12,6 @@ import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.ui.viewmodels.EditPlaylistViewModel
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
-import com.example.resonant.utils.Utils
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
@@ -30,7 +29,6 @@ class EditPlaylistFragment : BaseFragment(R.layout.fragment_edit_playlist) {
     private var currentPlaylist: Playlist? = null
 
     private lateinit var playlistImage: ImageView // 1. Nueva variable
-    private lateinit var userProfile: ImageView
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -58,10 +56,10 @@ class EditPlaylistFragment : BaseFragment(R.layout.fragment_edit_playlist) {
 
         // 2. Inicializar vistas nuevas
         playlistImage = view.findViewById(R.id.playlistImage)
-        userProfile = view.findViewById(R.id.userProfile)
 
-        // Cargar foto de perfil del usuario (arriba a la derecha)
-        viewLifecycleOwner.lifecycleScope.launch { Utils.loadUserProfile(requireContext(), userProfile) }
+        view.findViewById<View>(R.id.btnBack).setOnClickListener {
+            findNavController().popBackStack()
+        }
     }
 
     private fun setupListeners() {

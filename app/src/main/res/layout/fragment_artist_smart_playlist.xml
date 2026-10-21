@@ -20,7 +20,9 @@
             android:layout_height="match_parent"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:contentScrim="@color/primaryColorTheme"
-            app:expandedTitleTextColor="@android:color/transparent">
+            app:expandedTitleTextColor="@android:color/transparent"
+            app:titleEnabled="false"
+            app:toolbarId="@id/topBar">
 
             <!-- Artist/Cover Image with parallax -->
             <ImageView
@@ -121,63 +123,24 @@
 
             </LinearLayout>
 
-            <Toolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                app:layout_collapseMode="pin"
-                app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-                android:background="@android:color/transparent"
-                app:contentInsetStart="0dp"
-                app:contentInsetLeft="0dp"
-                app:contentInsetStartWithNavigation="0dp"
-                android:contentInsetStart="0dp"
-                android:contentInsetLeft="0dp"
-                android:paddingStart="0dp"
-                android:paddingLeft="0dp">
+            <!-- Barra estándar fija (TopBar): atrás sobre la portada + título que aparece al 75 % del plegado.
+                 Al plegar, el atrás pasa de la variante OnImage a la del tema (OnImageTopBar). -->
+            <LinearLayout
+                android:id="@+id/topBar"
+                style="@style/TopBar"
+                android:layout_gravity="top"
+                app:layout_collapseMode="pin">
 
-                <androidx.constraintlayout.widget.ConstraintLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent">
+                <ImageButton
+                    android:id="@+id/arrowGoBackButton"
+                    style="@style/TopBar.Back.OnImage" />
 
-                    <FrameLayout
-                        android:id="@+id/arrowGoBackButton"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_marginStart="16dp"
-                        android:background="@drawable/bg_accent_pill"
-                        android:clickable="true"
-                        android:focusable="true"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintBottom_toBottomOf="parent">
-
-                        <ImageView
-                            android:layout_width="22dp"
-                            android:layout_height="22dp"
-                            android:layout_gravity="center"
-                            android:src="@drawable/ic_arrow_back"
-                            app:tint="@android:color/white" />
-
-                    </FrameLayout>
-
-                    <TextView
-                        android:id="@+id/toolbarTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:alpha="0"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintBottom_toBottomOf="parent"
-                        tools:text="Imprescindibles" />
-
-                </androidx.constraintlayout.widget.ConstraintLayout>
-
-            </Toolbar>
+                <TextView
+                    android:id="@+id/toolbarTitle"
+                    style="@style/TopBar.Title.Collapsed"
+                    android:layout_marginEnd="12dp"
+                    tools:text="Imprescindibles" />
+            </LinearLayout>
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 
@@ -281,7 +244,7 @@
                     android:text="No hay canciones disponibles"
                     android:textSize="15sp"
                     android:fontFamily="@font/unageo_medium"
-                    android:textColor="#66FFFFFF"
+                    android:textColor="@color/textTertiaryAlpha"
                     android:layout_marginTop="16dp" />
 
             </LinearLayout>

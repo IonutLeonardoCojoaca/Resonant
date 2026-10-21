@@ -22,44 +22,22 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <LinearLayout
         android:id="@+id/superiorToolbar"
-        android:layout_width="match_parent"
-        android:layout_height="54dp"
-        android:paddingHorizontal="14dp"
+        style="@style/TopBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <ImageView
+        <ImageButton
             android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:contentDescription="Atrás"
-            android:focusable="true"
-            android:padding="8dp"
-            android:src="@drawable/ic_arrow_back"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:tint="@color/white" />
+            style="@style/TopBar.Back"
+            android:contentDescription="Volver" />
 
         <TextView
             android:id="@+id/tvWordmark"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/unageo_extra_bold"
-            android:letterSpacing="0.18"
-            android:text="COLLAB FINDER"
-            android:textColor="#8C9DFF"
-            android:textSize="12sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            style="@style/TopBar.Title"
+            android:text="Collab Finder" />
+    </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/contentScroll"

@@ -9,12 +9,11 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
@@ -37,6 +36,7 @@ import com.example.resonant.ui.adapters.AlbumAdapter
 import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.SelectPlaylistBottomSheet
 import com.example.resonant.ui.bottomsheets.SongOptionsBottomSheet
+import com.example.resonant.ui.components.OnImageTopBar
 import com.example.resonant.ui.viewmodels.ArtistViewModel
 import com.example.resonant.ui.viewmodels.DownloadViewModel
 import com.example.resonant.ui.viewmodels.FavoritesViewModel
@@ -59,11 +59,11 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     private lateinit var artistImage: ImageView
     private lateinit var artistNameTopBar: TextView
     private lateinit var artistNameTextView: TextView
-    private lateinit var arrowGoBackButton: FrameLayout
-    private lateinit var favoriteButton: FrameLayout
+    private lateinit var arrowGoBackButton: ImageButton
+    private lateinit var favoriteButton: ImageButton
     private lateinit var favoriteIcon: ImageView
     private lateinit var nestedScroll: NestedScrollView
-    private lateinit var topBar: ConstraintLayout
+    private lateinit var topBar: View
     private lateinit var artistDescription: TextView
 
     private lateinit var descriptionContainer: LinearLayout
@@ -178,10 +178,10 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         artistImage = view.findViewById(R.id.artistImage)
         artistNameTextView = view.findViewById(R.id.artistName)
         artistNameTopBar = view.findViewById(R.id.albumTopBarText)
-        arrowGoBackButton = view.findViewById(R.id.arrowGoBackBackground)
-        favoriteButton = view.findViewById(R.id.favoriteBackground)
+        arrowGoBackButton = view.findViewById(R.id.arrowGoBackButton)
+        favoriteButton = view.findViewById(R.id.favoriteButton)
         nestedScroll = view.findViewById(R.id.nested_scroll)
-        favoriteIcon = view.findViewById(R.id.favoriteButton)
+        favoriteIcon = favoriteButton
         topBar = view.findViewById(R.id.topBar)
         artistDescription = view.findViewById(R.id.artistDescription)
         descriptionContainer = view.findViewById(R.id.descriptionContainer)
@@ -386,8 +386,9 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
     }
 
     private fun setupScrollListener() {
-        val startFade = 200
-        val endFade = 500
+        val density = resources.displayMetrics.density
+        val startFade = 200 * density
+        val endFade = 500 * density
 
         // 1. OBTENER TU COLOR DEL TEMA (Fuera del loop para rendimiento)
         // Usamos requireContext() asumiendo que estás en un Fragment
@@ -400,18 +401,20 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
 
         artistNameTopBar.visibility = View.INVISIBLE
         artistNameTopBar.alpha = 0f
+        OnImageTopBar.prepare(arrowGoBackButton, favoriteButton)
 
         nestedScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val parallaxFactor = 0.3f
             val offset = -scrollY * parallaxFactor
             artistImage.translationY = offset
 
-            val progress = ((scrollY - startFade).toFloat() / (endFade - startFade).toFloat()).coerceIn(0f, 1f)
+            val progress = ((scrollY - startFade) / (endFade - startFade)).coerceIn(0f, 1f)
             val alpha = (progress * 255).toInt()
 
             // 3. APLICAR EL ALPHA CALCULADO A TU COLOR RGB
             // En lugar de (alpha, 0, 0, 0), usamos tus variables r, g, b
             topBar.setBackgroundColor(Color.argb(alpha, red, green, blue))
+            OnImageTopBar.update(progress, arrowGoBackButton, favoriteButton)
 
             if (progress > 0f) {
                 if (artistNameTopBar.visibility != View.VISIBLE) artistNameTopBar.visibility = View.VISIBLE

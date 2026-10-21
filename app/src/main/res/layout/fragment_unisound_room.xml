@@ -10,47 +10,17 @@
     android:orientation="vertical">
 
     <!-- Top bar -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="14dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="4dp">
+    <LinearLayout style="@style/TopBar">
 
-        <FrameLayout
+        <ImageButton
             android:id="@+id/unisoundBackButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:scaleX="0.8"
-                android:scaleY="0.8"
-                android:background="@drawable/ic_arrow_back"
-                android:contentDescription="Volver"
-                android:clickable="false"
-                android:focusable="false" />
-
-        </FrameLayout>
+            style="@style/TopBar.Back"
+            android:contentDescription="Volver" />
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:fontFamily="@font/unageo_bold"
-            android:text="Unisound"
-            android:textColor="@color/white"
-            android:textSize="22sp"
-            app:layout_constraintBottom_toBottomOf="@id/unisoundBackButton"
-            app:layout_constraintStart_toEndOf="@id/unisoundBackButton"
-            app:layout_constraintTop_toTopOf="@id/unisoundBackButton" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            style="@style/TopBar.Title"
+            android:text="Unisound" />
+    </LinearLayout>
 
     <!-- Header -->
     <LinearLayout

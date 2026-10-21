@@ -205,7 +205,9 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         // Barra superior: aparece con su título cuando la cabecera se va.
         val bar = ((scrollY - heroH * 0.45f) / (heroH * 0.35f)).coerceIn(0f, 1f)
         b.topBarBackground.alpha = bar
-        b.topBarBackground.elevation = 4.dp * bar
+        // La elevación va en la barra entera: si fuese en su fondo, el fondo se dibujaría encima de sus hermanos
+        // (atrás, título y Guardar) y los taparía al hacer scroll.
+        b.topBar.elevation = 4.dp * bar
         b.editorTitle.alpha = bar
     }
 

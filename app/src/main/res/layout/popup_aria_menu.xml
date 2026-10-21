@@ -30,7 +30,7 @@
                 android:layout_height="14dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_info"
-                app:tint="#AAAAAA"/>
+                app:tint="@color/textTheme"/>
         </FrameLayout>
 
         <LinearLayout
@@ -87,7 +87,7 @@
                 android:layout_height="14dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_delete"
-                app:tint="#E21616"/>
+                app:tint="@color/errorColor"/>
         </FrameLayout>
 
         <LinearLayout
@@ -99,14 +99,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Borrar memoria"
-                android:textColor="#E21616"
+                android:textColor="@color/errorColor"
                 android:textSize="13sp"
                 android:fontFamily="@font/unageo_medium"/>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Reiniciar conversación"
-                android:textColor="#662222"
+                android:textColor="@color/textTheme"
                 android:textSize="11sp"
                 android:fontFamily="@font/unageo_regular"
                 android:layout_marginTop="1dp"/>

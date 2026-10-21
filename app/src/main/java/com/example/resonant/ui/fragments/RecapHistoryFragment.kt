@@ -29,6 +29,7 @@ class RecapHistoryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        view.findViewById<View>(R.id.recapHistoryBack).setOnClickListener { findNavController().navigateUp() }
         adapter = RecapHistoryAdapter { recap ->
             findNavController().navigate(
                 R.id.recapStoriesFragment,

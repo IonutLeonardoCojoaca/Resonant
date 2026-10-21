@@ -1,22 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tarjeta de artista relacionado (carrusel de Aria). -->
+<!-- Artista relacionado en el carrusel de Aria: foto circular protagonista + nombre + motivo,
+     sin panel alrededor (como los carruseles de artistas del resto de la app). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="150dp"
+    android:layout_width="132dp"
     android:layout_height="wrap_content"
-    android:layout_marginEnd="10dp"
-    android:background="@drawable/bg_aria_glass_panel"
+    android:layout_marginEnd="12dp"
+    android:background="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:foreground="?attr/selectableItemBackground"
-    android:minHeight="176dp"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:paddingBottom="4dp"
     android:stateListAnimator="@animator/explore_quick_card_press">
 
     <FrameLayout
         android:id="@+id/relatedArtistAvatarFrame"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
+        android:layout_width="132dp"
+        android:layout_height="132dp"
         android:clipToOutline="true">
 
         <TextView
@@ -25,8 +24,9 @@
             android:layout_height="match_parent"
             android:fontFamily="@font/unageo_bold"
             android:gravity="center"
+            android:importantForAccessibility="no"
             android:textColor="@android:color/white"
-            android:textSize="20sp" />
+            android:textSize="30sp" />
 
         <ImageView
             android:id="@+id/relatedArtistImage"
@@ -40,41 +40,35 @@
         android:id="@+id/relatedArtistName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:ellipsize="end"
-        android:fontFamily="@font/unageo_bold"
+        android:fontFamily="@font/unageo_medium"
+        android:gravity="center_horizontal"
         android:maxLines="1"
         android:textColor="@color/white"
-        android:textSize="13.5sp" />
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/relatedArtistReason"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="2dp"
         android:ellipsize="end"
-        android:fontFamily="@font/unageo_regular"
-        android:lineSpacingExtra="1dp"
-        android:maxLines="3"
+        android:fontFamily="@font/unageo_medium"
+        android:gravity="center_horizontal"
+        android:maxLines="2"
         android:textColor="@color/textTheme"
-        android:textSize="11sp" />
-
-    <Space
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:textSize="12sp" />
 
     <TextView
         android:id="@+id/relatedArtistMatch"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/bg_aria_genre_chip"
-        android:backgroundTint="@color/aria_accent_soft"
-        android:fontFamily="@font/unageo_bold"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="3dp"
+        android:layout_marginTop="2dp"
+        android:fontFamily="@font/unageo_medium"
+        android:gravity="center_horizontal"
+        android:maxLines="1"
         android:textColor="@color/aria_accent_text"
-        android:textSize="9.5sp"
+        android:textSize="12sp"
         android:visibility="gone" />
 </LinearLayout>

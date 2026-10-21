@@ -1,16 +1,23 @@
 package com.example.resonant.ui.adapters
 
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
 import com.example.resonant.aria.AriaIntent
 import com.example.resonant.aria.AriaIntentCategory
 
-class AriaInfoAdapter(private val items: List<Any>) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+/**
+ * Lista de "Qué puede hacer Aria". [onIntentClick] recibe el ejemplo de la capacidad tocada
+ * (solo las que tienen ejemplo son pulsables).
+ */
+class AriaInfoAdapter(
+    private val items: List<Any>,
+    private val onIntentClick: (String) -> Unit = {}
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
         private const val TYPE_CATEGORY = 0
@@ -51,22 +58,39 @@ class AriaInfoAdapter(private val items: List<Any>) : RecyclerView.Adapter<Recyc
     override fun getItemCount(): Int = items.size
 
     inner class CategoryViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val iconView: ImageView = itemView.findViewById(R.id.categoryIcon)
         private val titleView: TextView = itemView.findViewById(R.id.categoryTitle)
 
         fun bind(category: AriaIntentCategory) {
-            iconView.setImageResource(category.iconRes)
             titleView.text = category.title
         }
     }
 
     inner class IntentViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val row: View = itemView.findViewById(R.id.intentRow)
         private val titleView: TextView = itemView.findViewById(R.id.intentTitle)
         private val descView: TextView = itemView.findViewById(R.id.intentDescription)
+        private val rippleRes: Int = TypedValue().let { tv ->
+            itemView.context.theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+            tv.resourceId
+        }
+
+        init {
+            row.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
+                val intent = items[pos] as? AriaIntent ?: return@setOnClickListener
+                if (intent.example.isNotBlank()) onIntentClick(intent.example)
+            }
+        }
 
         fun bind(intent: AriaIntent) {
             titleView.text = intent.id
             descView.text = intent.description
+            val actionable = intent.example.isNotBlank()
+            row.isClickable = actionable
+            row.isFocusable = actionable
+            if (actionable) row.setBackgroundResource(rippleRes) else row.background = null
+            row.contentDescription = if (actionable) "${intent.id}. ${intent.description}. Toca para pedírselo a Aria" else null
         }
     }
 }

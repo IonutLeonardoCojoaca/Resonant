@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Campo de búsqueda: píldora rellena, sin borde (se distingue por el relleno, no por una caja). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/cardsTheme" />
+    <corners android:radius="24dp" />
+</shape>

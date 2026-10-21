@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Marco de la portada de una PlayMix en estantería: recorta portada, scrim y raíl con las esquinas. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
+    <solid android:color="@color/cardsTheme" />
     <corners android:radius="14dp" />
-    <solid android:color="@color/surfaceCardOverlay" />
 </shape>

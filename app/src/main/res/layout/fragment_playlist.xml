@@ -9,75 +9,32 @@
     android:background="@color/primaryColorTheme">
 
     <!-- Fixed top bar -->
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <LinearLayout
         android:id="@+id/topBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp"
+        style="@style/TopBar"
         android:layout_alignParentTop="true">
 
         <ImageButton
             android:id="@+id/arrowGoBackButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:scaleX="0.8"
-            android:scaleY="0.8"
-            android:background="@color/transparent"
-            android:src="@drawable/ic_arrow_back"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            style="@style/TopBar.Back"
+            android:contentDescription="Volver" />
 
         <TextView
             android:id="@+id/playlistText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_medium"
-            android:gravity="center"
-            android:maxLines="1"
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/playlistFavoriteButton"
-            app:layout_constraintStart_toEndOf="@+id/arrowGoBackButton"
-            app:layout_constraintTop_toTopOf="parent" />
+            style="@style/TopBar.Title" />
 
         <ImageButton
             android:id="@+id/playlistFavoriteButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            style="@style/TopBar.Action"
             android:contentDescription="Guardar playlist"
-            android:padding="9dp"
-            android:src="@drawable/ic_favorite_border"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/settingsBackground"
-            app:layout_constraintTop_toTopOf="parent"
-            app:tint="@color/white" />
+            android:src="@drawable/ic_favorite_border" />
 
-        <FrameLayout
+        <ImageButton
             android:id="@+id/settingsBackground"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/settingsButton"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="center"
-                android:background="@drawable/ic_item_settings_vertical"
-                android:clickable="false"
-                android:focusable="false" />
-
-        </FrameLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            style="@style/TopBar.Action"
+            android:contentDescription="Opciones"
+            android:src="@drawable/ic_item_settings_vertical" />
+    </LinearLayout>
 
     <!-- Main scrollable content -->
     <androidx.core.widget.NestedScrollView
@@ -211,7 +168,7 @@
                         android:layout_width="14dp"
                         android:layout_height="14dp"
                         android:src="@drawable/ic_sound"
-                        app:tint="#77FFFFFF"
+                        app:tint="@color/textSecondaryAlpha"
                         android:layout_marginEnd="5dp" />
 
                     <TextView

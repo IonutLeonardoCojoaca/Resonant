@@ -245,46 +245,32 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Barra superior: transparente sobre el banner, opaca al hacer scroll -->
+    <!-- Barra estándar (TopBar): transparente sobre el banner, opaca al hacer scroll. Los iconos usan la
+         variante OnImage hasta que el fondo es opaco y entonces pasan a la del tema (OnImageTopBar). -->
     <FrameLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:paddingHorizontal="12dp">
+        android:layout_height="56dp">
 
         <View
             android:id="@+id/topBarBackground"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginHorizontal="-12dp"
             android:alpha="0"
             android:background="@color/primaryColorTheme" />
 
-        <ImageButton
-            android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="start|center_vertical"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Atrás"
-            android:padding="8dp"
-            android:src="@drawable/ic_arrow_back"
-            app:tint="@color/white" />
+        <LinearLayout style="@style/TopBar">
 
-        <TextView
-            android:id="@+id/tvToolbarTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:alpha="0"
-            android:ellipsize="end"
-            android:fontFamily="@font/unageo_bold"
-            android:gravity="center"
-            android:maxLines="1"
-            android:paddingHorizontal="48dp"
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            tools:text="Future × Lil Uzi Vert" />
+            <ImageButton
+                android:id="@+id/btnBack"
+                style="@style/TopBar.Back.OnImage" />
+
+            <TextView
+                android:id="@+id/tvToolbarTitle"
+                style="@style/TopBar.Title.Collapsed"
+                android:layout_marginEnd="12dp"
+                tools:text="Future × Lil Uzi Vert" />
+        </LinearLayout>
     </FrameLayout>
 
     <!-- Carga: el motivo de órbitas de Collab Finder -->

@@ -19,24 +19,30 @@
             android:layout_height="290dp"
             app:contentScrim="@color/primaryColorTheme"
             app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
-            app:statusBarScrim="@color/primaryColorTheme"
             app:titleEnabled="false"
-            app:toolbarId="@+id/toolbar">
+            app:toolbarId="@id/topBar">
 
             <!-- Hero por capas con parallax (ChartHero) -->
             <include
                 android:id="@+id/chartHero"
                 layout="@layout/view_chart_hero" />
 
-            <androidx.appcompat.widget.Toolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                app:contentInsetStartWithNavigation="0dp"
-                app:layout_collapseMode="pin"
-                app:navigationContentDescription="Atras"
-                app:navigationIcon="@drawable/ic_arrow_back"
-                app:navigationIconTint="@color/white" />
+            <!-- Barra estándar fija (TopBar): atrás + título que aparece al plegar (ChartHero). -->
+            <LinearLayout
+                android:id="@+id/topBar"
+                style="@style/TopBar"
+                android:layout_gravity="top"
+                app:layout_collapseMode="pin">
+
+                <ImageButton
+                    android:id="@+id/btnBack"
+                    style="@style/TopBar.Back" />
+
+                <TextView
+                    android:id="@+id/tvToolbarTitle"
+                    style="@style/TopBar.Title.Collapsed"
+                    android:text="PlayMix públicas" />
+            </LinearLayout>
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 
@@ -152,8 +158,8 @@
             android:id="@+id/stateContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginBottom="80dp"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="48dp"
             android:gravity="center"
             android:orientation="vertical"
             android:paddingHorizontal="32dp"
@@ -165,7 +171,7 @@
                 android:layout_height="64dp"
                 android:importantForAccessibility="no"
                 android:src="@drawable/ic_playmix"
-                app:tint="#44FFFFFF" />
+                app:tint="@color/textTertiaryAlpha" />
 
             <TextView
                 android:id="@+id/tvStateTitle"
@@ -175,7 +181,7 @@
                 android:fontFamily="@font/unageo_bold"
                 android:gravity="center"
                 android:text="No hay PlayMix públicas"
-                android:textColor="#AAFFFFFF"
+                android:textColor="@color/textSecondaryAlpha"
                 android:textSize="16sp" />
 
             <TextView
@@ -186,7 +192,7 @@
                 android:fontFamily="@font/unageo_medium"
                 android:gravity="center"
                 android:text="Sé el primero en compartir la tuya"
-                android:textColor="#66FFFFFF"
+                android:textColor="@color/textTertiaryAlpha"
                 android:textSize="13sp" />
 
             <TextView
@@ -194,7 +200,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
                 android:layout_marginTop="18dp"
-                android:background="@drawable/bg_public_playlists_count_pill"
+                android:background="@drawable/bg_public_retry_pill"
                 android:clickable="true"
                 android:focusable="true"
                 android:fontFamily="@font/unageo_bold"

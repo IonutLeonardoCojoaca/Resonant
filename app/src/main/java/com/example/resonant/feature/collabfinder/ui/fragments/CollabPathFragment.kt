@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import com.example.resonant.databinding.FragmentCollabPathBinding
 import com.example.resonant.feature.collabfinder.ui.viewmodel.CollabFinderViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -28,7 +29,9 @@ class CollabPathFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
+        binding.btnBack.setOnClickListener { findNavController().navigateUp() }
+
         binding.btnFindPath.setOnClickListener {
             val fromId = binding.etFromArtist.text.toString()
             val toId = binding.etToArtist.text.toString()

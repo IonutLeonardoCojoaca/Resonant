@@ -24,46 +24,35 @@
             android:layout_height="250dp"
             app:contentScrim="@color/primaryColorTheme"
             app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
-            app:titleEnabled="false">
+            app:titleEnabled="false"
+            app:toolbarId="@id/topBar">
 
             <include
                 android:id="@+id/libraryHero"
                 layout="@layout/view_chart_hero" />
 
-            <androidx.appcompat.widget.Toolbar
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                app:contentInsetStart="0dp"
+            <!-- Barra estándar de pestaña (TopBar): avatar en el sitio del atrás + título que aparece al plegar. -->
+            <LinearLayout
+                android:id="@+id/topBar"
+                style="@style/TopBar"
+                android:layout_gravity="top"
                 app:layout_collapseMode="pin">
 
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:paddingHorizontal="14dp">
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/userProfile"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="12dp"
+                    android:contentDescription="Perfil"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_user"
+                    app:shapeAppearanceOverlay="@style/CircularUserImage" />
 
-                    <TextView
-                        android:id="@+id/tvToolbarTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="start|center_vertical"
-                        android:layout_marginStart="48dp"
-                        android:alpha="0"
-                        android:fontFamily="@font/unageo_bold"
-                        android:text="Biblioteca"
-                        android:textColor="@color/white"
-                        android:textSize="20sp" />
-
-                    <com.google.android.material.imageview.ShapeableImageView
-                        android:id="@+id/userProfile"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:layout_gravity="start|center_vertical"
-                        android:contentDescription="Perfil"
-                        android:scaleType="centerCrop"
-                        android:src="@drawable/ic_user"
-                        app:shapeAppearanceOverlay="@style/CircularUserImage" />
-                </FrameLayout>
-            </androidx.appcompat.widget.Toolbar>
+                <TextView
+                    android:id="@+id/tvToolbarTitle"
+                    style="@style/TopBar.Title.Collapsed"
+                    android:text="Biblioteca" />
+            </LinearLayout>
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 

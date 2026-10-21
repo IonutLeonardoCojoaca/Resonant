@@ -5,18 +5,22 @@
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme">
 
-    <TextView
-        android:id="@+id/tvTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:fontFamily="@font/unageo_extra_bold"
-        android:text="COLLAB PATH"
-        android:textColor="@color/secondaryColorTheme"
-        android:textSize="24sp"
-        app:layout_constraintEnd_toEndOf="parent"
+    <LinearLayout
+        android:id="@+id/superiorToolbar"
+        style="@style/TopBar"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            style="@style/TopBar.Back"
+            android:contentDescription="Volver" />
+
+        <TextView
+            android:id="@+id/tvTitle"
+            style="@style/TopBar.Title"
+            android:text="Collab Path" />
+    </LinearLayout>
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilFromArtist"
@@ -24,11 +28,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="24dp"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="16dp"
         android:hint="Artista Origen"
         app:boxStrokeColor="@color/secondaryColorTheme"
         app:hintTextColor="@color/textTheme"
-        app:layout_constraintTop_toBottomOf="@id/tvTitle">
+        app:layout_constraintTop_toBottomOf="@id/superiorToolbar">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etFromArtist"

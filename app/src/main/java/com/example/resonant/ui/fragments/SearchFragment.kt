@@ -28,6 +28,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airbnb.lottie.LottieAnimationView
 import com.example.resonant.R
+import com.example.resonant.ui.components.ResonantAccent
+import com.example.resonant.ui.components.CollectionState
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.DataType
@@ -69,7 +71,8 @@ class SearchFragment : Fragment() {
     private lateinit var songViewModel: SongViewModel
     private lateinit var favoritesViewModel: FavoritesViewModel
 
-    private lateinit var noSongsFounded: TextView
+    private lateinit var noSongsFounded: View
+    private lateinit var idleState: View
     private lateinit var loadingAnimation: LottieAnimationView
 
     private lateinit var searchResultAdapter: SearchResultAdapter
@@ -150,6 +153,20 @@ class SearchFragment : Fragment() {
         chipGenres.typeface = ResourcesCompat.getFont(requireContext(), R.font.unageo_medium)
 
         noSongsFounded = view.findViewById(R.id.noSongFoundedText)
+        idleState = view.findViewById(R.id.searchIdleState)
+        // Textos fijos de los dos estados; su visibilidad la llevan los flujos de abajo.
+        CollectionState.show(
+            noSongsFounded, ResonantAccent.ESSENTIALS, R.drawable.ic_search,
+            title = "Sin resultados",
+            subtitle = "Prueba con otras palabras o quita algún filtro."
+        )
+        noSongsFounded.visibility = View.GONE
+        CollectionState.show(
+            idleState, ResonantAccent.ESSENTIALS, R.drawable.ic_search,
+            title = "Busca lo que quieras escuchar",
+            subtitle = "Canciones, artistas, álbumes, playlists y PlayMix."
+        )
+        idleState.visibility = View.GONE
         sectionLabel = view.findViewById(R.id.searchSectionLabel)
         resultsRecyclerView = view.findViewById(R.id.filteredListResults)
         resultsRecyclerView.layoutManager = LinearLayoutManager(context)
@@ -549,9 +566,10 @@ class SearchFragment : Fragment() {
 
                 val query = newText?.toString()?.trim().orEmpty()
 
-                // Ocultar historial al escribir
+                // Ocultar historial (y el estado inicial) al escribir
                 if (query.isNotEmpty()) {
                     historyRecyclerView.visibility = View.GONE
+                    idleState.visibility = View.GONE
                 }
 
 
@@ -611,7 +629,7 @@ class SearchFragment : Fragment() {
 
                             when {
                                 finalList.isNotEmpty() -> {
-                                    sectionLabel.text = "Resultados de búsqueda"
+                                    sectionLabel.text = "Resultados"
                                     sectionLabel.visibility = View.VISIBLE
                                     resultsRecyclerView.visibility = View.VISIBLE
                                     suggestionsRecyclerView.visibility = View.GONE
@@ -619,7 +637,7 @@ class SearchFragment : Fragment() {
                                     searchResultAdapter.submitList(finalList)
                                 }
                                 combinedSuggestions.isNotEmpty() -> {
-                                    sectionLabel.text = "Quizás te refieres a…"
+                                    sectionLabel.text = "¿Quizás buscabas…?"
                                     sectionLabel.visibility = View.VISIBLE
                                     resultsRecyclerView.visibility = View.GONE
                                     suggestionsRecyclerView.visibility = View.VISIBLE
@@ -662,11 +680,13 @@ class SearchFragment : Fragment() {
         if (list.isNotEmpty()) {
             historyAdapter.submitList(list)
             historyRecyclerView.visibility = View.VISIBLE
-            sectionLabel.text = "Reciente"
+            sectionLabel.text = "Búsquedas recientes"
             sectionLabel.visibility = View.VISIBLE
+            idleState.visibility = View.GONE
         } else {
             historyRecyclerView.visibility = View.GONE
             sectionLabel.visibility = View.GONE
+            idleState.visibility = View.VISIBLE
         }
     }
 
@@ -702,7 +722,7 @@ class SearchFragment : Fragment() {
         searchResultAdapter.submitList(filtered)
         noSongsFounded.visibility = if (filtered.isEmpty() && lastResults.isNotEmpty()) View.VISIBLE else View.GONE
         if (filtered.isNotEmpty()) {
-            sectionLabel.text = "Resultados de búsqueda"
+            sectionLabel.text = "Resultados"
             sectionLabel.visibility = View.VISIBLE
             resultsRecyclerView.visibility = View.VISIBLE
         } else {
@@ -718,7 +738,7 @@ class SearchFragment : Fragment() {
         val resultsAreEmpty = list.isEmpty()
         noSongsFounded.visibility = if (resultsAreEmpty && editTextQuery?.text?.isNotEmpty() == true) View.VISIBLE else View.GONE
         if (!resultsAreEmpty) {
-            sectionLabel.text = "Resultados de búsqueda"
+            sectionLabel.text = "Resultados"
             sectionLabel.visibility = View.VISIBLE
             resultsRecyclerView.visibility = View.VISIBLE
         } else {

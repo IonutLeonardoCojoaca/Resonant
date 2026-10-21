@@ -63,6 +63,12 @@ class BusMixer {
                         s.fail("posición de A incoherente")
                         session = null
                         frame += playNormal(s.a, frame, remaining)
+                    } else if (untilStart == null && s.a.ended) {
+                        // A se acabó antes del inicio (p. ej. la espera por B lo empujó más allá de su final): sin
+                        // esto la sesión esperaba para siempre y el servicio, con la transición abierta, no avanzaba.
+                        s.fail("A terminó antes de empezar la mezcla")
+                        session = null
+                        frame += playNormal(s.a, frame, remaining)
                     } else if (untilStart == null) {
                         // A aún no tiene audio: suena lo que haya (silencio) y se vuelve a mirar en el bloque siguiente.
                         frame += playNormal(s.a, frame, remaining)

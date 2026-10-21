@@ -36,7 +36,6 @@ import com.example.resonant.ui.adapters.SongAdapter
 import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.ui.components.DetailHero
 import com.example.resonant.ui.components.InsightTile
-import com.example.resonant.ui.components.ResonantAccent
 import com.example.resonant.ui.components.ResonantMotion
 import com.example.resonant.ui.detail.DetailFormat
 import com.example.resonant.ui.detail.SongInsights
@@ -162,9 +161,12 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
                         if (_binding == null) return@applyPalette
                         accentColor = colors.accent
                         binding.energySpectrum.setColors(colors.accent, colors.accentAlt)
-                        InsightTile.paint(binding.tileEnergy, colors.accent, binding.energyLabel)
-                        binding.albumEyebrow.setTextColor(colors.accent)
-                        lastInsights?.let { bindKeyWheel(it) }
+                        paintSonicTiles()
+                        lastInsights?.let {
+                            bindKeyWheel(it)
+                            bindLoudnessMeter(it, animate = false)
+                            bindStyleChips(it)
+                        }
                     }
                 }
 
@@ -192,13 +194,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
 
     private fun bindInsights(insights: SongInsights, animate: Boolean) {
         val b = binding
-        val tempoColor = ResonantAccent.ARTISTS.color
-        val keyColor = ResonantAccent.ALBUMS.color
-        val loudColor = ResonantAccent.SONGS.color
-        InsightTile.paint(b.tileTempo, tempoColor, b.tempoLabel)
-        InsightTile.paint(b.tileKey, keyColor, b.keyLabel)
-        InsightTile.paint(b.tileLoudness, loudColor, b.loudnessLabel)
-        InsightTile.paint(b.tileEnergy, accentColor ?: ResonantAccent.PLAYMIX.color, b.energyLabel)
+        paintSonicTiles()
 
         // Tempo
         val bpmText = SongInsightsFormatter.bpmText(insights.bpm)
@@ -208,7 +204,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
             SongInsightsFormatter.tempoFeel(insights.bpm),
             insights.beatsPerBar?.takeIf { it > 0 }?.let { "compás $it/4" }
         ).joinToString(" · ")
-        startBpmPulse(insights.bpm, tempoColor)
+        startBpmPulse(insights.bpm)
 
         // Tono
         val keyShort = SongInsightsFormatter.keyShort(insights.musicalKey)
@@ -226,7 +222,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
         b.tileLoudness.isVisible = loudFraction != null
         b.loudnessValue.text = SongInsightsFormatter.loudnessText(insights.loudnessLufs)
         b.loudnessFeel.text = SongInsightsFormatter.loudnessFeel(insights.loudnessLufs)
-        loudFraction?.let { b.loudnessMeter.setLevel(it, loudColor, animate) }
+        bindLoudnessMeter(insights, animate)
 
         // Energía
         b.tileEnergy.isVisible = insights.energy.isNotEmpty()
@@ -246,15 +242,40 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
         bindStyleChips(insights)
     }
 
+    /**
+     * Las cuatro tarjetas del ADN sonoro van en un solo color, el de la portada; hasta que llega
+     * la paleta, en neutro. El punto del tempo usa ese mismo color.
+     */
+    private fun paintSonicTiles() {
+        val b = _binding ?: return
+        val accent = accentColor
+        InsightTile.paint(b.tileTempo, accent, b.tempoLabel)
+        InsightTile.paint(b.tileKey, accent, b.keyLabel)
+        InsightTile.paint(b.tileLoudness, accent, b.loudnessLabel)
+        InsightTile.paint(b.tileEnergy, accent, b.energyLabel)
+        (b.bpmPulse.background as? GradientDrawable)?.setColor(sonicColor())
+    }
+
+    /** Color de los gráficos del ADN sonoro: acento de la portada o, sin él, el texto principal. */
+    private fun sonicColor(): Int =
+        accentColor?.let { InsightTile.labelColor(requireContext(), it) }
+            ?: ContextCompat.getColor(requireContext(), R.color.white)
+
     private fun bindKeyWheel(insights: SongInsights) {
-        binding.camelotWheel.setKey(insights.camelot, ResonantAccent.ALBUMS.color)
+        binding.camelotWheel.setKey(insights.camelot, sonicColor())
+    }
+
+    private fun bindLoudnessMeter(insights: SongInsights, animate: Boolean) {
+        SongInsightsFormatter.loudnessFraction(insights.loudnessLufs)?.let {
+            binding.loudnessMeter.setLevel(it, sonicColor(), animate)
+        }
     }
 
     /** Punto que late al tempo de la canción. */
-    private fun startBpmPulse(bpm: Double?, color: Int) {
+    private fun startBpmPulse(bpm: Double?) {
         bpmPulse?.cancel()
         val dot = binding.bpmPulse
-        dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+        dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(sonicColor()) }
         if (bpm == null || bpm <= 0 || !ValueAnimator.areAnimatorsEnabled()) return
         bpmPulse = ValueAnimator.ofFloat(1f, 0.35f).apply {
             duration = (60_000 / bpm).toLong().coerceIn(250L, 2_000L)
@@ -273,10 +294,12 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
         val row = binding.styleChips
         row.removeAllViews()
         val density = resources.displayMetrics.density
-        val chips = buildList {
-            if (insights.hasSyncedLyrics) add("Letra sincronizada" to ResonantAccent.PLAYLISTS.color)
-            else if (insights.hasLyrics) add("Con letra" to ResonantAccent.PLAYLISTS.color)
-            insights.genres.forEach { add(it.replaceFirstChar(Char::uppercase) to ResonantAccent.TRENDING.color) }
+        // Letra y géneros en el color de la portada (si ya está); etiquetas en neutro.
+        val accent = accentColor
+        val chips = buildList<Pair<String, Int?>> {
+            if (insights.hasSyncedLyrics) add("Letra sincronizada" to accent)
+            else if (insights.hasLyrics) add("Con letra" to accent)
+            insights.genres.forEach { add(it.replaceFirstChar(Char::uppercase) to accent) }
             insights.tags.take(8).forEach { add("#${it.lowercase()}" to null) }
         }
         chips.forEachIndexed { i, (text, color) ->
@@ -284,7 +307,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
                 this.text = text
                 textSize = 12.5f
                 setPadding((12 * density).toInt(), (7 * density).toInt(), (12 * density).toInt(), (7 * density).toInt())
-                if (color != null) InsightTile.paint(this, color).also { setTextColor(color) }
+                if (color != null) InsightTile.paint(this, color, this)
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply { if (i > 0) marginStart = (8 * density).toInt() }

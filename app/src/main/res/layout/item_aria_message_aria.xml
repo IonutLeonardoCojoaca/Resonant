@@ -57,8 +57,8 @@
             android:fontFamily="@font/unageo_semi_bold"
             android:gravity="center_vertical"
             android:maxLines="1"
-            android:paddingHorizontal="9dp"
-            android:paddingVertical="3dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
             android:textSize="10sp"
             android:visibility="gone" />
     </LinearLayout>
@@ -79,14 +79,14 @@
             android:fontFamily="@font/unageo_regular"
             android:lineSpacingMultiplier="1.45"
             android:textColor="@color/textEmphasisHigh"
-            android:textSize="14.5sp" />
+            android:textSize="14sp" />
 
         <!-- ── Tarjeta de entidad (playlist / artista / álbum), por capas ── -->
         <FrameLayout
             android:id="@+id/ariaPlaylistCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/bg_aria_glass_panel"
             android:clickable="true"
             android:clipToOutline="true"
@@ -159,7 +159,7 @@
                             android:letterSpacing="0.14"
                             android:textAllCaps="true"
                             android:textColor="@color/aria_accent_text"
-                            android:textSize="9.5sp"
+                            android:textSize="10.5sp"
                             android:visibility="gone" />
 
                         <TextView
@@ -183,7 +183,7 @@
                             android:fontFamily="@font/unageo_medium"
                             android:maxLines="1"
                             android:textColor="@color/textTheme"
-                            android:textSize="11.5sp" />
+                            android:textSize="12sp" />
 
                         <TextView
                             android:id="@+id/ariaCardOpenButton"
@@ -244,10 +244,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="4dp"
                         android:fontFamily="@font/unageo_bold"
-                        android:letterSpacing="0.14"
-                        android:text="TOP CANCIONES"
-                        android:textColor="@color/textTertiaryAlpha"
-                        android:textSize="9sp" />
+                        android:text="Top canciones"
+                        android:textColor="@color/white"
+                        android:textSize="14sp" />
 
                     <TextView
                         android:id="@+id/ariaCardTrack1"
@@ -293,22 +292,12 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_bold"
-                android:letterSpacing="0.14"
-                android:text="SIGUE CON…"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="9sp" />
-
             <HorizontalScrollView
                 android:id="@+id/ariaFollowupsContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="-16dp"
                 android:layout_marginEnd="-16dp"
-                android:layout_marginTop="8dp"
                 android:clipToPadding="false"
                 android:overScrollMode="never"
                 android:paddingHorizontal="16dp"
@@ -341,26 +330,26 @@
             android:layout_height="wrap_content"
             android:fontFamily="@font/unageo_regular"
             android:textColor="@color/textTertiaryAlpha"
-            android:textSize="10sp" />
+            android:textSize="11sp" />
 
         <ImageButton
             android:id="@+id/ariaLikeButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="8dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
             android:background="@drawable/bg_aria_feedback_button"
             android:contentDescription="Me gusta esta respuesta"
-            android:padding="11dp"
+            android:padding="14dp"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_thumb_up" />
 
         <ImageButton
             android:id="@+id/ariaDislikeButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="@drawable/bg_aria_feedback_button"
             android:contentDescription="No me gusta esta respuesta"
-            android:padding="11dp"
+            android:padding="14dp"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_thumb_down" />
     </LinearLayout>

@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
@@ -68,7 +67,7 @@ class PublicPlaymixesFragment : Fragment() {
         hero = view.findViewById(R.id.chartHero)
         chipGroupSort = view.findViewById(R.id.chipGroupSort)
         val appBarLayout: AppBarLayout = view.findViewById(R.id.appBarLayout)
-        view.findViewById<Toolbar>(R.id.toolbar).setNavigationOnClickListener { findNavController().navigateUp() }
+        view.findViewById<View>(R.id.btnBack).setOnClickListener { findNavController().navigateUp() }
 
         swipeRefreshLayout.setProgressBackgroundColorSchemeResource(R.color.primaryColorTheme)
         swipeRefreshLayout.setColorSchemeResources(R.color.secondaryColorTheme)
@@ -85,7 +84,7 @@ class PublicPlaymixesFragment : Fragment() {
             title = "Comunidad",
             subtitle = "Sesiones con transiciones, listas para escuchar o copiar."
         )
-        ChartHero.attachParallax(appBarLayout, hero)
+        ChartHero.attachParallax(appBarLayout, hero, view.findViewById(R.id.tvToolbarTitle))
         if (!heroAnimated) {
             ChartHero.animateIn(hero)
             heroAnimated = true

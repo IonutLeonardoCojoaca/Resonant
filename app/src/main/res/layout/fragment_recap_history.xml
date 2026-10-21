@@ -4,22 +4,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/primaryColorTheme"
-    android:orientation="vertical"
-    android:paddingHorizontal="20dp">
+    android:orientation="vertical">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:fontFamily="@font/unageo_bold"
-        android:text="@string/recap_history_title"
-        android:textColor="@color/white"
-        android:textSize="22sp" />
+    <LinearLayout style="@style/TopBar">
+
+        <ImageButton
+            android:id="@+id/recapHistoryBack"
+            style="@style/TopBar.Back"
+            android:contentDescription="Volver" />
+
+        <TextView
+            style="@style/TopBar.Title"
+            android:text="@string/recap_history_title" />
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="12dp">
+        android:layout_marginTop="4dp"
+        android:paddingHorizontal="20dp">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recapHistoryList"

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botón "Reintentar" de los estados vacío/error de las listas públicas: superficie de tarjeta del tema
+     (legible en claro y oscuro). El ripple lo pone el foreground del botón. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/cardsTheme" />
+    <corners android:radius="14dp" />
+</shape>

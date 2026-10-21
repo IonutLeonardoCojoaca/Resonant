@@ -5,7 +5,7 @@
     android:id="@+id/ariaStreakCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="14dp"
+    android:layout_marginTop="12dp"
     android:background="@drawable/bg_aria_glass_panel"
     android:clipToOutline="true"
     android:clickable="true"
@@ -19,7 +19,7 @@
         android:layout_gravity="top|end"
         android:layout_marginTop="-110dp"
         android:layout_marginEnd="-90dp"
-        android:alpha="0.4"
+        android:alpha="0.3"
         android:background="@drawable/bg_aria_ai_glow"
         android:importantForAccessibility="no" />
 
@@ -29,17 +29,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="2dp"
-            android:fontFamily="@font/unageo_medium"
-            android:letterSpacing="0.12"
-            android:text="Tu racha"
-            android:textAllCaps="true"
-            android:textColor="@color/aria_accent_text"
-            android:textSize="9sp" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -47,8 +36,8 @@
             android:orientation="horizontal">
 
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
                 android:layout_marginEnd="8dp"
                 android:importantForAccessibility="no"
                 android:src="@drawable/ic_streak_flame" />
@@ -58,6 +47,9 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:accessibilityHeading="true"
+                android:ellipsize="end"
+                android:maxLines="1"
                 android:fontFamily="@font/unageo_bold"
                 android:textColor="@color/white"
                 android:textSize="18sp" />
@@ -66,9 +58,11 @@
                 android:id="@+id/ariaStreakLongest"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/unageo_regular"
-                android:textColor="@color/textTertiaryAlpha"
-                android:textSize="11sp" />
+                android:layout_marginStart="8dp"
+                android:fontFamily="@font/unageo_medium"
+                android:maxLines="1"
+                android:textColor="@color/textTheme"
+                android:textSize="12sp" />
         </LinearLayout>
 
         <TextView
@@ -77,8 +71,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:fontFamily="@font/unageo_medium"
-            android:textColor="@color/textEmphasisHigh"
-            android:textSize="13sp" />
+            android:textColor="@color/white"
+            android:textSize="14sp" />
 
         <ProgressBar
             android:id="@+id/ariaStreakProgress"
@@ -95,18 +89,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:fontFamily="@font/unageo_regular"
-            android:textColor="@color/textTertiaryAlpha"
-            android:textSize="11sp" />
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp" />
 
         <TextView
             android:id="@+id/ariaStreakMilestone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:fontFamily="@font/unageo_regular"
-            android:textColor="@color/textTertiaryAlpha"
-            android:textSize="11sp"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="@color/textTheme"
+            android:textSize="12sp"
             android:visibility="gone" />
     </LinearLayout>
 </FrameLayout>

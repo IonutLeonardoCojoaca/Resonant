@@ -24,10 +24,11 @@
             android:id="@+id/collapsing"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:contentScrim="@color/primaryColorTheme"
+            app:contentScrim="@color/songBackgroundFallback"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:scrimAnimationDuration="250"
-            app:titleEnabled="false">
+            app:titleEnabled="false"
+            app:toolbarId="@id/detailToolbar">
 
             <include
                 android:id="@+id/hero"
@@ -69,8 +70,10 @@
                 tools:visibility="visible">
 
                 <TextView
-                    style="@style/DetailSectionLabel"
-                    android:text="EN CIFRAS" />
+                    style="@style/RsSectionTitle"
+                    android:text="En cifras"
+                    android:accessibilityHeading="true"
+                    android:textSize="18sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -160,11 +163,13 @@
             <!-- ═══ Canciones ═══ -->
             <TextView
                 android:id="@+id/tracksLabel"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="26dp"
-                android:text="CANCIONES"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:text="Canciones"
                 android:visibility="gone"
-                tools:visibility="visible" />
+                tools:visibility="visible"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/trackList"
@@ -177,9 +182,11 @@
             <!-- ═══ Artistas ═══ -->
             <TextView
                 android:id="@+id/artistText"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="22dp"
-                android:text="ARTISTAS" />
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
+                android:text="Artistas"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/artistList"
@@ -192,11 +199,13 @@
             <!-- ═══ Más del artista ═══ -->
             <TextView
                 android:id="@+id/moreLabel"
-                style="@style/DetailSectionLabel"
-                android:layout_marginTop="22dp"
+                style="@style/RsSectionTitle"
+                android:layout_marginTop="24dp"
                 android:visibility="gone"
-                tools:text="MÁS DE METRO BOOMIN"
-                tools:visibility="visible" />
+                tools:text="Más de Metro Boomin"
+                tools:visibility="visible"
+                android:accessibilityHeading="true"
+                android:textSize="18sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/moreAlbums"
