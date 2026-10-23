@@ -12,9 +12,8 @@
     android:clipToOutline="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
-    android:gravity="center_horizontal"
+    android:gravity="center"
     android:orientation="vertical"
-    android:paddingTop="14dp"
     android:stateListAnimator="@animator/explore_quick_card_press">
 
     <FrameLayout
@@ -67,15 +66,4 @@
         android:textColor="@color/white"
         android:textSize="15sp"
         tools:text="Bad Bunny" />
-
-    <TextView
-        android:id="@+id/mixMeta"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:fontFamily="@font/unageo_medium"
-        android:includeFontPadding="false"
-        android:text="Mezcla sin fin"
-        android:textColor="@color/textSecondaryAlpha"
-        android:textSize="11sp" />
 </LinearLayout>

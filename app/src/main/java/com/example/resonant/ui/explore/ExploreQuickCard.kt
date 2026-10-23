@@ -2,8 +2,10 @@ package com.example.resonant.ui.explore
 
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.graphics.Outline
 import android.graphics.drawable.GradientDrawable
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
@@ -31,11 +33,12 @@ object ExploreQuickCard {
     private const val GLOW_ALPHA = 0x47
 
     /**
-     * Con [showEyebrow] = false (Explorar) la tarjeta solo pinta el título: un eyebrow por tarjeta en una fila
-     * de cinco es ruido. [Spec.eyebrow] sigue en la descripción de accesibilidad. Las vistas previas de
-     * creación (CreateCoverPreview) lo mantienen.
+     * El eyebrow (subtítulo en el color del acento) se muestra en Explorar y en las vistas previas de creación
+     * (CreateCoverPreview). Con [showEyebrow] = false la tarjeta solo pinta el título; [Spec.eyebrow] sigue en
+     * la descripción de accesibilidad.
      */
-    fun bind(card: View, spec: Spec, showEyebrow: Boolean = true, onClick: () -> Unit) {
+    fun bind(card: View, spec: Spec, showEyebrow: Boolean = true, boxless: Boolean = false, onClick: () -> Unit) {
+        if (boxless) removeBox(card)
         card.findViewById<TextView>(R.id.quickCardEyebrow).apply {
             text = spec.eyebrow
             setTextColor(spec.accent.color)
@@ -97,6 +100,23 @@ object ExploreQuickCard {
         badge.animate().alpha(1f).scaleX(1f).scaleY(1f)
             .setStartDelay(base + 460).setDuration(520).setInterpolator(OvershootInterpolator(2.2f)).start()
     }
+
+    /**
+     * Sin caja: quita la superficie (bg_explore_quick_card) y deja solo el brillo y el logo sobre el fondo de la
+     * pantalla. Se mantiene el recorte con esquinas suaves para que el logo grande y el brillo no se salgan.
+     */
+    private fun removeBox(card: View) {
+        card.background = null
+        val radius = BOXLESS_CORNER_DP * card.resources.displayMetrics.density
+        card.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, radius)
+            }
+        }
+        card.clipToOutline = true
+    }
+
+    private const val BOXLESS_CORNER_DP = 4f
 
     private fun glowFor(card: View, @ColorInt accent: Int): GradientDrawable =
         GradientDrawable().apply {

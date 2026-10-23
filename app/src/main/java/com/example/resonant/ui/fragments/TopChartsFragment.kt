@@ -117,7 +117,7 @@ class TopChartsFragment : Fragment() {
 
         // --- HERO POR CAPAS: verde para los rankings de canciones, azul para Tendencias ---
         val hero = view.findViewById<View>(R.id.chartHero)
-        val accent = if (isTrending) ResonantAccent.TRENDING else ResonantAccent.SONGS
+        val accent = if (isTrending) ResonantAccent.TRENDING else ResonantAccent.CHART_SONGS
         val (title, subtitle) = chartTexts(period, isTrending)
         ChartHero.bind(
             hero,

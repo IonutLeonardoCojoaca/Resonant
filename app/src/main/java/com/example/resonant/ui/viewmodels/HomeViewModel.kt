@@ -414,8 +414,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // sort=recent + limit ya vienen resueltos por el backend —
                 // no hace falta traer todo el listado y ordenar en cliente.
-                // Home solo enseña un preview corto (5), no el listado completo.
-                val songs = songManager.getFavoriteSongs(sort = "recent", limit = 5)
+                // Home solo enseña un preview corto (8 = dos columnas completas de 4 filas), no el listado completo.
+                val songs = songManager.getFavoriteSongs(sort = "recent", limit = 8)
 
                 _recentFavorites.value = songs
                 if (songs.isNotEmpty()) {

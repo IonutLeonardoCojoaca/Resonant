@@ -116,6 +116,43 @@ class UnisoundAwarePlayerTest {
         assertTrue(player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
     }
 
+    // ── Saltos de sistema (Bluetooth, auriculares, notificación) ──────────
+
+    private val serviceSkips = mutableListOf<String>()
+
+    private fun skippingPlayer(inRoom: Boolean = false) = UnisoundAwarePlayer(
+        fakePlayer,
+        skipNext = { serviceSkips += "next" },
+        skipPrevious = { serviceSkips += "previous" }
+    ) { control, position ->
+        if (inRoom) intercepted += control to position
+        inRoom
+    }
+
+    @Test
+    fun `each system skip goes once through the service, never the real player`() {
+        val player = skippingPlayer()
+
+        player.seekToNext()
+        player.seekToNextMediaItem()
+        player.seekToPrevious()
+        player.seekToPreviousMediaItem()
+
+        assertEquals(listOf("next", "next", "previous", "previous"), serviceSkips)
+        assertTrue(calls.isEmpty())
+    }
+
+    @Test
+    fun `in a room system skips stay room orders`() {
+        val player = skippingPlayer(inRoom = true)
+
+        player.seekToNext()
+        player.seekToPrevious()
+
+        assertTrue(serviceSkips.isEmpty())
+        assertEquals(listOf(UnisoundControl.NEXT to null, UnisoundControl.PREVIOUS to null), intercepted)
+    }
+
     // ── Playmix con mezcla de salida (playmix-mix-bounded-seekbar) ──────────
 
     private val serviceSeeks = mutableListOf<Long>()

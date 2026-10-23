@@ -299,13 +299,13 @@ class ExploreFragment : Fragment() {
     private fun setupQuickActionCards(view: View) {
         val cards = listOf(
             Triple(view.findViewById<View>(R.id.btnArtistas), ExploreQuickCard.Spec(
-                "Los más famosos", "Artistas", ResonantAccent.ARTISTS
+                "Los más famosos", "Artistas", ResonantAccent.CHART_ARTISTS
             ), { findNavController().navigate(R.id.topArtistsFragment) }),
             Triple(view.findViewById<View>(R.id.btnAlbumes), ExploreQuickCard.Spec(
-                "Lo más escuchado", "Álbumes", ResonantAccent.ALBUMS
+                "Lo más escuchado", "Álbumes", ResonantAccent.CHART_ALBUMS
             ), { findNavController().navigate(R.id.action_exploreFragment_to_topAlbumsFragment) }),
             Triple(view.findViewById<View>(R.id.btnCanciones), ExploreQuickCard.Spec(
-                "Top del día", "Canciones", ResonantAccent.SONGS
+                "Top del día", "Canciones", ResonantAccent.CHART_SONGS
             ), { navigateToChart("Top Diario", StatsPeriod.DAILY.value, false, "#FF9F40", "#F53B57") }),
             Triple(view.findViewById<View>(R.id.btnListas), ExploreQuickCard.Spec(
                 "De la comunidad", "Listas", ResonantAccent.PLAYLISTS
@@ -316,7 +316,9 @@ class ExploreFragment : Fragment() {
             ), { navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231") })
         )
         cards.forEachIndexed { index, (card, spec, onClick) ->
-            ExploreQuickCard.bind(card, spec, showEyebrow = false, onClick = onClick)
+            // "Lo más top" va sin caja (solo brillo y logo); Tendencias convive con la tarjeta de Live y la conserva.
+            val boxless = card.id != R.id.btnTendencias
+            ExploreQuickCard.bind(card, spec, boxless = boxless, onClick = onClick)
             if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
         quickCardsAnimated = true

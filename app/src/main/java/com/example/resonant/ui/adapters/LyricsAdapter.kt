@@ -13,7 +13,9 @@ import com.example.resonant.R
 import com.example.resonant.managers.LyricLine
 import kotlin.math.abs
 
-class LyricsAdapter : RecyclerView.Adapter<LyricsAdapter.ViewHolder>() {
+class LyricsAdapter(
+    private val onLineClick: ((LyricLine) -> Unit)? = null
+) : RecyclerView.Adapter<LyricsAdapter.ViewHolder>() {
 
     private var lines: List<LyricLine> = emptyList()
     private var activeIndex: Int = -1
@@ -74,8 +76,18 @@ class LyricsAdapter : RecyclerView.Adapter<LyricsAdapter.ViewHolder>() {
         private val mediumTypeface = ResourcesCompat.getFont(view.context, R.font.unageo_medium)
         private val semiBoldTypeface = ResourcesCompat.getFont(view.context, R.font.unageo_semi_bold)
 
+        init {
+            itemView.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos == RecyclerView.NO_POSITION) return@setOnClickListener
+                val line = lines.getOrNull(pos) ?: return@setOnClickListener
+                if (line.timeMs >= 0) onLineClick?.invoke(line)
+            }
+        }
+
         fun bind(line: LyricLine, position: Int) {
             textView.text = line.text
+            itemView.isClickable = onLineClick != null && line.timeMs >= 0
 
             textView.animate().cancel()
             itemView.animate().cancel()

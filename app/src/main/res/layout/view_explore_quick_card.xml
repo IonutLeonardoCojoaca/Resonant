@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Tarjeta 1x1 de acceso rápido de Explorar (Artistas / Álbumes / Canciones / Listas / Tendencias).
-    En Explorar solo título (ExploreQuickCard.bind con showEyebrow = false) sobre la superficie del tema; el color lo ponen
-    el logo y el glow del acento.
+    Eyebrow en el color del acento + título sobre la superficie del tema; el logo y el glow del acento completan el color.
     Geometría fija para 140dp: logo pequeño asomando por arriba y logo grande
     recortado abajo a la derecha. Las translationX/Y del XML son la posición de
     reposo; ExploreQuickCard anima la entrada hacia ellas y pone textos/colores.
@@ -70,7 +69,7 @@
         android:orientation="vertical"
         android:paddingHorizontal="12dp">
 
-        <!-- Eyebrow: solo lo muestran las vistas previas de creación (CreateCoverPreview); Explorar lo oculta. -->
+        <!-- Eyebrow en el color del acento (Explorar y vistas previas de creación). -->
         <TextView
             android:id="@+id/quickCardEyebrow"
             android:layout_width="wrap_content"

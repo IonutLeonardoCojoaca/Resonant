@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- "Tu canción del día" arriba en Explorar (modo dinámico y modo fijo). La insignia de Aria
-     solo se ve si origin == "aria"; el shimmer cubre la espera mientras Aria genera (202). -->
+     solo se ve si origin == "aria"; el shimmer cubre la espera mientras Aria genera (202).
+     Sin caja (sin fondo ni borde), como "Lo más top" y las elecciones de Aria; el contenido va al margen de pantalla (16dp). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/songOfDayCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="13dp"
+    android:layout_marginHorizontal="16dp"
     android:layout_marginBottom="12dp"
     android:visibility="gone">
 
@@ -15,11 +16,10 @@
         android:id="@+id/songOfDayContent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_explore_badge"
         android:clickable="true"
         android:focusable="true"
         android:foreground="?attr/selectableItemBackground"
-        android:padding="12dp">
+        android:paddingVertical="12dp">
 
         <TextView
             android:id="@+id/songOfDayLabel"

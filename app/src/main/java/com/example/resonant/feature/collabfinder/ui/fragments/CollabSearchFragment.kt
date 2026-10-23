@@ -51,6 +51,8 @@ class CollabSearchFragment : Fragment() {
     private var introAnimated = false
     /** Solo se anima la entrada de los orbes si esta vista ha visto la búsqueda en curso. */
     private var sawLoadingInThisView = false
+    private var previousStatusBarColor: Int? = null
+    private var previousNavigationBarColor: Int? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -64,8 +66,11 @@ class CollabSearchFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        requireActivity().window.statusBarColor = Color.BLACK
-        requireActivity().window.navigationBarColor = Color.BLACK
+        val window = requireActivity().window
+        previousStatusBarColor = window.statusBarColor
+        previousNavigationBarColor = window.navigationBarColor
+        window.statusBarColor = Color.BLACK
+        window.navigationBarColor = Color.BLACK
         setupStyle()
         setupListeners()
         setupSuggestionChips()
@@ -348,6 +353,13 @@ class CollabSearchFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // Devolver las barras como estaban (transparentes por enableEdgeToEdge): si no, se quedaban negras en toda la app.
+        activity?.window?.let { window ->
+            previousStatusBarColor?.let { window.statusBarColor = it }
+            previousNavigationBarColor?.let { window.navigationBarColor = it }
+        }
+        previousStatusBarColor = null
+        previousNavigationBarColor = null
         phase = null
         sawLoadingInThisView = false
         _binding = null

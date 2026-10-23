@@ -192,7 +192,8 @@ class RecapStoriesFragment : Fragment() {
                 viewModel.story?.resume()
                 if (animator?.isPaused == true) animator?.resume() else startTimer()
             }
-            false
+            // Consumir el gesto: si no, solo llega ACTION_DOWN y cada toque acaba en long-press (pausa).
+            true
         }
     }
 

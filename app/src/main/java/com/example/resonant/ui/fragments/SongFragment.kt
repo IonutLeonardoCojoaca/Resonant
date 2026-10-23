@@ -36,6 +36,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
@@ -248,6 +249,8 @@ class SongFragment : DialogFragment() {
     override fun onStart() {
         super.onStart()
         dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
+        // Edge-to-edge también en Android 13/14 (en 15+ ya es obligatorio): la raíz rellena los insets.
+        dialog?.window?.let { WindowCompat.setDecorFitsSystemWindows(it, false) }
         if (lyricLines.isNotEmpty()) startLyricsSync()
     }
 
@@ -412,7 +415,7 @@ class SongFragment : DialogFragment() {
         lyricsLoadingIndicator = view.findViewById(R.id.lyricsLoadingIndicator)
         noLyricsText = view.findViewById(R.id.noLyricsText)
 
-        lyricsAdapter = LyricsAdapter()
+        lyricsAdapter = LyricsAdapter { line -> seekToLyricLine(line) }
         lyricsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         lyricsRecyclerView.adapter = lyricsAdapter
         lyricsRecyclerView.itemAnimator = null
@@ -594,6 +597,31 @@ class SongFragment : DialogFragment() {
             }
         })
         return view
+    }
+
+    // Mismo flujo que onStopTrackingTouch del SeekBar, pero con el tiempo de la línea pulsada.
+    private fun seekToLyricLine(line: LyricLine) {
+        if (!seekBar.isEnabled) return
+        val seekPosition = line.timeMs.toInt()
+
+        val seekIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_SEEK_TO
+            putExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, seekPosition)
+        }
+        requireContext().startService(seekIntent)
+
+        seekBar.progress = seekPosition
+        autoScrollEnabled = true
+        lyricsHandler.removeCallbacks(reenableAutoScrollRunnable)
+        ignoreUpdatesUntilMs = System.currentTimeMillis() + 800L
+
+        val durationMs = PlaybackStateRepository.playbackPositionLiveData.value
+            ?.mediaDurationMs?.toLong() ?: 0L
+        lastActiveLine = -1
+        lyricsAdapter.clearActiveLine()
+        syncLyricsToPosition(line.timeMs, durationMs, forceScroll = true)
+
+        startLyricsSync()
     }
 
     private fun showSongOptions(song: com.example.resonant.data.models.Song) {

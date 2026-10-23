@@ -12,6 +12,10 @@ enum class ResonantAccent(@ColorInt val color: Int, @DrawableRes val icon: Int) 
     ARTISTS(0xFFF29A2E.toInt(), R.drawable.ic_resonant_gradient_orange),
     ALBUMS(0xFF9277FF.toInt(), R.drawable.ic_resonant_gradient_purple),
     SONGS(0xFF2EE6A8.toInt(), R.drawable.ic_resonant_gradient_green),
+    /** Rankings (Top artistas, álbumes y canciones): familia cálida, la misma que Crear Playlist / Crear Playmix. */
+    CHART_ARTISTS(0xFFFFB238.toInt(), R.drawable.ic_resonant_gradient_amber),
+    CHART_ALBUMS(0xFFE8459C.toInt(), R.drawable.ic_resonant_gradient_fuchsia),
+    CHART_SONGS(0xFFFF5A5F.toInt(), R.drawable.ic_resonant_gradient_coral),
     TRENDING(0xFF4FC8FF.toInt(), R.drawable.ic_resonant_gradient_blue),
     PLAYLISTS(0xFFFF4FB8.toInt(), R.drawable.ic_resonant_gradient_pink),
     PLAYMIX(0xFFFF7A59.toInt(), R.drawable.ic_resonant_gradient_sunset),

@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.utils.ScrollHeaderBehavior
+import com.example.resonant.utils.StartSnapHelper
 import com.example.resonant.R
 import com.example.resonant.playback.PlaySourceMapper
 import com.example.resonant.playback.QueueSource
@@ -558,6 +559,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
 
             override fun onChildViewDetachedFromWindow(view: View) = Unit
         })
+        StartSnapHelper().attachToRecyclerView(recycler)
     }
 
     private fun setupViewModels() {

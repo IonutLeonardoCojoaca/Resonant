@@ -1,5 +1,6 @@
 package com.example.resonant.ui.fragments
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.RenderEffect
 import android.graphics.Shader
@@ -14,14 +15,19 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.resonant.R
+import com.example.resonant.live.LiveManager
 import com.example.resonant.managers.LyricLine
 import com.example.resonant.managers.LyricsManager
 import com.example.resonant.playback.PlaybackStateRepository
+import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.LyricsAdapter
 import kotlinx.coroutines.launch
 
@@ -84,6 +90,8 @@ class LyricsExpandedFragment : DialogFragment() {
     override fun onStart() {
         super.onStart()
         dialog?.window?.setWindowAnimations(R.style.DialogAnimationUpDown)
+        // Edge-to-edge también en Android 13/14 (en 15+ ya es obligatorio).
+        dialog?.window?.let { WindowCompat.setDecorFitsSystemWindows(it, false) }
         if (lyricLines.isNotEmpty()) startLyricsSync()
     }
 
@@ -124,6 +132,13 @@ class LyricsExpandedFragment : DialogFragment() {
         blurBackground = view.findViewById(R.id.expandedBlurBackground)
         noLyricsText = view.findViewById(R.id.expandedNoLyricsText)
 
+        // La ventana va edge-to-edge: el fondo llega detrás de las barras y el contenido queda fuera de ellas.
+        ViewCompat.setOnApplyWindowInsetsListener(expandedRoot) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
+
         val dominantColor = arguments?.getInt(ARG_DOMINANT_COLOR, Color.BLACK) ?: Color.BLACK
         val songId = arguments?.getString(ARG_SONG_ID) ?: return
 
@@ -137,7 +152,7 @@ class LyricsExpandedFragment : DialogFragment() {
                 ?: song.artists.joinToString(", ") { it.name }
         }
 
-        lyricsAdapter = LyricsAdapter()
+        lyricsAdapter = LyricsAdapter { line -> seekToLyricLine(line) }
         lyricsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         lyricsRecyclerView.adapter = lyricsAdapter
         lyricsRecyclerView.itemAnimator = null
@@ -199,6 +214,29 @@ class LyricsExpandedFragment : DialogFragment() {
 
     private fun stopLyricsSync() {
         lyricsHandler.removeCallbacks(syncRunnable)
+    }
+
+    // Igual que en SongFragment: en Live el oyente no puede hacer seek.
+    private fun seekToLyricLine(line: LyricLine) {
+        if (LiveManager.activeSlugOrNull() != null) return
+
+        val seekIntent = Intent(requireContext(), MusicPlaybackService::class.java).apply {
+            action = MusicPlaybackService.ACTION_SEEK_TO
+            putExtra(MusicPlaybackService.EXTRA_SEEK_POSITION, line.timeMs.toInt())
+        }
+        requireContext().startService(seekIntent)
+
+        autoScrollEnabled = true
+        lyricsHandler.removeCallbacks(reenableAutoScrollRunnable)
+        ignoreUpdatesUntilMs = System.currentTimeMillis() + 800L
+
+        val durationMs = PlaybackStateRepository.playbackPositionLiveData.value
+            ?.mediaDurationMs?.toLong() ?: 0L
+        lastActiveLine = -1
+        lyricsAdapter.clearActiveLine()
+        syncLyricsToPosition(line.timeMs, durationMs, forceScroll = true)
+
+        startLyricsSync()
     }
 
     private fun syncLyricsToPosition(positionMs: Long, durationMs: Long, forceScroll: Boolean) {

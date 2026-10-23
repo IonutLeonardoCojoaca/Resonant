@@ -118,7 +118,7 @@ class TopArtistsFragment : Fragment() {
      * Explorar), parallax al colapsar y selector de periodo segmentado.
      */
     private fun setupHeroAndPeriods(view: View) {
-        val accent = ResonantAccent.ARTISTS
+        val accent = ResonantAccent.CHART_ARTISTS
         ChartHero.bind(hero, accent, "Ranking de artistas", "Top Artistas", periodSubtitle(currentPeriod))
         ChartHero.attachParallax(appBarLayout, hero, view.findViewById(R.id.tvToolbarTitle))
         ChartHero.attachMediaParallax(appBarLayout, view.findViewById(R.id.contentScroll), viewPagerGallery)

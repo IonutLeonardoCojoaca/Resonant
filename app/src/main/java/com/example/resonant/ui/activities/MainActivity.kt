@@ -42,6 +42,10 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.resonant.utils.AnimationsUtils
+import com.example.resonant.utils.StatusBarInsets
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.workers.HourlyNotificationWorker
 import com.example.resonant.utils.MiniPlayerColorizer
@@ -281,6 +285,8 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     private var activeCreationDialog: CreationMenuDialog? = null
+    /** Alto de la barra de estado; cada pantalla del NavHost lo reserva ella misma (StatusBarInsets). */
+    private var statusBarInsetTop = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -288,8 +294,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            // Solo top y lados — NO bottom en el contenedor raíz
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
+            // Solo lados: ni top (cada pantalla se dibuja detrás de la barra de estado, ver StatusBarInsets) ni bottom.
+            v.setPadding(systemBars.left, 0, systemBars.right, 0)
+            if (systemBars.top != statusBarInsetTop) {
+                statusBarInsetTop = systemBars.top
+                applyStatusBarInsetToScreens()
+            }
             insets
         }
 
@@ -324,6 +334,14 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
+        navHostFragment.childFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(fm: FragmentManager, f: Fragment, v: View, savedInstanceState: Bundle?) {
+                    applyStatusBarInset(f, v)
+                }
+            },
+            false
+        )
         val bottomNavigationView = findViewById<BottomNavigationView>(R.id.bottom_navigation)
 
         bottomNavigationView.setupWithNavController(navController)
@@ -876,13 +894,27 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         }
     }
 
+    /** Diálogos y bottom sheets tienen su propia ventana; las pantallas con fitsSystemWindows ya se apartan solas. */
+    private fun applyStatusBarInset(fragment: Fragment, view: View) {
+        if (fragment is DialogFragment || view.fitsSystemWindows) return
+        StatusBarInsets.applyToScreen(view, statusBarInsetTop)
+    }
+
+    private fun applyStatusBarInsetToScreens() {
+        val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) ?: return
+        navHost.childFragmentManager.fragments.forEach { fragment ->
+            fragment.view?.let { applyStatusBarInset(fragment, it) }
+        }
+    }
+
     private fun navigateToTopLevelDestination(destinationId: Int) {
         if (navController.currentDestination?.id == destinationId) return
 
+        // Sin save/restoreState: pulsar una pestaña lleva siempre a su raíz, no a la
+        // pantalla anidada (álbum, playlist...) que se dejó abierta dentro de ella.
         val navOptions = NavOptions.Builder()
             .setLaunchSingleTop(true)
-            .setRestoreState(true)
-            .setPopUpTo(navController.graph.findStartDestination().id, false, true)
+            .setPopUpTo(navController.graph.findStartDestination().id, false, false)
             .build()
 
         navController.navigate(destinationId, null, navOptions)

@@ -2154,6 +2154,8 @@ class MusicPlaybackService : MediaLibraryService(), PlayerController {
             restrictControls = { isLiveMode },
             bounds = { sessionPlaymixBounds(player) },
             seek = ::seekFromSession,
+            skipNext = ::playNext,
+            skipPrevious = ::playPrevious,
             intercept = ::interceptSystemControl
         )
 

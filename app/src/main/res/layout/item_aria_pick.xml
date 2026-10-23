@@ -1,18 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Elección de Aria en Explorar v2: portada, título, artista, insignia y el
-     motivo que escribió Aria (máximo 2 líneas). Pulsación larga = feedback. -->
+     motivo que escribió Aria (máximo 2 líneas). Pulsación larga = feedback.
+     Sin caja (sin fondo ni borde), como las tarjetas de "Lo más top": sobre el negro puro solo cuentan portada y texto.
+     Con el padding de 8dp de la lista, el margen de 8dp deja la portada en el margen de pantalla (16dp). -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="260dp"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="5dp"
+    android:layout_marginHorizontal="8dp"
     android:layout_marginVertical="5dp"
-    android:background="@drawable/bg_explore_badge"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
-    android:padding="10dp">
+    android:paddingVertical="10dp">
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/ariaPickImage"

@@ -54,7 +54,8 @@ class ArtistMixAdapter(
     inner class MixViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val image: ImageView = view.findViewById(R.id.mixImage)
         private val title: TextView = view.findViewById(R.id.mixTitle)
-        private val meta: TextView = view.findViewById(R.id.mixMeta)
+        // Solo existe en item_artist_essentials; la tarjeta de radio no lleva subtítulo.
+        private val meta: TextView? = view.findViewById(R.id.mixMeta)
 
         init {
             view.setOnClickListener {
@@ -66,9 +67,9 @@ class ArtistMixAdapter(
         fun bind(mix: ArtistMix) {
             title.text = mix.artist.name
             val count = mix.playlist.songCount
-            if (kind == Kind.ESSENTIALS) {
-                meta.text = if (count == 1) "1 canción" else "$count canciones"
-                meta.visibility = if (count > 0) View.VISIBLE else View.GONE
+            if (kind == Kind.ESSENTIALS) meta?.apply {
+                text = if (count == 1) "1 canción" else "$count canciones"
+                visibility = if (count > 0) View.VISIBLE else View.GONE
             }
             itemView.contentDescription = when (kind) {
                 Kind.ESSENTIALS -> "Esto es ${mix.artist.name}"

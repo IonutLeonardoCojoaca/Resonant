@@ -21,6 +21,13 @@ class UnisoundAwarePlayer(
     private val bounds: () -> PlaymixBounds? = { null },
     /** Seek con límites y cancelación de la preparación; con límites sustituye al seek directo. */
     private val seek: ((Long) -> Unit)? = null,
+    /**
+     * Siguiente/anterior del servicio (playNext/playPrevious). Con ellos los saltos de auriculares, Bluetooth
+     * y notificación siguen el mismo camino que los de la app (índice de cola, cancelar la mezcla en curso,
+     * periodo de gracia) en vez de mover el ExoPlayer a su siguiente item por detrás del servicio.
+     */
+    private val skipNext: (() -> Unit)? = null,
+    private val skipPrevious: (() -> Unit)? = null,
     private val intercept: (control: UnisoundControl, positionMs: Long?) -> Boolean
 ) : ForwardingPlayer(player) {
 
@@ -66,19 +73,23 @@ class UnisoundAwarePlayer(
     }
 
     override fun seekToNext() {
-        if (!intercept(UnisoundControl.NEXT, null)) super.seekToNext()
+        if (intercept(UnisoundControl.NEXT, null)) return
+        skipNext?.invoke() ?: super.seekToNext()
     }
 
     override fun seekToNextMediaItem() {
-        if (!intercept(UnisoundControl.NEXT, null)) super.seekToNextMediaItem()
+        if (intercept(UnisoundControl.NEXT, null)) return
+        skipNext?.invoke() ?: super.seekToNextMediaItem()
     }
 
     override fun seekToPrevious() {
-        if (!intercept(UnisoundControl.PREVIOUS, null)) super.seekToPrevious()
+        if (intercept(UnisoundControl.PREVIOUS, null)) return
+        skipPrevious?.invoke() ?: super.seekToPrevious()
     }
 
     override fun seekToPreviousMediaItem() {
-        if (!intercept(UnisoundControl.PREVIOUS, null)) super.seekToPreviousMediaItem()
+        if (intercept(UnisoundControl.PREVIOUS, null)) return
+        skipPrevious?.invoke() ?: super.seekToPreviousMediaItem()
     }
 
     override fun seekTo(positionMs: Long) {

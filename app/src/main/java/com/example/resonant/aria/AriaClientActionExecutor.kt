@@ -8,6 +8,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.SessionResult
 import com.example.resonant.playback.PlaybackControllerConnection
+import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.QueueCommands
 import com.example.resonant.ui.viewmodels.AriaAction
 import com.example.resonant.unisound.UnisoundControl
@@ -15,7 +16,13 @@ import com.example.resonant.unisound.UnisoundControlOrigin
 import com.example.resonant.unisound.UnisoundManager
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Executes pending Aria effects at Activity level so they work from every screen. */
 class AriaClientActionExecutor(
@@ -54,20 +61,31 @@ class AriaClientActionExecutor(
         telemetry = FirebaseAriaActionTelemetry(appContext)
     )
 
+    /**
+     * Una respuesta de Aria puede traer varias acciones seguidas ("pon X y añade Y a la cola").
+     * Se ejecutan de una en una y en el orden recibido: cada acción espera a que termine la anterior.
+     * El Mutex es FIFO y [scope] arranca en Main.immediate, así que el orden de llegada se conserva.
+     */
+    private val executionLock = Mutex()
+
     fun execute(action: AriaAction) {
         when (action.type) {
             in AriaFeatureActionHandler.CLIENT_ACTION_TYPES -> {
-                scope.launch { featureHandler.handle(action) }
+                scope.launch { executionLock.withLock { featureHandler.handle(action) } }
             }
             "controlar_reproduccion" -> {
-                if (action.isPendingClientAction() && !unisoundHandler.handle(action)) {
-                    scope.launch { playbackHandler.execute(action) }
+                if (action.isPendingClientAction()) {
+                    scope.launch {
+                        executionLock.withLock {
+                            if (!unisoundHandler.handle(action)) playbackHandler.execute(action)
+                        }
+                    }
                 }
             }
             "guardar_actual", "quitar_actual" -> {
-                // Ejecutamos siempre que nos llegue guardar_actual o quitar_actual, 
+                // Ejecutamos siempre que nos llegue guardar_actual o quitar_actual,
                 // ya que puede que el backend no envíe correctamente los flags de pending_client
-                scope.launch { favoriteHandler.execute(action) }
+                scope.launch { executionLock.withLock { favoriteHandler.execute(action) } }
             }
         }
     }
@@ -114,7 +132,7 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
             putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE, com.example.resonant.playback.QueueSource.SEARCH)
             putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, "aria")
         }
-        appContext.startService(playIntent)
+        startPlayAndAwaitQueue(playIntent)
     }
 
     override suspend fun queueSong(songId: String) {
@@ -143,7 +161,20 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
         playSongList(songs, "aria_radio")
     }
 
-    private fun playSongList(songs: List<com.example.resonant.data.models.Song>, queueSourceId: String) {
+    /**
+     * ACTION_PLAY sustituye la cola entera. Si la siguiente acción de Aria (p. ej. queue_song, que va por
+     * el canal de Media3) llegase antes, la cola nueva la borraría; por eso esperamos a que el servicio
+     * haya instalado su cola. Con tope de tiempo: si el play no se aplica (diálogo de Connect), seguimos.
+     */
+    private suspend fun startPlayAndAwaitQueue(playIntent: android.content.Intent) = withContext(Dispatchers.Main) {
+        val previousQueue = PlaybackStateRepository.activeQueue
+        appContext.startService(playIntent)
+        withTimeoutOrNull(PLAY_APPLY_TIMEOUT_MS) {
+            while (PlaybackStateRepository.activeQueue === previousQueue) delay(PLAY_APPLY_POLL_MS)
+        }
+    }
+
+    private suspend fun playSongList(songs: List<com.example.resonant.data.models.Song>, queueSourceId: String) {
         val playIntent = android.content.Intent(appContext, com.example.resonant.services.MusicPlaybackService::class.java).apply {
             action = com.example.resonant.services.MusicPlaybackService.ACTION_PLAY
             putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_SONG, songs.first())
@@ -152,7 +183,12 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
             putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE, com.example.resonant.playback.QueueSource.SEARCH)
             putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, queueSourceId)
         }
-        appContext.startService(playIntent)
+        startPlayAndAwaitQueue(playIntent)
+    }
+
+    private companion object {
+        const val PLAY_APPLY_TIMEOUT_MS = 4_000L
+        const val PLAY_APPLY_POLL_MS = 50L
     }
 }
 
