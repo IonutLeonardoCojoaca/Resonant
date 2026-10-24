@@ -26,7 +26,7 @@ class AiTrackMessagesTest {
 
     @Test
     fun `request errors use the code and the invalid field`() {
-        assertTrue(AiTrackMessages.forRequestError(AiTrackException("AI_TRACK_DAILY_LIMIT")).contains("límite"))
+        assertTrue(AiTrackMessages.forRequestError(AiTrackException("AI_TRACK_MONTHLY_LIMIT")).contains("cupo"))
         val bpm = AiTrackMessages.forRequestError(AiTrackException("AI_TRACK_INVALID", field = "bpm"))
         val key = AiTrackMessages.forRequestError(AiTrackException("AI_TRACK_INVALID", field = "key"))
         assertTrue(bpm.contains("BPM"))
@@ -45,5 +45,24 @@ class AiTrackMessagesTest {
         assertFalse(AiTrackDTO(status = "completed").isOpen)
         assertFalse(AiTrackDTO(status = "failed").isOpen)
         assertTrue(AiTrackDTO(status = "failed").isFailed)
+    }
+
+    @Test
+    fun `quota line covers unlimited, remaining and exhausted`() {
+        assertEquals("Sin límite", AiTrackMessages.quotaLine(remaining = null, monthlyLimit = null))
+        assertEquals("Quedan 7 de 10 este mes", AiTrackMessages.quotaLine(remaining = 7, monthlyLimit = 10))
+        assertEquals("Cupo agotado este mes", AiTrackMessages.quotaLine(remaining = 0, monthlyLimit = 10))
+    }
+
+    @Test
+    fun `every stage has a label and a detail`() {
+        (AiTrackMessages.stageOrder + "completed").forEach { stage ->
+            assertNotEquals(stage, AiTrackMessages.forStage(stage))
+            assertTrue(AiTrackMessages.detailForStage(stage, "song").isNotBlank())
+        }
+        assertNotEquals(
+            AiTrackMessages.detailForStage("rendering", "realtime"),
+            AiTrackMessages.detailForStage("rendering", "song")
+        )
     }
 }

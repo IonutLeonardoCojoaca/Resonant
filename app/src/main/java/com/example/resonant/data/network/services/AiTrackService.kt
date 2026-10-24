@@ -2,6 +2,9 @@ package com.example.resonant.data.network.services
 
 import com.example.resonant.data.network.AiTrackCreateRequest
 import com.example.resonant.data.network.AiTrackDTO
+import com.example.resonant.data.network.AiTrackEngineDTO
+import com.example.resonant.data.network.AiTrackEngineLimitRequest
+import com.example.resonant.data.network.AiTrackEngineListDTO
 import com.example.resonant.data.network.AiTrackPageDTO
 import com.example.resonant.data.network.AiTrackSuggestionDTO
 import com.example.resonant.data.network.AiTrackSuggestionRequest
@@ -9,6 +12,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -21,7 +25,7 @@ interface AiTrackService {
     @POST("api/ai-tracks/suggestions")
     suspend fun suggest(@Body request: AiTrackSuggestionRequest): Response<AiTrackSuggestionDTO>
 
-    /** 202 en cola; 422 `AI_TRACK_INVALID`; 429 `AI_TRACK_DAILY_LIMIT`. */
+    /** 202 en cola; 422 `AI_TRACK_INVALID`; 429 `AI_TRACK_MONTHLY_LIMIT`. */
     @POST("api/ai-tracks")
     suspend fun create(@Body request: AiTrackCreateRequest): Response<AiTrackDTO>
 
@@ -32,7 +36,15 @@ interface AiTrackService {
     @GET("api/ai-tracks/{id}")
     suspend fun get(@Path("id") id: String): Response<AiTrackDTO>
 
-    /** 202 de vuelta en cola; 409 `AI_TRACK_NOT_RETRYABLE`. */
+    /** 202 de vuelta en cola; 409 `AI_TRACK_NOT_RETRYABLE`; 429 `AI_TRACK_MONTHLY_LIMIT`. */
     @POST("api/ai-tracks/{id}/retry")
     suspend fun retry(@Path("id") id: String): Response<AiTrackDTO>
+
+    /** Los tres motores con el cupo mensual del usuario. */
+    @GET("api/ai-tracks/engines")
+    suspend fun engines(): Response<AiTrackEngineListDTO>
+
+    /** Cambia el cupo de un motor para todos; 422 `AI_TRACK_INVALID` (`monthlyLimit` o `engine`). */
+    @PUT("api/ai-tracks/engines/{engine}/limit")
+    suspend fun setLimit(@Path("engine") engine: String, @Body request: AiTrackEngineLimitRequest): Response<AiTrackEngineDTO>
 }

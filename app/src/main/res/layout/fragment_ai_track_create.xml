@@ -42,6 +42,17 @@
             <TextView
                 style="@style/AiTrackLabel"
                 android:layout_marginTop="4dp"
+                android:text="Elige el motor" />
+
+            <!-- Tarjetas de los motores (item_ai_track_engine), las rellena AiTrackCreateFragment. -->
+            <LinearLayout
+                android:id="@+id/engineCards"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                style="@style/AiTrackLabel"
                 android:text="¿Qué quieres escuchar?" />
 
             <EditText
@@ -199,7 +210,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:fontFamily="@font/unageo_regular"
-                android:text="Solo instrumental. Se genera en el servidor y tarda más o menos lo que dura la pista; aparecerá en tu catálogo como «Resonant AI»."
+                android:text="Solo instrumental. Se genera en el servidor y aparecerá en tu catálogo como «Resonant AI». Podrás seguir todo el proceso en la siguiente pantalla."
                 android:textColor="@color/textTheme"
                 android:textSize="12sp" />
 

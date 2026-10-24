@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.AiTrackCreateRequest
 import com.example.resonant.data.network.AiTrackDTO
+import com.example.resonant.data.network.AiTrackEngineDTO
 import com.example.resonant.data.network.AiTrackSuggestionDTO
 import com.example.resonant.managers.AiTrackException
 import com.example.resonant.managers.AiTrackManager
@@ -19,10 +20,16 @@ import kotlinx.coroutines.launch
 import java.io.IOException
 
 /**
- * Formulario de "Crear con IA": referencias (hasta 3), sugerencia de estilo con Aria y creación de la generación.
- * Los errores llegan ya como texto para el usuario en [error].
+ * Formulario de "Crear con IA": motor (con su cupo), referencias (hasta 3), sugerencia de estilo con Aria y
+ * creación de la generación. Los errores llegan ya como texto para el usuario en [error].
  */
 class AiTrackCreateViewModel(private val manager: AiTrackManager) : ViewModel() {
+
+    private val _engines = MutableLiveData<List<AiTrackEngineDTO>>(emptyList())
+    val engines: LiveData<List<AiTrackEngineDTO>> get() = _engines
+
+    private val _selectedEngine = MutableLiveData(AiTrackEngineDTO.REALTIME)
+    val selectedEngine: LiveData<String> get() = _selectedEngine
 
     private val _references = MutableLiveData<List<Song>>(emptyList())
     val references: LiveData<List<Song>> get() = _references
@@ -46,6 +53,36 @@ class AiTrackCreateViewModel(private val manager: AiTrackManager) : ViewModel() 
     val created: LiveData<AiTrackDTO?> get() = _created
 
     private var searchJob: Job? = null
+
+    fun loadEngines() {
+        viewModelScope.launch {
+            try {
+                _engines.value = manager.engines()
+            } catch (e: Exception) {
+                _error.value = messageFor(e)
+            }
+        }
+    }
+
+    fun selectEngine(engine: String) {
+        _selectedEngine.value = engine
+    }
+
+    /** Duración fija del motor elegido (clip: 30 s) o null si la elige el usuario. */
+    fun fixedDurationSec(): Int? =
+        _engines.value.orEmpty().firstOrNull { it.engine == _selectedEngine.value }?.fixedDurationSec
+
+    /** Cambia el cupo mensual del motor para todos; null = sin límite. */
+    fun setLimit(engine: String, monthlyLimit: Int?) {
+        viewModelScope.launch {
+            try {
+                val updated = manager.setLimit(engine, monthlyLimit)
+                _engines.value = _engines.value.orEmpty().map { if (it.engine == engine) updated else it }
+            } catch (e: Exception) {
+                _error.value = messageFor(e)
+            }
+        }
+    }
 
     fun search(query: String) {
         searchJob?.cancel()
@@ -103,9 +140,10 @@ class AiTrackCreateViewModel(private val manager: AiTrackManager) : ViewModel() 
             try {
                 _created.value = manager.create(
                     AiTrackCreateRequest(
+                        engine = _selectedEngine.value ?: AiTrackEngineDTO.REALTIME,
                         title = title.trim(),
                         style = style.trim(),
-                        durationSec = durationSec,
+                        durationSec = fixedDurationSec() ?: durationSec,
                         bpm = bpm,
                         key = key?.trim()?.takeIf { it.isNotEmpty() },
                         description = description?.trim()?.takeIf { it.isNotEmpty() }
@@ -113,6 +151,8 @@ class AiTrackCreateViewModel(private val manager: AiTrackManager) : ViewModel() 
                 )
             } catch (e: Exception) {
                 _error.value = messageFor(e)
+                // El cupo pudo cambiar (otro dispositivo, otro usuario): se refresca para mostrarlo bien.
+                if ((e as? AiTrackException)?.code == "AI_TRACK_MONTHLY_LIMIT") loadEngines()
             } finally {
                 _isCreating.value = false
             }

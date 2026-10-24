@@ -563,13 +563,6 @@
             app:exitAnim="@anim/scale_down_fade_out"
             app:popEnterAnim="@anim/scale_up_fade_in"
             app:popExitAnim="@anim/slide_out_down" />
-        <action
-            android:id="@+id/action_playmixListFragment_to_aiTrackListFragment"
-            app:destination="@id/aiTrackListFragment"
-            app:enterAnim="@anim/slide_in_up"
-            app:exitAnim="@anim/scale_down_fade_out"
-            app:popEnterAnim="@anim/scale_up_fade_in"
-            app:popExitAnim="@anim/slide_out_down" />
     </fragment>
 
     <!-- Pistas generadas con IA (add-ai-track-generation) -->
@@ -577,21 +570,44 @@
         android:id="@+id/aiTrackListFragment"
         android:name="com.example.resonant.ui.fragments.AiTrackListFragment"
         android:label="Pistas con IA"
-        tools:layout="@layout/fragment_ai_track_list">
-        <action
-            android:id="@+id/action_aiTrackListFragment_to_aiTrackCreateFragment"
-            app:destination="@id/aiTrackCreateFragment"
-            app:enterAnim="@anim/slide_in_up"
-            app:exitAnim="@anim/scale_down_fade_out"
-            app:popEnterAnim="@anim/scale_up_fade_in"
-            app:popExitAnim="@anim/slide_out_down" />
-    </fragment>
+        tools:layout="@layout/fragment_ai_track_list" />
 
     <fragment
         android:id="@+id/aiTrackCreateFragment"
         android:name="com.example.resonant.ui.fragments.AiTrackCreateFragment"
         android:label="Crear con IA"
-        tools:layout="@layout/fragment_ai_track_create" />
+        tools:layout="@layout/fragment_ai_track_create">
+        <!-- Al generar, la pantalla de crear sale de la pila: "atrás" vuelve a la lista. -->
+        <action
+            android:id="@+id/action_aiTrackCreateFragment_to_aiTrackProgressFragment"
+            app:destination="@id/aiTrackProgressFragment"
+            app:enterAnim="@anim/scale_up_fade_in"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popUpTo="@id/aiTrackCreateFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/aiTrackProgressFragment"
+        android:name="com.example.resonant.ui.fragments.AiTrackProgressFragment"
+        android:label="Creando tu pista"
+        tools:layout="@layout/fragment_ai_track_progress">
+        <argument
+            android:name="generationId"
+            app:argType="string" />
+    </fragment>
+
+    <action
+        android:id="@+id/action_global_to_aiTrackListFragment"
+        app:destination="@id/aiTrackListFragment" />
+
+    <action
+        android:id="@+id/action_global_to_aiTrackProgressFragment"
+        app:destination="@id/aiTrackProgressFragment" />
+
+    <action
+        android:id="@+id/action_global_to_aiTrackCreateFragment"
+        app:destination="@id/aiTrackCreateFragment" />
 
     <fragment
         android:id="@+id/playmixDetailFragment"

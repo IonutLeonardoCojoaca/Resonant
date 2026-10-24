@@ -4,6 +4,8 @@ import android.content.Context
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.AiTrackCreateRequest
 import com.example.resonant.data.network.AiTrackDTO
+import com.example.resonant.data.network.AiTrackEngineDTO
+import com.example.resonant.data.network.AiTrackEngineLimitRequest
 import com.example.resonant.data.network.AiTrackErrorDTO
 import com.example.resonant.data.network.AiTrackPageDTO
 import com.example.resonant.data.network.AiTrackSuggestionDTO
@@ -13,7 +15,7 @@ import com.example.resonant.data.network.services.AiTrackService
 import com.google.gson.Gson
 import retrofit2.Response
 
-/** Error de `api/ai-tracks` con su `code` estable (p. ej. `AI_TRACK_DAILY_LIMIT`). */
+/** Error de `api/ai-tracks` con su `code` estable (p. ej. `AI_TRACK_MONTHLY_LIMIT`). */
 class AiTrackException(
     val code: String,
     val field: String? = null,
@@ -38,7 +40,14 @@ open class AiTrackManager(private val context: Context?) {
 
     open suspend fun list(page: Int = 1, pageSize: Int = PAGE_SIZE): AiTrackPageDTO = unwrap(service.list(page, pageSize))
 
+    open suspend fun get(id: String): AiTrackDTO = unwrap(service.get(id))
+
     open suspend fun retry(id: String): AiTrackDTO = unwrap(service.retry(id))
+
+    open suspend fun engines(): List<AiTrackEngineDTO> = unwrap(service.engines()).items
+
+    open suspend fun setLimit(engine: String, monthlyLimit: Int?): AiTrackEngineDTO =
+        unwrap(service.setLimit(engine, AiTrackEngineLimitRequest(monthlyLimit)))
 
     open suspend fun searchReferences(query: String): List<Song> =
         songService.searchSongs(query.trim(), REFERENCE_SEARCH_LIMIT).results
@@ -60,6 +69,7 @@ open class AiTrackManager(private val context: Context?) {
     companion object {
         const val PAGE_SIZE = 20
         const val MAX_REFERENCES = 3
+        const val MAX_MONTHLY_LIMIT = 500
         private const val REFERENCE_SEARCH_LIMIT = 8
         private val gson = Gson()
     }

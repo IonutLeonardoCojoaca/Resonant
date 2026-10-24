@@ -22,14 +22,6 @@
             android:id="@+id/titleText"
             style="@style/TopBar.Title"
             android:text="Mis PlayMixes" />
-
-        <!-- Crear con IA (add-ai-track-generation); visible solo con features.aiTracks. -->
-        <ImageButton
-            android:id="@+id/aiTracksButton"
-            style="@style/TopBar.Action"
-            android:contentDescription="Pistas con IA"
-            android:src="@drawable/ic_star_ai"
-            android:visibility="gone" />
     </LinearLayout>
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout

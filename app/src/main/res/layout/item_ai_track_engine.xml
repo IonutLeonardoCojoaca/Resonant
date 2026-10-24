@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Un motor de Crear con IA: nombre, si es gratis o de pago, qué hace y el cupo del mes (editable). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:background="@drawable/bg_ai_engine_card"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="horizontal"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/engineName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                tools:text="Lyria 3.5 Pro" />
+
+            <TextView
+                android:id="@+id/enginePrice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_aria_brand_pill"
+                android:fontFamily="@font/unageo_medium"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                tools:text="De pago" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/engineDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/unageo_regular"
+            android:textColor="@color/textTheme"
+            android:textSize="13sp"
+            tools:text="Canción instrumental completa, con intro, partes y final." />
+
+        <TextView
+            android:id="@+id/engineQuota"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="@font/unageo_medium"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            tools:text="Quedan 7 de 10 este mes" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/engineEditLimit"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Cambiar el cupo mensual"
+        android:padding="10dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_edit"
+        app:tint="@color/white" />
+</LinearLayout>

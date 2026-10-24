@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Diálogo para cambiar el cupo mensual por usuario de un motor de Crear con IA. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:id="@+id/limitHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/unageo_regular"
+        android:text="Pistas al mes por usuario. Se aplica a todos."
+        android:textSize="13sp" />
+
+    <EditText
+        android:id="@+id/limitInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="10"
+        android:importantForAutofill="no"
+        android:inputType="number"
+        android:maxLength="3" />
+
+    <CheckBox
+        android:id="@+id/limitUnlimited"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Sin límite" />
+</LinearLayout>

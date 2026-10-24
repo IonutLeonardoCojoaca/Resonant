@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de motor en Crear con IA: borde de acento y fondo algo más claro al estar elegida. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:endColor="#1FFF7A59"
+                android:startColor="#339277FF" />
+            <stroke
+                android:width="1.5dp"
+                android:color="@color/playmix_accent" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/cardsTheme" />
+            <stroke
+                android:width="1dp"
+                android:color="@color/dividerOverlay" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+</selector>

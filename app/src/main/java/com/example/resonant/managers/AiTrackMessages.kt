@@ -16,7 +16,7 @@ object AiTrackMessages {
 
     /** Error de una petición (crear, sugerir, reintentar). */
     fun forRequestError(error: AiTrackException): String = when (error.code) {
-        "AI_TRACK_DAILY_LIMIT" -> "Has llegado al límite de pistas de hoy. Vuelve mañana."
+        "AI_TRACK_MONTHLY_LIMIT" -> "Has agotado el cupo de este motor este mes. Elige otro o cambia el cupo."
         "AI_TRACK_INVALID_REFERENCE" -> "Una de las canciones de referencia ya no existe."
         "AI_TRACK_INVALID" -> forField(error.field)
         "AI_TRACK_NOT_RETRYABLE" -> "Esta pista ya se está generando."
@@ -24,6 +24,44 @@ object AiTrackMessages {
         "FEATURE_DISABLED" -> "La creación de pistas con IA no está disponible."
         "RATE_LIMITED" -> "Demasiadas peticiones seguidas. Espera un momento."
         else -> "No se pudo completar. Inténtalo de nuevo."
+    }
+
+    /** Nombre corto de cada etapa del proceso, en orden. */
+    val stageOrder = listOf("queued", "composing", "rendering", "mastering", "cover", "publishing")
+
+    fun forStage(stage: String): String = when (stage) {
+        "queued" -> "En cola"
+        "composing" -> "Componiendo"
+        "rendering" -> "Generando el audio"
+        "mastering" -> "Masterizando"
+        "cover" -> "Creando la portada"
+        "publishing" -> "Publicando"
+        "completed" -> "Lista"
+        "failed" -> "Ha fallado"
+        else -> stage
+    }
+
+    /** Explicación de lo que está pasando en cada etapa, para la pantalla de generación. */
+    fun detailForStage(stage: String, engine: String): String = when (stage) {
+        "queued" -> "Tu pista está en la cola. Se genera una cada vez en el servidor."
+        "composing" -> "Preparando la sesión con Lyria a partir de tu estilo, tempo y tonalidad."
+        "rendering" -> if (engine == "realtime") {
+            "Lyria toca la pista en tiempo real: tarda más o menos lo que dura."
+        } else {
+            "Lyria está componiendo la pista completa. Suele tardar menos de un minuto."
+        }
+        "mastering" -> "Ajustando volumen y fundidos, y codificando a alta calidad."
+        "cover" -> "Pintando una portada única para tu pista."
+        "publishing" -> "Guardándola en tu catálogo para que suene como cualquier otra."
+        "completed" -> "¡Lista! Ya puedes escucharla, añadirla a una playlist o usarla en PlayMix."
+        else -> ""
+    }
+
+    /** "Quedan 7 de 10 este mes", "Sin límite" o "Cupo agotado este mes". */
+    fun quotaLine(remaining: Int?, monthlyLimit: Int?): String = when {
+        monthlyLimit == null -> "Sin límite"
+        remaining == 0 -> "Cupo agotado este mes"
+        else -> "Quedan ${remaining ?: monthlyLimit} de $monthlyLimit este mes"
     }
 
     /** Texto del estado de una generación en la lista. */

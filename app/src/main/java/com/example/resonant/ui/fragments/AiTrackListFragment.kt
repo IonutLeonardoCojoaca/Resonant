@@ -30,12 +30,7 @@ class AiTrackListFragment : BaseFragment(R.layout.fragment_ai_track_list) {
             .get(AiTrackListViewModel::class.java)
 
         adapter = AiTrackAdapter(
-            onOpen = { track ->
-                findNavController().navigate(
-                    R.id.action_global_to_detailedSongFragment,
-                    Bundle().apply { putString("songId", track.songId) }
-                )
-            },
+            onOpen = { track -> AiTrackNavigation.open(findNavController(), track) },
             onRetry = { track -> viewModel.retry(track.id) }
         )
         binding.trackRecyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -43,7 +38,7 @@ class AiTrackListFragment : BaseFragment(R.layout.fragment_ai_track_list) {
 
         binding.arrowGoBackButton.setOnClickListener { findNavController().popBackStack() }
         binding.fabCreateTrack.setOnClickListener {
-            findNavController().navigate(R.id.action_aiTrackListFragment_to_aiTrackCreateFragment)
+            findNavController().navigate(R.id.action_global_to_aiTrackCreateFragment)
         }
         binding.swipeRefresh.setOnRefreshListener { viewModel.load() }
 

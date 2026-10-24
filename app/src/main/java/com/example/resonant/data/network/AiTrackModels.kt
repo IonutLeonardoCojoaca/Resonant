@@ -15,8 +15,9 @@ data class AiTrackSuggestionDTO(
     val source: String = ""
 )
 
-/** Petición de generación (`POST api/ai-tracks`). Solo instrumental. */
+/** Petición de generación (`POST api/ai-tracks`). Solo instrumental; `engine`: realtime, clip (30 s) o song. */
 data class AiTrackCreateRequest(
+    val engine: String,
     val title: String,
     val style: String,
     val durationSec: Int,
@@ -32,6 +33,10 @@ data class AiTrackCreateRequest(
 data class AiTrackDTO(
     val id: String = "",
     val status: String = "",
+    /** queued, composing, rendering, mastering, cover, publishing, completed o failed. */
+    val stage: String = "",
+    /** 0-100; con motores de pago no avanza durante `rendering`. */
+    val progress: Int = 0,
     val errorCode: String? = null,
     val engine: String = "",
     val title: String = "",
@@ -58,6 +63,32 @@ data class AiTrackDTO(
     }
 }
 
+/** Motor de generación con el cupo del usuario; `monthlyLimit`/`remaining` null = sin límite. */
+data class AiTrackEngineDTO(
+    val engine: String = "",
+    val name: String = "",
+    val description: String = "",
+    val paid: Boolean = false,
+    val fixedDurationSec: Int? = null,
+    val monthlyLimit: Int? = null,
+    val usedThisMonth: Int = 0,
+    val remaining: Int? = null,
+    val resetsAtUtc: String? = null
+) {
+    val isExhausted: Boolean get() = remaining == 0
+
+    companion object {
+        const val REALTIME = "realtime"
+        const val CLIP = "clip"
+        const val SONG = "song"
+    }
+}
+
+data class AiTrackEngineListDTO(val items: List<AiTrackEngineDTO> = emptyList())
+
+/** Cupo mensual por usuario de un motor: 0-500, o null para sin límite (el backend trata el campo ausente como null). */
+data class AiTrackEngineLimitRequest(val monthlyLimit: Int?)
+
 data class AiTrackPageDTO(
     val items: List<AiTrackDTO> = emptyList(),
     val page: Int = 1,
@@ -65,7 +96,7 @@ data class AiTrackPageDTO(
     val total: Int = 0
 )
 
-/** Cuerpo de error de `api/ai-tracks`: `code` estable, `field` del campo inválido y `resetsAtUtc` del límite diario. */
+/** Cuerpo de error de `api/ai-tracks`: `code` estable, `field` del campo inválido y `resetsAtUtc` del cupo mensual. */
 data class AiTrackErrorDTO(
     val code: String? = null,
     val message: String? = null,
