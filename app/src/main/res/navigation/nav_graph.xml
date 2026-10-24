@@ -563,7 +563,35 @@
             app:exitAnim="@anim/scale_down_fade_out"
             app:popEnterAnim="@anim/scale_up_fade_in"
             app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_playmixListFragment_to_aiTrackListFragment"
+            app:destination="@id/aiTrackListFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
     </fragment>
+
+    <!-- Pistas generadas con IA (add-ai-track-generation) -->
+    <fragment
+        android:id="@+id/aiTrackListFragment"
+        android:name="com.example.resonant.ui.fragments.AiTrackListFragment"
+        android:label="Pistas con IA"
+        tools:layout="@layout/fragment_ai_track_list">
+        <action
+            android:id="@+id/action_aiTrackListFragment_to_aiTrackCreateFragment"
+            app:destination="@id/aiTrackCreateFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:exitAnim="@anim/scale_down_fade_out"
+            app:popEnterAnim="@anim/scale_up_fade_in"
+            app:popExitAnim="@anim/slide_out_down" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/aiTrackCreateFragment"
+        android:name="com.example.resonant.ui.fragments.AiTrackCreateFragment"
+        android:label="Crear con IA"
+        tools:layout="@layout/fragment_ai_track_create" />
 
     <fragment
         android:id="@+id/playmixDetailFragment"

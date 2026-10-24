@@ -10,6 +10,7 @@ import com.example.resonant.R
 import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.data.network.PlaymixDTO
 import com.example.resonant.databinding.FragmentPlaymixListBinding
+import com.example.resonant.managers.CapabilitiesManager
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.ui.adapters.PlaymixListAdapter
 import com.example.resonant.ui.bottomsheets.PlaymixListOptionsBottomSheet
@@ -74,6 +75,11 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
 
         binding.swipeRefresh.setOnRefreshListener {
             viewModel.refreshPlaymixes()
+        }
+
+        binding.aiTracksButton.visibility = if (CapabilitiesManager.isAiTracksEnabled()) View.VISIBLE else View.GONE
+        binding.aiTracksButton.setOnClickListener {
+            findNavController().navigate(R.id.action_playmixListFragment_to_aiTrackListFragment)
         }
     }
 
