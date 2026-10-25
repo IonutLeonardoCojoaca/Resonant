@@ -40,7 +40,5 @@ data class PlatformFeaturesDTO(
      * Beatmatching ampliado en Playmix (playmix-extended-beatmatch): documentos con `extendedSync` (B estirada
      * entre el 6 % y el 12 %) y clips con `render.bRate`. Apagado, `extendedSync` se trata como ausente.
      */
-    val playmixExtendedSync: Boolean = false,
-    /** Pistas instrumentales generadas con IA (`api/ai-tracks`). */
-    val aiTracks: Boolean = false
+    val playmixExtendedSync: Boolean = false
 )

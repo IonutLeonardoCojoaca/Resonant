@@ -28,11 +28,6 @@ import com.example.resonant.ui.bottomsheets.ItemOptions
 import com.example.resonant.data.models.Playlist
 import com.example.resonant.data.models.Song
 import com.example.resonant.managers.PlaylistManager
-import com.example.resonant.managers.AiTrackManager
-import com.example.resonant.managers.CapabilitiesManager
-import com.example.resonant.ui.adapters.AiTrackAdapter
-import com.example.resonant.ui.viewmodels.AiTrackListViewModel
-import com.example.resonant.ui.viewmodels.AiTrackListViewModelFactory
 import com.example.resonant.managers.PlaymixManager
 import com.example.resonant.managers.UserManager
 import com.example.resonant.playback.QueueSource
@@ -84,14 +79,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         SONGS("Canciones", ResonantAccent.SONGS),
         ARTISTS("Artistas", ResonantAccent.ARTISTS),
         ALBUMS("Álbumes", ResonantAccent.ALBUMS),
-        PLAYMIXES("PlayMix", ResonantAccent.PLAYMIX),
-        /** Solo con `features.aiTracks`; va la última para que no cambie el índice de las demás. */
-        AI_TRACKS("IA", ResonantAccent.AI_TRACKS)
-    }
-
-    /** Pestañas que se muestran: la de IA solo con la capacidad encendida. */
-    private val visibleTabs: List<Tab> by lazy {
-        Tab.entries.filter { it != Tab.AI_TRACKS || CapabilitiesManager.isAiTracksEnabled() }
+        PLAYMIXES("PlayMix", ResonantAccent.PLAYMIX)
     }
 
     private class Page(val root: View) {
@@ -172,8 +160,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
     private val songViewModel: SongViewModel by activityViewModels()
 
     private lateinit var playmixListViewModel: PlaymixListViewModel
-    private lateinit var aiTrackViewModel: AiTrackListViewModel
-    private lateinit var aiTrackAdapter: AiTrackAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -210,17 +196,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         favoritesViewModel.loadAllFavorites()
         playmixListViewModel.loadMyPlaymixes()
         likedPlaymixes?.refresh()
-        if (Tab.AI_TRACKS in visibleTabs) aiTrackViewModel.load()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        if (::aiTrackViewModel.isInitialized) aiTrackViewModel.setVisible(selectedTab == Tab.AI_TRACKS)
-    }
-
-    override fun onStop() {
-        if (::aiTrackViewModel.isInitialized) aiTrackViewModel.setVisible(false)
-        super.onStop()
     }
 
     private fun initViews(view: View) {
@@ -238,8 +213,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             this,
             PlaymixListViewModelFactory(playmixManager)
         ).get(PlaymixListViewModel::class.java)
-        aiTrackViewModel = ViewModelProvider(this, AiTrackListViewModelFactory(AiTrackManager(requireContext())))
-            .get(AiTrackListViewModel::class.java)
     }
 
     // ── Cabecera ────────────────────────────────────────────────────────
@@ -272,8 +245,8 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
     /** Mezcla el tinte del icono de fondo entre la pestaña actual y la siguiente según el arrastre. */
     private fun tintHeroWhileScrolling(position: Int, offset: Float) {
-        val from = visibleTabs[position].accent.color
-        val to = visibleTabs.getOrNull(position + 1)?.accent?.color ?: from
+        val from = Tab.entries[position].accent.color
+        val to = Tab.entries.getOrNull(position + 1)?.accent?.color ?: from
         ChartHero.tintCustomIcon(hero, ColorUtils.blendARGB(from, to, offset))
     }
 
@@ -284,7 +257,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             Tab.ARTISTS -> "Los artistas que sigues"
             Tab.ALBUMS -> "Los álbumes que has guardado"
             Tab.PLAYMIXES -> "Tus mezclas con transiciones"
-            Tab.AI_TRACKS -> "Pistas que has creado con IA"
         }
         return when (tab) {
             Tab.PLAYLISTS -> if (n == 1) "1 lista" else "$n listas"
@@ -292,7 +264,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             Tab.ARTISTS -> if (n == 1) "1 artista que sigues" else "$n artistas que sigues"
             Tab.ALBUMS -> if (n == 1) "1 álbum guardado" else "$n álbumes guardados"
             Tab.PLAYMIXES -> if (n == 1) "1 PlayMix" else "$n PlayMix"
-            Tab.AI_TRACKS -> if (n == 1) "1 pista creada con IA" else "$n pistas creadas con IA"
         }
     }
 
@@ -306,7 +277,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
     private fun createPages() {
         val inflater = LayoutInflater.from(requireContext())
-        visibleTabs.forEach { tab ->
+        Tab.entries.forEach { tab ->
             val root = inflater.inflate(R.layout.view_library_page, pager, false)
             val page = Page(root)
             page.list.layoutManager = LinearLayoutManager(requireContext())
@@ -342,24 +313,19 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         playmixPage.list.adapter = ConcatAdapter(
             listOf(HeaderViewAdapter(playmixHeader), playmixAdapter) + liked.adapters
         )
-        pages[Tab.AI_TRACKS]?.let { aiPage ->
-            val aiHeader = buildAiTracksHeader(aiPage.list)
-            aiPage.header = aiHeader
-            aiPage.list.adapter = ConcatAdapter(HeaderViewAdapter(aiHeader), aiTrackAdapter)
-        }
     }
 
     private fun setupPagerAndTabs() {
-        val views = visibleTabs.map { pages.getValue(it).root }
+        val views = Tab.entries.map { pages.getValue(it).root }
         pager.adapter = PagesAdapter(views)
         // Todas las páginas vivas: son ligeras y así nunca se recrean al cambiar.
-        pager.offscreenPageLimit = visibleTabs.size - 1
+        pager.offscreenPageLimit = Tab.entries.size - 1
         pager.setCurrentItem(selectedTab.ordinal, false)
 
         tabsView.followsPager = true
         tabsView.setTabs(
-            labels = visibleTabs.map { it.label },
-            tabAccents = visibleTabs.map { it.accent.color },
+            labels = Tab.entries.map { it.label },
+            tabAccents = Tab.entries.map { it.accent.color },
             initialIndex = selectedTab.ordinal
         ) { index -> pager.currentItem = index }
 
@@ -370,12 +336,10 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             }
 
             override fun onPageSelected(position: Int) {
-                val tab = visibleTabs[position]
+                val tab = Tab.entries[position]
                 tabsView.markSelected(position)
                 if (tab == selectedTab) return
                 selectedTab = tab
-                // La pestaña de IA consulta el estado de sus generaciones solo mientras se ve.
-                if (::aiTrackViewModel.isInitialized) aiTrackViewModel.setVisible(tab == Tab.AI_TRACKS)
                 updateHero(animate = true)
                 // Al volver a PlayMix se refresca en segundo plano (la caché ya está pintada).
                 if (tab == Tab.PLAYMIXES) {
@@ -438,18 +402,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         }
     }
 
-    private fun buildAiTracksHeader(parent: RecyclerView): View {
-        val density = resources.displayMetrics.density
-        return android.widget.FrameLayout(requireContext()).apply {
-            setPadding((6 * density).toInt(), (4 * density).toInt(), (6 * density).toInt(), (12 * density).toInt())
-            val create = layoutInflater.inflate(R.layout.view_library_shortcut, parent, false)
-            bindShortcut(create, ResonantAccent.AI_TRACKS, R.drawable.ic_star_ai, "Crear pista", "Instrumentales con Lyria") {
-                findNavController().navigate(R.id.action_global_to_aiTrackCreateFragment)
-            }
-            addView(create)
-        }
-    }
-
     private fun bindShortcut(
         view: View,
         accent: ResonantAccent,
@@ -481,11 +433,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             },
             onPlaylistLongClick = { playlist, _ -> openPlaylistOptionsIfEditable(playlist) },
             onSettingsClick = { playlist -> openPlaylistOptionsIfEditable(playlist) }
-        )
-
-        aiTrackAdapter = AiTrackAdapter(
-            onOpen = { track -> AiTrackNavigation.open(findNavController(), track) },
-            onRetry = { track -> aiTrackViewModel.retry(track.id) }
         )
 
         songsAdapter = buildFavoritesAdapter()
@@ -654,18 +601,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
             playmixes?.let { setCount(Tab.PLAYMIXES, it.size) }
         }
 
-        aiTrackViewModel.items.observe(viewLifecycleOwner) { tracks ->
-            aiTrackAdapter.submitList(tracks ?: emptyList()) {
-                render(Tab.AI_TRACKS, loaded = tracks != null, isEmpty = tracks.isNullOrEmpty())
-            }
-            tracks?.let { setCount(Tab.AI_TRACKS, it.size) }
-        }
-        aiTrackViewModel.error.observe(viewLifecycleOwner) { message ->
-            message ?: return@observe
-            showResonantSnackbar(message, SnackType.ERROR)
-            aiTrackViewModel.onErrorShown()
-        }
-
         songViewModel.currentSongLiveData.observe(viewLifecycleOwner) { currentSong ->
             currentSong?.let { songsAdapter.setCurrentPlayingSong(it.id) }
         }
@@ -689,7 +624,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
         render(Tab.ARTISTS, favoritesViewModel.favoriteArtists.value != null, favoritesViewModel.favoriteArtists.value.isNullOrEmpty())
         render(Tab.ALBUMS, favoritesViewModel.favoriteAlbums.value != null, favoritesViewModel.favoriteAlbums.value.isNullOrEmpty())
         render(Tab.PLAYMIXES, playmixListViewModel.playmixes.value != null, playmixListViewModel.playmixes.value.isNullOrEmpty())
-        render(Tab.AI_TRACKS, aiTrackViewModel.items.value != null, aiTrackViewModel.items.value.isNullOrEmpty())
     }
 
     /** Skeleton mientras no hay datos, estado vacío con acción si no hay filas y entrada escalonada la 1ª vez. */
@@ -752,13 +686,6 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
                 state, tab.accent, R.drawable.ic_playmix,
                 title = "Aún no tienes PlayMix",
                 subtitle = "Mezcla canciones con transiciones a tu gusto"
-            )
-            Tab.AI_TRACKS -> CollectionState.show(
-                state, tab.accent, R.drawable.ic_star_ai,
-                title = "Aún no has creado pistas",
-                subtitle = "Describe lo que quieres escuchar y Lyria lo compone para ti",
-                actionText = "Crear pista",
-                onAction = { findNavController().navigate(R.id.action_global_to_aiTrackCreateFragment) }
             )
         }
     }

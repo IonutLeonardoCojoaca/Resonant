@@ -35,7 +35,6 @@ import com.example.resonant.ui.views.AriaAgentOrbView
 import com.example.resonant.ui.views.AriaAmbientView
 import androidx.core.widget.NestedScrollView
 import com.example.resonant.managers.AlbumManager
-import com.example.resonant.managers.CapabilitiesManager
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import com.example.resonant.data.network.ApiClient
@@ -380,10 +379,6 @@ class AriaFragment : BaseFragment(R.layout.fragment_aria) {
                 inputField.setText(prompt)
                 sendMessage()
             }
-        }
-        v.findViewById<View>(R.id.ariaAiTracksCard)?.apply {
-            visibility = if (CapabilitiesManager.isAiTracksEnabled()) View.VISIBLE else View.GONE
-            setOnClickListener { findNavController().navigate(R.id.action_global_to_aiTrackCreateFragment) }
         }
     }
 

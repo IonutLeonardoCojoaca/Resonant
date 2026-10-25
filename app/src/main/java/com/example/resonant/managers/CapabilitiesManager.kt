@@ -102,9 +102,6 @@ object CapabilitiesManager {
     /** Last known value; false until the first successful [refresh]. Sincronía ampliada de Playmix. */
     fun isPlaymixExtendedSyncEnabled(): Boolean = cache?.features?.playmixExtendedSync == true
 
-    /** Last known value; false until the first successful [refresh]. Pistas generadas con IA. */
-    fun isAiTracksEnabled(): Boolean = cache?.features?.aiTracks == true
-
     suspend fun refresh(context: Context, force: Boolean = false): PlatformFeaturesDTO =
         withContext(Dispatchers.IO) {
             val capabilities = cache(context)

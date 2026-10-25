@@ -23,7 +23,5 @@ enum class ResonantAccent(@ColorInt val color: Int, @DrawableRes val icon: Int) 
     DOWNLOADS(0xFFB8F04A.toInt(), R.drawable.ic_resonant_gradient_lime),
     COLLAB(0xFF8C9DFF.toInt(), R.drawable.ic_resonant_gradient_indigo),
     ESSENTIALS(0xFFE8E8EE.toInt(), R.drawable.ic_resonant_gradient_platinum),
-    RADIO(0xFFFFD43B.toInt(), R.drawable.ic_resonant_gradient_yellow),
-    /** Pistas creadas con IA (Biblioteca → IA). */
-    AI_TRACKS(0xFFC77DFF.toInt(), R.drawable.ic_resonant_gradient_fuchsia)
+    RADIO(0xFFFFD43B.toInt(), R.drawable.ic_resonant_gradient_yellow)
 }

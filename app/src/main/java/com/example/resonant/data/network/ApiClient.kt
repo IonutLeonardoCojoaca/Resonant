@@ -157,10 +157,6 @@ object ApiClient {
         return getRetrofitInstance(context).create(StreakService::class.java)
     }
 
-    fun getAiTrackService(context: Context): com.example.resonant.data.network.services.AiTrackService {
-        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.AiTrackService::class.java)
-    }
-
     fun getAutoDownloadService(context: Context): com.example.resonant.data.network.services.AutoDownloadService {
         return getRetrofitInstance(context).create(com.example.resonant.data.network.services.AutoDownloadService::class.java)
     }
