@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Insignia ✦ de las pistas creadas con IA, en la esquina de la portada (item_ai_track).
+     Relleno del fondo de pantalla para que "recorte" la portada en ambos temas. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/primaryColorTheme" />
+</shape>

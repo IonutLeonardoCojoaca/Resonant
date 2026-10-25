@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Velo sobre la portada mientras la pista se genera (item_ai_track). Negro literal a propósito:
+     va siempre sobre una imagen, no sobre el fondo del tema. Mismo radio que RoundedCornersImage. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="8dp" />
+    <solid android:color="#8C000000" />
+</shape>
