@@ -441,8 +441,7 @@ class SavedFragment : BaseFragment(R.layout.fragment_saved) {
 
         playmixAdapter = PlaymixListAdapter(
             onClick = { playmix ->
-                val bundle = Bundle().apply { putString("playmixId", playmix.id) }
-                findNavController().navigate(R.id.action_global_to_playmixDetailFragment, bundle)
+                findNavController().navigate(R.id.action_global_to_playmixDetailFragment, PlaymixDetailArgs.bundle(playmix))
             },
             onOptionsClick = { playmix ->
                 PlaymixListOptionsBottomSheet(

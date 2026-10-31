@@ -20,6 +20,12 @@ import retrofit2.converter.gson.GsonConverterFactory
 class SessionManager(private val context: Context, private val baseUrl: String) {
 
     companion object {
+        /**
+         * Códigos con los que el servidor dice que el refresh token ya no vale (hay que cerrar sesión). Los 5xx y
+         * los 408/429 son fallos pasajeros: conservar los tokens y reintentar en la siguiente petición.
+         */
+        fun isRefreshRejected(code: Int): Boolean = code in 400..499 && code != 408 && code != 429
+
         @Volatile
         private var instance: SessionManager? = null
 
@@ -36,7 +42,8 @@ class SessionManager(private val context: Context, private val baseUrl: String) 
     private val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
 
     private val authService: AuthService by lazy {
-        val cleanOkHttpClient = OkHttpClient.Builder().build()
+        // Sin interceptor de autorización, pero con el pool de conexiones compartido de la app.
+        val cleanOkHttpClient = ApiClient.getMediaHttpClient().newBuilder().build()
 
         Retrofit.Builder()
             .baseUrl(baseUrl)
@@ -90,34 +97,49 @@ class SessionManager(private val context: Context, private val baseUrl: String) 
         }
     }
 
-    suspend fun refreshTokensOrNull(): String? = withContext(Dispatchers.IO) {
+    /** Resultado de un intento de refresco de tokens. */
+    sealed class RefreshOutcome {
+        data class Refreshed(val accessToken: String) : RefreshOutcome()
+        /** El servidor rechazó el refresh token (caducado o revocado): la sesión ya no vale. */
+        object Rejected : RefreshOutcome()
+        /** Sin red o servidor caído: los tokens se conservan y se reintenta más tarde. */
+        object Unavailable : RefreshOutcome()
+    }
+
+    suspend fun refreshTokensOrNull(): String? = (refreshTokens() as? RefreshOutcome.Refreshed)?.accessToken
+
+    suspend fun refreshTokens(): RefreshOutcome = withContext(Dispatchers.IO) {
         mutex.withLock {
             val currentAccess = getAccessToken()
             // Puede que otro hilo ya refrescó
             if (currentAccess != null && isJwtValid(currentAccess, 60)) {
-                return@withLock currentAccess
+                return@withLock RefreshOutcome.Refreshed(currentAccess)
             }
             val refresh = getRefreshToken()
             val email = getEmail()
             if (refresh.isNullOrBlank() || email.isNullOrBlank()) {
                 Log.w("SessionManager", "No refresh/email -> cannot refresh")
                 clearTokens()
-                return@withLock null
+                return@withLock RefreshOutcome.Rejected
             }
             try {
                 val resp = authService.refreshToken(RefreshTokenDTO(refresh, email)).execute()
                 if (resp.isSuccessful) {
-                    val auth = resp.body() ?: return@withLock null
+                    val auth = resp.body() ?: return@withLock RefreshOutcome.Unavailable
                     saveTokens(auth.accessToken, auth.refreshToken)
-                    auth.accessToken
-                } else {
-                    Log.w("SessionManager", "Refresh failed HTTP ${resp.code()}")
+                    RefreshOutcome.Refreshed(auth.accessToken)
+                } else if (isRefreshRejected(resp.code())) {
+                    Log.w("SessionManager", "Refresh rejected HTTP ${resp.code()}")
                     clearTokens()
-                    null
+                    RefreshOutcome.Rejected
+                } else {
+                    // 5xx, 408, 429: el servidor no pudo contestar; antes se cerraba la sesión igualmente.
+                    Log.w("SessionManager", "Refresh unavailable HTTP ${resp.code()}")
+                    RefreshOutcome.Unavailable
                 }
             } catch (e: Exception) {
                 Log.e("SessionManager", "Refresh exception", e)
-                null
+                RefreshOutcome.Unavailable
             }
         }
     }

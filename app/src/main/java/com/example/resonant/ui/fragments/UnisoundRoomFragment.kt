@@ -1,5 +1,6 @@
 package com.example.resonant.ui.fragments
 
+import com.example.resonant.utils.ImageSizes
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.animation.ValueAnimator
@@ -278,7 +279,7 @@ class UnisoundRoomFragment : Fragment(R.layout.fragment_unisound_room) {
             tintHero(HERO_FALLBACK_TINT)
             return
         }
-        Glide.with(this).asBitmap().load(url).into(object : CustomTarget<Bitmap>() {
+        Glide.with(this).asBitmap().load(url).into(object : CustomTarget<Bitmap>(ImageSizes.HERO_PX, ImageSizes.HERO_PX) {
             override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                 if (view == null) return
                 views.cover.setImageBitmap(resource)

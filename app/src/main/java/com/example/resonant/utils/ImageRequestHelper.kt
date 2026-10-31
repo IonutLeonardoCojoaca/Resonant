@@ -5,6 +5,7 @@ import android.net.Uri
 import com.bumptech.glide.load.model.GlideUrl
 import com.bumptech.glide.load.model.LazyHeaders
 import com.example.resonant.data.network.ApiClient
+import com.example.resonant.managers.SessionManager
 
 object ImageRequestHelper {
 
@@ -12,9 +13,9 @@ object ImageRequestHelper {
         return try {
             val uri = Uri.parse(url)
 
-            // 1) Si es URL prefirmada S3/MinIO, NO añadir Authorization
+            // 1) Si es URL prefirmada S3/MinIO, NO añadir Authorization; la clave de caché ignora la firma.
             if (isPresignedS3Url(uri)) {
-                return url
+                return StableKeyGlideUrl(url)
             }
 
             // 2) Si es mismo host que tu API, añade Authorization si existe token
@@ -25,8 +26,7 @@ object ImageRequestHelper {
             val imgPort = if (uri.port == -1) defaultPort(uri.scheme) else uri.port
 
             if (!imgHost.isNullOrBlank() && imgHost == apiHost && imgPort == apiPort) {
-                val prefs = context.getSharedPreferences("Auth", Context.MODE_PRIVATE)
-                val token = prefs.getString("ACCESS_TOKEN", null)
+                val token = SessionManager.getInstance(context).getAccessToken()
                 if (!token.isNullOrBlank()) {
                     return GlideUrl(
                         url,
@@ -43,6 +43,9 @@ object ImageRequestHelper {
             url
         }
     }
+
+    /** URL prefirmada S3/MinIO (lleva `X-Amz-*` en la query). Barato: Glide lo consulta en cada carga. */
+    fun isPresignedUrl(url: String): Boolean = url.indexOf("X-Amz-", ignoreCase = true) >= 0
 
     private fun isPresignedS3Url(uri: Uri): Boolean {
         val names = uri.queryParameterNames

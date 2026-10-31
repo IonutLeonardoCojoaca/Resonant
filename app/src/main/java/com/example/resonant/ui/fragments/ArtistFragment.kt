@@ -883,7 +883,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         topSongsAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
 
         topSongsAdapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 try {
                     // Use artists already embedded in the song from the API
                     song.artistName = song.artists.joinToString(", ") { it.name }
@@ -960,7 +960,7 @@ class ArtistFragment : BaseFragment(R.layout.fragment_artist) {
         singlesAdapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
 
         singlesAdapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 try {
                     song.artistName = song.artists.joinToString(", ") { it.name }
 

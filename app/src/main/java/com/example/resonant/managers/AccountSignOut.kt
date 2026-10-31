@@ -58,6 +58,15 @@ object AccountSignOut {
                 }
             }
             FirebaseAuth.getInstance().signOut()
+            // Cachés en memoria de la cuenta que se va: no deben servir datos a la siguiente.
+            SongManager.clearAll()
+            ArtistManager.clear()
+            AlbumManager.clear()
+            GenreManager.clear()
+            PlaymixManager.clear()
+            PlaymixSharingManager.clear()
+            PlaylistManager.clear()
+            LyricsManager.clear()
             app.getSharedPreferences("Auth", Context.MODE_PRIVATE).edit().clear().apply()
             app.getSharedPreferences("user_data", Context.MODE_PRIVATE).edit().clear().apply()
         }

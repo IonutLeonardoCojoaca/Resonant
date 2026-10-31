@@ -464,7 +464,6 @@ class PlaylistFragment : BaseFragment(R.layout.fragment_playlist) {
         songAdapter.submitList(state.songs.toList()) {
             val playingId = songViewModel.currentSongLiveData.value?.id
             songAdapter.setCurrentPlayingSong(playingId)
-            songAdapter.notifyDataSetChanged()
         }
 
         if (!firstRenderDone && state.songs.isNotEmpty()) firstRenderDone = true

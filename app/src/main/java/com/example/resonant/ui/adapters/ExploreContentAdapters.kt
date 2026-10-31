@@ -1,5 +1,6 @@
 package com.example.resonant.ui.adapters
 
+import com.example.resonant.utils.GlideDebug.logSource
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -306,7 +307,7 @@ class AriaPickAdapter(
             title.text = pick.song.title
             artist.text = pick.song.artistName.orEmpty()
             reason.text = pick.reason
-            image.loadExploreImage(pick.song.coverUrl ?: pick.song.album?.url, R.drawable.ic_disc)
+            image.loadExploreImage(pick.song.coverUrl ?: pick.song.album?.url, R.drawable.ic_disc, sizePx = PICK_COVER_PX)
         }
     }
 
@@ -321,14 +322,19 @@ class AriaPickAdapter(
     }
 }
 
+/** Portada de 72dp de las picks de Aria: decodificarla a 420 px era multiplicar por ~4 su memoria. */
+private const val PICK_COVER_PX = 216
+
 private fun ImageView.loadExploreImage(
     url: String?,
     placeholder: Int,
-    circle: Boolean = false
+    circle: Boolean = false,
+    sizePx: Int = 420
 ) {
     val request = Glide.with(this)
         .load(url?.takeIf { it.isNotBlank() }?.let { ImageRequestHelper.buildGlideModel(context, it) })
-        .override(420, 420)
+        .override(sizePx, sizePx)
+        .logSource("explore")
         .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
         .timeout(10_000)
         .placeholder(placeholder)

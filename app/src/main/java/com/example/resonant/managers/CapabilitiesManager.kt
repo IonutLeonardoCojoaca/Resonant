@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.PlatformFeaturesDTO
+import com.example.resonant.explore.ExploreV2Flag
 import com.example.resonant.playback.engine.TransitionEngineFlag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -110,7 +111,13 @@ object CapabilitiesManager {
             val capabilities = cache(context)
             val features = capabilities.refresh(force)
             // El motor de audio se decide al arrancar el servicio: se guarda solo una respuesta real.
-            if (capabilities.hasAnswer) TransitionEngineFlag.store(context.applicationContext, features.transitionEngineV2)
+            if (capabilities.hasAnswer) {
+                TransitionEngineFlag.store(context.applicationContext, features.transitionEngineV2)
+                // Explorar lo usa para decidir el modo sin esperar a esta respuesta en la siguiente apertura.
+                if (ExploreV2Flag.isEnabled(context.applicationContext) != features.exploreV2) {
+                    ExploreV2Flag.store(context.applicationContext, features.exploreV2)
+                }
+            }
             features
         }
 }

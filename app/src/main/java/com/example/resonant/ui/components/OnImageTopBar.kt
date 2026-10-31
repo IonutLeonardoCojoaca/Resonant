@@ -17,6 +17,11 @@ import kotlin.math.roundToInt
  */
 object OnImageTopBar {
 
+    // Se llama en cada frame de scroll; en las mesetas (0 y 1) la fracción no cambia y no hay que asignar nada.
+    private var lastFraction = -1f
+    private var lastThemeIcon = 0
+    private var lastTint: ColorStateList? = null
+
     /** Hace mutables los fondos (son drawables compartidos) para poder desvanecerlos. */
     fun prepare(vararg buttons: ImageView) {
         buttons.forEach { it.background?.mutate() }
@@ -28,7 +33,12 @@ object OnImageTopBar {
         if (buttons.isEmpty()) return
         val f = fraction.coerceIn(0f, 1f)
         val themeIcon = ContextCompat.getColor(buttons[0].context, R.color.white)
-        val tint = ColorStateList.valueOf(ColorUtils.blendARGB(Color.WHITE, themeIcon, f))
+        val tint = lastTint?.takeIf { f == lastFraction && themeIcon == lastThemeIcon }
+            ?: ColorStateList.valueOf(ColorUtils.blendARGB(Color.WHITE, themeIcon, f)).also {
+                lastTint = it
+                lastFraction = f
+                lastThemeIcon = themeIcon
+            }
         val circleAlpha = ((1f - f) * 255).roundToInt()
         buttons.forEach {
             ImageViewCompat.setImageTintList(it, tint)

@@ -9,6 +9,7 @@ import com.example.resonant.managers.FavoriteManager
 import com.example.resonant.data.models.Album
 import com.example.resonant.data.models.Artist
 import com.example.resonant.data.models.Song
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
@@ -17,6 +18,10 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     private val dataExpirationTime = 5 * 60 * 1000L
     private var lastFavoriteSongsFetchTime = 0L
     private var favoriteSongsLoading = false
+    /** Carga de canciones en vuelo; un `forceRefresh` la cancela para que su respuesta (anterior al cambio) no pise el estado. */
+    private var favoriteSongsJob: Job? = null
+    /** Canciones con un alta/baja en curso: un segundo toque no lanza otra petición. */
+    private val songTogglesInFlight = mutableSetOf<String>()
     private var lastFavoriteArtistsFetchTime = 0L
     private var favoriteArtistsLoading = false
     private var lastFavoriteAlbumsFetchTime = 0L
@@ -60,13 +65,16 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         val currentTime = System.currentTimeMillis()
         val isExpired = (currentTime - lastFavoriteSongsFetchTime) > dataExpirationTime
 
-        if (favoriteSongsLoading) return
+        // Antes un forceRefresh durante una carga se descartaba y la carga vieja pisaba el cambio recién hecho.
+        if (favoriteSongsLoading && !forceRefresh) return
         if (!forceRefresh && lastFavoriteSongsFetchTime > 0L && !isExpired) return
 
+        favoriteSongsJob?.cancel()
         favoriteSongsLoading = true
-        viewModelScope.launch {
+        favoriteSongsJob = viewModelScope.launch {
             try {
-                val favSongs = repo.getFavoritesSongs()
+                // null = fallo de red: se conserva lo que había (antes se mostraba "sin favoritos" 5 minutos).
+                val favSongs = repo.fetchFavoriteSongs() ?: return@launch
                 _favoriteSongs.value = favSongs
                 _favoriteSongIds.value = favSongs.map { it.id }.toSet()
                 lastFavoriteSongsFetchTime = System.currentTimeMillis()
@@ -86,7 +94,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         favoriteArtistsLoading = true
         viewModelScope.launch {
             try {
-                val favArtists = repo.getFavoriteArtists()
+                val favArtists = repo.fetchFavoriteArtists() ?: return@launch
                 _favoriteArtists.value = favArtists
                 _favoriteArtistIds.value = favArtists.map { it.id }.toSet()
                 lastFavoriteArtistsFetchTime = System.currentTimeMillis()
@@ -106,7 +114,7 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
         favoriteAlbumsLoading = true
         viewModelScope.launch {
             try {
-                val favAlbums = repo.getFavoriteAlbums()
+                val favAlbums = repo.fetchFavoriteAlbums() ?: return@launch
                 _favoriteAlbums.value = favAlbums
                 _favoriteAlbumIds.value = favAlbums.map { it.id }.toSet()
                 lastFavoriteAlbumsFetchTime = System.currentTimeMillis()
@@ -122,25 +130,40 @@ class FavoritesViewModel(app: Application) : AndroidViewModel(app) {
     // =========================================================================
 
     fun toggleFavoriteSong(song: Song, onResult: (Boolean, Boolean) -> Unit = { _, _ -> }) {
+        // Doble toque: la segunda petición leería el mismo estado y desharía la primera.
+        if (!songTogglesInFlight.add(song.id)) return
         viewModelScope.launch {
-            val currentFavoritesIds = _favoriteSongIds.value.orEmpty()
-            val isCurrentlyFavorite = currentFavoritesIds.contains(song.id)
+            try {
+                val currentFavoritesIds = _favoriteSongIds.value.orEmpty()
+                val isCurrentlyFavorite = currentFavoritesIds.contains(song.id)
 
-            if (isCurrentlyFavorite) {
-                // 🚀 OPTIMISTA: Borrar de la UI inmediatamente
-                val updatedList = _favoriteSongs.value.orEmpty().filter { it.id != song.id }
-                _favoriteSongs.value = updatedList
-                _favoriteSongIds.value = updatedList.map { it.id }.toSet()
+                if (isCurrentlyFavorite) {
+                    // 🚀 OPTIMISTA: Borrar de la UI inmediatamente
+                    val updatedList = _favoriteSongs.value.orEmpty().filter { it.id != song.id }
+                    _favoriteSongs.value = updatedList
+                    _favoriteSongIds.value = updatedList.map { it.id }.toSet()
 
-                // Llamada a BD/Red
-                val result = repo.deleteFavoriteSong(song.id)
-                if (!result) loadFavoriteSongs(forceRefresh = true) // Revertir si falla
-                onResult(result, false)
-            } else {
-                // Agregar
-                val result = repo.addFavoriteSong(song.id)
-                if (result) loadFavoriteSongs(forceRefresh = true)
-                onResult(result, true)
+                    // Llamada a BD/Red
+                    val result = repo.deleteFavoriteSong(song.id)
+                    if (!result) loadFavoriteSongs(forceRefresh = true) // Revertir si falla
+                    onResult(result, false)
+                } else {
+                    // 🚀 OPTIMISTA también al añadir: el corazón se enciende al momento y la lista se completa
+                    // en segundo plano (antes: petición, espera y recarga completa de favoritos).
+                    _favoriteSongIds.value = currentFavoritesIds + song.id
+                    _favoriteSongs.value = listOf(song) + _favoriteSongs.value.orEmpty().filter { it.id != song.id }
+
+                    val result = repo.addFavoriteSong(song.id)
+                    if (result) {
+                        loadFavoriteSongs(forceRefresh = true) // orden y favoritedAt reales del servidor
+                    } else {
+                        _favoriteSongIds.value = _favoriteSongIds.value.orEmpty() - song.id
+                        _favoriteSongs.value = _favoriteSongs.value.orEmpty().filter { it.id != song.id }
+                    }
+                    onResult(result, true)
+                }
+            } finally {
+                songTogglesInFlight.remove(song.id)
             }
         }
     }

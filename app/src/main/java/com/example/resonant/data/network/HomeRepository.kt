@@ -181,7 +181,12 @@ class HomeRepository(
         }
     }
 
+    /** Última lectura por usuario: en el arranque getCachedHome y getHome leían y parseaban el mismo JSON dos veces. */
+    @Volatile
+    private var lastRead: Pair<String, CachedHome>? = null
+
     private fun readCache(owner: String): CachedHome? {
+        lastRead?.let { (cachedOwner, cached) -> if (cachedOwner == owner) return cached }
         val json = preferences.getString(payloadKey(owner), null) ?: return null
         val payload = runCatching { gson.fromJson(json, HomeResponseDTO::class.java) }
             .getOrNull()
@@ -190,15 +195,17 @@ class HomeRepository(
             etag = preferences.getString(etagKey(owner), null),
             payload = payload,
             storedAtEpochMs = preferences.getLong(storedAtKey(owner), 0L)
-        )
+        ).also { lastRead = owner to it }
     }
 
     private fun writeCache(owner: String, etag: String?, payload: HomeResponseDTO) {
+        val storedAt = System.currentTimeMillis()
         preferences.edit {
             putString(payloadKey(owner), gson.toJson(payload))
             putString(etagKey(owner), etag)
-            putLong(storedAtKey(owner), System.currentTimeMillis())
+            putLong(storedAtKey(owner), storedAt)
         }
+        lastRead = owner to CachedHome(etag = etag, payload = payload, storedAtEpochMs = storedAt)
     }
 
     private fun payloadKey(owner: String) = "payload:$owner"

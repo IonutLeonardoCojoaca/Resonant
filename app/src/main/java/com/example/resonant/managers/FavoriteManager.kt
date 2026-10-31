@@ -37,12 +37,17 @@ class FavoriteManager(private val context: Context) {
         }
     }
 
-    suspend fun getFavoritesSongs(): List<Song> {
+    suspend fun getFavoritesSongs(): List<Song> = fetchFavoriteSongs().orEmpty()
+
+    /** `null` si la petición falló: el que llama conserva lo que tenía en vez de mostrar "sin favoritos". */
+    suspend fun fetchFavoriteSongs(): List<Song>? {
         return try {
-            songManager.getFavoriteSongs()
+            songManager.fetchFavoriteSongs()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("FavoriteManager", "Error al obtener las canciones favoritas", e)
-            emptyList()
+            null
         }
     }
 
@@ -64,12 +69,17 @@ class FavoriteManager(private val context: Context) {
         }
     }
 
-    suspend fun getFavoriteArtists(): List<Artist> {
+    suspend fun getFavoriteArtists(): List<Artist> = fetchFavoriteArtists().orEmpty()
+
+    /** `null` si la petición falló. */
+    suspend fun fetchFavoriteArtists(): List<Artist>? {
         return try {
             artistService.getFavoriteArtistsByUser()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
-            emptyList()
+            null
         }
     }
 
@@ -91,7 +101,10 @@ class FavoriteManager(private val context: Context) {
         }
     }
 
-    suspend fun getFavoriteAlbums(): List<Album> {
+    suspend fun getFavoriteAlbums(): List<Album> = fetchFavoriteAlbums().orEmpty()
+
+    /** `null` si la petición falló. */
+    suspend fun fetchFavoriteAlbums(): List<Album>? {
         return try {
             val favoritos = albumService.getFavoriteAlbumsByUser().toMutableList()
             favoritos.forEach { album ->
@@ -101,9 +114,11 @@ class FavoriteManager(private val context: Context) {
                 }
             }
             favoritos
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
-            emptyList()
+            null
         }
     }
 }

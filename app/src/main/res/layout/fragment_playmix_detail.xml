@@ -283,132 +283,61 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- ═══════════════════════════════════════════
-         SCROLLABLE CONTENT
+         CONTENIDO: un único RecyclerView bajo el AppBar (recicla las filas; antes iba dentro de un
+         NestedScrollView con wrap_content y se inflaban todas). La curva de tempo y la etiqueta "EL SET"
+         son su primer elemento (item_playmix_set_overview). Estados vacío / no disponible y esqueleto encima.
     ═══════════════════════════════════════════ -->
-    <androidx.core.widget.NestedScrollView
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:overScrollMode="never"
-        android:fillViewport="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <LinearLayout
+        <!-- Song + transition list -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/songTransitionList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:paddingStart="8dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="250dp" />
+
+        <include
+            android:id="@+id/detailSkeleton"
+            layout="@layout/view_playmix_detail_skeleton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:visibility="gone" />
 
-            <!-- Curva de tempo del set -->
-            <LinearLayout
-                android:id="@+id/tempoFlowSection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="16dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/bg_surface_panel"
-                android:orientation="vertical"
-                android:paddingHorizontal="14dp"
-                android:paddingTop="12dp"
-                android:paddingBottom="6dp"
-                android:visibility="gone">
+        <!-- Empty state -->
+        <TextView
+            android:id="@+id/noSongsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="36dp"
+            android:fontFamily="@font/unageo_regular"
+            android:gravity="center"
+            android:text="Este PlayMix está vacío.
+Añade canciones para empezar a mezclar."
+            android:textColor="@color/textTheme"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+        <!-- Enlace a una Playmix que no existe o no se puede ver (playmix-sharing-discovery) -->
+        <TextView
+            android:id="@+id/playmixUnavailableText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="36dp"
+            android:fontFamily="@font/unageo_regular"
+            android:gravity="center"
+            android:text="Esta Playmix no está disponible"
+            android:textColor="@color/textTheme"
+            android:textSize="14sp"
+            android:visibility="gone" />
 
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="@font/unageo_bold"
-                        android:letterSpacing="0.16"
-                        android:text="CURVA DE TEMPO"
-                        android:textColor="@color/textTheme"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/tempoFlowRange"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="@font/unageo_bold"
-                        android:textColor="@color/white"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <com.example.resonant.ui.views.PlaymixTempoFlowView
-                    android:id="@+id/tempoFlowView"
-                    android:layout_width="match_parent"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="4dp"
-                    android:importantForAccessibility="no" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/setlistLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="20dp"
-                android:layout_marginTop="22dp"
-                android:fontFamily="@font/unageo_bold"
-                android:letterSpacing="0.16"
-                android:text="EL SET"
-                android:textColor="@color/textTheme"
-                android:textSize="10sp" />
-
-            <!-- Song + transition list -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/songTransitionList"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clipToPadding="false"
-                android:nestedScrollingEnabled="false"
-                android:overScrollMode="never"
-                android:paddingStart="8dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="6dp"
-                android:paddingBottom="250dp" />
-
-            <!-- Empty state -->
-            <TextView
-                android:id="@+id/noSongsText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="36dp"
-                android:fontFamily="@font/unageo_regular"
-                android:gravity="center"
-                android:text="Este PlayMix está vacío.\nAñade canciones para empezar a mezclar."
-                android:textColor="@color/textTheme"
-                android:textSize="14sp"
-                android:visibility="gone" />
-
-            <!-- Enlace a una Playmix que no existe o no se puede ver (playmix-sharing-discovery) -->
-            <TextView
-                android:id="@+id/playmixUnavailableText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="36dp"
-                android:fontFamily="@font/unageo_regular"
-                android:gravity="center"
-                android:text="Esta Playmix no está disponible"
-                android:textColor="@color/textTheme"
-                android:textSize="14sp"
-                android:visibility="gone" />
-
-        </LinearLayout>
-
-    </androidx.core.widget.NestedScrollView>
-
-    <!-- Loader -->
-    <com.airbnb.lottie.LottieAnimationView
-        android:id="@+id/lottieLoader"
-        android:layout_width="220dp"
-        android:layout_height="220dp"
-        android:layout_gravity="center"
-        app:lottie_fileName="loader.json"
-        app:lottie_autoPlay="false"
-        app:lottie_loop="true"
-        app:lottie_repeatCount="-1"
-        app:lottie_enableMergePathsForKitKatAndAbove="true" />
+    </FrameLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

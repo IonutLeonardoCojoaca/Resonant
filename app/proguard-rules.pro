@@ -33,3 +33,14 @@
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
+
+# Logs de depuración fuera del release: 150+ Log.d/Log.v dejaban de costar formato de cadenas y E/S.
+# Solo v/d: w/e/i siguen saliendo para diagnosticar en producción.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+}
+
+# slf4j-api (lo trae SignalR) busca un binding opcional que no existe en la app: R8 lo marca como clase ausente
+# y rompe minifyReleaseWithR8. Sin binding slf4j usa su logger NOP, que es lo que queremos.
+-dontwarn org.slf4j.impl.StaticLoggerBinder

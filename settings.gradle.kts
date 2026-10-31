@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Resonant"
 include(":app")
+include(":baselineprofile")

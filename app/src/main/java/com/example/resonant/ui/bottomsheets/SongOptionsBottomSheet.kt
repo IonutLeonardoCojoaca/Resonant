@@ -31,7 +31,10 @@ import androidx.core.graphics.toColorInt
 import com.example.resonant.data.models.Artist
 import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.QueueCommands
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.example.resonant.managers.SongManager
 import com.example.resonant.utils.SnackType
 import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
@@ -55,6 +58,40 @@ class SongOptionsBottomSheet(
 
     override fun getTheme(): Int {
         return R.style.AppBottomSheetDialogTheme
+    }
+
+    /** Accesos a álbum y artista(s) de [song]; se vuelve a llamar si la canción llega completa más tarde. */
+    private fun bindNavigation(song: Song, goToAlbumButton: TextView, goToArtistButton: TextView) {
+        // Ir al Álbum
+        val albumId = song.album?.id
+        if (!albumId.isNullOrBlank()) {
+            goToAlbumButton.visibility = View.VISIBLE
+            goToAlbumButton.setOnClickListener {
+                dismiss()
+                onGoToAlbumClick?.invoke(albumId)
+            }
+        } else {
+            goToAlbumButton.visibility = View.GONE
+        }
+
+        // Ir al Artista
+        goToArtistButton.setOnClickListener {
+            val artists = song.artists.map { it.toArtist() }
+            if (artists.isNotEmpty()) {
+                if (artists.size > 1) {
+                    val selector = ArtistSelectorBottomSheet(artists) { selectedArtist ->
+                        dismiss()
+                        onGoToArtistClick?.invoke(selectedArtist)
+                    }
+                    selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
+                } else {
+                    dismiss()
+                    onGoToArtistClick?.invoke(artists[0])
+                }
+            } else {
+                dismiss()
+            }
+        }
     }
 
     override fun onCreateView(
@@ -119,35 +156,17 @@ class SongOptionsBottomSheet(
         //  NAVEGACIÓN (ÁLBUM / ARTISTA)
         // ============================
 
-        // Ir al Álbum
-        val albumId = song.album?.id
-        if (!albumId.isNullOrBlank()) {
-            goToAlbumButton.visibility = View.VISIBLE
-            goToAlbumButton.setOnClickListener {
-                dismiss()
-                onGoToAlbumClick?.invoke(albumId)
+        bindNavigation(song, goToAlbumButton, goToArtistButton)
+        if (song.album == null && song.artists.isEmpty()) {
+            // Canción llegada sin álbum ni artistas (la cola de una Playmix se construye desde su detalle):
+            // se completan en segundo plano con la caché de SongManager y se habilitan los accesos.
+            val appContext = requireContext().applicationContext
+            viewLifecycleOwner.lifecycleScope.launch {
+                val full = withContext(Dispatchers.IO) {
+                    runCatching { SongManager(appContext).getSongById(song.id) }.getOrNull()
+                }
+                if (full != null && view != null) bindNavigation(full, goToAlbumButton, goToArtistButton)
             }
-        } else {
-            goToAlbumButton.visibility = View.GONE
-        }
-
-        // Ir al Artista
-        goToArtistButton.setOnClickListener {
-           val artists = song.artists.map { it.toArtist() }
-           if (artists.isNotEmpty()) {
-               if (artists.size > 1) {
-                   val selector = ArtistSelectorBottomSheet(artists) { selectedArtist ->
-                       dismiss()
-                       onGoToArtistClick?.invoke(selectedArtist)
-                   }
-                   selector.show(parentFragmentManager, "ArtistSelectorBottomSheet")
-               } else {
-                   dismiss()
-                   onGoToArtistClick?.invoke(artists[0])
-               }
-           } else {
-               dismiss()
-           }
         }
 
         // -----------------------------------------------------------------------

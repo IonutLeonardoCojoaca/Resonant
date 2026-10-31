@@ -76,7 +76,7 @@ class EditPlaylistFragment : BaseFragment(R.layout.fragment_edit_playlist) {
     }
 
     private fun observeViewModel() {
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             viewModel.updateState.collect { state ->
                 when (state) {
                     is EditPlaylistViewModel.UpdateState.Loading -> {

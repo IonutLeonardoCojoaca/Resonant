@@ -9,13 +9,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.PlaymixDetailDTO
-import com.example.resonant.data.network.PlaymixSongDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.managers.PlaymixManager
-import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.OfflineCollectionStore
+import com.example.resonant.playback.PlaymixSongMapper
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -27,59 +28,78 @@ data class PlaymixDetailScreenState(
     val notFound: Boolean = false
 )
 
-class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewModel() {
+class PlaymixDetailViewModel(
+    private val playmixManager: PlaymixManager,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : ViewModel() {
 
     private val _screenState = MutableLiveData(PlaymixDetailScreenState())
     val screenState: LiveData<PlaymixDetailScreenState> get() = _screenState
 
+    /** Mensaje de error pendiente de mostrar; la pantalla lo consume con [consumeError]. */
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> get() = _error
 
+    fun consumeError() {
+        _error.value = null
+    }
+
     private var currentPlaymixId: String? = null
 
+    /** Única carga del detalle en vuelo: la siguiente cancela la anterior, así nunca gana una respuesta vieja. */
+    private var refreshJob: Job? = null
+
+    /** Contexto para leer la Playmix descargada sin conexión (lo fija la pantalla). */
+    var offlineContext: Context? = null
+
+    /**
+     * Pinta el último detalle conocido al instante y revalida solo si caducó (60 s en el manager) o se fuerza.
+     * Volver del editor ya no se salta la revalidación: lo que se guarda invalida la caché del manager.
+     */
     fun loadPlaymixDetail(playmixId: String, forceReload: Boolean = false) {
-        if (playmixId == currentPlaymixId && !forceReload && _screenState.value?.isLoading == false) {
-            return
-        }
+        if (playmixId != currentPlaymixId) refreshJob?.cancel()
         currentPlaymixId = playmixId
-        refreshDetail(playmixId, showLoading = true)
+        val shown = _screenState.value?.detail?.takeIf { it.id == playmixId }
+        val cached = playmixManager.cachedDetail(playmixId)
+        if (shown == null && cached != null) {
+            _screenState.value = PlaymixDetailScreenState(isLoading = false, detail = cached)
+        }
+        val hasDetail = shown != null || cached != null
+        if (!forceReload && hasDetail && playmixManager.isDetailFresh(playmixId)) return
+        if (!forceReload && refreshJob?.isActive == true) return
+        refreshDetail(playmixId, showLoading = !hasDetail)
     }
 
     private fun refreshDetail(playmixId: String, showLoading: Boolean = false) {
         if (showLoading) {
             _screenState.value = _screenState.value?.copy(isLoading = true, error = null)
         }
-
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             try {
-                val detail = withContext(Dispatchers.IO) {
-                    playmixManager.getPlaymixDetail(playmixId)
+                val detail = withContext(ioDispatcher) {
+                    playmixManager.getPlaymixDetail(playmixId, forceRefresh = true)
                 }
-                _screenState.postValue(
-                    PlaymixDetailScreenState(
-                        isLoading = false,
-                        detail = detail,
-                        error = null
-                    )
-                )
+                _screenState.value = PlaymixDetailScreenState(isLoading = false, detail = detail, error = null)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("PlaymixDetailVM", "Error loading detail", e)
                 if (e is retrofit2.HttpException && (e.code() == 404 || e.code() == 403)) { // privada ajena: como en CollectionSyncDiff
-                    _screenState.postValue(PlaymixDetailScreenState(isLoading = false, notFound = true))
+                    _screenState.value = PlaymixDetailScreenState(isLoading = false, notFound = true)
                     return@launch
                 }
                 // Sin red: el detalle guardado de una Playmix descargada (collection-queue-offline D5).
                 val offline = offlineContext?.let { ctx ->
-                    withContext(Dispatchers.IO) { OfflineCollectionStore.playmixDetail(ctx, playmixId) }
+                    withContext(ioDispatcher) { OfflineCollectionStore.playmixDetail(ctx, playmixId) }
                 }
                 if (offline != null) {
                     Log.d("PlaymixDetailVM", "Playmix $playmixId abierta desde la descarga")
-                    _screenState.postValue(PlaymixDetailScreenState(isLoading = false, detail = offline, error = null))
+                    _screenState.value = PlaymixDetailScreenState(isLoading = false, detail = offline, error = null)
                     return@launch
                 }
-                _screenState.postValue(
-                    _screenState.value?.copy(isLoading = false, error = "No se pudieron cargar los datos.")
-                )
+                _screenState.value = _screenState.value?.copy(isLoading = false, error = LOAD_ERROR_MESSAGE)
+                _error.value = LOAD_ERROR_MESSAGE
             }
         }
     }
@@ -88,12 +108,12 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         val playmixId = currentPlaymixId ?: return
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    playmixManager.addSongToPlaymix(playmixId, songId)
-                }
-                refreshDetail(playmixId, showLoading = false)
+                withContext(ioDispatcher) { playmixManager.addSongToPlaymix(playmixId, songId) }
+                refreshDetail(playmixId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.postValue("Error al añadir canción: ${e.message}")
+                _error.value = "Error al añadir canción: ${e.message}"
             }
         }
     }
@@ -102,13 +122,13 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         val playmixId = currentPlaymixId ?: return
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    playmixManager.removeSongFromPlaymix(playmixId, playmixSongId)
-                }
+                withContext(ioDispatcher) { playmixManager.removeSongFromPlaymix(playmixId, playmixSongId) }
                 onSuccess()
-                refreshDetail(playmixId, showLoading = false)
+                refreshDetail(playmixId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.postValue("Error al eliminar canción: ${e.message}")
+                _error.value = "Error al eliminar canción: ${e.message}"
             }
         }
     }
@@ -117,12 +137,12 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         val playmixId = currentPlaymixId ?: return
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    playmixManager.reorderSongs(playmixId, orderedSongIds)
-                }
-                refreshDetail(playmixId, showLoading = false)
+                withContext(ioDispatcher) { playmixManager.reorderSongs(playmixId, orderedSongIds) }
+                refreshDetail(playmixId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.postValue("Error al reordenar: ${e.message}")
+                _error.value = "Error al reordenar: ${e.message}"
             }
         }
     }
@@ -131,13 +151,13 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         val playmixId = currentPlaymixId ?: return
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    playmixManager.deletePlaymix(playmixId)
-                }
-                withContext(Dispatchers.Main) { onSuccess() }
+                withContext(ioDispatcher) { playmixManager.deletePlaymix(playmixId) }
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("PlaymixDetailVM", "Error deleting playmix", e)
-                withContext(Dispatchers.Main) { onError(e.message ?: "Error desconocido al borrar") }
+                onError(e.message ?: "Error desconocido al borrar")
             }
         }
     }
@@ -146,14 +166,14 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         val playmixId = currentPlaymixId ?: return
         viewModelScope.launch {
             try {
-                val updated = withContext(Dispatchers.IO) {
-                    playmixManager.renamePlaymix(playmixId, newName)
-                }
+                val updated = withContext(ioDispatcher) { playmixManager.renamePlaymix(playmixId, newName) }
                 _screenState.value = _screenState.value?.copy(detail = updated)
-                withContext(Dispatchers.Main) { onSuccess() }
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("PlaymixDetailVM", "Error renaming playmix", e)
-                withContext(Dispatchers.Main) { onError(e.message ?: "Error desconocido al renombrar") }
+                onError(e.message ?: "Error desconocido al renombrar")
             }
         }
     }
@@ -172,20 +192,19 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
         }
     }
 
-    /** Contexto para leer la Playmix descargada sin conexión (lo fija la pantalla). */
-    var offlineContext: Context? = null
-
-    suspend fun fetchSongsForPlayback(
-        songManager: SongManager,
-        startSongId: String? = null
-    ): Pair<List<Song>, Int>? {
+    /**
+     * Cola para reproducir: las canciones salen del detalle ya cargado ([PlaymixSongMapper]), sin pedir cada una
+     * al servidor (antes, 2 peticiones por canción antes de sonar). Descargada y sin red: lo guardado.
+     */
+    suspend fun fetchSongsForPlayback(startSongId: String? = null): Pair<List<Song>, Int>? {
         val detail = _screenState.value?.detail ?: return null
         val sortedPlaymixSongs = detail.songs.sortedBy { it.position }
+        if (sortedPlaymixSongs.isEmpty()) return null
 
         // Descargada y sin red: canciones y análisis guardados, sin pedir nada al servidor (collection-queue-offline D5).
         offlineContext?.let { ctx ->
             if (!OfflineCollectionStore.isOnline(ctx)) {
-                val offline = withContext(Dispatchers.IO) { OfflineCollectionStore.playmixSongs(ctx, detail.id) }
+                val offline = withContext(ioDispatcher) { OfflineCollectionStore.playmixSongs(ctx, detail.id) }
                 if (!offline.isNullOrEmpty()) {
                     val startIdx = startSongId?.let { id -> offline.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
                     return Pair(offline, startIdx)
@@ -193,42 +212,13 @@ class PlaymixDetailViewModel(private val playmixManager: PlaymixManager) : ViewM
             }
         }
 
-        val indexedSongs: List<Pair<Int, Song>> = withContext(Dispatchers.IO) {
-            sortedPlaymixSongs.mapIndexed { idx, ps ->
-                async {
-                    try {
-                        val song = songManager.getSongById(ps.songId)
-                        if (song != null) Pair(idx, song) else null
-                    } catch (e: Exception) {
-                        Log.e("PlaymixDetailVM", "Failed to fetch song ${ps.songId}", e)
-                        null
-                    }
-                }
-            }.mapNotNull { it.await() }
-        }
-
-        if (indexedSongs.isEmpty()) {
-            // La red falló a mitad: si está descargada, lo guardado.
-            val offline = offlineContext?.let { ctx ->
-                withContext(Dispatchers.IO) { OfflineCollectionStore.playmixSongs(ctx, detail.id) }
-            }
-            if (!offline.isNullOrEmpty()) {
-                val startIdx = startSongId?.let { id -> offline.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
-                return Pair(offline, startIdx)
-            }
-            return null
-        }
-
-        val songs = indexedSongs.map { it.second }
-        val startIdx = if (startSongId != null) {
-            val pmSongIdx = sortedPlaymixSongs.indexOfFirst { it.songId == startSongId }
-            indexedSongs.indexOfFirst { it.first == pmSongIdx }.takeIf { it >= 0 } ?: 0
-        } else {
-            0
-        }
+        val songs = PlaymixSongMapper.toSongs(sortedPlaymixSongs)
+        val startIdx = startSongId?.let { id -> songs.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
         return Pair(songs, startIdx)
     }
 }
+
+private const val LOAD_ERROR_MESSAGE = "No se pudieron cargar los datos."
 
 class PlaymixDetailViewModelFactory(private val playmixManager: PlaymixManager) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

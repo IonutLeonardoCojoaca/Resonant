@@ -418,7 +418,7 @@ class SearchFragment : Fragment() {
         }
 
         searchResultAdapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 // Use artists already embedded in the song from the API
                 song.artistName = song.artists.joinToString(", ") { it.name }
 
@@ -583,7 +583,9 @@ class SearchFragment : Fragment() {
         // --- SEARCH FLOW COLLECTOR ---
         viewLifecycleOwner.lifecycleScope.launch {
             queryFlow
-                .debounce(300)
+                // Al borrar el texto no hay nada que esperar: la emisión vacía cancela al instante la búsqueda
+                // en vuelo (collectLatest) para que su respuesta no pinte resultados sobre la pantalla ya vacía.
+                .debounce { query -> if (query.isEmpty()) 0L else 300L }
                 .collectLatest { query ->
                     if (query.isEmpty()) return@collectLatest
                     withContext(Dispatchers.Main) {
@@ -596,9 +598,9 @@ class SearchFragment : Fragment() {
                     }
 
                     try {
-                        val response = withContext(Dispatchers.IO) {
-                            universalSearchService.search(query)
-                        }
+                        val response = universalSearchService.search(query)
+                        // El texto pudo cambiar mientras respondía el servidor: esos resultados ya no son de esta consulta.
+                        if (editTextQuery?.text?.toString()?.trim() != query) return@collectLatest
 
                         val combinedResults = response.results.mapNotNull { hit ->
                             when (hit.type) {
@@ -653,6 +655,8 @@ class SearchFragment : Fragment() {
                                 }
                             }
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         withContext(Dispatchers.Main) {
                             loadingAnimation.visibility = View.INVISIBLE
@@ -676,7 +680,15 @@ class SearchFragment : Fragment() {
     }
 
     private fun loadHistory() {
-        val list = searchHistoryManager.getHistory()
+        // El historial es JSON en preferencias: se parsea fuera de Main. Si entre tanto se escribió algo, no se pinta.
+        viewLifecycleOwner.lifecycleScope.launch {
+            val list = withContext(Dispatchers.IO) { searchHistoryManager.getHistory() }
+            if (!editTextQuery?.text.isNullOrBlank()) return@launch
+            renderHistory(list)
+        }
+    }
+
+    private fun renderHistory(list: List<com.example.resonant.managers.HistoryItem>) {
         if (list.isNotEmpty()) {
             historyAdapter.submitList(list)
             historyRecyclerView.visibility = View.VISIBLE

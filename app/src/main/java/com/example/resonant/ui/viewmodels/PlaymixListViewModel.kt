@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.resonant.data.network.PlaymixDTO
 import com.example.resonant.managers.PlaymixManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewModel() {
@@ -26,44 +27,50 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
 
     private var hasLoadedOnce = false
 
+    /** Única carga en vuelo: una nueva (o un borrado) cancela la anterior para que lo más viejo no pise lo nuevo. */
+    private var loadJob: Job? = null
+
+    /**
+     * Pinta la caché al instante y solo va a red si ha caducado (5 min) o la invalidó un cambio. Antes, tras la
+     * primera carga, cada vuelta a la pantalla forzaba la petición aunque la caché estuviera fresca.
+     */
     fun loadMyPlaymixes() {
         val cached = playmixManager.getCachedMyPlaymixes()
         if (cached != null) {
             _playmixes.value = cached
         }
-
-        val shouldShowLoader = !hasLoadedOnce && cached == null
-        _isLoading.value = shouldShowLoader
-        viewModelScope.launch {
-            try {
-                val shouldForceRefresh = hasLoadedOnce || !playmixManager.isPlaymixCacheFresh()
-                val list = playmixManager.getMyPlaymixes(forceRefresh = shouldForceRefresh)
-                _playmixes.postValue(list)
-                hasLoadedOnce = true
-            } catch (e: Exception) {
-                Log.e("PlaymixListVM", "Error loading playmixes", e)
-                _error.postValue("Error al obtener los playmixes: ${e.message}")
-                if (_playmixes.value.isNullOrEmpty()) {
-                    _playmixes.postValue(emptyList())
-                }
-            } finally {
-                _isLoading.postValue(false)
-            }
+        if (cached != null && playmixManager.isPlaymixCacheFresh()) {
+            hasLoadedOnce = true
+            if (loadJob?.isActive != true) _isLoading.value = false
+            return
         }
+
+        _isLoading.value = !hasLoadedOnce && cached == null
+        load(forceRefresh = true, errorPrefix = "Error al obtener los playmixes")
     }
 
     fun refreshPlaymixes() {
         _isLoading.value = true
-        viewModelScope.launch {
+        load(forceRefresh = true, errorPrefix = "Error al actualizar los playmixes")
+    }
+
+    private fun load(forceRefresh: Boolean, errorPrefix: String) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             try {
-                val list = playmixManager.getMyPlaymixes(forceRefresh = true)
-                _playmixes.postValue(list)
+                val list = playmixManager.getMyPlaymixes(forceRefresh = forceRefresh)
+                _playmixes.value = list
                 hasLoadedOnce = true
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.e("PlaymixListVM", "Error refreshing playmixes", e)
-                _error.postValue("Error al actualizar los playmixes: ${e.message}")
+                Log.e("PlaymixListVM", "Error loading playmixes", e)
+                _error.value = "$errorPrefix: ${e.message}"
+                if (_playmixes.value.isNullOrEmpty()) {
+                    _playmixes.value = emptyList()
+                }
             } finally {
-                _isLoading.postValue(false)
+                _isLoading.value = false
             }
         }
     }
@@ -89,8 +96,11 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
             return
         }
 
+        // Una carga en vuelo podría devolver la lista con el elemento todavía dentro y pisar el borrado optimista.
+        loadJob?.cancel()
+        _isLoading.value = false
         val updatedList = originalList.filterNot { it.id == playmixId }
-        _playmixes.postValue(updatedList)
+        _playmixes.value = updatedList
 
         viewModelScope.launch {
             try {
@@ -98,8 +108,8 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
                 onResult(true)
             } catch (e: Exception) {
                 Log.e("PlaymixListVM", "Error deleting playmix", e)
-                _error.postValue("Error al borrar el playmix. Se ha restaurado.")
-                _playmixes.postValue(originalList)
+                _error.value = "Error al borrar el playmix. Se ha restaurado."
+                _playmixes.value = originalList
                 onResult(false)
             }
         }
@@ -107,6 +117,11 @@ class PlaymixListViewModel(private val playmixManager: PlaymixManager) : ViewMod
 
     fun onPlaymixCreationHandled() {
         _playmixCreated.value = false
+        _error.value = null
+    }
+
+    /** La pantalla ya mostró el error: no debe reaparecer al recrear la vista. */
+    fun consumeError() {
         _error.value = null
     }
 }

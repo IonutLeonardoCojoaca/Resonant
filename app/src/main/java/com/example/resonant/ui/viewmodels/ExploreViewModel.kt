@@ -17,6 +17,9 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.ExploreLoadResult
 import com.example.resonant.data.network.ExploreRepository
 import com.example.resonant.data.network.ExploreSectionResult
+import com.example.resonant.data.network.ExploreSession
+import com.example.resonant.explore.ExploreV2Flag
+import com.example.resonant.managers.UserManager
 import com.example.resonant.explore.ExploreGreeting
 import com.example.resonant.explore.ExploreLayoutEvent
 import com.example.resonant.explore.ExploreLayoutReducer
@@ -44,7 +47,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.time.ZoneId
 
 class ExploreViewModel(application: Application) : AndroidViewModel(application) {
@@ -69,6 +76,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private val _artistRadios = MutableLiveData<List<ArtistMix>>()
     val artistRadios: LiveData<List<ArtistMix>> get() = _artistRadios
     private var artistMixesJob: Job? = null
+    private var artistMixesPending = false
 
     private val _mostListenedArtists = MutableLiveData<List<Artist>>()
     val mostListenedArtists: LiveData<List<Artist>> get() = _mostListenedArtists
@@ -125,23 +133,37 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
      */
     fun loadExplore() {
         if (exploreJob?.isActive == true) return
+        ensureOwner()
+        if (_mode.value == ExploreMode.Loading && firstContentStartedAt == 0L) {
+            firstContentStartedAt = android.os.SystemClock.elapsedRealtime()
+        }
+        val app = getApplication<Application>()
         exploreJob = viewModelScope.launch {
             val tz = ZoneId.systemDefault().id
             layoutTz = tz
             // La copia de sesión se pinta antes de consultar las capacidades (que, caducadas, son una petición
             // de red): solo existe si Explore v2 estaba activo en esta sesión, y si ya no lo está se pasa a legacy.
+            // Si lo que hay en pantalla ya es esa copia (mismo ViewModel, misma ETag), no se decodifica otra vez.
             val copy = exploreRepository.cached(tz)
-            copy?.let { show(ExploreModeResolver.stateFrom(it, layoutReducer)) }
-            if (!CapabilitiesManager.refresh(getApplication()).exploreV2) {
+            if (copy != null && (layout == null || layout?.etag != copy.etag)) show(stateFrom(copy))
+            // El layout se pide a la vez que las capacidades cuando v2 estaba activo la última vez (en memoria o
+            // guardado) o hay copia: un viaje de red hasta el primer contenido en vez de dos encadenados.
+            val eager = ExploreModeResolver.shouldLoadLayoutEagerly(
+                lastKnownV2 = CapabilitiesManager.isExploreV2Enabled() || ExploreV2Flag.isEnabled(app),
+                hasCopy = copy != null
+            )
+            val eagerLoad = if (eager) async { exploreRepository.load(tz) } else null
+            if (!CapabilitiesManager.refresh(app).exploreV2) {
+                eagerLoad?.cancel()
                 showLegacy()
                 return@launch
             }
 
-            val result = exploreRepository.load(tz)
+            val result = eagerLoad?.await() ?: exploreRepository.load(tz)
             when (ExploreModeResolver.afterLoad(result, hasCopy = copy != null)) {
                 Action.SHOW_FRESH -> {
                     val session = (result as ExploreLoadResult.Ok).session
-                    show(ExploreModeResolver.stateFrom(session, layoutReducer))
+                    show(stateFrom(session))
                 }
                 Action.KEEP_CURRENT -> Unit
                 Action.LEGACY -> showLegacy()
@@ -171,6 +193,10 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Decodifica el layout (Gson por elemento) fuera del hilo principal; el estado se aplica después en Main. */
+    private suspend fun stateFrom(session: ExploreSession): ExploreLayoutState =
+        withContext(Dispatchers.Default) { ExploreModeResolver.stateFrom(session, layoutReducer) }
+
     /** Loads a pending section once; a failed one is not retried until Explore is opened again. */
     fun requestDeferred(id: String) {
         val current = layout ?: return
@@ -178,7 +204,9 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         reduce(ExploreLayoutEvent.DeferredRequested(id))
         viewModelScope.launch {
             val event = when (val result = exploreRepository.loadSection(id, layoutTz)) {
-                is ExploreSectionResult.Loaded -> ExploreLayoutEvent.DeferredLoaded(id, result.section)
+                is ExploreSectionResult.Loaded -> ExploreLayoutEvent.DeferredMapped(
+                    id, withContext(Dispatchers.Default) { layoutReducer.mapDeferred(result.section) }
+                )
                 ExploreSectionResult.Missing -> ExploreLayoutEvent.DeferredMissing(id)
                 ExploreSectionResult.Failed -> ExploreLayoutEvent.DeferredFailed(id)
             }
@@ -212,6 +240,64 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         _ariaMessage.value = null
     }
 
+    /** La pantalla ya mostró el error: no debe reaparecer al recrear la vista. */
+    fun consumeError() {
+        _error.value = null
+    }
+
+    // region Dueño y caducidad (el ViewModel vive en la Activity: sobrevive al cambio de pestaña)
+
+    private var loadedOwnerId: String? = null
+    private val loadedAtMs = HashMap<String, Long>()
+
+    /** Animación de entrada de las quick cards: una vez por sesión, no en cada visita a la pestaña. */
+    var quickCardsAnimated = false
+
+    /** Si la sección se cargó hace menos de [DATA_TTL_MS] no se vuelve a pedir al volver a la pestaña. */
+    private fun isFresh(key: String): Boolean =
+        loadedAtMs[key]?.let { System.currentTimeMillis() - it < DATA_TTL_MS } == true
+
+    private fun markLoaded(key: String) {
+        loadedAtMs[key] = System.currentTimeMillis()
+    }
+
+    /** Otra cuenta en el mismo proceso: lo cargado pertenece al usuario anterior (mismo criterio que HomeViewModel). */
+    private fun ensureOwner() {
+        val ownerId = UserManager(getApplication()).getUserId()
+        if (loadedOwnerId != null && loadedOwnerId != ownerId) clearForOwnerChange()
+        loadedOwnerId = ownerId
+    }
+
+    private fun clearForOwnerChange() {
+        exploreJob?.cancel()
+        artistMixesJob?.cancel()
+        liveJob?.cancel()
+        layout = null
+        loadedAtMs.clear()
+        quickCardsAnimated = false
+        _mode.value = ExploreMode.Loading
+        _genres.value = emptyList()
+        _artistEssentials.value = emptyList()
+        _artistRadios.value = emptyList()
+        _mostListenedArtists.value = emptyList()
+        _newReleaseAlbums.value = emptyList()
+        _publicPlaylists.value = emptyList()
+        _recommendedAlbums.value = emptyList()
+        _recentArtists.value = emptyList()
+        _liveChannels.value = emptyList()
+    }
+
+    // endregion
+
+    /** Medición (debug): ms desde la primera apertura hasta que la pantalla deja de estar en `Loading`. */
+    private var firstContentStartedAt = 0L
+
+    private fun logFirstContent(mode: String) {
+        if (firstContentStartedAt == 0L || !com.example.resonant.BuildConfig.DEBUG) return
+        Log.d("ExploreTiming", "first content ($mode) after ${android.os.SystemClock.elapsedRealtime() - firstContentStartedAt} ms")
+        firstContentStartedAt = 0L
+    }
+
     private fun dismissAriaPick(songId: String) {
         reduce(ExploreLayoutEvent.AriaDismissed(songId))
         rememberDismissed()
@@ -232,11 +318,17 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
             .getSharedPreferences("user_data", Context.MODE_PRIVATE)
             .getString("NAME", null)
         _mode.value = ExploreModeResolver.modeFor(state, ExploreGreeting.of(state.daypart, userName))
+        if (_mode.value != ExploreMode.Loading) {
+            logFirstContent("dynamic")
+            if (artistMixesPending) loadArtistMixes()
+        }
     }
 
     private fun showLegacy() {
         layout = null
         if (_mode.value != ExploreMode.Legacy) _mode.value = ExploreMode.Legacy
+        logFirstContent("legacy")
+        if (artistMixesPending) loadArtistMixes()
     }
 
     // endregion
@@ -348,7 +440,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     // endregion
 
     fun loadPopularGenres() {
-        if (_genres.value != null) return
+        if (_genres.value != null && isFresh(KEY_GENRES)) return
+        markLoaded(KEY_GENRES)
         _isLoading.value = true
         _error.value = null
 
@@ -368,7 +461,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loadRecommendedAlbums() {
-        if (_recommendedAlbums.value != null) return
+        if (_recommendedAlbums.value != null && isFresh(KEY_RECOMMENDED_ALBUMS)) return
+        markLoaded(KEY_RECOMMENDED_ALBUMS)
         _recommendedAlbumsLoading.value = true
 
         viewModelScope.launch {
@@ -385,7 +479,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loadRecentArtists() {
-        if (_recentArtists.value != null) return
+        if (_recentArtists.value != null && isFresh(KEY_RECENT_ARTISTS)) return
+        markLoaded(KEY_RECENT_ARTISTS)
         _recentArtistsLoading.value = true
 
         viewModelScope.launch {
@@ -416,7 +511,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loadPublicPlaylists() {
-        if (_publicPlaylists.value != null) return
+        if (_publicPlaylists.value != null && isFresh(KEY_PUBLIC_PLAYLISTS)) return
+        markLoaded(KEY_PUBLIC_PLAYLISTS)
         _publicPlaylistsLoading.value = true
         _error.value = null
 
@@ -455,15 +551,25 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
      * las cachea). Ambas listas conservan el orden del ranking.
      */
     fun loadArtistMixes() {
-        if (_artistEssentials.value != null || artistMixesJob?.isActive == true) return
+        if (artistMixesJob?.isActive == true) return
+        if (_artistEssentials.value != null && isFresh(KEY_ARTIST_MIXES)) return
+        // Van bajo el primer pliegue: se piden cuando ya hay contenido en pantalla, para no competir con el
+        // layout por las 8 conexiones por host, y de 4 en 4.
+        if (_mode.value == ExploreMode.Loading) {
+            artistMixesPending = true
+            return
+        }
+        artistMixesPending = false
+        markLoaded(KEY_ARTIST_MIXES)
         val app = getApplication<Application>()
         artistMixesJob = viewModelScope.launch {
             try {
                 val service = ApiClient.getArtistService(app)
                 val artists = service.getTopArtists(period = StatsPeriod.WEEKLY.value.toString(), limit = ARTIST_MIXES_LIMIT)
                     .ifEmpty { service.getTopArtists(period = StatsPeriod.ALL_TIME.value.toString(), limit = ARTIST_MIXES_LIMIT) }
+                val gate = Semaphore(ARTIST_MIXES_PARALLELISM)
                 val mixes = artists.map { artist ->
-                    async { artist to ArtistManager.getArtistSmartPlaylists(app, artist.id) }
+                    async { gate.withPermit { artist to ArtistManager.getArtistSmartPlaylists(app, artist.id) } }
                 }.awaitAll()
                 fun pick(type: String) = mixes.mapNotNull { (artist, playlists) ->
                     playlists.firstOrNull { it.playlistType.equals(type, ignoreCase = true) }?.let { ArtistMix(artist, it) }
@@ -479,7 +585,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loadMostListenedArtists() {
-        if (_mostListenedArtists.value != null) return
+        if (_mostListenedArtists.value != null && isFresh(KEY_MOST_LISTENED)) return
+        markLoaded(KEY_MOST_LISTENED)
         _mostListenedArtistsLoading.value = true
 
         viewModelScope.launch {
@@ -498,7 +605,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun loadNewReleaseAlbums() {
-        if (_newReleaseAlbums.value != null) return
+        if (_newReleaseAlbums.value != null && isFresh(KEY_NEW_RELEASES)) return
+        markLoaded(KEY_NEW_RELEASES)
         _newReleaseAlbumsLoading.value = true
 
         viewModelScope.launch {
@@ -517,5 +625,15 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         const val ARIA_LIKED_MESSAGE = "Gracias, Aria lo tendrá en cuenta"
         const val ARIA_FAILED_MESSAGE = "No se ha podido enviar, inténtalo de nuevo"
         const val ARTIST_MIXES_LIMIT = 10
+        const val ARTIST_MIXES_PARALLELISM = 4
+        /** Caducidad de las secciones fijas y de los mixes de artistas (misma ventana que HomeViewModel). */
+        const val DATA_TTL_MS = 15 * 60 * 1000L
+        const val KEY_GENRES = "genres"
+        const val KEY_RECOMMENDED_ALBUMS = "recommendedAlbums"
+        const val KEY_RECENT_ARTISTS = "recentArtists"
+        const val KEY_PUBLIC_PLAYLISTS = "publicPlaylists"
+        const val KEY_MOST_LISTENED = "mostListened"
+        const val KEY_NEW_RELEASES = "newReleases"
+        const val KEY_ARTIST_MIXES = "artistMixes"
     }
 }

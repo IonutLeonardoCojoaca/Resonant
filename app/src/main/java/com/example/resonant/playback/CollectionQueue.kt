@@ -6,14 +6,8 @@ import com.example.resonant.data.models.Song
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.managers.PlaylistManager
 import com.example.resonant.managers.PlaymixManager
-import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.flow.FlowQueuePolicy
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
 /** Inserción de un bloque de canciones en la cola (collection-queue-offline D2). Puro. */
 object CollectionQueueInsertion {
@@ -99,21 +93,13 @@ class CollectionQueueResolver(private val context: Context) {
         val songs = if (offlineSongs != null && (detail == null || offlineSongs.size == ordered.size)) {
             offlineSongs
         } else if (detail != null) {
-            fetchSongs(ordered.map { it.songId })
+            // Desde el detalle ya cargado, sin una petición por canción (como PlaymixDetailViewModel).
+            PlaymixSongMapper.toSongs(ordered)
         } else {
             return Result.Offline
         }
         if (songs.isEmpty()) return Result.Offline
         return Result.Songs(songs, playmixId, QueueMixIndex.songPairMap(stored))
-    }
-
-    /** Como `PlaymixDetailViewModel.fetchSongsForPlayback`: cada canción con `getSongById`, en orden. */
-    private suspend fun fetchSongs(songIds: List<String>): List<Song> = coroutineScope {
-        val songManager = SongManager(context)
-        val permits = Semaphore(6)
-        songIds.map { id ->
-            async { permits.withPermit { runCatching { songManager.getSongById(id) }.getOrNull() } }
-        }.awaitAll().filterNotNull()
     }
 
     companion object {

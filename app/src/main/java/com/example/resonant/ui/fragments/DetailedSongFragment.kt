@@ -1,5 +1,6 @@
 package com.example.resonant.ui.fragments
 
+import com.example.resonant.utils.ImageSizes
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Bitmap
@@ -152,7 +153,7 @@ class DetailedSongFragment : BaseFragment(R.layout.fragment_detailed_song) {
         }
         Glide.with(this).asBitmap().load(url)
             .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-            .into(object : CustomTarget<Bitmap>() {
+            .into(object : CustomTarget<Bitmap>(ImageSizes.HERO_PX, ImageSizes.HERO_PX) {
                 override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                     if (_binding == null) return
                     artworkBitmap = resource

@@ -2,4 +2,6 @@
 <resources>
     <!-- Valores originales (paddingTop, altura) de una vista desplazada por StatusBarInsets. -->
     <item name="status_bar_inset_original" type="id" />
+    <!-- Clave de la carátula por defecto que un ImageView está esperando (DefaultCover la pinta fuera de Main). -->
+    <item name="default_cover_pending" type="id" />
 </resources>

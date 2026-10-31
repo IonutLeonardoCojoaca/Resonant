@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONException
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class LyricLine(
@@ -18,7 +19,11 @@ data class LyricLine(
 
 object LyricsManager {
 
-    private val cache = mutableMapOf<String, List<LyricLine>>()
+    // Concurrente: se escribe desde IO y se lee desde Main.
+    private val cache = ConcurrentHashMap<String, List<LyricLine>>()
+
+    /** Vacía la caché (cierre de sesión o cambio de cuenta). */
+    fun clear() = cache.clear()
 
     // org.json's optString() returns the literal string "null" (not the default) when the
     // key is present but its value is JSON null — this reads it as "missing" instead, so a
@@ -102,7 +107,8 @@ object LyricsManager {
     private suspend fun downloadLyricsContent(url: String): String {
         return withContext(Dispatchers.IO) {
             try {
-                val client = OkHttpClient.Builder()
+                // Cliente de medios compartido (pool de conexiones de la app) en vez de uno nuevo por letra.
+                val client = ApiClient.getMediaHttpClient().newBuilder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
                     .build()

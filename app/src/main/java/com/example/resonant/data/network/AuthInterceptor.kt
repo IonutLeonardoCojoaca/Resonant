@@ -16,7 +16,8 @@ class AuthInterceptor(private val context: Context, private val session: Session
             .header("User-Agent", userAgent)
 
         val path = req.url.encodedPath
-        if (!path.contains("/api/Auth/Google") && !path.contains("/api/Auth/Refresh")) {
+        // Las rutas reales son api/auth/*: con mayúsculas la comparación nunca acertaba y el login llevaba un bearer viejo.
+        if (!path.contains("/api/auth/google", ignoreCase = true) && !path.contains("/api/auth/refresh", ignoreCase = true)) {
             val token = session.getAccessToken()
             if (!token.isNullOrBlank()) {
                 newRequestBuilder.header("Authorization", "Bearer $token")

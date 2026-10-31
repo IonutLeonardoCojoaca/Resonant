@@ -1234,6 +1234,12 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
     }
 
     companion object {
+        /** Lado del avatar del menú lateral que se guarda en disco (profile_user.png). */
+        private const val PROFILE_PHOTO_PX = 256
+        private const val AUTO_DOWNLOAD_RUN_NOW_MIN_INTERVAL_MS = 30 * 60 * 1000L
+        @Volatile
+        private var lastAutoDownloadRunAtMs = Long.MIN_VALUE / 2
+
         /** Margen para que la precarga de Explorar no compita con la carga de Inicio al abrir. */
         private const val EXPLORE_PREFETCH_DELAY_MS = 1_500L
         private const val QUEUE_SHEET_TAG = "PlaybackQueueBottomSheet"
@@ -1468,7 +1474,11 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
         lifecycleScope.launch {
             val userId = getSharedPreferences("user_data", MODE_PRIVATE).getString("USER_ID", null)
             if (CapabilitiesManager.refresh(appContext).autoDownloads && !userId.isNullOrBlank()) {
-                com.example.resonant.autodownload.AutoDownloadScheduler.schedule(appContext, userId, runNow = true)
+                // onStart se dispara en cada vuelta a la app: la ejecución inmediata, como mucho cada 30 min.
+                val now = android.os.SystemClock.elapsedRealtime()
+                val runNow = now - lastAutoDownloadRunAtMs > AUTO_DOWNLOAD_RUN_NOW_MIN_INTERVAL_MS
+                if (runNow) lastAutoDownloadRunAtMs = now
+                com.example.resonant.autodownload.AutoDownloadScheduler.schedule(appContext, userId, runNow = runNow)
             } else {
                 com.example.resonant.autodownload.AutoDownloadScheduler.cancel(appContext)
             }
@@ -2158,8 +2168,13 @@ class MainActivity : AppCompatActivity(), UpdateDialogFragment.UpdateDialogListe
 
             if (!urlPhoto.isNullOrEmpty()) {
                 try {
-                    val inputStream = URL(urlPhoto).openStream()
-                    val bitmapNetwork = BitmapFactory.decodeStream(inputStream)
+                    // Glide: descarga con el cliente compartido y decodifica ya al tamaño del avatar (antes, la
+                    // imagen original completa con URL.openStream en cada arranque).
+                    val bitmapNetwork = com.bumptech.glide.Glide.with(applicationContext)
+                        .asBitmap()
+                        .load(urlPhoto)
+                        .submit(PROFILE_PHOTO_PX, PROFILE_PHOTO_PX)
+                        .get()
 
                     if (bitmapNetwork != null) {
                         // 1. Guardar/Sobrescribir en memoria interna

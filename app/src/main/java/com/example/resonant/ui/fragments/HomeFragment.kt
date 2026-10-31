@@ -799,18 +799,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
             recentFavoritesAdapter.favoriteSongIds = songIds
             songAdapter.favoriteSongIds = songIds
             topSongAdapter.favoriteSongIds = songIds
-            if (historyAdapter.currentList.isNotEmpty()) {
-                historyAdapter.notifyDataSetChanged()
-            }
-            if (recentFavoritesAdapter.currentList.isNotEmpty()) {
-                recentFavoritesAdapter.notifyDataSetChanged()
-            }
-            if (songAdapter.currentList.isNotEmpty()) {
-                songAdapter.notifyDataSetChanged()
-            }
-            if (topSongAdapter.currentList.isNotEmpty()) {
-                topSongAdapter.notifyDataSetChanged()
-            }
+            // SongAdapter.favoriteSongIds ya repinta solo las filas cuyo corazón cambia.
         }
     }
 
@@ -859,7 +848,7 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
         adapter.onFavoriteClick = { song, _ -> favoritesViewModel.toggleFavoriteSong(song, favoriteSongFeedback(song)) }
 
         adapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 // Song already has artists list from the API, use it
                 song.artistName = song.artists?.joinToString(", ") { it.name } ?: song.artistName ?: "Desconocido"
 

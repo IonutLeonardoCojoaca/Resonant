@@ -27,22 +27,27 @@ class PlaymixListAdapter(
         return PlaymixViewHolder(view)
     }
 
-    override fun onBindViewHolder(holder: PlaymixViewHolder, position: Int) {
-        holder.itemView.onLongPressOptions {
-            val pos = holder.bindingAdapterPosition
-            val open = onItemLongClick ?: onOptionsClick // por defecto, las mismas opciones que ⋯
-            if (pos == RecyclerView.NO_POSITION || open == null) return@onLongPressOptions false
-            open(getItem(pos))
-            true
-        }
-        holder.bind(getItem(position))
-    }
+    override fun onBindViewHolder(holder: PlaymixViewHolder, position: Int) = holder.bind(getItem(position))
 
     inner class PlaymixViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val cover: ImageView = view.findViewById(R.id.playmixCover)
+        val cover: ImageView = view.findViewById(R.id.playmixCover)
         private val name: TextView = view.findViewById(R.id.playmixName)
         private val info: TextView = view.findViewById(R.id.playmixInfo)
         private val settings: View = view.findViewById(R.id.settingsPlaymix)
+
+        init {
+            // Listeners una sola vez; la posición se resuelve al pulsar.
+            itemView.setOnClickListener { current()?.let(onClick) }
+            settings.setOnClickListener { current()?.let(onOptionsClick) }
+            itemView.onLongPressOptions {
+                val item = current() ?: return@onLongPressOptions false
+                (onItemLongClick ?: onOptionsClick)(item) // por defecto, las mismas opciones que ⋯
+                true
+            }
+        }
+
+        private fun current(): PlaymixDTO? =
+            bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }?.let(::getItem)
 
         fun bind(playmix: PlaymixDTO) {
             name.text = playmix.name
@@ -53,9 +58,6 @@ class PlaymixListAdapter(
 
             // Miniatura: se decodifica a su tamaño en pantalla, no a la resolución original.
             DefaultCover.load(cover, playmix.coverUrl, DefaultCover.Kind.PLAYMIX, playmix.name, 240)
-
-            itemView.setOnClickListener { onClick(playmix) }
-            settings.setOnClickListener { onOptionsClick(playmix) }
         }
 
         private fun formatDuration(seconds: Int): String {
@@ -73,7 +75,7 @@ class PlaymixListAdapter(
     override fun onViewRecycled(holder: PlaymixViewHolder) {
         super.onViewRecycled(holder)
         try {
-            Glide.with(holder.itemView).clear(holder.itemView.findViewById<ImageView>(R.id.playmixCover))
+            Glide.with(holder.itemView).clear(holder.cover)
         } catch (_: Exception) { }
     }
 

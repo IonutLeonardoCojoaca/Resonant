@@ -332,7 +332,7 @@ class DownloadedSongsFragment : BaseFragment(R.layout.fragment_downloaded_songs)
         favoritesViewModel.loadFavoriteSongs()
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
-            songAdapter.notifyDataSetChanged()
+            // SongAdapter.favoriteSongIds ya repinta solo las filas cuyo corazón cambia.
         }
     }
 

@@ -204,7 +204,7 @@ class TopChartsFragment : Fragment() {
 
         // C. OPCIONES (3 PUNTOS)
         adapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 // Use artists already embedded in the song from the API
                 song.artistName = song.artists.joinToString(", ") { it.name }
 
@@ -293,9 +293,7 @@ class TopChartsFragment : Fragment() {
         // 4. Estado de Favoritos
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
-            if (songAdapter.currentList.isNotEmpty()) {
-                songAdapter.notifyDataSetChanged()
-            }
+            // SongAdapter.favoriteSongIds ya repinta solo las filas cuyo corazón cambia.
         }
 
         // 5. Estado de Descargas

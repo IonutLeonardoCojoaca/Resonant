@@ -17,9 +17,9 @@ class TokenAuthenticator(private val context: Context) : Authenticator {
         // Evita bucles: no más de 1 reintento por cadena
         if (responseCount(response) >= 2) return null
 
-        // No intentes refrescar para endpoints de auth
+        // No intentes refrescar para endpoints de auth (las rutas reales son api/auth/*, en minúsculas)
         val path = response.request.url.encodedPath
-        if (path.contains("/api/Auth/Refresh") || path.contains("/api/Auth/Google")) {
+        if (path.contains("/api/auth/refresh", ignoreCase = true) || path.contains("/api/auth/google", ignoreCase = true)) {
             return null
         }
 
@@ -29,17 +29,22 @@ class TokenAuthenticator(private val context: Context) : Authenticator {
         }
 
         // Refresca de forma sincronizada
-        val newToken = try {
-            runBlocking { session.refreshTokensOrNull() }
+        val outcome = try {
+            runBlocking { session.refreshTokens() }
         } catch (e: Exception) {
             Log.e("Authenticator", "Refresh failed", e)
-            null
+            SessionManager.RefreshOutcome.Unavailable
         }
 
-        if (newToken.isNullOrBlank()) {
-            // Refresh inválido (probablemente >7 días). Limpia tokens y deja que la app gestione logout.
-            session.clearTokens()
-            return null
+        val newToken = when (outcome) {
+            is SessionManager.RefreshOutcome.Refreshed -> outcome.accessToken
+            // Refresh inválido (caducado o revocado): limpia tokens y deja que la app gestione el logout.
+            SessionManager.RefreshOutcome.Rejected -> {
+                session.clearTokens()
+                return null
+            }
+            // Sin red o servidor caído: la petición falla, pero la sesión se conserva (antes se cerraba).
+            SessionManager.RefreshOutcome.Unavailable -> return null
         }
 
         // Repite la request con el token nuevo

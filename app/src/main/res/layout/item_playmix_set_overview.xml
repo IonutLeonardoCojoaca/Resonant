@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primer elemento de la lista del detalle de PlayMix: curva de tempo del set y etiqueta "EL SET". Los
+     márgenes compensan el padding de la lista (8dp inicio / 12dp fin) para quedar a 16dp del borde. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <!-- Curva de tempo del set -->
+    <LinearLayout
+        android:id="@+id/tempoFlowSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="4dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_surface_panel"
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/unageo_bold"
+                android:letterSpacing="0.16"
+                android:text="CURVA DE TEMPO"
+                android:textColor="@color/textTheme"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/tempoFlowRange"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/unageo_bold"
+                android:textColor="@color/white"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <com.example.resonant.ui.views.PlaymixTempoFlowView
+            android:id="@+id/tempoFlowView"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:layout_marginTop="4dp"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/setlistLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="22dp"
+        android:fontFamily="@font/unageo_bold"
+        android:letterSpacing="0.16"
+        android:text="EL SET"
+        android:textColor="@color/textTheme"
+        android:textSize="10sp" />
+</LinearLayout>

@@ -30,6 +30,13 @@ object ExploreModeResolver {
         ExploreLoadResult.Failed -> if (hasCopy) Action.KEEP_CURRENT else Action.LEGACY
     }
 
+    /**
+     * Whether the v2 layout request can start right away, in parallel with the capabilities refresh, instead
+     * of after it: yes when v2 was on the last time we knew (in memory or persisted) or a session copy exists.
+     * If capabilities then say v2 is off, the layout result is simply discarded.
+     */
+    fun shouldLoadLayoutEagerly(lastKnownV2: Boolean, hasCopy: Boolean): Boolean = lastKnownV2 || hasCopy
+
     /** A layout with nothing to show falls back to the legacy screen. */
     fun modeFor(state: ExploreLayoutState?, greeting: String?): ExploreMode =
         if (state == null || state.isEmpty) ExploreMode.Legacy else ExploreMode.Dynamic(state, greeting)

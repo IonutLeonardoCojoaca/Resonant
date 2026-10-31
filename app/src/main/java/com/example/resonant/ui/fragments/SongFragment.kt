@@ -1,5 +1,6 @@
 ﻿package com.example.resonant.ui.fragments
 
+import com.example.resonant.utils.ImageSizes
 import com.example.resonant.ui.bottomsheets.FlowSongOptionsBottomSheet
 import com.example.resonant.ui.flow.FlowFeedbackActions
 import android.content.Context
@@ -91,6 +92,8 @@ import com.google.android.material.tabs.TabLayout
 import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import com.example.resonant.utils.SnackType
 import com.example.resonant.utils.SnackbarUtils.favoriteSongFeedback
 
@@ -477,9 +480,7 @@ class SongFragment : DialogFragment() {
             // pasaba nada y el hueco del botón quedaba siempre reservado
             // pero vacío.
             songAdapter.favoriteSongIds = favoriteIds
-            if (songAdapter.currentList.isNotEmpty()) {
-                songAdapter.notifyDataSetChanged()
-            }
+            // SongAdapter.favoriteSongIds ya repinta solo las filas cuyo corazón cambia.
         }
 
         favoriteButton.setOnClickListener {
@@ -625,7 +626,7 @@ class SongFragment : DialogFragment() {
     }
 
     private fun showSongOptions(song: com.example.resonant.data.models.Song) {
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             // Use artists already embedded in the song from the API
             song.artistName = song.artists.joinToString(", ") { it.name }
 
@@ -689,9 +690,15 @@ class SongFragment : DialogFragment() {
         albumTypeView.text = ""
         albumNameView.text = ""
 
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val albumId = song.album?.id
+                // Canción sin álbum ni artistas (cola de una Playmix construida desde su detalle): se completa
+                // con la caché de SongManager antes de decidir si es un single.
+                val albumId = song.album?.id ?: song.takeIf { it.album == null && it.artists.isEmpty() }?.let {
+                    withContext(Dispatchers.IO) {
+                        runCatching { SongManager(requireContext().applicationContext).getSongById(it.id)?.album?.id }.getOrNull()
+                    }
+                }
 
                 // Si no hay albumId, es un Single (o archivo local suelto)
                 if (albumId.isNullOrBlank()) {
@@ -759,7 +766,7 @@ class SongFragment : DialogFragment() {
                         .load(url)
                         .placeholder(albumCoverRes)
                         .error(albumCoverRes)
-                        .into(object : CustomTarget<Bitmap>() {
+                        .into(object : CustomTarget<Bitmap>(ImageSizes.HERO_PX, ImageSizes.HERO_PX) {
                             override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                                 if (isAnimatingCover) return
 
@@ -841,13 +848,18 @@ class SongFragment : DialogFragment() {
 
     // ── Lyrics methods ──
 
+    private var lyricsGeneration = 0
+
     private fun loadLyricsForCurrentSong(song: com.example.resonant.data.models.Song) {
         viewLifecycleOwner.lifecycleScope.launch {
             lyricsLoadingIndicator.isVisible = true
             lyricsRecyclerView.isVisible = false
             noLyricsText.isVisible = false
 
+            val generation = ++lyricsGeneration
             val lines = LyricsManager.getLyrics(requireContext(), song.id)
+            // La canción pudo cambiar mientras llegaba la letra: la respuesta vieja no pisa la actual.
+            if (generation != lyricsGeneration) return@launch
 
             lyricsLoadingIndicator.isVisible = false
 

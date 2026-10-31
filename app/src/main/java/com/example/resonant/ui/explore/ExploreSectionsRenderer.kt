@@ -57,6 +57,12 @@ class ExploreSectionsRenderer(
     private val holders = mutableMapOf<String, SectionHolder>()
     private val inflater = LayoutInflater.from(container.context)
 
+    /** Un pool de ViewHolders por tipo de sección: dos filas de álbumes comparten sus tarjetas al hacer scroll. */
+    private val pools = mutableMapOf<kotlin.reflect.KClass<out ExploreSectionUi>, RecyclerView.RecycledViewPool>()
+
+    private fun poolFor(kind: kotlin.reflect.KClass<out ExploreSectionUi>): RecyclerView.RecycledViewPool =
+        pools.getOrPut(kind) { RecyclerView.RecycledViewPool().apply { setMaxRecycledViews(0, POOL_SIZE) } }
+
     /**
      * Pinta las secciones del servidor. [interleaved] son vistas fijas de la pantalla
      * (tarjetas, filas propias) que se intercalan entre ellas: cada par es
@@ -125,6 +131,8 @@ class ExploreSectionsRenderer(
         private val list: RecyclerView = view.findViewById(R.id.dynamicSectionList)
         private val shimmer: ShimmerFrameLayout = view.findViewById(R.id.dynamicSectionShimmer)
         private var sectionId: String = first.id
+        /** Última sección enlazada: un render con la misma sección (cada carga diferida repinta todas) no hace nada. */
+        private var lastBound: ExploreSectionUi? = null
         private var currentSongs: List<Song> = emptyList()
         private var currentPicks: List<AriaPick> = emptyList()
 
@@ -146,6 +154,7 @@ class ExploreSectionsRenderer(
         init {
             val context = view.context
             list.itemAnimator = null
+            list.setRecycledViewPool(poolFor(kind))
             if (first is ExploreSectionUi.Genres) {
                 list.layoutManager = GridLayoutManager(context, 2)
                 list.adapter = genreAdapter
@@ -171,6 +180,8 @@ class ExploreSectionsRenderer(
         override fun accepts(section: ExploreSectionUi) = section::class == kind
 
         override fun bind(section: ExploreSectionUi) {
+            if (section == lastBound) return
+            lastBound = section
             sectionId = section.id
             title.text = section.title
             subtitle.text = section.subtitle
@@ -198,5 +209,6 @@ class ExploreSectionsRenderer(
     private companion object {
         /** Same compact 2x3 grid as the legacy genre blocks; "Ver todo" opens the full list. */
         const val GENRES_SHOWN = 6
+        const val POOL_SIZE = 12
     }
 }

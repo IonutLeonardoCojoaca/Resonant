@@ -8,6 +8,7 @@ plugins {
     id("kotlin-kapt")
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -19,7 +20,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 4
-        versionName = "4.1.0"
+        versionName = "4.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -32,6 +33,21 @@ android {
         enable = true
     }
 
+    // Firma de la variante release para poder instalarla y probarla en el móvil (Build Variants > release + Run,
+    // o assembleRelease + adb install). Usa el mismo debug.keystore de Android Studio con el que ya se firma el
+    // debug, así el inicio de sesión con Google sigue funcionando (es la SHA-1 registrada en Firebase) y el APK
+    // se instala encima del debug sin desinstalar. Para publicar en Play se sigue usando
+    // Build > Generate Signed Bundle / APK con la keystore real, que ignora este bloque.
+    val localTestingKeystore = file(System.getProperty("user.home") + "/.android/debug.keystore")
+    signingConfigs {
+        create("localTesting") {
+            storeFile = localTestingKeystore
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -40,6 +56,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (localTestingKeystore.exists()) signingConfig = signingConfigs.getByName("localTesting")
         }
     }
     compileOptions {
@@ -68,11 +85,11 @@ dependencies {
     debugImplementation("androidx.fragment:fragment-testing-manifest:1.8.9")
     androidTestImplementation("androidx.fragment:fragment-testing:1.8.9")
 
+    // Firebase: solo lo que se usa (analytics y auth). Database, Firestore, Storage, Remote Config y Messaging no
+    // tenían ningún uso en el código ni en el manifest y arrancaban sus inicializadores en cada apertura.
     implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-database")
-    implementation("com.google.firebase:firebase-firestore-ktx")
 
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
@@ -80,28 +97,21 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.1.1")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
-    implementation("com.google.firebase:firebase-storage-ktx")
 
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
 
     implementation("com.google.code.gson:gson:2.10.1")
 
-    implementation ("com.google.firebase:firebase-config-ktx:21.0.1")
-    implementation ("com.google.firebase:firebase-analytics")
 
-    implementation ("androidx.media:media:1.7.0")
 
-    implementation ("androidx.paging:paging-runtime:3.1.1")
 
     implementation ("com.airbnb.android:lottie:6.0.0")
 
     implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.3.1")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    implementation ("androidx.core:core-ktx:1.7.0")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    implementation ("com.google.firebase:firebase-messaging:23.0.5")
 
     implementation ("androidx.navigation:navigation-fragment:2.9.0")
     implementation ("androidx.navigation:navigation-ui:2.9.0")
@@ -114,8 +124,14 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
 
     implementation ("com.github.bumptech.glide:glide:4.16.0")
+    // Glide descarga con el OkHttpClient de la app y genera el AppGlideModule (utils/ResonantGlideModule).
+    implementation ("com.github.bumptech.glide:okhttp3-integration:4.16.0")
+    ksp("com.github.bumptech.glide:ksp:4.16.0")
 
     implementation("androidx.core:core-splashscreen:1.0.1")
+    // Baseline Profile: instala el perfil generado por :baselineprofile (arranque y scroll precompilados en release).
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    baselineProfile(project(":baselineprofile"))
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 

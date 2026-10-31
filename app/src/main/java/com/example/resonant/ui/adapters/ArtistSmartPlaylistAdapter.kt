@@ -1,5 +1,6 @@
 package com.example.resonant.ui.adapters
 
+import com.example.resonant.utils.ImageSizes
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
@@ -87,7 +88,7 @@ class ArtistSmartPlaylistAdapter(
                     .load(model)
                     .placeholder(fallbackRes)
                     .error(fallbackRes)
-                    .into(object : CustomTarget<Bitmap>() {
+                    .into(object : CustomTarget<Bitmap>(ImageSizes.CARD_PX, ImageSizes.CARD_PX) {
                         override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                             coverImage.setImageBitmap(resource)
                             MiniPlayerColorizer.applyFromImageView(coverImage, targets, fallbackColor, animateMillis = 300L)

@@ -1,6 +1,5 @@
 package com.example.resonant.ui.fragments
 
-import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -34,8 +33,8 @@ class LikedPlaymixesSection(private val fragment: Fragment) {
     private val header = HeaderViewAdapter(title).apply { isVisible = false }
 
     private val list = PlaymixListAdapter(
-        onClick = { playmix -> open(playmix.id) },
-        onOptionsClick = { playmix -> open(playmix.id) }
+        onClick = { playmix -> open(playmix) },
+        onOptionsClick = { playmix -> open(playmix) }
     )
 
     val adapters: List<RecyclerView.Adapter<out RecyclerView.ViewHolder>> = listOf(header, list)
@@ -67,10 +66,7 @@ class LikedPlaymixesSection(private val fragment: Fragment) {
         }
     }
 
-    private fun open(playmixId: String) {
-        fragment.findNavController().navigate(
-            R.id.action_global_to_playmixDetailFragment,
-            Bundle().apply { putString("playmixId", playmixId) }
-        )
+    private fun open(playmix: com.example.resonant.data.network.PlaymixDTO) {
+        fragment.findNavController().navigate(R.id.action_global_to_playmixDetailFragment, PlaymixDetailArgs.bundle(playmix))
     }
 }

@@ -279,7 +279,7 @@ class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_
 
         // Settings (3-dot menu)
         songAdapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 try {
                     song.artistName = song.artists.joinToString(", ") { it.name }
 
@@ -345,7 +345,7 @@ class ArtistSmartPlaylistFragment : BaseFragment(R.layout.fragment_artist_smart_
         emptyStateContainer.visibility = View.GONE
         actionButtonsContainer.visibility = View.GONE
 
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val songs = when (playlistType) {
                     "Essentials" -> ArtistManager.getEssentials(requireContext(), artistId)

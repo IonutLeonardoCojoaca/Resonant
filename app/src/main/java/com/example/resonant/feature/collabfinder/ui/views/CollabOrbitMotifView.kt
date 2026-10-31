@@ -7,10 +7,12 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.animation.LinearInterpolator
 import androidx.annotation.ColorInt
 import androidx.core.graphics.ColorUtils
@@ -175,15 +177,23 @@ class CollabOrbitMotifView @JvmOverloads constructor(
         canvas.restore()
     }
 
+    /** Re-evalúa al hacer scroll: bajo el pliegue de Explorar (isShown, pero fuera de pantalla) no se anima. */
+    private val scrollListener = ViewTreeObserver.OnScrollChangedListener { updateTicker() }
+    private val visibleRect = Rect()
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        viewTreeObserver.addOnScrollChangedListener(scrollListener)
         updateTicker()
     }
 
     override fun onDetachedFromWindow() {
+        if (viewTreeObserver.isAlive) viewTreeObserver.removeOnScrollChangedListener(scrollListener)
         ticker.cancel()
         super.onDetachedFromWindow()
     }
+
+    private fun isOnScreen(): Boolean = isShown && getLocalVisibleRect(visibleRect)
 
     override fun onVisibilityAggregated(isVisible: Boolean) {
         super.onVisibilityAggregated(isVisible)
@@ -191,7 +201,7 @@ class CollabOrbitMotifView @JvmOverloads constructor(
     }
 
     private fun updateTicker() {
-        val shouldRun = isAttachedToWindow && isShown && ValueAnimator.areAnimatorsEnabled()
+        val shouldRun = isAttachedToWindow && isOnScreen() && ValueAnimator.areAnimatorsEnabled()
         if (shouldRun && !ticker.isStarted) ticker.start()
         if (!shouldRun && ticker.isStarted) ticker.cancel()
     }

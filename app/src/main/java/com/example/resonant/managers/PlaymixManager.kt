@@ -18,29 +18,68 @@ import com.example.resonant.data.network.services.PlaymixService
 import com.google.gson.Gson
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
+import java.util.concurrent.ConcurrentHashMap
 
-open class PlaymixManager(private val context: Context?) {
+open class PlaymixManager internal constructor(
+    private val context: Context?,
+    service: PlaymixService?,
+    private val now: () -> Long
+) {
+
+    constructor(context: Context?) : this(context, null, System::currentTimeMillis)
 
     companion object {
         private const val PLAYMIX_CACHE_TTL_MS = 5 * 60 * 1000L
+        /**
+         * Detalle por id, 60 s: cubre abrir -> reproducir (el servicio vuelve a pedir el detalle para las
+         * transiciones), las descargas y volver del editor sin ir a red; los cambios propios lo invalidan.
+         */
+        private const val DETAIL_TTL_MS = 60 * 1000L
+        private class CachedDetail(val detail: PlaymixDetailDTO, val fetchedAtMs: Long)
+        private val detailCache = ConcurrentHashMap<String, CachedDetail>()
+
+        /** El detalle cambió fuera de este manager (compartir, ordenar, fusionar, me gusta): se pide de nuevo. */
+        fun invalidateDetail(playmixId: String) {
+            detailCache.remove(playmixId)
+        }
+        // Se escribe desde IO (borrar/renombrar en los ViewModels) y se lee desde Main.
+        @Volatile
         private var cachedPlaymixes: List<PlaymixDTO>? = null
+        @Volatile
         private var cacheTimestampMs: Long = 0L
+
+        /** Vacía la caché estática (cierre de sesión o cambio de cuenta). */
+        fun clear() {
+            cachedPlaymixes = null
+            cacheTimestampMs = 0L
+            detailCache.clear()
+        }
     }
 
     private val playmixService: PlaymixService by lazy {
-        ApiClient.getPlaymixService(context!!)
+        service ?: ApiClient.getPlaymixService(context!!)
     }
     private val gson = Gson()
 
-    fun getCachedMyPlaymixes(): List<PlaymixDTO>? = cachedPlaymixes
+    open fun getCachedMyPlaymixes(): List<PlaymixDTO>? = cachedPlaymixes
 
-    fun isPlaymixCacheFresh(): Boolean {
-        return cachedPlaymixes != null && (System.currentTimeMillis() - cacheTimestampMs) < PLAYMIX_CACHE_TTL_MS
+    open fun isPlaymixCacheFresh(): Boolean {
+        return cachedPlaymixes != null && (now() - cacheTimestampMs) < PLAYMIX_CACHE_TTL_MS
     }
 
     private fun updatePlaymixCache(playmixes: List<PlaymixDTO>) {
         cachedPlaymixes = playmixes
-        cacheTimestampMs = System.currentTimeMillis()
+        cacheTimestampMs = now()
+    }
+
+    /** Último detalle conocido de [id], fresco o no: para pintar al instante mientras se revalida. */
+    open fun cachedDetail(id: String): PlaymixDetailDTO? = detailCache[id]?.detail
+
+    open fun isDetailFresh(id: String): Boolean =
+        detailCache[id]?.let { now() - it.fetchedAtMs < DETAIL_TTL_MS } == true
+
+    private fun rememberDetail(detail: PlaymixDetailDTO) {
+        detailCache[detail.id] = CachedDetail(detail, now())
     }
 
     private fun invalidatePlaymixCache() {
@@ -57,7 +96,7 @@ open class PlaymixManager(private val context: Context?) {
         return created
     }
 
-    suspend fun getMyPlaymixes(forceRefresh: Boolean = false): List<PlaymixDTO> {
+    open suspend fun getMyPlaymixes(forceRefresh: Boolean = false): List<PlaymixDTO> {
         if (!forceRefresh) {
             val cached = cachedPlaymixes
             if (cached != null && isPlaymixCacheFresh()) {
@@ -70,11 +109,12 @@ open class PlaymixManager(private val context: Context?) {
         return playmixes
     }
 
-    suspend fun getPlaymixDetail(id: String): PlaymixDetailDTO {
-        return playmixService.getPlaymixDetail(id)
+    open suspend fun getPlaymixDetail(id: String, forceRefresh: Boolean = false): PlaymixDetailDTO {
+        if (!forceRefresh) detailCache[id]?.let { if (now() - it.fetchedAtMs < DETAIL_TTL_MS) return it.detail }
+        return playmixService.getPlaymixDetail(id).also { rememberDetail(it) }
     }
 
-    suspend fun deletePlaymix(id: String) {
+    open suspend fun deletePlaymix(id: String) {
         val response = playmixService.deletePlaymix(id)
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
@@ -82,10 +122,12 @@ open class PlaymixManager(private val context: Context?) {
         }
         cachedPlaymixes = cachedPlaymixes?.filterNot { it.id == id }
         invalidatePlaymixCache()
+        invalidateDetail(id)
     }
 
-    suspend fun renamePlaymix(id: String, newName: String): PlaymixDetailDTO {
+    open suspend fun renamePlaymix(id: String, newName: String): PlaymixDetailDTO {
         val detail = playmixService.renamePlaymix(id, RenamePlaymixRequest(newName))
+        rememberDetail(detail)
         cachedPlaymixes = cachedPlaymixes?.map { playmix ->
             if (playmix.id == id) playmix.copy(name = detail.name, description = detail.description) else playmix
         }
@@ -93,25 +135,27 @@ open class PlaymixManager(private val context: Context?) {
         return detail
     }
 
-    suspend fun addSongToPlaymix(playmixId: String, songId: String) {
+    open suspend fun addSongToPlaymix(playmixId: String, songId: String) {
         val response = playmixService.addSongToPlaymix(playmixId, AddSongToPlaymixRequest(songId))
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
             throw Exception("Error ${response.code()}: $errorMsg")
         }
         invalidatePlaymixCache()
+        invalidateDetail(playmixId)
     }
 
-    suspend fun removeSongFromPlaymix(playmixId: String, playmixSongId: String) {
+    open suspend fun removeSongFromPlaymix(playmixId: String, playmixSongId: String) {
         val response = playmixService.removeSongFromPlaymix(playmixId, playmixSongId)
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
             throw Exception("Error ${response.code()}: $errorMsg")
         }
         invalidatePlaymixCache()
+        invalidateDetail(playmixId)
     }
 
-    suspend fun editPlaymixSong(playmixId: String, playmixSongId: String, customEntryMs: Int?, customExitMs: Int?) {
+    open suspend fun editPlaymixSong(playmixId: String, playmixSongId: String, customEntryMs: Int?, customExitMs: Int?) {
         val response = playmixService.editPlaymixSong(
             playmixId, playmixSongId,
             EditPlaymixSongRequest(customEntryMs, customExitMs)
@@ -121,15 +165,17 @@ open class PlaymixManager(private val context: Context?) {
             throw Exception("Error ${response.code()}: $errorMsg")
         }
         invalidatePlaymixCache()
+        invalidateDetail(playmixId)
     }
 
-    suspend fun reorderSongs(playmixId: String, orderedSongIds: List<String>) {
+    open suspend fun reorderSongs(playmixId: String, orderedSongIds: List<String>) {
         val response = playmixService.reorderSongs(playmixId, ReorderSongsRequest(orderedSongIds))
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Error desconocido"
             throw Exception("Error ${response.code()}: $errorMsg")
         }
         invalidatePlaymixCache()
+        invalidateDetail(playmixId)
     }
 
     open suspend fun updateTransition(
@@ -156,7 +202,7 @@ open class PlaymixManager(private val context: Context?) {
             addProperty("isPresetModified", update.isPresetModified)
             addProperty("isActive", update.isActive)
         }
-        return playmixService.updateTransitionRaw(playmixId, transitionId, payload)
+        return playmixService.updateTransitionRaw(playmixId, transitionId, payload).also { invalidateDetail(playmixId) }
     }
 
     open suspend fun getWaveformData(playmixId: String, transitionId: String): WaveformResponseDTO {

@@ -8,16 +8,31 @@ import com.example.resonant.data.models.Artist
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RecommendationResult
 import com.example.resonant.data.network.services.AlbumService
+import java.util.concurrent.ConcurrentHashMap
 
 // CAMBIO: Ahora es un 'object' (Singleton)
 object AlbumManager {
 
     // CACHÉ: Mapas para guardar datos y no re-descargar
-    private val albumsCache = mutableMapOf<String, Album>()
-    private val cacheTimestamps = mutableMapOf<String, Long>() // Timestamp de la última actualización
+    private val albumsCache = ConcurrentHashMap<String, Album>()
+    private val cacheTimestamps = ConcurrentHashMap<String, Long>() // Timestamp de la última actualización
     private const val CACHE_DURATION_MS = 20 * 60 * 1000L // 20 Minutos
 
+    // Recomendaciones: caducan como el resto y solo valen para el mismo count (antes no caducaban nunca).
+    @Volatile
     private var cachedRecommendation: RecommendationResult<Album>? = null
+    @Volatile
+    private var cachedRecommendationCount = 0
+    @Volatile
+    private var cachedRecommendationAt = 0L
+
+    /** Vacía todas las cachés (cierre de sesión o cambio de cuenta). */
+    fun clear() {
+        albumsCache.clear()
+        cacheTimestamps.clear()
+        cachedRecommendation = null
+        cachedRecommendationAt = 0L
+    }
 
     // Obtener Álbum por ID con Cacheo Inteligente
     suspend fun getAlbumById(context: Context, albumId: String): Album? {
@@ -56,8 +71,9 @@ object AlbumManager {
 
     suspend fun getRecommendedAlbums(context: Context, count: Int): RecommendationResult<Album>? {
         // 1. REVISAR CACHÉ
-        if (cachedRecommendation != null) {
-            return cachedRecommendation
+        cachedRecommendation?.let { cached ->
+            val fresh = System.currentTimeMillis() - cachedRecommendationAt <= CACHE_DURATION_MS
+            if (fresh && cachedRecommendationCount == count) return cached
         }
 
         val albumService = ApiClient.getAlbumService(context)
@@ -80,6 +96,8 @@ object AlbumManager {
 
             val result = RecommendationResult(albums, title)
             cachedRecommendation = result
+            cachedRecommendationCount = count
+            cachedRecommendationAt = now
 
             return result
 

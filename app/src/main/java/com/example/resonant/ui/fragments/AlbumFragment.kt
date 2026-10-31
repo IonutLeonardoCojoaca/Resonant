@@ -142,7 +142,8 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         super.onResume()
         reportVisibleAlbum()
         val albumId = arguments?.getString("albumId")
-        if (!albumId.isNullOrBlank()) {
+        // Solo si el álbum en pantalla no es este: volver de otra pantalla no vuelve a pedir álbum y canciones.
+        if (!albumId.isNullOrBlank() && loadedAlbum?.id != albumId) {
              loadAlbumDetails(albumId)
         }
     }
@@ -233,7 +234,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         favoritesViewModel.loadFavoriteSongs()
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
-            if(songAdapter.currentList.isNotEmpty()) songAdapter.notifyDataSetChanged()
+            // SongAdapter.favoriteSongIds ya repinta solo las filas cuyo corazón cambia.
         }
     }
 
@@ -368,7 +369,7 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
         }
 
         songAdapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 // Use artists already embedded in the song from the API
                 song.artistName = song.artists.joinToString(", ") { it.name }
 
@@ -477,7 +478,6 @@ class AlbumFragment : BaseFragment(R.layout.fragment_album) {
                 reportVisibleAlbum()
 
                 songAdapter.submitList(songs) {
-                    songAdapter.notifyDataSetChanged()
                     // Importante: Llamamos a esto una vez se cargan los datos para actualizar el estado del botón Play
                     // en caso de que ya estemos reproduciendo una canción de este álbum al entrar.
                     if (isAdded) { // Chequeo de seguridad de Fragment

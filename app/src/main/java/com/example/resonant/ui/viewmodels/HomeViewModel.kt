@@ -120,8 +120,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _topAlbumsError = MutableLiveData<String?>()
     val topAlbumsError: LiveData<String?> get() = _topAlbumsError
 
+    private var homeJob: kotlinx.coroutines.Job? = null
+
     fun loadHome(forceRefresh: Boolean = false) {
-        if (homeV2Loading) return
+        // Un refresco forzado (pull-to-refresh, cambio de cuenta) cancela la carga en vuelo en vez de descartarse.
+        if (homeV2Loading && !forceRefresh) return
+        if (forceRefresh) homeJob?.cancel()
         val ownerId = UserManager(getApplication()).getUserId()
         if (loadedOwnerId != null && loadedOwnerId != ownerId) {
             clearHomeForOwnerChange()
@@ -141,20 +145,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         homeV2Loading = true
         markEmptySectionsLoading()
 
-        viewModelScope.launch {
+        homeJob = viewModelScope.launch {
+            val me = kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]
             var populatedFromCache = emptySet<HomeSectionKind>()
             if (!hasVisibleHome) {
                 runCatching {
                     homeRepository.getCachedHome()
                 }.getOrNull()?.let { cached ->
-                    populatedFromCache = applyHomeResponse(cached)
+                    // La cuenta pudo cambiar mientras se leía la caché: no se pinta lo del usuario anterior.
+                    if (loadedOwnerId == ownerId) populatedFromCache = applyHomeResponse(cached)
                 }
             }
 
             val populated = try {
-                applyHomeResponse(homeRepository.getHome()).also {
+                val response = homeRepository.getHome()
+                if (loadedOwnerId != ownerId) return@launch
+                applyHomeResponse(response).also {
                     lastHomeRefreshTime = System.currentTimeMillis()
                 }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
             } catch (error: Exception) {
                 if (
                     error is UnsupportedOperationException ||
@@ -169,7 +179,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 populatedFromCache
             } finally {
-                homeV2Loading = false
+                // Solo la carga vigente baja el flag: una cancelada no debe desbloquear a la que la sustituyó.
+                if (homeJob === me) homeV2Loading = false
             }
 
             loadMissingLegacySections(populated, forceRefresh)

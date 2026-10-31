@@ -54,6 +54,13 @@ object ApiClient {
         }
     }
 
+    /** Proxies de Retrofit por interfaz: `create()` construye uno nuevo (reflexión) cada vez que se llama. */
+    private val services = java.util.concurrent.ConcurrentHashMap<Class<*>, Any>()
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> service(context: Context, type: Class<T>): T =
+        services.getOrPut(type) { getRetrofitInstance(context).create(type) } as T
+
     /**
      * Client for presigned media and artwork URLs. It shares OkHttp resources
      * with Retrofit but never attaches the API Authorization header.
@@ -62,115 +69,115 @@ object ApiClient {
 
 
     fun getAuthService(context: Context): AuthService {
-        return getRetrofitInstance(context).create(AuthService::class.java)
+        return service(context, AuthService::class.java)
     }
 
     fun getAlbumService(context: Context): AlbumService {
-        return getRetrofitInstance(context).create(AlbumService::class.java)
+        return service(context, AlbumService::class.java)
     }
 
     fun getArtistService(context: Context): ArtistService {
-        return getRetrofitInstance(context).create(ArtistService::class.java)
+        return service(context, ArtistService::class.java)
     }
 
     fun getSongService(context: Context): SongService {
-        return getRetrofitInstance(context).create(SongService::class.java)
+        return service(context, SongService::class.java)
     }
 
     fun getPlaylistService(context: Context): PlaylistService {
-        return getRetrofitInstance(context).create(PlaylistService::class.java)
+        return service(context, PlaylistService::class.java)
     }
 
     fun getUserService(context: Context): UserService {
-        return getRetrofitInstance(context).create(UserService::class.java)
+        return service(context, UserService::class.java)
     }
 
     fun getAppService(context: Context): AppService {
-        return getRetrofitInstance(context).create(AppService::class.java)
+        return service(context, AppService::class.java)
     }
 
     fun getGenreService(context: Context): GenreService {
-        return getRetrofitInstance(context).create(GenreService::class.java)
+        return service(context, GenreService::class.java)
     }
 
     fun getHomeService(context: Context): HomeService {
-        return getRetrofitInstance(context).create(HomeService::class.java)
+        return service(context, HomeService::class.java)
     }
 
     fun getPlaybackAnalyticsService(context: Context): PlaybackAnalyticsService {
-        return getRetrofitInstance(context).create(PlaybackAnalyticsService::class.java)
+        return service(context, PlaybackAnalyticsService::class.java)
     }
 
     fun getPlaybackConnectService(context: Context): PlaybackConnectService {
-        return getRetrofitInstance(context).create(PlaybackConnectService::class.java)
+        return service(context, PlaybackConnectService::class.java)
     }
 
     fun getAriaService(context: Context): AriaService {
-        return getRetrofitInstance(context).create(AriaService::class.java)
+        return service(context, AriaService::class.java)
     }
 
     fun getLyricsService(context: Context): LyricsService {
-        return getRetrofitInstance(context).create(LyricsService::class.java)
+        return service(context, LyricsService::class.java)
     }
 
     fun getPlaymixService(context: Context): PlaymixService {
-        return getRetrofitInstance(context).create(PlaymixService::class.java)
+        return service(context, PlaymixService::class.java)
     }
 
     fun getRadioService(context: Context): RadioService {
-        return getRetrofitInstance(context).create(RadioService::class.java)
+        return service(context, RadioService::class.java)
     }
 
     fun getTransitionPresetService(context: Context): TransitionPresetService {
-        return getRetrofitInstance(context).create(TransitionPresetService::class.java)
+        return service(context, TransitionPresetService::class.java)
     }
 
     fun getStudioService(context: Context): StudioService {
-        return getRetrofitInstance(context).create(StudioService::class.java)
+        return service(context, StudioService::class.java)
     }
 
     fun getUniversalSearchService(context: Context): UniversalSearchService {
-        return getRetrofitInstance(context).create(UniversalSearchService::class.java)
+        return service(context, UniversalSearchService::class.java)
     }
 
     fun getPlatformService(context: Context): PlatformService {
-        return getRetrofitInstance(context).create(PlatformService::class.java)
+        return service(context, PlatformService::class.java)
     }
 
     fun getUnisoundService(context: Context): UnisoundService {
-        return getRetrofitInstance(context).create(UnisoundService::class.java)
+        return service(context, UnisoundService::class.java)
     }
 
     fun getExploreService(context: Context): ExploreService {
-        return getRetrofitInstance(context).create(ExploreService::class.java)
+        return service(context, ExploreService::class.java)
     }
 
     fun getAriaPicksService(context: Context): AriaPicksService {
-        return getRetrofitInstance(context).create(AriaPicksService::class.java)
+        return service(context, AriaPicksService::class.java)
     }
 
     fun getLiveService(context: Context): LiveService {
-        return getRetrofitInstance(context).create(LiveService::class.java)
+        return service(context, LiveService::class.java)
     }
 
     fun getStreakService(context: Context): StreakService {
-        return getRetrofitInstance(context).create(StreakService::class.java)
+        return service(context, StreakService::class.java)
     }
 
     fun getAutoDownloadService(context: Context): com.example.resonant.data.network.services.AutoDownloadService {
-        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.AutoDownloadService::class.java)
+        return service(context, com.example.resonant.data.network.services.AutoDownloadService::class.java)
     }
 
     fun getNotificationService(context: Context): NotificationService {
-        return getRetrofitInstance(context).create(NotificationService::class.java)
+        return service(context, NotificationService::class.java)
     }
 
     fun getListeningStatsService(context: Context): com.example.resonant.data.network.services.ListeningStatsService {
-        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.ListeningStatsService::class.java)
+        return service(context, com.example.resonant.data.network.services.ListeningStatsService::class.java)
     }
 
     fun getRecapService(context: Context): com.example.resonant.data.network.services.RecapService {
-        return getRetrofitInstance(context).create(com.example.resonant.data.network.services.RecapService::class.java)
+        return service(context, com.example.resonant.data.network.services.RecapService::class.java)
     }
 
     fun baseUrl(): String = BASE_URL

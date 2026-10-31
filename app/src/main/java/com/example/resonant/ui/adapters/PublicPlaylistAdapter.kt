@@ -12,10 +12,8 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.resonant.R
 import com.example.resonant.data.models.Playlist
-import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.ui.bottomsheets.ItemOptions.onLongPressOptions
 import com.example.resonant.ui.components.DefaultCover
 
@@ -102,21 +100,13 @@ class PublicPlaylistAdapter(
             }
 
             ivCover.scaleType = ImageView.ScaleType.CENTER_CROP
-            val url = playlist.imageUrl?.takeIf { it.isNotBlank() }
-            Glide.with(itemView.context)
-                .load(url?.let { ImageRequestHelper.buildGlideModel(itemView.context, it) })
-                .override(160, 160)
-                .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
-                .timeout(10_000)
-                .placeholder(DefaultCover.drawable(itemView.context, DefaultCover.Kind.PLAYLIST, playlist.name))
-                .error(DefaultCover.drawable(itemView.context, DefaultCover.Kind.PLAYLIST, playlist.name))
-                .centerCrop()
-                .dontAnimate()
-                .into(ivCover)
+            // La tarjeta por defecto solo se pinta sin portada o si falla (antes, dos bitmaps por bind).
+            DefaultCover.load(ivCover, playlist.imageUrl, DefaultCover.Kind.PLAYLIST, playlist.name, COVER_PX)
         }
     }
 
     private companion object {
+        const val COVER_PX = 160
         val AVATAR_COLORS = intArrayOf(
             Color.parseColor("#6A4FD8"),
             Color.parseColor("#C47A1E"),

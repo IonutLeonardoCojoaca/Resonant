@@ -34,6 +34,8 @@ sealed class ExploreLayoutEvent {
     data class NewLayout(val response: ExploreResponseDTO, val etag: String?) : ExploreLayoutEvent()
     data class DeferredRequested(val id: String) : ExploreLayoutEvent()
     data class DeferredLoaded(val id: String, val section: ExploreSectionDTO) : ExploreLayoutEvent()
+    /** [DeferredLoaded] whose section was already mapped (off the main thread) with [ExploreLayoutReducer.mapDeferred]. */
+    data class DeferredMapped(val id: String, val section: ExploreSectionUi?) : ExploreLayoutEvent()
     /** `404 EXPLORE_SECTION_NOT_FOUND`: the section is no longer part of the layout. */
     data class DeferredMissing(val id: String) : ExploreLayoutEvent()
     data class DeferredFailed(val id: String) : ExploreLayoutEvent()
@@ -58,14 +60,19 @@ class ExploreLayoutReducer(
                 .orEmpty()
         )
 
+    /** The costly part of a deferred load (Gson decoding of the items); safe to call from any thread. */
+    fun mapDeferred(section: ExploreSectionDTO): ExploreSectionUi? = mapper.map(section)?.takeUnless { it.isPending }
+
     fun reduce(state: ExploreLayoutState?, event: ExploreLayoutEvent): ExploreLayoutState? {
         if (event is ExploreLayoutEvent.NewLayout) return layout(event.response, event.etag, state)
         state ?: return null
         return when (event) {
             is ExploreLayoutEvent.DeferredRequested ->
                 if (event.id in state.pending) state.copy(inFlight = state.inFlight + event.id) else state
-            is ExploreLayoutEvent.DeferredLoaded -> {
-                val loaded = mapper.map(event.section)?.takeUnless { it.isPending }
+            is ExploreLayoutEvent.DeferredLoaded ->
+                reduce(state, ExploreLayoutEvent.DeferredMapped(event.id, mapDeferred(event.section)))
+            is ExploreLayoutEvent.DeferredMapped -> {
+                val loaded = event.section
                 if (loaded == null) state.withoutSection(event.id)
                 else state.copy(
                     sections = state.sections.map { if (it.id == event.id) loaded else it },

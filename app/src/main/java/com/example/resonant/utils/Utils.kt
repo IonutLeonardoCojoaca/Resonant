@@ -117,6 +117,9 @@ object Utils {
         return a3 - b3
     }
 
+    /** Tamaño del avatar de las cabeceras (40dp); el fichero guardado puede ser mucho mayor. */
+    private const val AVATAR_DP = 48
+
     suspend fun loadUserProfile(context: Context, userProfileImage: ImageView) {
         val localFileName = "profile_user.png"
 
@@ -125,7 +128,13 @@ object Utils {
             val file = File(context.filesDir, localFileName)
             if (file.exists()) {
                 try {
-                    BitmapFactory.decodeFile(file.absolutePath)
+                    // Se decodifica a un tamaño cercano al del avatar (antes, el fichero completo cada vez).
+                    val targetPx = (AVATAR_DP * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(file.absolutePath, bounds)
+                    var sample = 1
+                    while (bounds.outWidth / (sample * 2) >= targetPx && bounds.outHeight / (sample * 2) >= targetPx) sample *= 2
+                    BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
                 } catch (e: Exception) {
                     e.printStackTrace()
                     null

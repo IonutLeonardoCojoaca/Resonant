@@ -147,76 +147,14 @@
                 android:orientation="vertical"
                 android:visibility="gone" />
 
-            <!-- ── Explorar fijo: fallback cuando Explorar v2 no está disponible ── -->
+            <!-- ── Bloques fijos intercalados (En el momento, Esto es…, Descubre, Radios): ExploreSectionsRenderer
+                 los recoloca entre las secciones de Explorar v2 y ExploreFragment tras su ancla en el Explorar fijo. ── -->
             <LinearLayout
-                android:id="@+id/exploreLegacyContainer"
+                android:id="@+id/exploreBlocksHolder"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
-
-                <!-- ── Álbumes recomendados (horizontal) ── -->
-                <LinearLayout
-                    android:id="@+id/recommendedAlbumsSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <include
-                        android:id="@+id/recommendedAlbumsHeader"
-                        layout="@layout/view_explore_section_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:minHeight="196dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recyclerViewRecommendedAlbums"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never"
-                            android:paddingHorizontal="8dp"
-                            android:scrollbars="none"
-                            tools:itemCount="6"
-                            tools:listitem="@layout/item_explore_album" />
-
-                        <TextView
-                            android:id="@+id/recommendedAlbumsPlaceholder"
-                            android:layout_width="match_parent"
-                            android:layout_height="180dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="16dp"
-                            android:text="Escucha algo para recibir recomendaciones."
-                            android:textColor="@color/textTheme"
-                            android:textSize="14sp"
-                            android:visibility="gone" />
-
-                        <com.facebook.shimmer.ShimmerFrameLayout
-                            android:id="@+id/recommendedAlbumsShimmer"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingHorizontal="8dp">
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    </FrameLayout>
-                </LinearLayout>
 
                 <!-- ── En el momento (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
                 <LinearLayout
@@ -267,69 +205,6 @@
                     </HorizontalScrollView>
                 </LinearLayout>
 
-                <!-- ── Álbumes nuevos (horizontal) ── -->
-                <LinearLayout
-                    android:id="@+id/albumsSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <include
-                        android:id="@+id/albumsHeader"
-                        layout="@layout/view_explore_section_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:minHeight="196dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recyclerViewAlbums"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never"
-                            android:paddingHorizontal="8dp"
-                            android:scrollbars="none"
-                            tools:itemCount="6"
-                            tools:listitem="@layout/item_explore_album" />
-
-                        <TextView
-                            android:id="@+id/albumsPlaceholder"
-                            android:layout_width="match_parent"
-                            android:layout_height="180dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="16dp"
-                            android:text="No hay albumes recientes."
-                            android:textColor="@color/textTheme"
-                            android:textSize="14sp"
-                            android:visibility="gone" />
-
-                        <com.facebook.shimmer.ShimmerFrameLayout
-                            android:id="@+id/albumsShimmer"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingHorizontal="8dp">
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    </FrameLayout>
-                </LinearLayout>
-
                 <!-- ── Esto es… (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
                 <LinearLayout
                     android:id="@+id/artistEssentialsBlock"
@@ -365,132 +240,6 @@
                         android:overScrollMode="never"
                         android:paddingHorizontal="8dp"
                         android:scrollbars="none" />
-                </LinearLayout>
-
-                <!-- ── Artistas recomendados (horizontal) ── -->
-                <LinearLayout
-                    android:id="@+id/recommendedArtistsSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <include
-                        android:id="@+id/recommendedArtistsHeader"
-                        layout="@layout/view_explore_section_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recyclerViewRecommendedArtists"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never"
-                            android:paddingStart="8dp"
-                            android:paddingEnd="16dp"
-                            android:scrollbars="none"
-                            tools:itemCount="6"
-                            tools:listitem="@layout/item_explore_artist" />
-
-                        <TextView
-                            android:id="@+id/recommendedArtistsPlaceholder"
-                            android:layout_width="match_parent"
-                            android:layout_height="180dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="16dp"
-                            android:text="Escucha algo para recibir recomendaciones."
-                            android:textColor="@color/textTheme"
-                            android:textSize="14sp"
-                            android:visibility="gone" />
-
-                        <com.facebook.shimmer.ShimmerFrameLayout
-                            android:id="@+id/recommendedArtistsShimmer"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingHorizontal="8dp">
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                                <include layout="@layout/item_artist_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    </FrameLayout>
-                </LinearLayout>
-
-                <!-- ── Géneros — tanda 1 (los más populares) ── -->
-                <LinearLayout
-                    android:id="@+id/genresSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <include
-                        android:id="@+id/genresHeader"
-                        layout="@layout/view_explore_section_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:minHeight="142dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recyclerViewGenres"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never"
-                            android:paddingHorizontal="8dp"
-                            android:scrollbars="none"
-                            tools:itemCount="6"
-                            tools:listitem="@layout/item_genre" />
-
-                        <TextView
-                            android:id="@+id/genresPlaceholder"
-                            android:layout_width="match_parent"
-                            android:layout_height="132dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="16dp"
-                            android:text="No hay generos disponibles."
-                            android:textColor="@color/textTheme"
-                            android:textSize="14sp"
-                            android:visibility="gone" />
-
-                        <com.facebook.shimmer.ShimmerFrameLayout
-                            android:id="@+id/genresShimmer"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingHorizontal="8dp">
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    </FrameLayout>
                 </LinearLayout>
 
                 <!-- ── Descubre (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
@@ -557,69 +306,6 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- ── Playlists (horizontal) ── -->
-                <LinearLayout
-                    android:id="@+id/playlistsSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <include
-                        android:id="@+id/playlistsHeader"
-                        layout="@layout/view_explore_section_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:minHeight="196dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recyclerViewPlaylists"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never"
-                            android:paddingHorizontal="8dp"
-                            android:scrollbars="none"
-                            tools:itemCount="6"
-                            tools:listitem="@layout/item_explore_playlist" />
-
-                        <TextView
-                            android:id="@+id/playlistsPlaceholder"
-                            android:layout_width="match_parent"
-                            android:layout_height="180dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="16dp"
-                            android:text="Aun no hay playlists publicas."
-                            android:textColor="@color/textTheme"
-                            android:textSize="14sp"
-                            android:visibility="gone" />
-
-                        <com.facebook.shimmer.ShimmerFrameLayout
-                            android:id="@+id/playlistsShimmer"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingHorizontal="8dp">
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    </FrameLayout>
-                </LinearLayout>
-
                 <!-- ── Radios de artistas (bloque intercalado: en Explorar v2 lo recoloca ExploreSectionsRenderer) ── -->
                 <LinearLayout
                     android:id="@+id/artistRadiosBlock"
@@ -657,70 +343,16 @@
                         android:scrollbars="none" />
                 </LinearLayout>
 
-                <!-- ── Géneros — tanda 2 (menos escuchados) ── -->
-                <LinearLayout
-                    android:id="@+id/genresMoreSection"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <include
-                        android:id="@+id/genresMoreHeader"
-                        layout="@layout/view_explore_section_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-
-                    <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:minHeight="142dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recyclerViewGenresMore"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never"
-                            android:paddingHorizontal="8dp"
-                            android:scrollbars="none"
-                            tools:itemCount="6"
-                            tools:listitem="@layout/item_genre" />
-
-                        <TextView
-                            android:id="@+id/genresMorePlaceholder"
-                            android:layout_width="match_parent"
-                            android:layout_height="132dp"
-                            android:fontFamily="@font/unageo_regular"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="16dp"
-                            android:text="No hay mas generos disponibles."
-                            android:textColor="@color/textTheme"
-                            android:textSize="14sp"
-                            android:visibility="gone" />
-
-                        <com.facebook.shimmer.ShimmerFrameLayout
-                            android:id="@+id/genresMoreShimmer"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingHorizontal="8dp">
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                                <include layout="@layout/item_album_shimmer_placeholder"/>
-                            </LinearLayout>
-                        </com.facebook.shimmer.ShimmerFrameLayout>
-
-                    </FrameLayout>
-                </LinearLayout>
-
             </LinearLayout>
+
+            <!-- ── Explorar fijo: fallback cuando Explorar v2 no está disponible; se infla solo si hace falta ── -->
+            <ViewStub
+                android:id="@+id/exploreLegacyStub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inflatedId="@+id/exploreLegacyContainer"
+                android:layout="@layout/view_explore_legacy_sections" />
+
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

@@ -63,15 +63,22 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
     val collaborators: LiveData<List<Artist>> get() = _collaborators
 
     private var currentArtistId: String? = null
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private var loadedAtMs = 0L
 
     fun loadData(artistId: String) {
+        // Mismo artista recién cargado (vuelta desde otra pantalla): no se relanzan las 7 peticiones.
+        if (artistId == currentArtistId && _artist.value != null &&
+            System.currentTimeMillis() - loadedAtMs < RELOAD_TTL_MS
+        ) return
+        if (artistId != currentArtistId) loadJob?.cancel()
         currentArtistId = artistId
 
         if (_artist.value == null) {
             _isLoading.value = true
         }
 
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             try {
                 // --- FASE 1: Datos críticos (artista + álbumes + top songs) ---
                 // ArtistManager ya lanza estas 3 llamadas en paralelo internamente.
@@ -85,6 +92,7 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
                 songsList.forEach { if (it.artistName.isNullOrEmpty()) it.artistName = artistNameStr }
 
                 // Publicar inmediatamente → el usuario ve cabecera y canciones sin esperar Phase 2
+                loadedAtMs = System.currentTimeMillis()
                 _artist.value = artistObj
                 _topSongs.value = songsList
                 _isLoading.value = false
@@ -135,5 +143,10 @@ class ArtistViewModel(application: Application) : AndroidViewModel(application) 
                 _isLoading.value = false
             }
         }
+    }
+
+    private companion object {
+        /** Ventana en la que volver a la ficha no vuelve a pedir nada (las cachés de ArtistManager duran 20 min). */
+        const val RELOAD_TTL_MS = 5 * 60 * 1000L
     }
 }

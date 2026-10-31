@@ -8,6 +8,7 @@ import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.RecommendationResult
 import com.example.resonant.data.network.SearchResponse
 import com.example.resonant.data.network.SongMetadataDTO
+import com.example.resonant.data.network.services.AlbumService
 import com.example.resonant.data.network.services.ArtistService
 import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.SongService
@@ -17,21 +18,47 @@ import com.example.resonant.streak.StreamResultParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import java.util.concurrent.ConcurrentHashMap
 
-class SongManager(private val context: Context) {
+class SongManager internal constructor(
+    private val songService: SongService,
+    artistServiceProvider: () -> ArtistService,
+    playlistServiceProvider: () -> PlaylistService,
+    private val albumServiceProvider: () -> AlbumService,
+    private val now: () -> Long = System::currentTimeMillis,
+    private val log: (String, Throwable?) -> Unit = { message, error -> Log.e("SongManager", message, error) }
+) {
 
-    // CACHÉ
-    private val songsCache = mutableMapOf<String, Song>()
-    private val songsCacheTimestamp = mutableMapOf<String, Long>()
+    constructor(context: Context) : this(
+        songService = ApiClient.getSongService(context),
+        artistServiceProvider = { ApiClient.getArtistService(context.applicationContext) },
+        playlistServiceProvider = { ApiClient.getPlaylistService(context.applicationContext) },
+        albumServiceProvider = { ApiClient.getAlbumService(context.applicationContext) }
+    )
 
-    private val albumSongsCache = mutableMapOf<String, List<Song>>()
-    private val albumSongsTimestamp = mutableMapOf<String, Long>()
+    private val artistService: ArtistService by lazy(artistServiceProvider)
+    private val playlistService: PlaylistService by lazy(playlistServiceProvider)
 
-    private val CACHE_DURATION_MS = 20 * 60 * 1000L // 20 Min
+    companion object {
+        private const val CACHE_DURATION_MS = 20 * 60 * 1000L // 20 Min
 
-    private val songService: SongService = ApiClient.getSongService(context)
-    private val artistService: ArtistService = ApiClient.getArtistService(context)
-    private val playlistService: PlaylistService = ApiClient.getPlaylistService(context)
+        // CACHÉ compartida por todas las instancias: SongManager se crea por pantalla y por servicio, y antes
+        // cada instancia empezaba vacía (una canción pedida en una pantalla se volvía a pedir en la siguiente).
+        // Mapas concurrentes: se escribe desde IO y se lee desde Main.
+        private val songsCache = ConcurrentHashMap<String, Song>()
+        private val songsCacheTimestamp = ConcurrentHashMap<String, Long>()
+
+        private val albumSongsCache = ConcurrentHashMap<String, List<Song>>()
+        private val albumSongsTimestamp = ConcurrentHashMap<String, Long>()
+
+        /** Vacía la caché compartida: cierre de sesión o cambio de cuenta. */
+        fun clearAll() {
+            songsCache.clear()
+            songsCacheTimestamp.clear()
+            albumSongsCache.clear()
+            albumSongsTimestamp.clear()
+        }
+    }
 
     suspend fun getRecommendedSongs(count: Int): RecommendationResult<Song>? {
         // 1. Intentamos obtener recomendaciones de IA
@@ -45,7 +72,7 @@ class SongManager(private val context: Context) {
             formatSongMetadata(songs)
             
             // CACHE THEM
-            val now = System.currentTimeMillis()
+            val now = now()
             songs.forEach { 
                 songsCache[it.id] = it
                 songsCacheTimestamp[it.id] = now
@@ -91,7 +118,7 @@ class SongManager(private val context: Context) {
     }
 
     suspend fun getSongById(songId: String): Song? {
-        val now = System.currentTimeMillis()
+        val now = now()
         val lastUpdate = songsCacheTimestamp[songId] ?: 0L
         val isExpired = (now - lastUpdate) > CACHE_DURATION_MS
 
@@ -109,7 +136,7 @@ class SongManager(private val context: Context) {
                     try {
                         songService.getSongPlaybackInfo(songId)
                     } catch (e: Exception) {
-                        Log.w("SongManager", "Could not fetch playback info for $songId: ${e.message}")
+                        log("Could not fetch playback info for $songId: ${e.message}", null)
                         null
                     }
                 }
@@ -168,12 +195,12 @@ class SongManager(private val context: Context) {
 
                 if (enriched != null) {
                     songsCache[songId] = enriched
-                    songsCacheTimestamp[songId] = System.currentTimeMillis()
+                    songsCacheTimestamp[songId] = now()
                 }
                 enriched
             }
         } catch (e: Exception) {
-            Log.e("SongManager", "Error fetching song by ID '$songId'", e)
+            log("Error fetching song by ID '$songId'", e)
             songsCache[songId]
         }
     }
@@ -216,7 +243,7 @@ class SongManager(private val context: Context) {
     }
 
     suspend fun getSongsFromAlbum(albumId: String): List<Song> {
-        val now = System.currentTimeMillis()
+        val now = now()
         val lastUpdate = albumSongsTimestamp[albumId] ?: 0L
         val isExpired = (now - lastUpdate) > CACHE_DURATION_MS
 
@@ -226,17 +253,17 @@ class SongManager(private val context: Context) {
 
         return try {
             // Nuevo endpoint: api/albums/{id}/songs (en AlbumService)
-            val albumService = ApiClient.getAlbumService(context)
+            val albumService = albumServiceProvider()
             val songs = albumService.getAlbumSongs(albumId)
             val enriched = formatSongMetadata(songs)
             
             albumSongsCache[albumId] = enriched
-            albumSongsTimestamp[albumId] = System.currentTimeMillis()
+            albumSongsTimestamp[albumId] = now()
             
             // Opcional: Cachear individualmente también
             enriched.forEach { 
                 songsCache[it.id] = it
-                songsCacheTimestamp[it.id] = System.currentTimeMillis()
+                songsCacheTimestamp[it.id] = now()
             }
             
             enriched
@@ -259,13 +286,17 @@ class SongManager(private val context: Context) {
 
     suspend fun getFavoriteSongs(sort: String? = null, limit: Int? = null): List<Song> {
         return try {
-            // Nuevo endpoint: api/songs/favorites (sin userId, extraído del JWT)
-            val songs = songService.getFavoriteSongs(sort, limit)
-            formatSongMetadata(songs)
+            fetchFavoriteSongs(sort, limit)
         } catch (e: Exception) {
             Log.e("SongManager", "Error fetching favorite songs", e)
             emptyList()
         }
+    }
+
+    /** Como [getFavoriteSongs] pero propaga el fallo: una lista vacía significa "sin favoritos", no "sin red". */
+    suspend fun fetchFavoriteSongs(sort: String? = null, limit: Int? = null): List<Song> {
+        // Nuevo endpoint: api/songs/favorites (sin userId, extraído del JWT)
+        return formatSongMetadata(songService.getFavoriteSongs(sort, limit))
     }
 
     suspend fun getSongsFromPlaylist(playlistId: String): List<Song> {

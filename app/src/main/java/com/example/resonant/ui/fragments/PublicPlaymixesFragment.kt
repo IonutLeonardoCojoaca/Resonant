@@ -91,10 +91,7 @@ class PublicPlaymixesFragment : Fragment() {
         }
 
         adapter = PublicPlaymixAdapter { playmix ->
-            findNavController().navigate(
-                R.id.action_global_to_playmixDetailFragment,
-                Bundle().apply { putString("playmixId", playmix.id) }
-            )
+            findNavController().navigate(R.id.action_global_to_playmixDetailFragment, PlaymixDetailArgs.bundle(playmix))
         }
         list.layoutManager = LinearLayoutManager(requireContext())
         list.itemAnimator = null

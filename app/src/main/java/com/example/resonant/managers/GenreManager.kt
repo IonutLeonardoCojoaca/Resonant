@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.resonant.data.models.Genre
 import com.example.resonant.data.network.ApiClient
 import com.example.resonant.data.network.services.GenreService
+import java.util.concurrent.ConcurrentHashMap
 
 class GenreManager(private val context: Context) {
 
@@ -12,9 +13,15 @@ class GenreManager(private val context: Context) {
     companion object {
         // Estático para sobrevivir a la recreación del ViewModel/GenreManager
         // al volver a navegar al mismo artista.
-        private val genresByArtistCache = mutableMapOf<String, List<Genre>>()
-        private val genresByArtistCacheTimestamps = mutableMapOf<String, Long>()
+        private val genresByArtistCache = ConcurrentHashMap<String, List<Genre>>()
+        private val genresByArtistCacheTimestamps = ConcurrentHashMap<String, Long>()
         private const val CACHE_DURATION_MS = 20 * 60 * 1000L
+
+        /** Vacía la caché estática (cierre de sesión o cambio de cuenta). */
+        fun clear() {
+            genresByArtistCache.clear()
+            genresByArtistCacheTimestamps.clear()
+        }
     }
 
     suspend fun getAllGenres(): List<Genre> {

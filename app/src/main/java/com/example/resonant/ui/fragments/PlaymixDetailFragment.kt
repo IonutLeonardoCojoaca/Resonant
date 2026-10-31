@@ -11,6 +11,7 @@ import com.google.android.material.appbar.AppBarLayout
 import kotlin.math.abs
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -25,7 +26,6 @@ import androidx.core.view.isVisible
 import kotlin.math.roundToInt
 import com.example.resonant.databinding.FragmentPlaymixDetailBinding
 import com.example.resonant.managers.PlaymixManager
-import com.example.resonant.managers.SongManager
 import com.example.resonant.playback.QueueSource
 import com.example.resonant.services.MusicPlaybackService
 import com.example.resonant.ui.adapters.PlaymixSongTransitionAdapter
@@ -76,7 +76,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         highlightTransitionId = arguments?.getString("highlightTransitionId")
         setupSharing()
 
-        val playmixManager = PlaymixManager(requireContext())
+        // Contexto de aplicación: el ViewModel sobrevive a la vista y no debe retener la Activity.
+        val playmixManager = PlaymixManager(requireContext().applicationContext)
         viewModel = ViewModelProvider(this, PlaymixDetailViewModelFactory(playmixManager))
             .get(PlaymixDetailViewModel::class.java)
         viewModel.offlineContext = requireContext().applicationContext
@@ -89,12 +90,23 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         observeDownload()
         enableSharingWhenCapabilitiesArrive()
 
+        // Lo que la lista ya sabía (nombre, portada, nº de canciones): la cabecera no espera a la red.
+        if (viewModel.screenState.value?.detail == null) PlaymixDetailArgs.preview(arguments)?.let(::bindPreview)
+        openedAtMs = android.os.SystemClock.elapsedRealtime()
         viewModel.loadPlaymixDetail(playmixId)
         // Descargada y con red: se sincroniza al abrir (collection-queue-offline D6).
         collectionDownloads.refresh(OfflineCollectionStore.TYPE_PLAYMIX, playmixId)
     }
 
     private lateinit var collectionDownloads: CollectionDownloadViewModel
+
+    /** Medición (debug): ms desde abrir la pantalla hasta pintar el detalle, y desde pulsar play hasta tener la cola. */
+    private var openedAtMs = 0L
+
+    private fun logTiming(what: String, sinceMs: Long) {
+        if (sinceMs == 0L || !com.example.resonant.BuildConfig.DEBUG) return
+        android.util.Log.d("PlaymixTiming", "$what after ${android.os.SystemClock.elapsedRealtime() - sinceMs} ms")
+    }
 
     /** Chip con el estado de la descarga: descargando, descargada, pendiente de actualizar o ya no disponible. */
     private fun observeDownload() {
@@ -125,7 +137,6 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     private fun setupRecyclerView() {
         adapter = PlaymixSongTransitionAdapter(
             onTransitionClick = { transition -> navigateToCrossfadeEditor(transition) },
-            onAddTransitionClick = { transition -> navigateToCrossfadeEditor(transition) },
             onPreviewClick = { transition ->
                 WaveformPreviewBottomSheet(playmixId, transition)
                     .show(childFragmentManager, "WaveformPreview")
@@ -168,6 +179,7 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             onShareTransitionClick = if (sharingUi.enabled) ({ transition -> sharingUi.shareTransition(transition) }) else null
         )
         binding.songTransitionList.layoutManager = LinearLayoutManager(requireContext())
+        binding.songTransitionList.setHasFixedSize(true)
         binding.songTransitionList.adapter = adapter
     }
 
@@ -176,18 +188,28 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         // Fondo de la barra (primaryColorTheme): transparente sobre la portada, opaco al plegar.
         val barBackground = binding.topBar.background.mutate().apply { alpha = 0 }
         setLightStatusBarIcons(false)
+        // Se llama en cada frame de scroll: solo se toca lo que cambia (en las mesetas, nada).
+        var lastCollapsed = -1f
+        var lastDataAlpha = -1f
         binding.appBarLayout.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBar, offset ->
             if (appBar.totalScrollRange == 0) return@OnOffsetChangedListener
             val ratio = abs(offset).toFloat() / appBar.totalScrollRange.toFloat()
             // Último 25 % del plegado (como ChartHero/DetailHero): título, fondo y paso a los iconos del tema.
             val collapsed = ((ratio - 0.75f) / 0.25f).coerceIn(0f, 1f)
-            binding.playmixTitle.alpha = collapsed
-            barBackground.alpha = (collapsed * 255).roundToInt()
-            OnImageTopBar.update(collapsed, binding.arrowGoBackButton, binding.settingsButton)
+            if (collapsed != lastCollapsed) {
+                lastCollapsed = collapsed
+                binding.playmixTitle.alpha = collapsed
+                barBackground.alpha = (collapsed * 255).roundToInt()
+                OnImageTopBar.update(collapsed, binding.arrowGoBackButton, binding.settingsButton)
+                // Sobre la portada, iconos claros; con la barra opaca (primaryColorTheme), los del tema.
+                setLightStatusBarIcons(collapsed >= 0.5f && !isNightMode())
+            }
             // Los datos se desvanecen antes de llegar a la barra: no se amontonan bajo ella ni bajo la de estado.
-            binding.playmixDataContainer.alpha = 1f - ((ratio - 0.35f) / 0.4f).coerceIn(0f, 1f)
-            // Sobre la portada, iconos claros; con la barra opaca (primaryColorTheme), los del tema.
-            setLightStatusBarIcons(collapsed >= 0.5f && !isNightMode())
+            val dataAlpha = 1f - ((ratio - 0.35f) / 0.4f).coerceIn(0f, 1f)
+            if (dataAlpha != lastDataAlpha) {
+                lastDataAlpha = dataAlpha
+                binding.playmixDataContainer.alpha = dataAlpha
+            }
         })
     }
 
@@ -195,7 +217,11 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
     /** [light] = iconos oscuros (fondo claro). Se restaura al valor del tema en onDestroyView. */
+    private var lastLightStatusBarIcons: Boolean? = null
+
     private fun setLightStatusBarIcons(light: Boolean) {
+        if (lastLightStatusBarIcons == light) return
+        lastLightStatusBarIcons = light
         val window = activity?.window ?: return
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         if (controller.isAppearanceLightStatusBars != light) controller.isAppearanceLightStatusBars = light
@@ -211,21 +237,29 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         }
         // También en una Playmix ajena: cola y descarga (collection-queue-offline). Editar y borrar solo el dueño.
         binding.settingsButton.visibility = View.VISIBLE
+        // Sin detalle no hay cola que preparar ni menú que montar: se habilitan cuando llega.
+        binding.playButton.isEnabled = false
+        binding.settingsButton.isEnabled = false
 
         binding.playButton.setOnClickListener {
             playPlaymix()
         }
     }
 
+    /** Una sola preparación de cola a la vez, la pida el botón, una fila o la hoja de opciones. */
+    private var playJob: Job? = null
+
     private fun playPlaymix(startSongId: String? = null) {
+        if (playJob?.isActive == true) return
         val b = _binding ?: return
-        val songManager = SongManager(requireContext())
         b.playButton.isEnabled = false
         b.playButton.alpha = 0.5f
+        val tappedAtMs = android.os.SystemClock.elapsedRealtime()
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        playJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val result = viewModel.fetchSongsForPlayback(songManager, startSongId)
+                val result = viewModel.fetchSongsForPlayback(startSongId)
+                logTiming("queue ready (${result?.first?.size ?: 0} songs)", tappedAtMs)
                 val b2 = _binding ?: return@launch
                 b2.playButton.isEnabled = true
                 b2.playButton.alpha = 1f
@@ -257,13 +291,15 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
 
     private fun observeViewModel() {
         viewModel.screenState.observe(viewLifecycleOwner) { state ->
-            if (state.isLoading) {
-                binding.lottieLoader.visibility = View.VISIBLE
-                binding.lottieLoader.playAnimation()
-            } else {
-                binding.lottieLoader.visibility = View.GONE
-                binding.lottieLoader.cancelAnimation()
-            }
+            val hasDetail = state.detail != null
+            // Esqueleto solo mientras no hay nada que pintar; una revalidación con detalle en pantalla es silenciosa.
+            val skeleton = binding.detailSkeleton.root
+            val showSkeleton = state.isLoading && !hasDetail && !state.notFound
+            skeleton.isVisible = showSkeleton
+            if (showSkeleton) skeleton.startShimmer() else skeleton.stopShimmer()
+            binding.playButton.isEnabled = hasDetail && playJob?.isActive != true
+            binding.playButton.alpha = if (binding.playButton.isEnabled) 1f else 0.5f
+            binding.settingsButton.isEnabled = hasDetail
 
             binding.playmixUnavailableText.isVisible = state.notFound
             if (state.notFound) {
@@ -274,70 +310,73 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
             }
 
             state.detail?.let { detail ->
+                logTiming("detail painted", openedAtMs)
+                openedAtMs = 0L
                 applyOwnership(detail)
-                binding.playmixTitle.text = detail.name
-                binding.playmixName.text = detail.name
-
-                if (!detail.description.isNullOrEmpty()) {
-                    binding.playmixDescription.text = detail.description
-                    binding.playmixDescription.visibility = View.VISIBLE
-                } else {
-                    binding.playmixDescription.visibility = View.GONE
-                }
-
-                val count = detail.numberOfTracks
-                val songText = if (count == 1) "1 canción" else "$count canciones"
-                binding.playmixNumberOfTracks.text = songText
-                binding.playmixDuration.text = formatDuration(detail.duration)
-
-                // Sin canciones no hay portada: la tarjeta por defecto, desenfocada igual que una portada.
-                DefaultCover.load(binding.playmixCoverImage, detail.coverUrl, DefaultCover.Kind.PLAYMIX, detail.name)
-                binding.playmixCoverImage.setRenderEffect(
-                    RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
-                )
-
-                bindSetOverview(detail)
+                bindHeader(detail.name, detail.description, detail.numberOfTracks, detail.duration)
+                bindCover(detail.coverUrl, detail.name)
+                bindBlendSummary(detail)
 
                 if (detail.songs.isEmpty()) {
                     binding.noSongsText.visibility = View.VISIBLE
                     binding.songTransitionList.visibility = View.GONE
+                    adapter.submitList(emptyList())
                 } else {
                     binding.noSongsText.visibility = View.GONE
                     binding.songTransitionList.visibility = View.VISIBLE
-                    adapter.submitItems(detail.songs, detail.transitions)
+                    adapter.submitDetail(detail)
                     scrollToHighlightedTransition()
                 }
             }
-
-            state.error?.let {
-                showResonantSnackbar(it, SnackType.ERROR)
-            }
         }
 
+        // Un solo canal de error, consumido: antes `screenState.error` y `error` mostraban el mismo fallo dos
+        // veces y lo repetían en cada recreación de la vista.
         viewModel.error.observe(viewLifecycleOwner) { msg ->
             msg?.let {
                 showResonantSnackbar(it, SnackType.ERROR)
+                viewModel.consumeError()
             }
         }
     }
 
-    /** Curva de tempo del set y resumen de cómo se mezclan sus parejas (automático / avanzada). */
-    private fun bindSetOverview(detail: PlaymixDetailDTO) {
-        val songs = detail.songs.sortedBy { it.position }
-        val tempos = songs.map { song -> song.audioAnalysis?.bpm?.takeIf { it > 0 } }
-        val known = tempos.filterNotNull()
-        binding.tempoFlowSection.isVisible = known.size >= 2
-        if (known.size >= 2) {
-            binding.tempoFlowRange.text = "${known.min().roundToInt()}–${known.max().roundToInt()} BPM"
-            binding.tempoFlowView.setColors(
-                ContextCompat.getColor(requireContext(), R.color.playmix_accent),
-                ContextCompat.getColor(requireContext(), R.color.playmix_accent_end)
-            )
-            binding.tempoFlowView.setTempos(tempos, animate = true)
-        }
-        binding.setlistLabel.isVisible = songs.isNotEmpty()
+    /** Cabecera con lo que la lista ya sabía, antes de que responda la red (PlaymixDetailArgs). */
+    private fun bindPreview(preview: PlaymixDetailArgs.Preview) {
+        bindHeader(preview.name, preview.description, preview.trackCount, preview.duration)
+        bindCover(preview.coverUrl, preview.name)
+    }
 
-        val pairs = songs.zipWithNext()
+    private fun bindHeader(name: String, description: String?, trackCount: Int, durationSeconds: Int) {
+        binding.playmixTitle.text = name
+        binding.playmixName.text = name
+        if (!description.isNullOrEmpty()) {
+            binding.playmixDescription.text = description
+            binding.playmixDescription.visibility = View.VISIBLE
+        } else {
+            binding.playmixDescription.visibility = View.GONE
+        }
+        binding.playmixNumberOfTracks.text = if (trackCount == 1) "1 canción" else "$trackCount canciones"
+        binding.playmixDuration.text = formatDuration(durationSeconds)
+    }
+
+    private var boundCoverKey: String? = null
+    private var coverBlurApplied = false
+
+    /** Sin canciones no hay portada: la tarjeta por defecto, desenfocada igual que una portada. Solo si cambia. */
+    private fun bindCover(coverUrl: String?, name: String) {
+        val key = "$coverUrl|$name"
+        if (key == boundCoverKey) return
+        boundCoverKey = key
+        DefaultCover.load(binding.playmixCoverImage, coverUrl, DefaultCover.Kind.PLAYMIX, name)
+        if (!coverBlurApplied) {
+            coverBlurApplied = true
+            binding.playmixCoverImage.setRenderEffect(RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP))
+        }
+    }
+
+    /** Resumen de cómo se mezclan las parejas del set (automático / avanzada), en la píldora de la cabecera. */
+    private fun bindBlendSummary(detail: PlaymixDetailDTO) {
+        val pairs = detail.songs.sortedBy { it.position }.zipWithNext()
         val automatic = pairs.count { (from, to) ->
             PlaymixMixMode.isSmart(detail.transitions.find {
                 it.fromPlaymixSongId == from.playmixSongId && it.toPlaymixSongId == to.playmixSongId
@@ -519,11 +558,11 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
         binding.songTransitionList.post {
             val b = _binding ?: return@post
             val position = adapter.positionOfTransition(transitionId)
-            val row = b.songTransitionList.layoutManager?.findViewByPosition(position) ?: return@post
+            if (position < 0) return@post
             b.appBarLayout.setExpanded(false, true)
-            var parent = b.songTransitionList.parent
-            while (parent != null && parent !is androidx.core.widget.NestedScrollView) parent = parent.parent
-            (parent as? androidx.core.widget.NestedScrollView)?.smoothScrollTo(0, b.songTransitionList.top + row.top)
+            // La lista recicla: la fila puede no existir aún, así que se pide la posición al LayoutManager.
+            val offset = (16 * resources.displayMetrics.density).toInt()
+            (b.songTransitionList.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(position, offset)
         }
     }
 

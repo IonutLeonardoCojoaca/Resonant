@@ -177,7 +177,7 @@ class HistoryFragment : Fragment() {
 
         // Opciones (3 puntos)
         songAdapter.onSettingsClick = { song ->
-            lifecycleScope.launch {
+            viewLifecycleOwner.lifecycleScope.launch {
                 song.artistName = song.artists.joinToString(", ") { it.name }
 
                 val bottomSheet = SongOptionsBottomSheet(
@@ -282,7 +282,7 @@ class HistoryFragment : Fragment() {
 
         favoritesViewModel.favoriteSongIds.observe(viewLifecycleOwner) { songIds ->
             songAdapter.favoriteSongIds = songIds
-            if (songAdapter.currentList.isNotEmpty()) songAdapter.notifyDataSetChanged()
+            // SongAdapter.favoriteSongIds ya repinta solo las filas cuyo corazón cambia.
         }
 
         viewLifecycleOwner.lifecycleScope.launch {

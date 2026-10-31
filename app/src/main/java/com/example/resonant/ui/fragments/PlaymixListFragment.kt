@@ -112,6 +112,7 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
         viewModel.error.observe(viewLifecycleOwner) { msg ->
             msg?.let {
                 showResonantSnackbar(it, SnackType.ERROR)
+                viewModel.consumeError()
             }
         }
 
@@ -167,10 +168,8 @@ class PlaymixListFragment : BaseFragment(R.layout.fragment_playmix_list) {
     }
 
     private fun navigateToDetail(playmix: PlaymixDTO) {
-        val bundle = Bundle().apply {
-            putString("playmixId", playmix.id)
-        }
-        findNavController().navigate(R.id.action_playmixListFragment_to_playmixDetailFragment, bundle)
+        // Con lo que ya sabe la lista, la cabecera del detalle se pinta antes de que responda la red.
+        findNavController().navigate(R.id.action_playmixListFragment_to_playmixDetailFragment, PlaymixDetailArgs.bundle(playmix))
     }
 
     override fun onDestroyView() {

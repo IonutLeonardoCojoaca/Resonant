@@ -6,7 +6,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
+import android.view.ViewStub
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -81,30 +81,11 @@ class ExploreFragment : Fragment() {
     private lateinit var collabFinderCard: View
     private var collabCardAnimated = false
 
-    private lateinit var playlistsSection: View
-    private lateinit var albumsSection: View
-    private lateinit var genresSection: View
-    private lateinit var recommendedAlbumsSection: View
-    private lateinit var recommendedArtistsSection: View
-    private lateinit var genresMoreSection: View
-
-    private lateinit var playlistsPlaceholder: TextView
-    private lateinit var albumsPlaceholder: TextView
-    private lateinit var genresPlaceholder: TextView
-    private lateinit var recommendedAlbumsPlaceholder: TextView
-    private lateinit var recommendedArtistsPlaceholder: TextView
-    private lateinit var genresMorePlaceholder: TextView
-
-    private lateinit var playlistsShimmer: ShimmerFrameLayout
-    private lateinit var albumsShimmer: ShimmerFrameLayout
-    private lateinit var genresShimmer: ShimmerFrameLayout
-    private lateinit var recommendedAlbumsShimmer: ShimmerFrameLayout
-    private lateinit var recommendedArtistsShimmer: ShimmerFrameLayout
-    private lateinit var genresMoreShimmer: ShimmerFrameLayout
-
-
     private lateinit var heroTitle: TextView
-    private lateinit var legacyContainer: ViewGroup
+    /** Explorar fijo: se infla (ViewStub) la primera vez que hace falta y se suelta con la vista. */
+    private var legacy: LegacySections? = null
+    private lateinit var legacyStub: ViewStub
+    private lateinit var blocksHolder: ViewGroup
     private lateinit var dynamicContainer: LinearLayout
     private var sectionsRenderer: ExploreSectionsRenderer? = null
     private var defaultHeroTitle: CharSequence = ""
@@ -122,37 +103,9 @@ class ExploreFragment : Fragment() {
     private lateinit var songOfDayAriaBadge: View
     private var legacyStarted = false
 
-    private lateinit var recyclerViewPlaylists: RecyclerView
-    private lateinit var recyclerViewAlbums: RecyclerView
-    private lateinit var recyclerViewGenres: RecyclerView
-    private lateinit var recyclerViewRecommendedAlbums: RecyclerView
-    private lateinit var recyclerViewRecommendedArtists: RecyclerView
-    private lateinit var recyclerViewGenresMore: RecyclerView
-
-    private lateinit var playlistAdapter: ExplorePlaylistAdapter
-    private lateinit var albumAdapter: ExploreAlbumAdapter
-    private lateinit var genreAdapter: GenreAdapter
-    private lateinit var recommendedAlbumAdapter: ExploreAlbumAdapter
-    private lateinit var recommendedArtistAdapter: ExploreArtistAdapter
-    private lateinit var genreAdapterMore: GenreAdapter
-
     private var scrollBehavior: ScrollHeaderBehavior? = null
-    private var scrollChangedListener: ViewTreeObserver.OnScrollChangedListener? = null
-
-    private var playlistsCount = 0
-    private var albumsCount = 0
-    private var genresCount = 0
-    private var recommendedAlbumsCount = 0
-    private var recommendedArtistsCount = 0
-    private var genresMoreCount = 0
-
-    private var playlistsRequested = false
-    private var albumsRequested = false
-    private var genresRequested = false
-    private var recommendedAlbumsRequested = false
-    private var recommendedArtistsRequested = false
-    private var progressiveLoadPending = false
-    private var quickCardsAnimated = false
+    private var loadVisiblePosted = false
+    private val visibleRect = android.graphics.Rect()
 
     // Bloques fijos intercalados entre las secciones (En el momento, Esto es…, Descubre,
     // Radios). En el Explorar fijo viven en el XML; en Explorar v2 los recoloca el renderer.
@@ -160,7 +113,6 @@ class ExploreFragment : Fragment() {
     private lateinit var artistEssentialsBlock: View
     private lateinit var discoverBlock: View
     private lateinit var artistRadiosBlock: View
-    private var legacyBlockAnchors: List<Pair<View, View>> = emptyList()
     private lateinit var recyclerViewArtistEssentials: RecyclerView
     private lateinit var recyclerViewArtistRadios: RecyclerView
     private lateinit var artistEssentialsAdapter: ArtistMixAdapter
@@ -172,11 +124,11 @@ class ExploreFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         val view = inflater.inflate(R.layout.fragment_explore, container, false)
-        viewModel = ViewModelProvider(this)[ExploreViewModel::class.java]
+        // Activity-scoped (como HomeViewModel): sobrevive al cambio de pestaña, que destruye este fragment.
+        viewModel = ViewModelProvider(requireActivity())[ExploreViewModel::class.java]
 
         initViews(view)
         setupQuickActionCards(view)
-        setupSectionHeaders(view)
         setupRecyclerViews()
         setupObservers()
 
@@ -186,7 +138,6 @@ class ExploreFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupFloatingSearchHeader(view)
-        setupProgressiveLoading()
         bindPublicPlaymixShelf(view)
 
         viewModel.loadExplore()
@@ -213,14 +164,8 @@ class ExploreFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        if (::scrollView.isInitialized) {
-            scrollChangedListener?.let { listener ->
-                if (scrollView.viewTreeObserver.isAlive) {
-                    scrollView.viewTreeObserver.removeOnScrollChangedListener(listener)
-                }
-            }
-        }
-        scrollChangedListener = null
+        // Las vistas del Explorar fijo y sus adapters se sueltan con la vista: no se retienen en el back stack.
+        legacy = null
         sectionsRenderer = null
         scrollBehavior?.reset()
         scrollBehavior = null
@@ -231,52 +176,19 @@ class ExploreFragment : Fragment() {
         userProfileImage = view.findViewById(R.id.userProfile)
         scrollView = view.findViewById(R.id.exploreScrollView)
 
-        playlistsSection = view.findViewById(R.id.playlistsSection)
-        albumsSection = view.findViewById(R.id.albumsSection)
-        genresSection = view.findViewById(R.id.genresSection)
-        recommendedAlbumsSection = view.findViewById(R.id.recommendedAlbumsSection)
-        recommendedArtistsSection = view.findViewById(R.id.recommendedArtistsSection)
-        genresMoreSection = view.findViewById(R.id.genresMoreSection)
-
-        playlistsPlaceholder = view.findViewById(R.id.playlistsPlaceholder)
-        albumsPlaceholder = view.findViewById(R.id.albumsPlaceholder)
-        genresPlaceholder = view.findViewById(R.id.genresPlaceholder)
-        recommendedAlbumsPlaceholder = view.findViewById(R.id.recommendedAlbumsPlaceholder)
-        recommendedArtistsPlaceholder = view.findViewById(R.id.recommendedArtistsPlaceholder)
-        genresMorePlaceholder = view.findViewById(R.id.genresMorePlaceholder)
-
-        playlistsShimmer = view.findViewById(R.id.playlistsShimmer)
-        albumsShimmer = view.findViewById(R.id.albumsShimmer)
-        genresShimmer = view.findViewById(R.id.genresShimmer)
-        recommendedAlbumsShimmer = view.findViewById(R.id.recommendedAlbumsShimmer)
-        recommendedArtistsShimmer = view.findViewById(R.id.recommendedArtistsShimmer)
-        genresMoreShimmer = view.findViewById(R.id.genresMoreShimmer)
-
-
         heroTitle = view.findViewById(R.id.exploreHeroTitle)
         defaultHeroTitle = heroTitle.text
         initStreakViews(view)
         initRecapBanner(view)
-        legacyContainer = view.findViewById(R.id.exploreLegacyContainer)
+        legacyStub = view.findViewById(R.id.exploreLegacyStub)
+        blocksHolder = view.findViewById(R.id.exploreBlocksHolder)
         dynamicContainer = view.findViewById(R.id.exploreDynamicContainer)
         sectionsRenderer = ExploreSectionsRenderer(dynamicContainer, sectionCallbacks)
-
-        recyclerViewPlaylists = view.findViewById(R.id.recyclerViewPlaylists)
-        recyclerViewAlbums = view.findViewById(R.id.recyclerViewAlbums)
-        recyclerViewGenres = view.findViewById(R.id.recyclerViewGenres)
-        recyclerViewRecommendedAlbums = view.findViewById(R.id.recyclerViewRecommendedAlbums)
-        recyclerViewRecommendedArtists = view.findViewById(R.id.recyclerViewRecommendedArtists)
-        recyclerViewGenresMore = view.findViewById(R.id.recyclerViewGenresMore)
 
         liveNowBlock = view.findViewById(R.id.liveNowBlock)
         artistEssentialsBlock = view.findViewById(R.id.artistEssentialsBlock)
         discoverBlock = view.findViewById(R.id.discoverBlock)
         artistRadiosBlock = view.findViewById(R.id.artistRadiosBlock)
-        // Cada bloque recuerda la sección que lo precede en el XML para volver a su
-        // sitio si Explorar pasa de v2 al modo fijo.
-        legacyBlockAnchors = listOf(liveNowBlock, artistEssentialsBlock, discoverBlock, artistRadiosBlock).map { block ->
-            block to legacyContainer.getChildAt(legacyContainer.indexOfChild(block) - 1)
-        }
 
         recyclerViewArtistEssentials = view.findViewById(R.id.recyclerViewArtistEssentials)
         recyclerViewArtistRadios = view.findViewById(R.id.recyclerViewArtistRadios)
@@ -318,9 +230,9 @@ class ExploreFragment : Fragment() {
         cards.forEachIndexed { index, (card, spec, onClick) ->
             // Todas sin caja (solo brillo y logo), Tendencias incluida: mismo diseño que las de charts.
             ExploreQuickCard.bind(card, spec, boxless = true, onClick = onClick)
-            if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
+            if (!viewModel.quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
-        quickCardsAnimated = true
+        viewModel.quickCardsAnimated = true
     }
 
     /** "Descubre": tarjeta de Collab Finder con su motivo de órbitas (anima al entrar en pantalla). */
@@ -335,10 +247,7 @@ class ExploreFragment : Fragment() {
             shelf = view.findViewById(R.id.publicPlaymixesShelf),
             scope = viewLifecycleOwner.lifecycleScope,
             onOpen = { playmix ->
-                findNavController().navigate(
-                    R.id.action_global_to_playmixDetailFragment,
-                    Bundle().apply { putString("playmixId", playmix.id) }
-                )
+                findNavController().navigate(R.id.action_global_to_playmixDetailFragment, PlaymixDetailArgs.bundle(playmix))
             },
             onSeeAll = { findNavController().navigate(R.id.action_global_to_publicPlaymixesFragment) }
         )
@@ -421,20 +330,6 @@ class ExploreFragment : Fragment() {
     }
 
     private fun setupRecyclerViews() {
-        playlistAdapter = ExplorePlaylistAdapter { navigateToPlaylist(it) }
-            .apply { onItemLongClick = { ItemOptions.playlist(this@ExploreFragment, it) } }
-        albumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
-            .apply { onItemLongClick = { ItemOptions.album(this@ExploreFragment, it) } }
-        recommendedAlbumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
-            .apply { onItemLongClick = { ItemOptions.album(this@ExploreFragment, it) } }
-        recommendedArtistAdapter = ExploreArtistAdapter { navigateToArtist(it) }
-            .apply { onItemLongClick = { ItemOptions.artist(this@ExploreFragment, it) } }
-
-        recyclerViewPlaylists.setupHorizontalExploreList(playlistAdapter)
-        recyclerViewAlbums.setupHorizontalExploreList(albumAdapter)
-        recyclerViewRecommendedAlbums.setupHorizontalExploreList(recommendedAlbumAdapter)
-        recyclerViewRecommendedArtists.setupHorizontalExploreList(recommendedArtistAdapter)
-
         artistEssentialsAdapter = ArtistMixAdapter(ArtistMixAdapter.Kind.ESSENTIALS) {
             navigateToArtistSmartPlaylist(it.artist, "Essentials")
         }.apply {
@@ -453,14 +348,6 @@ class ExploreFragment : Fragment() {
         }
         recyclerViewArtistEssentials.setupHorizontalExploreList(artistEssentialsAdapter)
         recyclerViewArtistRadios.setupHorizontalExploreList(artistRadiosAdapter)
-
-        val onGenreClick: (Genre) -> Unit = ::navigateToGenre
-        genreAdapter = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
-            .apply { onItemLongClick = { ItemOptions.genre(this@ExploreFragment, it) } }
-        genreAdapterMore = GenreAdapter(emptyList(), onGenreClick = onGenreClick)
-            .apply { onItemLongClick = { ItemOptions.genre(this@ExploreFragment, it) } }
-        recyclerViewGenres.setupGenreGrid(genreAdapter)
-        recyclerViewGenresMore.setupGenreGrid(genreAdapterMore)
     }
 
     private fun RecyclerView.setupGenreGrid(adapter: RecyclerView.Adapter<*>) {
@@ -468,6 +355,121 @@ class ExploreFragment : Fragment() {
         this.adapter = adapter
         itemAnimator = null
         setHasFixedSize(false)
+    }
+
+    /** Infla el Explorar fijo la primera vez que hace falta y vuelca en él lo que el ViewModel ya tenga. */
+    private fun ensureLegacy(): LegacySections = legacy ?: LegacySections(legacyStub.inflate() as ViewGroup).also {
+        legacy = it
+        it.renderAll()
+    }
+
+    /**
+     * Vistas, adapters y estado de petición de las secciones del Explorar fijo. Viven solo mientras existe la vista
+     * del fragment (ViewStub inflado); Explorar v2 no las infla nunca.
+     */
+    private inner class LegacySections(val container: ViewGroup) {
+
+        inner class Section(sectionId: Int, recyclerId: Int, placeholderId: Int, shimmerId: Int) {
+            val view: View = container.findViewById(sectionId)
+            val recycler: RecyclerView = container.findViewById(recyclerId)
+            private val placeholder: TextView = container.findViewById(placeholderId)
+            private val shimmer: ShimmerFrameLayout = container.findViewById(shimmerId)
+            private var requested = false
+
+            fun requestIfNear(extraDp: Int, load: () -> Unit) {
+                if (requested || !view.isNearViewport(extraDp)) return
+                requested = true
+                load()
+            }
+
+            fun render(isLoading: Boolean, itemCount: Int) = renderSection(recycler, placeholder, shimmer, isLoading, itemCount)
+        }
+
+        val recommendedAlbums = Section(R.id.recommendedAlbumsSection, R.id.recyclerViewRecommendedAlbums, R.id.recommendedAlbumsPlaceholder, R.id.recommendedAlbumsShimmer)
+        val albums = Section(R.id.albumsSection, R.id.recyclerViewAlbums, R.id.albumsPlaceholder, R.id.albumsShimmer)
+        val recommendedArtists = Section(R.id.recommendedArtistsSection, R.id.recyclerViewRecommendedArtists, R.id.recommendedArtistsPlaceholder, R.id.recommendedArtistsShimmer)
+        val genres = Section(R.id.genresSection, R.id.recyclerViewGenres, R.id.genresPlaceholder, R.id.genresShimmer)
+        val playlists = Section(R.id.playlistsSection, R.id.recyclerViewPlaylists, R.id.playlistsPlaceholder, R.id.playlistsShimmer)
+        val genresMore = Section(R.id.genresMoreSection, R.id.recyclerViewGenresMore, R.id.genresMorePlaceholder, R.id.genresMoreShimmer)
+
+        private val playlistAdapter = ExplorePlaylistAdapter { navigateToPlaylist(it) }
+            .apply { onItemLongClick = { ItemOptions.playlist(this@ExploreFragment, it) } }
+        private val albumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
+            .apply { onItemLongClick = { ItemOptions.album(this@ExploreFragment, it) } }
+        private val recommendedAlbumAdapter = ExploreAlbumAdapter { navigateToAlbum(it) }
+            .apply { onItemLongClick = { ItemOptions.album(this@ExploreFragment, it) } }
+        private val recommendedArtistAdapter = ExploreArtistAdapter { navigateToArtist(it) }
+            .apply { onItemLongClick = { ItemOptions.artist(this@ExploreFragment, it) } }
+        private val genreAdapter = GenreAdapter(emptyList(), onGenreClick = ::navigateToGenre)
+            .apply { onItemLongClick = { ItemOptions.genre(this@ExploreFragment, it) } }
+        private val genreAdapterMore = GenreAdapter(emptyList(), onGenreClick = ::navigateToGenre)
+            .apply { onItemLongClick = { ItemOptions.genre(this@ExploreFragment, it) } }
+
+        /** Bloques intercalados y la sección tras la que van en el Explorar fijo (el orden que tenía el XML). */
+        val blockAnchors: List<Pair<View, View>> = listOf(
+            liveNowBlock to recommendedAlbums.view,
+            artistEssentialsBlock to albums.view,
+            discoverBlock to genres.view,
+            artistRadiosBlock to playlists.view
+        )
+
+        init {
+            setupSectionHeaders(container)
+            playlists.recycler.setupHorizontalExploreList(playlistAdapter)
+            albums.recycler.setupHorizontalExploreList(albumAdapter)
+            recommendedAlbums.recycler.setupHorizontalExploreList(recommendedAlbumAdapter)
+            recommendedArtists.recycler.setupHorizontalExploreList(recommendedArtistAdapter)
+            genres.recycler.setupGenreGrid(genreAdapter)
+            genresMore.recycler.setupGenreGrid(genreAdapterMore)
+        }
+
+        fun renderAll() {
+            renderPlaylists()
+            renderRecommendedAlbums()
+            renderRecentArtists()
+            renderNewReleases()
+            renderGenres()
+        }
+
+        fun renderPlaylists() {
+            val list = viewModel.publicPlaylists.value
+            list?.let(playlistAdapter::submitList)
+            playlists.render(viewModel.publicPlaylistsLoading.value == true, list?.size ?: 0)
+            postLoadVisibleSections()
+        }
+
+        fun renderRecommendedAlbums() {
+            val list = viewModel.recommendedAlbums.value
+            list?.let(recommendedAlbumAdapter::submitList)
+            recommendedAlbums.render(viewModel.recommendedAlbumsLoading.value == true, list?.size ?: 0)
+            postLoadVisibleSections()
+        }
+
+        fun renderRecentArtists() {
+            val list = viewModel.recentArtists.value
+            list?.let(recommendedArtistAdapter::submitList)
+            recommendedArtists.render(viewModel.recentArtistsLoading.value == true, list?.size ?: 0)
+            postLoadVisibleSections()
+        }
+
+        fun renderNewReleases() {
+            val list = viewModel.newReleaseAlbums.value
+            list?.let(albumAdapter::submitList)
+            albums.render(viewModel.newReleaseAlbumsLoading.value == true, list?.size ?: 0)
+            postLoadVisibleSections()
+        }
+
+        fun renderGenres() {
+            val all = viewModel.genres.value
+            val top = all?.take(GENRES_PER_BATCH).orEmpty()
+            val more = all?.drop(GENRES_PER_BATCH)?.take(GENRES_PER_BATCH).orEmpty()
+            genreAdapter.updateList(top)
+            genreAdapterMore.updateList(more)
+            val loading = viewModel.isLoading.value == true
+            genres.render(loading, top.size)
+            genresMore.render(loading, more.size)
+            postLoadVisibleSections()
+        }
     }
 
     private fun RecyclerView.setupHorizontalExploreList(adapter: RecyclerView.Adapter<*>) {
@@ -500,142 +502,24 @@ class ExploreFragment : Fragment() {
             revealBlock(artistRadiosBlock, mixes.isNotEmpty())
         }
 
-        viewModel.publicPlaylists.observe(viewLifecycleOwner) { playlists ->
-            playlistsCount = playlists.size
-            playlistAdapter.submitList(playlists)
-            renderSection(
-                recyclerViewPlaylists,
-                playlistsPlaceholder,
-                playlistsShimmer,
-                viewModel.publicPlaylistsLoading.value == true,
-                playlistsCount
-            )
-        }
-
-        viewModel.publicPlaylistsLoading.observe(viewLifecycleOwner) { isLoading ->
-            renderSection(
-                recyclerViewPlaylists,
-                playlistsPlaceholder,
-                playlistsShimmer,
-                isLoading,
-                playlistsCount
-            )
-        }
-
-        viewModel.recommendedAlbums.observe(viewLifecycleOwner) { albums ->
-            recommendedAlbumsCount = albums.size
-            recommendedAlbumAdapter.submitList(albums)
-            renderSection(
-                recyclerViewRecommendedAlbums,
-                recommendedAlbumsPlaceholder,
-                recommendedAlbumsShimmer,
-                viewModel.recommendedAlbumsLoading.value == true,
-                recommendedAlbumsCount
-            )
-        }
-
-        viewModel.recommendedAlbumsLoading.observe(viewLifecycleOwner) { isLoading ->
-            renderSection(
-                recyclerViewRecommendedAlbums,
-                recommendedAlbumsPlaceholder,
-                recommendedAlbumsShimmer,
-                isLoading,
-                recommendedAlbumsCount
-            )
-        }
-
-        viewModel.recentArtists.observe(viewLifecycleOwner) { artists ->
-            recommendedArtistsCount = artists.size
-            recommendedArtistAdapter.submitList(artists)
-            renderSection(
-                recyclerViewRecommendedArtists,
-                recommendedArtistsPlaceholder,
-                recommendedArtistsShimmer,
-                viewModel.recentArtistsLoading.value == true,
-                recommendedArtistsCount
-            )
-        }
-
-        viewModel.recentArtistsLoading.observe(viewLifecycleOwner) { isLoading ->
-            renderSection(
-                recyclerViewRecommendedArtists,
-                recommendedArtistsPlaceholder,
-                recommendedArtistsShimmer,
-                isLoading,
-                recommendedArtistsCount
-            )
-        }
-
-        viewModel.newReleaseAlbums.observe(viewLifecycleOwner) { albums ->
-            albumsCount = albums.size
-            albumAdapter.submitList(albums)
-            renderSection(
-                recyclerViewAlbums,
-                albumsPlaceholder,
-                albumsShimmer,
-                viewModel.newReleaseAlbumsLoading.value == true,
-                albumsCount
-            )
-        }
-
-        viewModel.newReleaseAlbumsLoading.observe(viewLifecycleOwner) { isLoading ->
-            renderSection(
-                recyclerViewAlbums,
-                albumsPlaceholder,
-                albumsShimmer,
-                isLoading,
-                albumsCount
-            )
-        }
-
-        // Los géneros ya llegan ordenados por popularidad — se reparten en dos
-        // tandas cortas (2x3 cada una) en vez de un único grid sin límite, y
-        // se intercalan con otras secciones para que la pantalla no se sienta
-        // "agrupada por tipo".
-        viewModel.genres.observe(viewLifecycleOwner) { genreList ->
-            val topGenres = genreList.take(GENRES_PER_BATCH)
-            val moreGenres = genreList.drop(GENRES_PER_BATCH).take(GENRES_PER_BATCH)
-
-            genresCount = topGenres.size
-            genreAdapter.updateList(topGenres)
-            renderSection(
-                recyclerViewGenres,
-                genresPlaceholder,
-                genresShimmer,
-                viewModel.isLoading.value == true,
-                genresCount
-            )
-
-            genresMoreCount = moreGenres.size
-            genreAdapterMore.updateList(moreGenres)
-            renderSection(
-                recyclerViewGenresMore,
-                genresMorePlaceholder,
-                genresMoreShimmer,
-                viewModel.isLoading.value == true,
-                genresMoreCount
-            )
-        }
-
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            renderSection(
-                recyclerViewGenres,
-                genresPlaceholder,
-                genresShimmer,
-                isLoading,
-                genresCount
-            )
-            renderSection(
-                recyclerViewGenresMore,
-                genresMorePlaceholder,
-                genresMoreShimmer,
-                isLoading,
-                genresMoreCount
-            )
-        }
+        // Secciones del Explorar fijo: solo existen tras inflarlo; al inflar se vuelcan los valores actuales.
+        viewModel.publicPlaylists.observe(viewLifecycleOwner) { legacy?.renderPlaylists() }
+        viewModel.publicPlaylistsLoading.observe(viewLifecycleOwner) { legacy?.renderPlaylists() }
+        viewModel.recommendedAlbums.observe(viewLifecycleOwner) { legacy?.renderRecommendedAlbums() }
+        viewModel.recommendedAlbumsLoading.observe(viewLifecycleOwner) { legacy?.renderRecommendedAlbums() }
+        viewModel.recentArtists.observe(viewLifecycleOwner) { legacy?.renderRecentArtists() }
+        viewModel.recentArtistsLoading.observe(viewLifecycleOwner) { legacy?.renderRecentArtists() }
+        viewModel.newReleaseAlbums.observe(viewLifecycleOwner) { legacy?.renderNewReleases() }
+        viewModel.newReleaseAlbumsLoading.observe(viewLifecycleOwner) { legacy?.renderNewReleases() }
+        // Los géneros ya llegan ordenados por popularidad: se reparten en dos tandas cortas (2x3) intercaladas.
+        viewModel.genres.observe(viewLifecycleOwner) { legacy?.renderGenres() }
+        viewModel.isLoading.observe(viewLifecycleOwner) { legacy?.renderGenres() }
 
         viewModel.error.observe(viewLifecycleOwner) { errorMsg ->
-            if (errorMsg != null) showResonantSnackbar(errorMsg, SnackType.ERROR)
+            if (errorMsg != null) {
+                showResonantSnackbar(errorMsg, SnackType.ERROR)
+                viewModel.consumeError()
+            }
         }
     }
 
@@ -646,29 +530,30 @@ class ExploreFragment : Fragment() {
     private fun applyMode(mode: ExploreMode) {
         when (mode) {
             ExploreMode.Loading -> {
-                legacyContainer.isVisible = false
+                legacy?.container?.isVisible = false
                 dynamicContainer.isVisible = false
             }
             ExploreMode.Legacy -> {
+                val legacy = ensureLegacy()
                 sectionsRenderer?.clear()
-                placeBlocksInLegacy()
+                placeBlocksInLegacy(legacy)
                 dynamicContainer.isVisible = false
-                legacyContainer.isVisible = true
+                legacy.container.isVisible = true
                 heroTitle.text = defaultHeroTitle
                 if (!legacyStarted) {
                     legacyStarted = true
-                    scrollView.post { loadVisibleSections() }
+                    postLoadVisibleSections()
                 }
             }
             is ExploreMode.Dynamic -> {
-                legacyContainer.isVisible = false
+                legacy?.container?.isVisible = false
                 dynamicContainer.isVisible = true
                 // El saludo con el nombre ya está en Inicio: Explorar mantiene su propio título.
                 heroTitle.text = defaultHeroTitle
                 val sections = mode.state.visibleSections
                 renderedSections = sections
                 sectionsRenderer?.render(sections, interleavedBlocks(sections))
-                scrollView.post { loadVisibleSections() }
+                postLoadVisibleSections()
             }
         }
     }
@@ -882,7 +767,7 @@ class ExploreFragment : Fragment() {
             searchHeader = searchHeader,
             onSearchClick = { findNavController().navigate(R.id.action_exploreFragment_to_searchFragment) }
         )
-        scrollBehavior?.attachToNestedScrollView(scrollView)
+        scrollBehavior?.attachToNestedScrollView(scrollView) { onContentScrolled() }
     }
 
     /**
@@ -901,13 +786,14 @@ class ExploreFragment : Fragment() {
         )
     }
 
-    private fun placeBlocksInLegacy() {
-        legacyBlockAnchors.forEach { (block, anchor) ->
-            if (block.parent === legacyContainer && legacyContainer.indexOfChild(block) == legacyContainer.indexOfChild(anchor) + 1) {
+    private fun placeBlocksInLegacy(legacy: LegacySections) {
+        val container = legacy.container
+        legacy.blockAnchors.forEach { (block, anchor) ->
+            if (block.parent === container && container.indexOfChild(block) == container.indexOfChild(anchor) + 1) {
                 return@forEach
             }
             (block.parent as? ViewGroup)?.removeView(block)
-            legacyContainer.addView(block, legacyContainer.indexOfChild(anchor) + 1)
+            container.addView(block, container.indexOfChild(anchor) + 1)
         }
     }
 
@@ -923,20 +809,29 @@ class ExploreFragment : Fragment() {
         block.animate().alpha(1f).setDuration(320).setInterpolator(ResonantMotion.expoOut).start()
     }
 
-    private fun setupProgressiveLoading() {
-        val listener = ViewTreeObserver.OnScrollChangedListener {
+    /**
+     * Scroll vertical del contenido (lo entrega ScrollHeaderBehavior, único listener del NestedScrollView). Antes
+     * era un OnScrollChangedListener global que saltaba también con cada fila horizontal.
+     */
+    private fun onContentScrolled() {
+        loadVisibleSections()
+        revealCollabCardIfVisible()
+    }
+
+    /** Una sola comprobación por frame aunque varias secciones lleguen a la vez. */
+    private fun postLoadVisibleSections() {
+        if (loadVisiblePosted) return
+        loadVisiblePosted = true
+        scrollView.post {
+            loadVisiblePosted = false
             loadVisibleSections()
-            revealCollabCardIfVisible()
         }
-        scrollChangedListener = listener
-        scrollView.viewTreeObserver.addOnScrollChangedListener(listener)
     }
 
     /** La tarjeta de Collab Finder anima su entrada cuando llega a la pantalla, no al cargar. */
     private fun revealCollabCardIfVisible() {
         if (collabCardAnimated || !::collabFinderCard.isInitialized || !collabFinderCard.isShown) return
-        val rect = android.graphics.Rect()
-        if (collabFinderCard.getLocalVisibleRect(rect) && rect.height() > collabFinderCard.height / 3) {
+        if (collabFinderCard.getLocalVisibleRect(visibleRect) && visibleRect.height() > collabFinderCard.height / 3) {
             collabCardAnimated = true
             ExploreCollabFinderCard.animateIn(collabFinderCard)
         }
@@ -950,47 +845,15 @@ class ExploreFragment : Fragment() {
                 ?.forEach(viewModel::requestDeferred)
             return
         }
-        if (progressiveLoadPending) return
-
-        val requested = when {
-            !recommendedAlbumsRequested && recommendedAlbumsSection.isNearViewport(80) -> {
-                recommendedAlbumsRequested = true
-                viewModel.loadRecommendedAlbums()
-                true
-            }
-            !albumsRequested && albumsSection.isNearViewport(120) -> {
-                albumsRequested = true
-                viewModel.loadNewReleaseAlbums()
-                true
-            }
-            !recommendedArtistsRequested && recommendedArtistsSection.isNearViewport(160) -> {
-                recommendedArtistsRequested = true
-                viewModel.loadRecentArtists()
-                true
-            }
-            !genresRequested && genresSection.isNearViewport(200) -> {
-                // Una sola carga alimenta las dos tandas de géneros (ver
-                // setupObservers) — el segundo bloque no necesita su propio
-                // trigger de scroll.
-                genresRequested = true
-                viewModel.loadPopularGenres()
-                true
-            }
-            !playlistsRequested && playlistsSection.isNearViewport(240) -> {
-                playlistsRequested = true
-                viewModel.loadPublicPlaylists()
-                true
-            }
-            else -> false
-        }
-
-        if (requested) {
-            progressiveLoadPending = true
-            scrollView.postDelayed({
-                progressiveLoadPending = false
-                loadVisibleSections()
-            }, 420L)
-        }
+        val legacy = legacy ?: return
+        // Todas las secciones cercanas se piden en una sola pasada (antes, una cada 420 ms): cada petición es
+        // barata y OkHttp ya limita la concurrencia por host.
+        legacy.recommendedAlbums.requestIfNear(80, viewModel::loadRecommendedAlbums)
+        legacy.albums.requestIfNear(120, viewModel::loadNewReleaseAlbums)
+        legacy.recommendedArtists.requestIfNear(160, viewModel::loadRecentArtists)
+        // Una sola carga alimenta las dos tandas de géneros (ver renderGenres).
+        legacy.genres.requestIfNear(200, viewModel::loadPopularGenres)
+        legacy.playlists.requestIfNear(240, viewModel::loadPublicPlaylists)
     }
 
     private fun View.isNearViewport(extraDp: Int): Boolean {

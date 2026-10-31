@@ -40,7 +40,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
-import java.util.Collections
 
 sealed class SearchResult : Parcelable {
     @Parcelize data class SongItem(val song: Song) : SearchResult() {
@@ -119,7 +118,6 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
 
     private var currentPlayingId: String? = null
     private var previousPlayingId: String? = null
-    private val bitmapCache: MutableMap<String, Bitmap> = Collections.synchronizedMap(mutableMapOf())
 
     override fun getItemViewType(position: Int): Int = when (getItem(position)) {
         is SearchResult.SongItem -> TYPE_SONG
@@ -164,7 +162,6 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         super.onViewRecycled(holder)
         when (holder) {
             is SongViewHolder -> {
-                holder.cancelJobs()
                 Glide.with(holder.itemView).clear(holder.albumArtImageView)
                 holder.albumArtImageView.rotation = 0f
             }
@@ -190,11 +187,8 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
         // (Asegúrate de haber actualizado el XML item_result_song con este ID)
         private val downloadedIcon: ImageView = itemView.findViewById(R.id.downloadedIcon)
 
-        private var artworkJob: Job? = null
-        private val ioScope = CoroutineScope(Dispatchers.IO)
 
 
-        fun cancelJobs() { artworkJob?.cancel(); artworkJob = null }
 
         fun bind(song: Song, partial: Boolean = false) {
             // --- 3. LÓGICA DE VISIBILIDAD DE DESCARGA ---
@@ -215,7 +209,6 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
                 nameTextView.text = song.title ?: "Desconocido"
                 artistTextView.text = song.artistName ?: "Desconocido"
 
-                cancelJobs()
                 albumArtImageView.visibility = View.VISIBLE
 
                 Glide.with(itemView).clear(albumArtImageView)
@@ -250,7 +243,7 @@ class SearchResultAdapter : ListAdapter<SearchResult, RecyclerView.ViewHolder>(S
                 val prev = currentPlayingId; currentPlayingId = song.id
                 prev?.let { p -> notifyItemChanged(currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == p }, "silent") }
                 notifyItemChanged(currentList.indexOfFirst { it is SearchResult.SongItem && it.song.id == currentPlayingId }, "silent")
-                onSongClick?.invoke(song to bitmapCache[song.id])
+                onSongClick?.invoke(song to null)
             }
         }
     }

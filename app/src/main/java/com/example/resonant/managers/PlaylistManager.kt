@@ -9,7 +9,11 @@ import com.example.resonant.data.network.services.PlaylistService
 import com.example.resonant.data.network.services.UserService
 import com.example.resonant.data.network.PlaylistTrackDTO
 import com.example.resonant.data.network.ReorderPlaylistTracksRequestDTO
+import com.example.resonant.data.network.V2EndpointAvailability
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 data class PlaylistDetailResult(
     val playlist: Playlist,
@@ -22,6 +26,16 @@ class PlaylistFeatureUnavailableException(message: String) : Exception(message)
 class PlaylistOrderConflictException(message: String) : Exception(message)
 
 class PlaylistManager(private val context: Context) {
+
+    companion object {
+        private const val USER_CACHE_TTL_MS = 20 * 60 * 1000L
+        private const val FEATURE_PLAYLIST_V2 = "playlist_detail"
+        // Dueños de playlists públicas: Explorar pide uno por playlist (N+1) en cada apertura; 20 min por id.
+        private val userCache = ConcurrentHashMap<String, Pair<User, Long>>()
+
+        /** Vacía la caché estática (cierre de sesión o cambio de cuenta). */
+        fun clear() = userCache.clear()
+    }
 
     private val playlistService: PlaylistService = ApiClient.getPlaylistService(context)
     private val userService: UserService = ApiClient.getUserService(context)
@@ -46,10 +60,14 @@ class PlaylistManager(private val context: Context) {
     }
 
     suspend fun getPlaylistDetail(id: String): PlaylistDetailResult {
-        val v2Response = runCatching {
-            playlistService.getPlaylistDetailV2(id)
-        }.getOrNull()
+        // Un backend sin v2 no recibe la misma petición fallida en cada apertura (cooldown de V2EndpointAvailability).
+        val tryV2 = V2EndpointAvailability.shouldTry(context, FEATURE_PLAYLIST_V2)
+        val v2Response = if (tryV2) runCatching { playlistService.getPlaylistDetailV2(id) }.getOrNull() else null
+        if (v2Response != null && v2Response.code() in setOf(404, 405, 501)) {
+            V2EndpointAvailability.markUnsupported(context, FEATURE_PLAYLIST_V2)
+        }
         if (v2Response?.isSuccessful == true) {
+            V2EndpointAvailability.markAvailable(context, FEATURE_PLAYLIST_V2)
             val body = v2Response.body()
             if (body != null) {
                 val revision = v2Response.headers()["ETag"]
@@ -75,8 +93,12 @@ class PlaylistManager(private val context: Context) {
             }
         }
 
-        val playlist = getPlaylistById(id)
-        val songs = getSongsByPlaylistId(id)
+        // Legacy: lista y canciones a la vez en vez de una tras otra.
+        val (playlist, songs) = coroutineScope {
+            val playlistDeferred = async { getPlaylistById(id) }
+            val songsDeferred = async { getSongsByPlaylistId(id) }
+            playlistDeferred.await() to songsDeferred.await()
+        }
         val owner = playlist.userId?.let {
             runCatching { getUserById(it).name.orEmpty() }.getOrDefault("")
         }.orEmpty()
@@ -233,7 +255,10 @@ class PlaylistManager(private val context: Context) {
 
     // --- MÉTODOS DE USUARIO ---
     suspend fun getUserById(userId: String): User {
-        return userService.getUserById(userId)
+        userCache[userId]?.let { (user, cachedAt) ->
+            if (System.currentTimeMillis() - cachedAt <= USER_CACHE_TTL_MS) return user
+        }
+        return userService.getUserById(userId).also { userCache[userId] = it to System.currentTimeMillis() }
     }
 
     // --- OTROS ---
