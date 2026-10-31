@@ -105,7 +105,7 @@ class AriaPlaybackActionHandler(
     private suspend fun executeCollection(action: AriaAction, command: String) {
         val collection = action.collection
         val kind = collection?.kind?.lowercase(Locale.ROOT)
-        if (collection == null || kind !in COLLECTION_KINDS) {
+        if (collection == null || kind == null || kind !in COLLECTION_KINDS) {
             fail(action, command, REASON_INVALID_COLLECTION, "No pude identificar qué poner")
             return
         }

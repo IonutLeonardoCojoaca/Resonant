@@ -1055,13 +1055,15 @@ class AriaViewModel : ViewModel() {
             clientSongArtist = artist,
             clientArtistId = clientArtistId?.takeIf { it.isNotBlank() },
             clientArtistName = clientArtistName?.takeIf { it.isNotBlank() },
-            collection = collection?.kind?.takeIf { it.isNotBlank() }?.let { kind ->
-                AriaCollection(
-                    kind = kind,
-                    id = collection.id?.takeIf { it.isNotBlank() },
-                    title = collection.title?.takeIf { it.isNotBlank() },
-                    songIds = collection.songIds.orEmpty().filter { it.isNotBlank() }
-                )
+            collection = collection?.let { dto ->
+                dto.kind?.takeIf { it.isNotBlank() }?.let { kind ->
+                    AriaCollection(
+                        kind = kind,
+                        id = dto.id?.takeIf { it.isNotBlank() },
+                        title = dto.title?.takeIf { it.isNotBlank() },
+                        songIds = dto.songIds.orEmpty().filter { it.isNotBlank() }
+                    )
+                }
             },
             collectionStartIndex = startIndex ?: 0,
             collectionShuffle = shuffle ?: false,
