@@ -62,7 +62,13 @@ object TransitionPlanner {
          * playmix-extended-beatmatch: B va a [bpmRatio] (|bpmRatio − 1| > 0,06) durante toda la mezcla, sin la
          * vuelta del 75 %, y al acabar vuelve a 1,0 con [TempoReturn]. Solo lo marcan los planes de Playmix.
          */
-        val extendedSync: Boolean = false
+        val extendedSync: Boolean = false,
+        /**
+         * playmix-local-tempo-grid D5: rejillas de fase de la ventana (`Grid(a.bpm, a.startMs)` y `Grid(b.bpm, b.startMs)`)
+         * cuando el documento trae los tempos de la ventana; null = las del análisis de cada canción.
+         */
+        val gridA: PhaseAlignment.Grid? = null,
+        val gridB: PhaseAlignment.Grid? = null
     ) {
         val hasEq: Boolean get() = doc.lanes?.keys?.any { it.contains(".eq.") } == true
     }
@@ -194,12 +200,40 @@ object TransitionPlanner {
     fun playmixPlan(doc: MixDocumentDTO, label: String, a: Track?, b: Track?, extendedEnabled: Boolean): Plan {
         val extendedDoc = extendedEnabled && doc.extendedSync == true
         val syncAllowed = !doc.isV2 || doc.beatSync == true
+        windowTempoPlan(doc, label, a, b, extendedDoc, syncAllowed)?.let { return it }
         val ratio = if (a != null && b != null) {
             beatmatchRatio(a, b) ?: if (extendedDoc && syncAllowed) extendedBeatmatchRatio(a, b) else null
         } else null
         val sync = ratio != null && syncAllowed
         val extended = sync && extendedDoc && abs(ratio!! - 1.0) > BEATMATCH_TOLERANCE
         return Plan(doc, label, beatSync = sync, bpmRatio = ratio ?: 1.0, extendedSync = extended)
+    }
+
+    /**
+     * playmix-local-tempo-grid D5: un documento v2 con `a.bpm` y `b.bpm` (tempos de la ventana, los que vio el editor y
+     * usa el render) manda sobre el análisis: la razón es `a.bpm / b.bpm` con los mismos topes de [playmixPlan] (la
+     * estabilidad se da por buena, como en el mix worker) y la fase se corrige con rejillas ancladas en `a.startMs` y
+     * `b.startMs`. Null sin los dos campos (todo como antes).
+     */
+    private fun windowTempoPlan(
+        doc: MixDocumentDTO, label: String, a: Track?, b: Track?, extendedDoc: Boolean, syncAllowed: Boolean
+    ): Plan? {
+        if (!doc.isV2) return null
+        val bpmA = doc.a.bpm?.takeIf { it > 0 } ?: return null
+        val bpmB = doc.b.bpm?.takeIf { it > 0 } ?: return null
+        val direct = bpmA / bpmB
+        val stretch = abs(Math.round(direct * 1e6) / 1e6 - 1.0)
+        val ratio = direct.takeIf {
+            abs(it - 1.0) <= BEATMATCH_TOLERANCE ||
+                (extendedDoc && syncAllowed && stretch > BEATMATCH_TOLERANCE + 1e-9 && stretch <= EXTENDED_BEATMATCH_TOLERANCE + 1e-9)
+        }
+        val sync = ratio != null && syncAllowed
+        val extended = sync && extendedDoc && abs(ratio!! - 1.0) > BEATMATCH_TOLERANCE
+        return Plan(
+            doc, label, beatSync = sync, bpmRatio = ratio ?: 1.0, extendedSync = extended,
+            gridA = PhaseAlignment.Grid(bpmA, doc.a.startMs, a?.grid?.beatsPerBar ?: 4),
+            gridB = PhaseAlignment.Grid(bpmB, doc.b.startMs, b?.grid?.beatsPerBar ?: 4)
+        )
     }
 
     private fun beatmatch(a: Track, b: Track): Plan? {

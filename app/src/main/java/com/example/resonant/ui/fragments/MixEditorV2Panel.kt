@@ -11,10 +11,12 @@ import androidx.transition.TransitionManager
 import com.example.resonant.data.network.MixLaneOptionDTO
 import com.example.resonant.databinding.ItemMixV2LaneBinding
 import com.example.resonant.databinding.ViewMixV2ControlsBinding
+import com.example.resonant.playback.GridKind
 import com.example.resonant.playback.MixComposer
 import com.example.resonant.ui.viewmodels.MixEditorV2
 import com.example.resonant.ui.viewmodels.MixEditorV2State
 import com.example.resonant.ui.views.MixEditorView
+import kotlin.math.roundToInt
 
 /**
  * Controles del editor v2 (spotify-style-transition-engine D9) bajo los estilos: el ajuste fino por carriles (una
@@ -95,10 +97,12 @@ class MixEditorV2Panel(
 
         // Se puede forzar con tempos a ≤ 6 % aunque el análisis vea poco estable alguno (solo cambia el defecto).
         // playmix-extended-beatmatch: con la capacidad, también entre el 6 % y el 12 % (tempos estables).
-        val canSync = MixComposer.canSync(state.songA, state.songB, state.extended)
+        // playmix-local-tempo-grid: con la capacidad, los tempos de la zona de la mezcla (los de siempre sin ella).
+        val tempos = state.windowTempos
+        val canSync = MixComposer.canSync(tempos, state.extended)
         binding.mixV2BeatSync.isEnabled = canSync
         binding.mixV2BeatSync.isChecked = canSync && state.document.beatSync == true
-        binding.mixV2BeatSyncHint.text = beatSyncHint(state, MixComposer.tempoClash(state.songA, state.songB, state.extended))
+        binding.mixV2BeatSyncHint.text = beatSyncHint(state, tempos, MixComposer.tempoClash(tempos, state.extended))
 
         val names = LANES.map { (lane, _, _) ->
             val code = currentFor(state, lane)
@@ -111,7 +115,7 @@ class MixEditorV2Panel(
     }
 
     /** Por qué no hay beatmatching, con la misma regla que [MixComposer.tempoClash]: distancia de tempo o estabilidad. */
-    private fun beatSyncHint(state: MixEditorV2State, clash: Boolean): String {
+    private fun beatSyncHint(state: MixEditorV2State, tempos: MixComposer.Tempos, clash: Boolean): String {
         if (!clash) {
             return when {
                 state.document.beatSync != true -> "Desactivado: cada canción a su velocidad"
@@ -120,13 +124,28 @@ class MixEditorV2Panel(
                 else -> "La segunda canción se ajusta al tempo de la primera"
             }
         }
-        val delta = MixComposer.bpmDeltaPct(state.songA.bpmPrecise ?: state.songA.bpm, state.songB.bpmPrecise ?: state.songB.bpm)
+        val delta = MixComposer.bpmDeltaPct(tempos.a, tempos.b)
+        if (state.localTempo) zoneHint(state.grids, tempos, delta)?.let { return it }
         return when {
             delta == null -> "Falta el tempo de alguna canción: se mezclan sin cambiar su velocidad"
             delta > MixComposer.MAX_SYNC_DELTA_PCT -> "Tempos demasiado distintos: se mezclan sin cambiar su velocidad"
             state.document.beatSync == true -> "Forzado: el análisis no ve estable el tempo de alguna canción"
             else -> "El análisis no ve estable el tempo de alguna canción; puedes activarlo si cuadran"
         }
+    }
+
+    /**
+     * Motivo ligado a la zona de la mezcla (rejilla por ventana): una canción que cambia de tempo en ella, o tempos de
+     * la zona demasiado distintos aunque los del análisis completo no lo parezcan. Null si no aplica.
+     */
+    private fun zoneHint(grids: MixComposer.WindowGrids, tempos: MixComposer.Tempos, delta: Double?): String? = when {
+        grids.a?.kind == GridKind.NONE -> "La primera canción cambia de tempo en esta zona: aquí no se pueden cuadrar los beats"
+        grids.b?.kind == GridKind.NONE -> "La segunda canción cambia de tempo en esta zona: aquí no se pueden cuadrar los beats"
+        tempos.a != null && tempos.b != null && delta != null && delta > MixComposer.MAX_SYNC_DELTA_PCT &&
+            (grids.a?.kind == GridKind.LOCAL || grids.b?.kind == GridKind.LOCAL) ->
+            "En esta zona la primera va a ${tempos.a.roundToInt()} BPM y la segunda a ${tempos.b.roundToInt()} " +
+                "(${delta.roundToInt()} %): demasiado distintos para cuadrarlos"
+        else -> null
     }
 
     private fun optionsFor(state: MixEditorV2State, lane: String): List<MixLaneOptionDTO> = when (lane) {

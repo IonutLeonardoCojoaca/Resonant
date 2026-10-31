@@ -1054,8 +1054,11 @@ class TransitionManager(
         val volumeB: Float
     ) {
         val doc: MixDocumentDTO get() = plan.doc
-        val gridA: PhaseAlignment.Grid? = oldSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
-        val gridB: PhaseAlignment.Grid? = nextSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
+        // playmix-local-tempo-grid: con los tempos de la ventana en el documento, las rejillas del plan.
+        val gridA: PhaseAlignment.Grid? = plan.gridA
+            ?: oldSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
+        val gridB: PhaseAlignment.Grid? = plan.gridB
+            ?: nextSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
         var started = false
         var audible = false
         var aEndedUptime = -1L
@@ -1332,7 +1335,7 @@ class TransitionManager(
             Log.w(TAG, "Fuentes del motor no disponibles; mezcla con dos players")
             return beginPlanned(oldPlayer, oldSong, newSong, nextIndex, plan)
         }
-        val gridA = oldSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
+        val gridA = plan.gridA ?: oldSong.audioAnalysis?.let { PhaseAlignment.gridOf(it.bpmPrecise, it.firstDownbeatMs, it.beatsPerBar) }
         val barMs = gridA?.let { PhaseAlignment.barMs(it) }
         val job = EngineRun(oldPlayer, oldSong, newSong, nextIndex, plan, bPlayer, targetOldPlayerVolume, targetNewPlayerVolume, barMs)
         engineRun = job

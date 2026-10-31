@@ -182,6 +182,15 @@ class CapabilitiesCacheTest {
     }
 
     @Test
+    fun `transition local tempo flag is exposed and defaults to off`() = runTest {
+        assertTrue(cache { PlatformFeaturesDTO(transitionLocalTempo = true) }.refresh().transitionLocalTempo)
+        assertFalse(cache { PlatformFeaturesDTO() }.refresh().transitionLocalTempo)
+        val missing = Gson().fromJson("{\"transitionEngineV2\": true}", PlatformFeaturesDTO::class.java)
+        assertFalse(cache { missing }.refresh().transitionLocalTempo)
+        assertFalse(cache { throw IOException("offline") }.refresh().transitionLocalTempo)
+    }
+
+    @Test
     fun `force bypasses fresh cache`() = runTest {
         val cache = cache { PlatformFeaturesDTO(unisound = true) }
         cache.refresh()

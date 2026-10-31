@@ -330,8 +330,11 @@ class CrossfadeEditorViewModel(
     /** Estado v2 del documento recibido; conserva presets, opciones y ondas ya cargados. */
     private fun initialV2(studio: StudioTransitionDTO, previous: MixEditorV2State?): MixEditorV2State? {
         val presets = MixEditorV2.presetsOrDefault(_state.value?.availablePresets.orEmpty())
-        val state = MixEditorV2.initial(studio, extended = CapabilitiesManager.isPlaymixExtendedSyncEnabled())
-            ?.copy(presets = presets) ?: return null
+        val state = MixEditorV2.initial(
+            studio,
+            extended = CapabilitiesManager.isPlaymixExtendedSyncEnabled(),
+            localTempo = CapabilitiesManager.isTransitionLocalTempoEnabled()
+        )?.copy(presets = presets) ?: return null
         return if (previous == null) state
             else state.copy(laneOptions = previous.laneOptions, bandsA = previous.bandsA, bandsB = previous.bandsB)
     }
@@ -380,9 +383,15 @@ class CrossfadeEditorViewModel(
 
     fun v2MoveWindow(deltaBars: Int) = updateV2 { MixEditorV2.moveWindow(it, deltaBars) }
 
-    fun v2DragA(aStartMs: Int, toBeat: Boolean = false) = updateV2 { MixEditorV2.dragA(it, aStartMs, toBeat) }
+    fun v2DragA(aStartMs: Int, toBeat: Boolean = false, captureMs: Int = 0) =
+        updateV2 { MixEditorV2.dragA(it, aStartMs, toBeat, captureMs) }
 
-    fun v2DragB(bStartMs: Int, toBeat: Boolean = false) = updateV2 { MixEditorV2.dragB(it, bStartMs, toBeat) }
+    fun v2DragB(bStartMs: Int, toBeat: Boolean = false, captureMs: Int = 0) =
+        updateV2 { MixEditorV2.dragB(it, bStartMs, toBeat, captureMs) }
+
+    /** True si soltar la onda en [ms] la engancha (aviso háptico); sin editor v2, false. */
+    fun v2DragSnaps(isA: Boolean, ms: Int, toBeat: Boolean, captureMs: Int): Boolean =
+        _state.value?.v2?.let { MixEditorV2.dragSnaps(it, isA, ms, toBeat, captureMs) } == true
 
     fun v2SetBeatSync(enabled: Boolean) = updateV2 { MixEditorV2.setBeatSync(it, enabled) }
 

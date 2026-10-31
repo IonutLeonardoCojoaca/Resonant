@@ -25,17 +25,19 @@ class MixComposerTest {
         "auto-compatible", "auto-drop", "auto-tempo-clash", "auto-b-without-intro",
         "loop-echo-noise", "one-bar", "free-window-off-beat", "no-sync-requested", "no-grid",
         // playmix-extended-beatmatch: Mi Gente (105) → Gasolina (96,77) generado con extended = true.
-        "auto-extended-sync"
+        "auto-extended-sync",
+        // playmix-local-tempo-grid: Niagara Falls → Try Me (datos reales) y una pareja estable, con localTempo = true.
+        "local-tempo-outro", "local-tempo-before-change", "local-tempo-free-window", "local-tempo-stable"
     )
 
     private data class FixtureSong(
         val durationMs: Int, val audioStartMs: Int, val audioEndMs: Int, val bpm: Double?, val bpmPrecise: Double?,
         val bpmStability: Double?, val beatsPerBar: Int?, val firstDownbeatMs: Int?, val downbeatGridJson: List<Int>?,
-        val mixInMs: Int?, val mixOutMs: Int?, val dropMs: Int?, val keyCamelot: String?
+        val mixInMs: Int?, val mixOutMs: Int?, val dropMs: Int?, val keyCamelot: String?, val downbeatPhaseMs: Int?
     ) {
         fun toSong() = MixComposer.Song(
             durationMs, audioStartMs, audioEndMs, bpm, bpmPrecise, bpmStability, beatsPerBar, firstDownbeatMs,
-            downbeatGridJson, mixInMs, mixOutMs, dropMs, keyCamelot
+            downbeatGridJson, mixInMs, mixOutMs, dropMs, keyCamelot, downbeatPhaseMs
         )
     }
 
@@ -53,11 +55,12 @@ class MixComposerTest {
         val selection = gson.fromJson(fixture.get("selection"), MixSelectionDTO::class.java)
         val beatSync = fixture.get("beatSync")?.takeIf { !it.isJsonNull }?.asBoolean
         val extended = fixture.get("extended")?.takeIf { !it.isJsonNull }?.asBoolean == true
+        val localTempo = fixture.get("localTempo")?.takeIf { !it.isJsonNull }?.asBoolean == true
         val window = fixture.get("window")?.takeIf { !it.isJsonNull }?.let { gson.fromJson(it, FixtureWindow::class.java) }
-            ?.let { MixComposer.freeWindow(from, to, it.aStartMs, it.bStartMs, it.bars) }
-            ?: MixComposer.automaticWindow(from, to, extended = extended)
+            ?.let { MixComposer.freeWindow(from, to, it.aStartMs, it.bStartMs, it.bars, beatSync, extended, localTempo) }
+            ?: MixComposer.automaticWindow(from, to, extended = extended, localTempo = localTempo)
             ?: return null
-        return MixComposer.compose(selection, window, from, to, beatSync, "fixture", extended)
+        return MixComposer.compose(selection, window, from, to, beatSync, "fixture", extended, localTempo)
     }
 
     @Test

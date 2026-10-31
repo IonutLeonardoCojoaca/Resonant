@@ -275,8 +275,11 @@ class WaveformPreviewBottomSheet(
     private suspend fun loadSavedMix(ctx: android.content.Context, withBands: Boolean): MixEditorV2State? = runCatching {
         withContext(Dispatchers.IO) {
             val studio = StudioManager(ctx).get(playmixId, transition.id)
-            val initial = MixEditorV2.initial(studio, extended = CapabilitiesManager.isPlaymixExtendedSyncEnabled())
-                ?: return@withContext null
+            val initial = MixEditorV2.initial(
+                studio,
+                extended = CapabilitiesManager.isPlaymixExtendedSyncEnabled(),
+                localTempo = CapabilitiesManager.isTransitionLocalTempoEnabled()
+            ) ?: return@withContext null
             if (!withBands) return@withContext initial
             initial.copy(
                 bandsA = studio.songA.waveformBandsUrl?.let { WaveformBands.download(it) },

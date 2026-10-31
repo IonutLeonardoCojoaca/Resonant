@@ -38,7 +38,9 @@ object MixComposer {
         val mixInMs: Int? = null,
         val mixOutMs: Int? = null,
         val dropMs: Int? = null,
-        val keyCamelot: String? = null
+        val keyCamelot: String? = null,
+        /** Fase ajustada (tempo estable); sin ella la rejilla de una mezcla sale de su ventana (playmix-local-tempo-grid). */
+        val downbeatPhaseMs: Int? = null
     )
 
     data class Window(val aStartMs: Int, val bStartMs: Int, val bars: Int)
@@ -83,12 +85,18 @@ object MixComposer {
 
     /**
      * Preset que elegiría Automática con el seed de `seed_presets_v2.sql`: con tempos incompatibles, Fundido;
-     * con tonalidades compatibles (Camelot ≤ 1), Fusión; si no, Onda.
+     * con tonalidades compatibles (Camelot ≤ 1), Fusión; si no, Onda. Con [window] y [localTempo], el choque de tempos
+     * se mide en la ventana (como `Automatic` del backend).
      */
-    fun automaticSelection(from: Song, to: Song, extended: Boolean = false): MixSelectionDTO = when {
-        tempoClash(from, to, extended) -> MixSelectionDTO(volume = "smooth-crossfade", eq = "bass-swap-center")
-        (camelotDistance(from.keyCamelot, to.keyCamelot) ?: Double.MAX_VALUE) <= 1 -> MixSelectionDTO(volume = "overlap", eq = "three-band-fade")
-        else -> MixSelectionDTO(volume = "overlap", eq = "bass-swap-center", filter = "lpf-in-out")
+    fun automaticSelection(
+        from: Song, to: Song, extended: Boolean = false, window: Window? = null, localTempo: Boolean = false
+    ): MixSelectionDTO {
+        val clash = if (window != null) tempoClash(from, to, window, extended, localTempo) else tempoClash(from, to, extended)
+        return when {
+            clash -> MixSelectionDTO(volume = "smooth-crossfade", eq = "bass-swap-center")
+            (camelotDistance(from.keyCamelot, to.keyCamelot) ?: Double.MAX_VALUE) <= 1 -> MixSelectionDTO(volume = "overlap", eq = "three-band-fade")
+            else -> MixSelectionDTO(volume = "overlap", eq = "bass-swap-center", filter = "lpf-in-out")
+        }
     }
 
     /** Documento de Automática completo: preset, compases y ventana. */
@@ -103,47 +111,119 @@ object MixComposer {
      * El usuario puede forzar el beatmatching: tempos conocidos y a ≤ 6 % (como `CanSync` del backend). Con
      * [extended] (editor de Playmix con la capacidad activa) también en el rango ampliado.
      */
-    fun canSync(from: Song, to: Song, extended: Boolean = false): Boolean {
-        val delta = bpmDeltaPct(bpm(from), bpm(to))
-        return (delta != null && delta <= MAX_SYNC_DELTA_PCT) || (extended && inExtendedRange(from, to))
-    }
+    fun canSync(from: Song, to: Song, extended: Boolean = false): Boolean = canSync(temposOf(from, to), extended)
 
     /**
      * Automática no sincroniza (valor por defecto de beatSync): > 6 % o rejilla poco estable. Con [extended], una
      * pareja en [inExtendedRange] no choca.
      */
-    fun tempoClash(from: Song, to: Song, extended: Boolean = false): Boolean {
-        val delta = bpmDeltaPct(bpm(from), bpm(to))
-        val clash = delta == null || delta > MAX_SYNC_DELTA_PCT ||
-            min(from.bpmStability ?: 0.0, to.bpmStability ?: 0.0) < MIN_SYNC_STABILITY
-        return clash && !(extended && inExtendedRange(from, to))
-    }
+    fun tempoClash(from: Song, to: Song, extended: Boolean = false): Boolean = tempoClash(temposOf(from, to), extended)
 
     /**
      * Rango ampliado de Playmix (playmix-extended-beatmatch D2, `InExtendedRange` del backend): choca con la regla
      * del ±6 %, |bpmA/bpmB − 1| (razón redondeada a 6 decimales, sin octavas) en (6 %, 12 %] y las dos estabilidades ≥ 0,8.
      */
-    fun inExtendedRange(from: Song, to: Song): Boolean {
-        if (!tempoClash(from, to)) return false
-        val stretch = directStretch(from, to) ?: return false
-        if ((from.bpmStability ?: 0.0) < MIN_SYNC_STABILITY || (to.bpmStability ?: 0.0) < MIN_SYNC_STABILITY) return false
+    fun inExtendedRange(from: Song, to: Song): Boolean = inExtendedRange(temposOf(from, to))
+
+    /** |bpmA/bpmB − 1| con la razón redondeada a 6 decimales (`DirectStretch` del backend); null sin tempos. */
+    fun directStretch(from: Song, to: Song): Double? = directRate(temposOf(from, to))?.let { abs(it - 1.0) }
+
+    // ─── Tempos y rejillas de la ventana (playmix-local-tempo-grid) ─────────────────────────────
+
+    /**
+     * Tempos y estabilidades con los que se decide la sincronía: los del análisis completo o, con la rejilla de la
+     * ventana, el de cada rejilla local (estable) o ninguno si la canción no tiene rejilla (D4).
+     */
+    data class Tempos(val a: Double?, val b: Double?, val stabilityA: Double, val stabilityB: Double)
+
+    /** Rejillas de A y B en una ventana ([TempoGrid.at]). */
+    data class WindowGrids(val a: TempoGrid.Grid?, val b: TempoGrid.Grid?)
+
+    fun temposOf(from: Song, to: Song): Tempos = Tempos(bpm(from), bpm(to), from.bpmStability ?: 0.0, to.bpmStability ?: 0.0)
+
+    fun temposOf(from: Song, to: Song, grids: WindowGrids, localTempo: Boolean): Tempos =
+        if (localTempo) {
+            Tempos(
+                TempoGrid.tempoOf(grids.a, from), TempoGrid.tempoOf(grids.b, to),
+                TempoGrid.stabilityOf(grids.a, from), TempoGrid.stabilityOf(grids.b, to)
+            )
+        } else {
+            temposOf(from, to)
+        }
+
+    /**
+     * Rejilla de A en [aStart, aStart + compases] y de B en lo que avanza durante la ventana, medidos con el compás y
+     * la velocidad del análisis completo (primer paso de D3). Sin [localTempo], las rejillas de siempre.
+     */
+    fun gridsAt(from: Song, to: Song, aStartMs: Int, bStartMs: Int, bars: Int, localTempo: Boolean): WindowGrids {
+        val globalA = TempoGrid.global(from)
+        if (!localTempo || globalA == null) return WindowGrids(globalA, TempoGrid.global(to))
+        val span = bars * globalA.barMs
+        return WindowGrids(
+            TempoGrid.at(from, aStartMs.toDouble(), aStartMs + span, localEnabled = true),
+            TempoGrid.at(to, bStartMs.toDouble(), bStartMs + span * rate(from, to), localEnabled = true)
+        )
+    }
+
+    /** `TempoClash` del backend con los tempos de la ventana si [localTempo]; con false, el de siempre. */
+    fun tempoClash(from: Song, to: Song, window: Window, extended: Boolean, localTempo: Boolean): Boolean =
+        tempoClash(temposOf(from, to, gridsAt(from, to, window.aStartMs, window.bStartMs, window.bars, localTempo), localTempo), extended)
+
+    /** [canSync] con los tempos de la ventana si [localTempo]. */
+    fun canSync(from: Song, to: Song, window: Window, extended: Boolean, localTempo: Boolean): Boolean =
+        canSync(temposOf(from, to, gridsAt(from, to, window.aStartMs, window.bStartMs, window.bars, localTempo), localTempo), extended)
+
+    fun tempoClash(t: Tempos, extended: Boolean = false): Boolean {
+        val delta = bpmDeltaPct(t.a, t.b)
+        val clash = delta == null || delta > MAX_SYNC_DELTA_PCT || min(t.stabilityA, t.stabilityB) < MIN_SYNC_STABILITY
+        return clash && !(extended && inExtendedRange(t))
+    }
+
+    fun canSync(t: Tempos, extended: Boolean = false): Boolean {
+        val delta = bpmDeltaPct(t.a, t.b)
+        return (delta != null && delta <= MAX_SYNC_DELTA_PCT) || (extended && inExtendedRange(t))
+    }
+
+    fun inExtendedRange(t: Tempos): Boolean {
+        if (!tempoClash(t)) return false
+        val stretch = directRate(t)?.let { abs(it - 1.0) } ?: return false
+        if (t.stabilityA < MIN_SYNC_STABILITY || t.stabilityB < MIN_SYNC_STABILITY) return false
         return stretch > MAX_SYNC_DELTA_PCT / 100 + 1e-9 && stretch <= MAX_EXTENDED_SYNC_DELTA_PCT / 100 + 1e-9
     }
 
-    /** |bpmA/bpmB − 1| con la razón redondeada a 6 decimales (`DirectStretch` del backend); null sin tempos. */
-    fun directStretch(from: Song, to: Song): Double? = directRate(from, to)?.let { abs(it - 1.0) }
-
-    private fun directRate(from: Song, to: Song): Double? {
-        val a = bpm(from) ?: return null
-        val b = bpm(to) ?: return null
+    private fun directRate(t: Tempos): Double? {
+        val a = t.a ?: return null
+        val b = t.b ?: return null
         if (a <= 0 || b <= 0) return null
         return round(a / b * 1e6) / 1e6
     }
 
-    fun automaticWindow(from: Song, to: Song, requestedBars: Int? = null, extended: Boolean = false): Window? {
-        val gridA = Grid.of(from) ?: return null
-        val bar = gridA.barMs
-        val clash = tempoClash(from, to, extended)
+    /** Tempos que guarda el documento (D5): solo si las dos tienen rejilla y alguna es local. */
+    private fun windowBpms(from: Song, to: Song, grids: WindowGrids): Pair<Double, Double>? {
+        val a = grids.a?.takeIf { it.kind != GridKind.NONE } ?: return null
+        val b = grids.b?.takeIf { it.kind != GridKind.NONE } ?: return null
+        if (a.kind != GridKind.LOCAL && b.kind != GridKind.LOCAL) return null
+        val bpmA = TempoGrid.tempoOf(a, from) ?: return null
+        val bpmB = TempoGrid.tempoOf(b, to) ?: return null
+        return Pair(round3(bpmA), round3(bpmB))
+    }
+
+    /**
+     * Ventana de Automática. Con [localTempo] (playmix-local-tempo-grid D3) se recalcula una vez con el compás de A y
+     * los tempos de la ventana elegida con la regla de siempre.
+     */
+    fun automaticWindow(
+        from: Song, to: Song, requestedBars: Int? = null, extended: Boolean = false, localTempo: Boolean = false
+    ): Window? {
+        val gridA = TempoGrid.global(from) ?: return null
+        val window = automaticWindow(from, to, requestedBars, extended, gridA.barMs, temposOf(from, to))
+        if (!localTempo || window == null) return window
+        val grids = gridsAt(from, to, window.aStartMs, window.bStartMs, window.bars, localTempo = true)
+        return automaticWindow(from, to, requestedBars, extended, grids.a!!.barMs, temposOf(from, to, grids, localTempo = true)) ?: window
+    }
+
+    private fun automaticWindow(from: Song, to: Song, requestedBars: Int?, extended: Boolean, bar: Double, tempos: Tempos): Window? {
+        val clash = tempoClash(tempos, extended)
         val bars = requestedBars ?: when {
             clash -> CLASH_BARS
             introBMs(to) >= LONG_BARS / 2 * bar && outroAMs(from) >= LONG_BARS / 2 * bar -> LONG_BARS
@@ -155,7 +235,7 @@ object MixComposer {
         val audioEndA = audioEnd(from)
         val endA = downbeatAtOrBefore(from, audioEndA.toDouble()) ?: audioEndA
         val strongB = strongPointB(to)
-        val rate = if (clash) 1.0 else if (extended && inExtendedRange(from, to)) directRate(from, to) ?: rate(from, to) else rate(from, to)
+        val rate = if (clash) 1.0 else if (extended && inExtendedRange(tempos)) directRate(tempos) ?: rate(tempos.a, tempos.b) else rate(tempos.a, tempos.b)
         val length = bars * bar
 
         var aStart = endA - length
@@ -179,27 +259,50 @@ object MixComposer {
     }
 
     fun freeWindow(from: Song, to: Song, aStartMs: Int, bStartMs: Int, bars: Int): Window =
-        Window(snapBeat(from, aStartMs), snapBeat(to, bStartMs), bars)
+        Window(snapBeat(TempoGrid.global(from), from, aStartMs), snapBeat(TempoGrid.global(to), to, bStartMs), bars)
+
+    /**
+     * Ventana elegida por el usuario con la rejilla de la ventana (playmix-local-tempo-grid D6): al beat de cada rejilla
+     * solo si el documento va a salir sincronizado ([beatSync] como en [compose]); si no, al milisegundo. Sin
+     * [localTempo], la de siempre.
+     */
+    fun freeWindow(
+        from: Song, to: Song, aStartMs: Int, bStartMs: Int, bars: Int, beatSync: Boolean?, extended: Boolean, localTempo: Boolean
+    ): Window {
+        if (!localTempo) return freeWindow(from, to, aStartMs, bStartMs, bars)
+        val grids = gridsAt(from, to, aStartMs, bStartMs, bars, localTempo = true)
+        if (!sync(beatSync, temposOf(from, to, grids, localTempo = true), extended)) return Window(aStartMs, bStartMs, bars)
+        return Window(snapBeat(grids.a, from, aStartMs), snapBeat(grids.b, to, bStartMs), bars)
+    }
+
+    /** null = Automática decide; true = forzado (si se puede); false = sin sincronizar (igual que el backend). */
+    private fun sync(beatSync: Boolean?, tempos: Tempos, extended: Boolean): Boolean = when (beatSync) {
+        true -> canSync(tempos, extended)
+        false -> false
+        null -> !tempoClash(tempos, extended)
+    }
 
     // ─── Documento ──────────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Documento v2. Con [localTempo] (playmix-local-tempo-grid), compases, fase y sincronía salen de la rejilla de cada
+     * canción en la ventana y el documento guarda sus tempos si alguna es local; con false, el de siempre.
+     */
     fun compose(
         selection: MixSelectionDTO, window: Window, from: Song, to: Song, beatSync: Boolean?, presetCode: String,
-        extended: Boolean = false
+        extended: Boolean = false, localTempo: Boolean = false
     ): MixDocumentDTO? {
-        // null = Automática decide; true = forzado (si se puede); false = sin sincronizar (igual que el backend).
-        val sync = when (beatSync) {
-            true -> canSync(from, to, extended)
-            false -> false
-            null -> !tempoClash(from, to, extended)
-        }
+        val grids = gridsAt(from, to, window.aStartMs, window.bStartMs, window.bars, localTempo)
+        val tempos = temposOf(from, to, grids, localTempo)
+        val sync = sync(beatSync, tempos, extended)
         if (selection.volume == NONE) return noTransition(from, to, sync, presetCode)
-        val gridA = Grid.of(from) ?: return null
+        val gridA = grids.a ?: return null
 
         val bar = gridA.barMs
         val beat = bar / (from.beatsPerBar ?: 4).coerceIn(1, 16)
         val duration = roundEven(window.bars * bar)
         val t = Timeline(gridA.phaseAt(window.aStartMs), bar, beat, duration, window.bars)
+        val bpms = if (localTempo) windowBpms(from, to, grids) else null
 
         val lanes = LinkedHashMap<String, List<MixLanePointDTO>>()
         addVolume(lanes, selection.volume, t)
@@ -209,8 +312,8 @@ object MixComposer {
         return MixDocumentDTO(
             version = MixDocumentDTO.VERSION_V2,
             durationMs = duration,
-            a = MixSideADTO(window.aStartMs),
-            b = MixSideBDTO(window.bStartMs, 0),
+            a = MixSideADTO(window.aStartMs, bpms?.first),
+            b = MixSideBDTO(window.bStartMs, 0, bpms?.second),
             lanes = lanes,
             preset = MixPresetRefDTO(presetCode, MixDocumentDTO.VERSION_V2),
             bars = window.bars,
@@ -218,7 +321,7 @@ object MixComposer {
             selection = selection.copy(),
             loop = loop(selection.loop, t),
             fx = if (selection.fx == "echo-out") listOf(echo(t)) else null,
-            extendedSync = if (sync && extended && inExtendedRange(from, to)) true else null
+            extendedSync = if (sync && extended && inExtendedRange(tempos)) true else null
         )
     }
 
@@ -351,9 +454,12 @@ object MixComposer {
     }
 
     /** Velocidad de B para ir al tempo de A (bpmA/bpmB, contando ×2 y ×½); 1 si falta algún tempo. */
-    fun rate(from: Song, to: Song): Double {
-        val a = bpm(from) ?: return 1.0
-        val b = bpm(to) ?: return 1.0
+    fun rate(from: Song, to: Song): Double = rate(bpm(from), bpm(to))
+
+    /** [rate] con dos tempos cualesquiera (p. ej. los de la ventana). */
+    fun rate(bpmA: Double?, bpmB: Double?): Double {
+        val a = bpmA ?: return 1.0
+        val b = bpmB ?: return 1.0
         if (a <= 0 || b <= 0) return 1.0
         val nearest = listOf(b, b * 2, b / 2).minByOrNull { abs(it - a) }!!
         return a / nearest
@@ -379,8 +485,8 @@ object MixComposer {
         return downbeatAtOrAfter(to, start.toDouble()) ?: start
     }
 
-    private fun snapBeat(song: Song, ms: Int): Int {
-        val grid = Grid.of(song) ?: return ms
+    private fun snapBeat(grid: TempoGrid.Grid?, song: Song, ms: Int): Int {
+        grid ?: return ms
         val first = grid.firstMs ?: return ms
         val beat = grid.barMs / (song.beatsPerBar ?: 4).coerceIn(1, 16)
         return roundEven(first + roundEven((ms - first) / beat).toDouble() * beat).coerceIn(0, song.durationMs)
@@ -421,26 +527,6 @@ object MixComposer {
         val bar = barMs(song)
         if (first != null && bar != null) return if (t <= first) first else roundEven(first + ceil((t - first) / bar) * bar)
         return null
-    }
-
-    private class Grid(val firstMs: Double?, val barMs: Double) {
-        /** Desfase (−½ compás, ½ compás] entre [ms] y el downbeat más cercano. */
-        fun phaseAt(ms: Int): Double {
-            val first = firstMs ?: return 0.0
-            return first + round((ms - first) / barMs) * barMs - ms
-        }
-
-        companion object {
-            fun of(song: Song): Grid? {
-                val median = barMs(song)
-                val beatsPerBar = (song.beatsPerBar ?: 4).coerceIn(1, 16)
-                val fitted = song.bpmPrecise?.takeIf { it > 0 }?.let { 60000.0 / it * beatsPerBar }
-                val bar = if (fitted != null && (median == null || abs(fitted / median - 1) <= 0.03)) fitted else median
-                if (bar == null || bar <= 0) return null
-                val first = song.firstDownbeatMs?.toDouble() ?: song.downbeats?.firstOrNull()?.toDouble()
-                return Grid(first, bar)
-            }
-        }
     }
 
     /** Rejilla de A en la línea de tiempo (t = 0 en a.startMs). */
@@ -528,6 +614,8 @@ object MixComposer {
     private fun roundAwayFromZero(x: Double): Int = (if (x >= 0) floor(x + 0.5) else ceil(x - 0.5)).toInt()
 
     private fun round4(x: Double): Double = roundTo(x, 1e4)
+
+    private fun round3(x: Double): Double = roundTo(x, 1e3)
 
     private fun roundTo(x: Double, scale: Double): Double = round(x * scale) / scale
 }

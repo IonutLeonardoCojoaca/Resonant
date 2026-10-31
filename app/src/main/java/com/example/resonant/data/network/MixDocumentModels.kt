@@ -60,9 +60,13 @@ data class MixLaneOptionsDTO(
 
 data class MixLaneOptionDTO(val code: String, val name: String)
 
-data class MixSideADTO(val startMs: Int)
+/**
+ * [bpm] (solo v2, playmix-local-tempo-grid): tempo de la canción en la ventana. Viene en A y en B a la vez cuando alguna
+ * usa una rejilla local; con `beatSync`, B suena a `a.bpm / b.bpm` y los `startMs` son downbeats de esas rejillas.
+ */
+data class MixSideADTO(val startMs: Int, val bpm: Double? = null)
 
-data class MixSideBDTO(val startMs: Int, val offsetMs: Int = 0)
+data class MixSideBDTO(val startMs: Int, val offsetMs: Int = 0, val bpm: Double? = null)
 
 data class MixLanePointDTO(val t: Int, val v: Double, val curve: String? = null)
 

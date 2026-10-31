@@ -5,9 +5,14 @@ import com.example.resonant.data.network.MixSideADTO
 import com.example.resonant.data.network.MixSideBDTO
 import com.example.resonant.data.network.StudioSongDTO
 import com.example.resonant.data.network.StudioTransitionDTO
+import com.example.resonant.playback.GridKind
 import com.example.resonant.playback.MixComposer
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -170,5 +175,99 @@ class MixEditorV2Test {
         val forced = MixEditorV2.setBeatSync(auto, true)
         assertEquals(true, forced.document.beatSync)
         assertEquals(false, MixEditorV2.selectPreset(forced, MixEditorV2.AUTOMATIC).document.beatSync)
+    }
+
+    // ─── playmix-local-tempo-grid ─────────────────────────────────────────────────────────────────
+
+    private val gson = Gson()
+
+    private data class FixtureSong(
+        val durationMs: Int, val audioStartMs: Int, val audioEndMs: Int, val bpm: Double?, val bpmPrecise: Double?,
+        val bpmStability: Double?, val beatsPerBar: Int?, val firstDownbeatMs: Int?, val downbeatGridJson: List<Int>?,
+        val mixInMs: Int?, val mixOutMs: Int?, val dropMs: Int?, val keyCamelot: String?, val downbeatPhaseMs: Int?
+    ) {
+        fun toStudio(id: String) = StudioSongDTO(
+            songId = id, title = id, durationMs = durationMs, bpm = bpm, beatsPerBar = beatsPerBar, downbeats = downbeatGridJson,
+            camelot = keyCamelot, mixInMs = mixInMs, mixOutMs = mixOutMs, dropMs = dropMs, bpmPrecise = bpmPrecise,
+            firstDownbeatMs = firstDownbeatMs, downbeatPhaseMs = downbeatPhaseMs, audioStartMs = audioStartMs,
+            audioEndMs = audioEndMs, bpmStability = bpmStability
+        )
+    }
+
+    private fun fixture(name: String): JsonObject {
+        val text = requireNotNull(javaClass.classLoader!!.getResourceAsStream("mix-v2/$name.json"))
+            .readBytes().toString(Charsets.UTF_8)
+        return gson.fromJson(text, JsonObject::class.java)
+    }
+
+    /** Niagara Falls (~97 BPM, outro a ~104, sin fase) → Try Me (~92), con los análisis reales de los fixtures. */
+    private fun niagaraStudio(document: MixDocumentDTO? = null): StudioTransitionDTO {
+        val f = fixture("local-tempo-outro")
+        return StudioTransitionDTO(
+            transitionId = "nt", revision = 1, derived = document == null, canEdit = true,
+            document = document ?: MixDocumentDTO(1, 8000, MixSideADTO(250_000), MixSideBDTO(0)),
+            songA = gson.fromJson(f.get("from"), FixtureSong::class.java).toStudio("niagara"),
+            songB = gson.fromJson(f.get("to"), FixtureSong::class.java).toStudio("tryme")
+        )
+    }
+
+    private fun niagara(localTempo: Boolean = true) = MixEditorV2.initial(niagaraStudio(), localTempo = localTempo)!!
+
+    @Test
+    fun `without the capability a stable pair is edited exactly as before`() {
+        val off = initial()
+        val on = MixEditorV2.initial(v1Studio(), localTempo = true)!!
+        assertEquals(off.document, on.document)
+        assertNull(on.document.a.bpm)
+        val target = off.document.a.startMs - (3.4 * barA).toInt()
+        assertEquals(MixEditorV2.dragA(off, target).document, MixEditorV2.dragA(on, target, captureMs = 40).document)
+        assertEquals(MixEditorV2.moveWindow(off, 2).document, MixEditorV2.moveWindow(on, 2).document)
+    }
+
+    @Test
+    fun `without the capability Niagara Falls still snaps to the global beat`() {
+        val dragged = MixEditorV2.dragA(niagara(localTempo = false), 252_040, captureMs = 40)
+        assertEquals(251_731, dragged.document.a.startMs)
+    }
+
+    @Test
+    fun `without beatmatching A stays on the real downbeat it is dropped on`() {
+        val state = niagara()
+        assertEquals(false, state.document.beatSync)
+        assertEquals(252_040, MixEditorV2.dragA(state, 252_040, captureMs = 40).document.a.startMs)
+    }
+
+    @Test
+    fun `without beatmatching a drop far from a downbeat is kept to the millisecond`() {
+        val state = niagara()
+        val dragged = MixEditorV2.dragA(state, 252_160, captureMs = 200)
+        assertEquals(252_160, dragged.document.a.startMs)
+        assertEquals(MixEditorV2.CUSTOM, dragged.presetCode)
+        assertFalse(MixEditorV2.dragSnaps(state, isA = true, ms = 252_160, toBeat = false, captureMs = 200))
+    }
+
+    @Test
+    fun `without beatmatching a drop close to a downbeat sticks to it`() {
+        val state = niagara()
+        assertEquals(252_040, MixEditorV2.dragA(state, 252_080, captureMs = 60).document.a.startMs)
+        assertTrue(MixEditorV2.dragSnaps(state, isA = true, ms = 252_080, toBeat = false, captureMs = 60))
+        // Fuera del radio de pantalla no engancha aunque esté a menos de 1/8 de beat.
+        assertEquals(252_080, MixEditorV2.dragA(state, 252_080, captureMs = 30).document.a.startMs)
+    }
+
+    @Test
+    fun `with beatmatching the editor uses the window tempos and grid`() {
+        val saved = gson.fromJson(fixture("local-tempo-before-change").get("document"), MixDocumentDTO::class.java)
+        val state = MixEditorV2.initial(niagaraStudio(saved), localTempo = true)!!
+        assertEquals(true, state.document.beatSync)
+        assertEquals(GridKind.LOCAL, state.grids.a?.kind)
+        assertEquals(MixComposer.rate(97.209, 91.992), state.rateB, 1e-9)
+        assertEquals(97.209, state.windowTempos.a!!, 1e-9)
+        assertEquals(60000.0 * 4 / 97.209, state.barMsA!!, 1e-6)
+
+        val dragged = MixEditorV2.dragA(state, saved.a.startMs + 700, captureMs = 40)
+        assertTrue("A en ${dragged.document.a.startMs}", abs(dragged.document.a.startMs - saved.a.startMs) <= 3)
+        assertEquals(true, dragged.document.beatSync)
+        assertEquals(97.209, dragged.document.a.bpm!!, 0.05)
     }
 }

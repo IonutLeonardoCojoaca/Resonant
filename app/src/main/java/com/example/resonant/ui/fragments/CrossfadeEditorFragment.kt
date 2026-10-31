@@ -55,6 +55,7 @@ import com.example.resonant.ui.viewmodels.CrossfadeEditorState
 import com.example.resonant.ui.viewmodels.CrossfadeEditorViewModel
 import com.example.resonant.ui.viewmodels.CrossfadeEditorViewModelFactory
 import com.example.resonant.ui.viewmodels.MixEditorV2
+import com.example.resonant.ui.viewmodels.MixEditorV2State
 import com.example.resonant.utils.ImageRequestHelper
 import com.example.resonant.utils.SnackType
 import com.example.resonant.utils.SnackbarUtils.showResonantSnackbar
@@ -245,13 +246,18 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
             wave.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
             viewModel.setEntryPoint(ms)
         }
-        binding.mixEditorView.onDragA = { ms, toBeat ->
-            binding.mixEditorView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-            viewModel.v2DragA(ms, toBeat)
+        // Sin beatmatching (rejilla por ventana) la onda queda donde se suelta: solo vibra si el imán la engancha.
+        binding.mixEditorView.onDragA = { ms, toBeat, captureMs ->
+            if (viewModel.v2DragSnaps(isA = true, ms, toBeat, captureMs)) {
+                binding.mixEditorView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            }
+            viewModel.v2DragA(ms, toBeat, captureMs)
         }
-        binding.mixEditorView.onDragB = { ms, toBeat ->
-            binding.mixEditorView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-            viewModel.v2DragB(ms, toBeat)
+        binding.mixEditorView.onDragB = { ms, toBeat, captureMs ->
+            if (viewModel.v2DragSnaps(isA = false, ms, toBeat, captureMs)) {
+                binding.mixEditorView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            }
+            viewModel.v2DragB(ms, toBeat, captureMs)
         }
         binding.previewToggleButton.setOnClickListener { togglePreviewPlayback() }
         binding.measureDropdownButton.setOnClickListener { showMeasureMenu(it) }
@@ -500,6 +506,15 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
 
     // ─── Motor v2 ─────────────────────────
 
+    /** playmix-local-tempo-grid: tempo de cada canción en la zona de la mezcla (vacío sin la capacidad o sin tempo). */
+    private fun windowTemposLabel(v2: MixEditorV2State): String {
+        if (!v2.localTempo) return ""
+        val tempos = v2.windowTempos
+        val a = tempos.a ?: return ""
+        val b = tempos.b ?: return ""
+        return " · A ${a.roundToInt()} · B ${b.roundToInt()} BPM"
+    }
+
     private fun renderV2(state: CrossfadeEditorState) {
         val v2 = state.v2 ?: return
         binding.playmixModePanel.root.isVisible = false
@@ -520,7 +535,7 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         binding.entryPointLabel.text = formatMs(v2.document.b.startMs)
         binding.measureDropdownButton.text = barsLabel(v2.window.bars)
         val tempo = if (v2.document.beatSync == true) "B al tempo de A" else "cada canción a su tempo"
-        binding.crossfadeLabel.text = "Cruce de ${formatSeconds(v2.document.durationMs)} · $tempo"
+        binding.crossfadeLabel.text = "Cruce de ${formatSeconds(v2.document.durationMs)} · $tempo${windowTemposLabel(v2)}"
 
         val presets = v2.presets.sortedBy { it.sortOrder }
         val codes = presets.map { it.code }

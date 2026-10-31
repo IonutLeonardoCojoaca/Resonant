@@ -9,6 +9,7 @@ import com.example.resonant.data.network.StudioTransitionDTO
 import com.example.resonant.data.network.TransitionPresetDTO
 import com.example.resonant.playback.BeatMagnet
 import com.example.resonant.playback.MixComposer
+import com.example.resonant.playback.TempoGrid
 import com.example.resonant.playback.WaveformBands
 
 /** Escucha del documento en edición: el servicio usa [document] para esta pareja y empieza A en [startPositionMs]. */
@@ -39,13 +40,31 @@ data class MixEditorV2State(
      * playmix-extended-beatmatch: capacidad `playmixExtendedSync` activa. El generador admite el rango ampliado
      * (B estirada entre el 6 % y el 12 %) y la sincronía se puede activar en él.
      */
-    val extended: Boolean = false
+    val extended: Boolean = false,
+    /**
+     * playmix-local-tempo-grid: capacidad `transitionLocalTempo` activa. Rejilla, sincronía y compases salen de la zona
+     * de la mezcla (canciones de tempo variable) y, sin beatmatching, las ondas se mueven libremente.
+     */
+    val localTempo: Boolean = false
 ) {
-    /** Compás de A en ms (para mover la ventana y dibujar la rejilla). */
-    val barMsA: Double? get() = MixComposer.barMs(songA)
+    /** Rejillas de A y B en la ventana; sin [localTempo], las de toda la canción. */
+    val grids: MixComposer.WindowGrids
+        get() = MixComposer.gridsAt(songA, songB, window.aStartMs, window.bStartMs, window.bars, localTempo)
 
-    /** Velocidad de B en la ventana (bpmA/bpmB con beatmatching, 1 sin él). */
-    val rateB: Double get() = if (document.beatSync == true) MixComposer.rate(songA, songB) else 1.0
+    /** Compás de A en ms (para mover la ventana y dibujar la rejilla); con [localTempo], el de la ventana. */
+    val barMsA: Double? get() = if (localTempo) grids.a?.barMs ?: MixComposer.barMs(songA) else MixComposer.barMs(songA)
+
+    /** Velocidad de B en la ventana (bpmA/bpmB con beatmatching, 1 sin él); con tempos de la ventana, los del documento. */
+    val rateB: Double
+        get() {
+            if (document.beatSync != true) return 1.0
+            val bpmA = document.a.bpm
+            val bpmB = document.b.bpm
+            return if (bpmA != null && bpmB != null) MixComposer.rate(bpmA, bpmB) else MixComposer.rate(songA, songB)
+        }
+
+    /** Tempos de A y B en la ventana con los que se decide la sincronía (para las etiquetas del editor). */
+    val windowTempos: MixComposer.Tempos get() = MixComposer.temposOf(songA, songB, grids, localTempo)
 }
 
 /**
@@ -76,14 +95,15 @@ object MixEditorV2 {
         mixInMs = info.mixInMs,
         mixOutMs = info.mixOutMs,
         dropMs = info.dropMs,
-        keyCamelot = info.camelot
+        keyCamelot = info.camelot,
+        downbeatPhaseMs = info.downbeatPhaseMs
     )
 
     /**
      * Estado inicial: el documento v2 guardado tal cual (ventana, opciones y preset), o Automática si la
      * transición aún no tiene documento v2. Null si las canciones no tienen compás.
      */
-    fun initial(studio: StudioTransitionDTO, extended: Boolean = false): MixEditorV2State? {
+    fun initial(studio: StudioTransitionDTO, extended: Boolean = false, localTempo: Boolean = false): MixEditorV2State? {
         val a = songOf(studio.songA)
         val b = songOf(studio.songB)
         val saved = studio.document.takeIf { it.isV2 }
@@ -95,23 +115,27 @@ object MixEditorV2 {
                 presetCode = saved.preset?.code ?: CUSTOM,
                 selection = saved.selection ?: MixSelectionDTO(),
                 window = window,
-                beatSync = saved.beatSync ?: !MixComposer.tempoClash(a, b, extended),
-                extended = extended
+                beatSync = saved.beatSync ?: !MixComposer.tempoClash(a, b, window, extended, localTempo),
+                extended = extended,
+                localTempo = localTempo
             )
         }
-        val window = MixComposer.automaticWindow(a, b, extended = extended) ?: return null
-        val selection = MixComposer.automaticSelection(a, b, extended)
-        val document = MixComposer.compose(selection, window, a, b, null, AUTOMATIC, extended) ?: return null
+        val window = MixComposer.automaticWindow(a, b, extended = extended, localTempo = localTempo) ?: return null
+        val selection = MixComposer.automaticSelection(a, b, extended, window, localTempo)
+        val document = MixComposer.compose(selection, window, a, b, null, AUTOMATIC, extended, localTempo) ?: return null
         return MixEditorV2State(
-            a, b, studio.songA, studio.songB, document, AUTOMATIC, selection, window, document.beatSync ?: true, extended = extended
+            a, b, studio.songA, studio.songB, document, AUTOMATIC, selection, window, document.beatSync ?: true,
+            extended = extended, localTempo = localTempo
         )
     }
 
     fun selectPreset(state: MixEditorV2State, code: String): MixEditorV2State {
         if (code == AUTOMATIC) {
-            val window = MixComposer.automaticWindow(state.songA, state.songB, extended = state.extended) ?: return state
-            val selection = MixComposer.automaticSelection(state.songA, state.songB, state.extended)
-            val sync = !MixComposer.tempoClash(state.songA, state.songB, state.extended)
+            val window = MixComposer.automaticWindow(
+                state.songA, state.songB, extended = state.extended, localTempo = state.localTempo
+            ) ?: return state
+            val selection = MixComposer.automaticSelection(state.songA, state.songB, state.extended, window, state.localTempo)
+            val sync = !MixComposer.tempoClash(state.songA, state.songB, window, state.extended, state.localTempo)
             return regenerate(state.copy(presetCode = AUTOMATIC, selection = selection, window = window, beatSync = sync))
         }
         val preset = state.presets.firstOrNull { it.code == code } ?: return state
@@ -139,14 +163,14 @@ object MixEditorV2 {
     fun setBars(state: MixEditorV2State, bars: Int): MixEditorV2State {
         if (bars !in BAR_OPTIONS) return state
         if (state.presetCode == AUTOMATIC) {
-            val window = MixComposer.automaticWindow(state.songA, state.songB, bars, state.extended) ?: return state
+            val window = MixComposer.automaticWindow(state.songA, state.songB, bars, state.extended, state.localTempo) ?: return state
             return regenerate(state.copy(window = window))
         }
         val bar = state.barMsA ?: return regenerate(state.copy(window = state.window.copy(bars = bars)))
         val shift = (state.window.bars - bars) / 2.0 * bar
         val a = (state.window.aStartMs + shift).toInt().coerceIn(0, state.songA.durationMs)
         val b = (state.window.bStartMs + shift * state.rateB).toInt().coerceIn(0, state.songB.durationMs)
-        return regenerate(state.copy(window = MixComposer.freeWindow(state.songA, state.songB, a, b, bars)))
+        return regenerate(state.copy(window = freeWindow(state, a, b, bars)))
     }
 
     /** Mueve la ventana [deltaBars] compases en las dos canciones a la vez (B a su velocidad en la mezcla). */
@@ -159,24 +183,53 @@ object MixEditorV2 {
 
     /**
      * Arrastre de la onda de A: qué parte de A cae en la ventana. Imán al compás; con [toBeat] (zoom) al beat.
-     * Pasa a Personalizada.
+     * Con [MixEditorV2State.localTempo] y sin beatmatching, libre salvo un downbeat detectado a menos de [captureMs]
+     * (y de ⅛ de beat) del punto soltado (playmix-local-tempo-grid D6). Pasa a Personalizada.
      */
-    fun dragA(state: MixEditorV2State, aStartMs: Int, toBeat: Boolean = false): MixEditorV2State {
-        val snapped = if (toBeat) aStartMs else BeatMagnet.snapToBar(state.songA, aStartMs)
+    fun dragA(state: MixEditorV2State, aStartMs: Int, toBeat: Boolean = false, captureMs: Int = 0): MixEditorV2State {
+        val snapped = magnet(state, state.songA, state.grids.a, aStartMs, toBeat, captureMs) ?: aStartMs
         return moveTo(state, snapped, state.window.bStartMs, custom = true)
     }
 
-    /** Arrastre de la onda de B (mismo imán que A). */
-    fun dragB(state: MixEditorV2State, bStartMs: Int, toBeat: Boolean = false): MixEditorV2State {
-        val snapped = if (toBeat) bStartMs else BeatMagnet.snapToBar(state.songB, bStartMs)
+    /** Arrastre de la onda de B (mismo imán que A; [captureMs] en ms de B). */
+    fun dragB(state: MixEditorV2State, bStartMs: Int, toBeat: Boolean = false, captureMs: Int = 0): MixEditorV2State {
+        val snapped = magnet(state, state.songB, state.grids.b, bStartMs, toBeat, captureMs) ?: bStartMs
         return moveTo(state, state.window.aStartMs, snapped, custom = true)
     }
 
+    /** True si al soltar en [ms] el imán engancha la onda (para el aviso háptico). */
+    fun dragSnaps(state: MixEditorV2State, isA: Boolean, ms: Int, toBeat: Boolean, captureMs: Int): Boolean {
+        val song = if (isA) state.songA else state.songB
+        val grid = if (isA) state.grids.a else state.grids.b
+        return magnet(state, song, grid, ms, toBeat, captureMs) != null || !freeDrag(state)
+    }
+
+    /** Sin beatmatching y con la rejilla de la ventana, la onda se mueve libremente. */
+    private fun freeDrag(state: MixEditorV2State): Boolean = state.localTempo && state.document.beatSync != true
+
+    /** Posición enganchada por el imán, o null si la onda queda donde se soltó. */
+    private fun magnet(
+        state: MixEditorV2State, song: MixComposer.Song, grid: TempoGrid.Grid?, ms: Int, toBeat: Boolean, captureMs: Int
+    ): Int? {
+        if (!freeDrag(state)) {
+            if (toBeat) return null
+            // Con beatmatching y la rejilla de la ventana, al compás de esa rejilla (D6); sin capacidad, como antes.
+            val windowBar = if (state.localTempo) grid?.let { BeatMagnet.snapToBar(it, song, ms) } else null
+            return windowBar ?: BeatMagnet.snapToBar(song, ms)
+        }
+        val bar = grid?.barMs ?: MixComposer.barMs(song) ?: return null
+        val beat = bar / (song.beatsPerBar ?: 4).coerceIn(1, 16)
+        return BeatMagnet.nearDownbeat(song, ms, minOf(captureMs.toDouble(), beat / 8))
+    }
+
     /** Beats de A y B que coinciden en la ventana (para resaltarlos en la regla). */
-    fun coincidentBeats(state: MixEditorV2State): List<Double> = BeatMagnet.coincidentBeats(
-        state.songA, state.songB, state.document.a.startMs, state.document.b.startMs, state.document.durationMs, state.rateB,
-        state.document.b.offsetMs
-    )
+    fun coincidentBeats(state: MixEditorV2State): List<Double> {
+        val grids = if (state.localTempo) state.grids else null
+        return BeatMagnet.coincidentBeats(
+            state.songA, state.songB, state.document.a.startMs, state.document.b.startMs, state.document.durationMs, state.rateB,
+            state.document.b.offsetMs, grids?.a, grids?.b
+        )
+    }
 
     /** Compases de A que suenan antes de la ventana al escuchar la mezcla. */
     const val PREVIEW_LEAD_BARS = 2
@@ -195,14 +248,19 @@ object MixEditorV2 {
     private fun moveTo(state: MixEditorV2State, aStartMs: Int, bStartMs: Int, custom: Boolean = false): MixEditorV2State {
         val a = aStartMs.coerceIn(0, state.songA.durationMs)
         val b = bStartMs.coerceIn(0, state.songB.durationMs)
-        val window = MixComposer.freeWindow(state.songA, state.songB, a, b, state.window.bars)
+        val window = freeWindow(state, a, b, state.window.bars)
         val code = if (custom || state.presetCode == AUTOMATIC) CUSTOM else state.presetCode
         return regenerate(state.copy(window = window, presetCode = code))
     }
 
+    /** Ventana libre: al beat solo si la mezcla va a sonar sincronizada (con la rejilla de la ventana). */
+    private fun freeWindow(state: MixEditorV2State, aStartMs: Int, bStartMs: Int, bars: Int): MixComposer.Window =
+        MixComposer.freeWindow(state.songA, state.songB, aStartMs, bStartMs, bars, state.beatSync, state.extended, state.localTempo)
+
     private fun regenerate(state: MixEditorV2State): MixEditorV2State {
         val document = MixComposer.compose(
-            state.selection, state.window, state.songA, state.songB, state.beatSync, state.presetCode, state.extended
+            state.selection, state.window, state.songA, state.songB, state.beatSync, state.presetCode, state.extended,
+            state.localTempo
         ) ?: return state
         return state.copy(document = document)
     }

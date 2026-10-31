@@ -4,6 +4,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.round
 
 /**
  * "Imán" a la rejilla de beats del editor de Playmix (Fase 1 de transiciones profesionales).
@@ -157,17 +158,55 @@ object BeatMagnet {
         return result
     }
 
+    /** Beats de una rejilla de ventana ([TempoGrid.at]) entre [fromMs] y [toMs]; vacío si no tiene fase. */
+    fun beats(grid: TempoGrid.Grid, beatsPerBar: Int?, fromMs: Double, toMs: Double): List<Double> {
+        val first = grid.firstMs ?: return emptyList()
+        val beat = grid.barMs / (beatsPerBar ?: 4).coerceIn(1, 16)
+        val result = ArrayList<Double>()
+        var k = ceil((fromMs - first) / beat)
+        while (true) {
+            val t = first + k * beat
+            if (t > toMs) break
+            if (t >= 0) result += t
+            k += 1
+        }
+        return result
+    }
+
+    /** Downbeat de una rejilla de ventana más cercano a [ms]; null si la rejilla no tiene fase. */
+    fun snapToBar(grid: TempoGrid.Grid, song: MixComposer.Song, ms: Int): Int? {
+        val first = grid.firstMs ?: return null
+        return round(first + round((ms - first) / grid.barMs) * grid.barMs).toInt().coerceIn(0, song.durationMs)
+    }
+
+    /**
+     * Imán suave sin beatmatching (playmix-local-tempo-grid D6): el downbeat detectado de [song] más cercano a [ms]
+     * si está a [radiusMs] o menos; null si no hay ninguno (la onda queda donde se soltó).
+     */
+    fun nearDownbeat(song: MixComposer.Song, ms: Int, radiusMs: Double): Int? {
+        val downbeats = song.downbeats?.sorted().orEmpty()
+        val index = nearestIndex(ms, downbeats)
+        if (index < 0) return null
+        return downbeats[index].takeIf { abs(it - ms) <= radiusMs }
+    }
+
     /**
      * Posiciones de la ventana (ms desde su inicio) donde un beat de A coincide con uno de B. B entra en
-     * [bOffsetMs] y avanza a [rateB] veces su velocidad (beatmatching).
+     * [bOffsetMs] y avanza a [rateB] veces su velocidad (beatmatching). Con [gridA]/[gridB] (rejillas de la ventana)
+     * los beats salen de ellas.
      */
     fun coincidentBeats(
         a: MixComposer.Song, b: MixComposer.Song,
-        aStartMs: Int, bStartMs: Int, durationMs: Int, rateB: Double, bOffsetMs: Int = 0
+        aStartMs: Int, bStartMs: Int, durationMs: Int, rateB: Double, bOffsetMs: Int = 0,
+        gridA: TempoGrid.Grid? = null, gridB: TempoGrid.Grid? = null
     ): List<Double> {
         if (durationMs <= 0 || rateB <= 0) return emptyList()
-        val beatsA = beats(a, aStartMs.toDouble(), aStartMs + durationMs.toDouble()).map { it - aStartMs }
-        val beatsB = beats(b, bStartMs.toDouble(), bStartMs + (durationMs - bOffsetMs) * rateB).map { (it - bStartMs) / rateB + bOffsetMs }
+        val toA = aStartMs + durationMs.toDouble()
+        val toB = bStartMs + (durationMs - bOffsetMs) * rateB
+        val beatsA = (gridA?.let { beats(it, a.beatsPerBar, aStartMs.toDouble(), toA) } ?: beats(a, aStartMs.toDouble(), toA))
+            .map { it - aStartMs }
+        val beatsB = (gridB?.let { beats(it, b.beatsPerBar, bStartMs.toDouble(), toB) } ?: beats(b, bStartMs.toDouble(), toB))
+            .map { (it - bStartMs) / rateB + bOffsetMs }
         if (beatsA.isEmpty() || beatsB.isEmpty()) return emptyList()
         val result = ArrayList<Double>()
         var j = 0

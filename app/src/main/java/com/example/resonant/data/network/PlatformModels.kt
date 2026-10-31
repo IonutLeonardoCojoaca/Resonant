@@ -40,5 +40,10 @@ data class PlatformFeaturesDTO(
      * Beatmatching ampliado en Playmix (playmix-extended-beatmatch): documentos con `extendedSync` (B estirada
      * entre el 6 % y el 12 %) y clips con `render.bRate`. Apagado, `extendedSync` se trata como ausente.
      */
-    val playmixExtendedSync: Boolean = false
+    val playmixExtendedSync: Boolean = false,
+    /**
+     * Rejilla de tempo por ventana (playmix-local-tempo-grid): el editor usa el tempo y los compases reales de la zona
+     * de la mezcla en canciones de tempo variable y, sin beatmatching, deja mover las ondas libremente.
+     */
+    val transitionLocalTempo: Boolean = false
 )

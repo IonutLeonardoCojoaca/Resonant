@@ -1,6 +1,9 @@
 package com.example.resonant.playback
 
 import com.example.resonant.data.models.AudioAnalysis
+import com.example.resonant.data.network.MixDocumentDTO
+import com.example.resonant.data.network.MixSideADTO
+import com.example.resonant.data.network.MixSideBDTO
 import com.example.resonant.playback.TransitionPlanner.Mode
 import com.example.resonant.playback.TransitionPlanner.Track
 import org.junit.Assert.assertEquals
@@ -220,5 +223,61 @@ class TransitionPlannerTest {
         assertEquals(6_000L, t.mixInMs)
         assertEquals(170_000L, t.mixOutMs)
         assertNull(t.grid)
+    }
+
+    // ── Tempos de la ventana (playmix-local-tempo-grid) ──
+
+    /** Niagara Falls (96,77 en el análisis, ~0,8 de estabilidad) → Try Me (91,992), como llegan del análisis. */
+    private val niagara = Track(277_275, 0, 277_275, null, null, PhaseAlignment.Grid(96.77, 0, 4), 0.797)
+    private val tryMe = Track(221_107, 0, 219_916, null, null, PhaseAlignment.Grid(91.992, 20, 4), 1.0)
+
+    private fun windowDoc(
+        bpmA: Double?, bpmB: Double?, beatSync: Boolean = true, extendedSync: Boolean? = null
+    ) = MixDocumentDTO(
+        version = 2, durationMs = 19_751, a = MixSideADTO(197_418, bpmA), b = MixSideBDTO(20_891, 0, bpmB),
+        lanes = emptyMap(), bars = 8, beatSync = beatSync, extendedSync = extendedSync
+    )
+
+    @Test
+    fun `window tempos in the document set B's speed and the phase grids`() {
+        val plan = TransitionPlanner.playmixPlan(windowDoc(97.209, 91.992), "studio", niagara, tryMe, extendedEnabled = false)
+        assertTrue(plan.beatSync)
+        assertFalse(plan.extendedSync)
+        assertEquals(1.056711, plan.bpmRatio, 1e-6)
+        assertEquals(PhaseAlignment.Grid(97.209, 197_418, 4), plan.gridA)
+        assertEquals(PhaseAlignment.Grid(91.992, 20_891, 4), plan.gridB)
+    }
+
+    @Test
+    fun `window tempos use the extended range with its mark even if the analysis is unstable`() {
+        val doc = windowDoc(104.011, 95.0, extendedSync = true)
+        val extended = TransitionPlanner.playmixPlan(doc, "studio", niagara, tryMe, extendedEnabled = true)
+        assertTrue(extended.beatSync)
+        assertTrue(extended.extendedSync)
+        assertEquals(1.094853, extended.bpmRatio, 1e-6)
+
+        val disabled = TransitionPlanner.playmixPlan(doc, "studio", niagara, tryMe, extendedEnabled = false)
+        assertFalse(disabled.beatSync)
+        assertEquals(1.0, disabled.bpmRatio, 0.0)
+    }
+
+    @Test
+    fun `window tempos out of range or without beatmatching keep B at its speed`() {
+        val far = TransitionPlanner.playmixPlan(windowDoc(104.011, 91.992), "studio", niagara, tryMe, extendedEnabled = true)
+        assertFalse(far.beatSync)
+        assertEquals(1.0, far.bpmRatio, 0.0)
+        val off = TransitionPlanner.playmixPlan(windowDoc(97.209, 91.992, beatSync = false), "studio", niagara, tryMe, extendedEnabled = true)
+        assertFalse(off.beatSync)
+    }
+
+    @Test
+    fun `without window tempos the plan comes from the analysis as before`() {
+        for (doc in listOf(windowDoc(null, null), windowDoc(97.209, null))) {
+            val plan = TransitionPlanner.playmixPlan(doc, "studio", niagara, tryMe, extendedEnabled = false)
+            assertTrue(plan.beatSync)
+            assertEquals(96.77 / 91.992, plan.bpmRatio, 1e-9)
+            assertNull(plan.gridA)
+            assertNull(plan.gridB)
+        }
     }
 }

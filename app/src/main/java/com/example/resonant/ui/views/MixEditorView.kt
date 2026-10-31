@@ -42,9 +42,12 @@ class MixEditorView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyle: Int = 0
 ) : View(context, attrs, defStyle) {
 
-    /** Inicio nuevo de A (ms de A) y si el imán va al beat (zoom alto). */
-    var onDragA: ((aStartMs: Int, toBeat: Boolean) -> Unit)? = null
-    var onDragB: ((bStartMs: Int, toBeat: Boolean) -> Unit)? = null
+    /**
+     * Inicio nuevo de A (ms de A), si el imán va al beat (zoom alto) y el radio del imán suave sin beatmatching
+     * ([CAPTURE_DP] de pantalla en ms de esa canción, playmix-local-tempo-grid).
+     */
+    var onDragA: ((aStartMs: Int, toBeat: Boolean, captureMs: Int) -> Unit)? = null
+    var onDragB: ((bStartMs: Int, toBeat: Boolean, captureMs: Int) -> Unit)? = null
 
     /** Sin edición (vista previa): las ondas no se arrastran; el pellizco sigue cambiando el zoom. */
     var editable: Boolean = true
@@ -463,9 +466,13 @@ class MixEditorView @JvmOverloads constructor(
         val to = from + visibleSpanMs(doc)
         val songFrom = if (isA) aMs(doc, from) else bMs(s, doc, from)
         val songTo = if (isA) aMs(doc, to) else bMs(s, doc, to)
-        val bar = MixComposer.barMs(song) ?: return
-        val beats = BeatMagnet.beats(song, max(0.0, songFrom), songTo)
-        val first = (song.firstDownbeatMs ?: song.downbeats?.firstOrNull())?.toDouble() ?: return
+        // playmix-local-tempo-grid: la rejilla de la ventana (nada si la canción no tiene rejilla fiable en ella).
+        val grid = if (s.localTempo) (if (isA) s.grids.a else s.grids.b) else null
+        val bar = grid?.barMs ?: MixComposer.barMs(song) ?: return
+        val beats = if (grid != null) BeatMagnet.beats(grid, song.beatsPerBar, max(0.0, songFrom), songTo)
+            else BeatMagnet.beats(song, max(0.0, songFrom), songTo)
+        val first = (if (grid != null) grid.firstMs else (song.firstDownbeatMs ?: song.downbeats?.firstOrNull())?.toDouble())
+            ?: return
         val beatPx = bar / (song.beatsPerBar ?: 4).coerceIn(1, 16) / msPerPx(doc)
         val tick = dp(4f)
         for (b in beats) {
@@ -570,11 +577,12 @@ class MixEditorView @JvmOverloads constructor(
                 val doc = s.document
                 val deltaMs = dragPx * msPerPx(doc)
                 val toBeat = zoom >= BEAT_SNAP_ZOOM
+                val captureMs = dp(CAPTURE_DP) * msPerPx(doc)
                 val track = dragTrack
                 dragTrack = 0
                 if (abs(dragPx) > dp(4f)) {
-                    if (track == TRACK_A) onDragA?.invoke((doc.a.startMs - deltaMs).toInt(), toBeat)
-                    else onDragB?.invoke((doc.b.startMs - deltaMs * s.rateB).toInt(), toBeat)
+                    if (track == TRACK_A) onDragA?.invoke((doc.a.startMs - deltaMs).toInt(), toBeat, captureMs.toInt())
+                    else onDragB?.invoke((doc.b.startMs - deltaMs * s.rateB).toInt(), toBeat, (captureMs * s.rateB).toInt())
                 } else {
                     dragPx = 0f
                     performClick()
@@ -595,6 +603,8 @@ class MixEditorView @JvmOverloads constructor(
     companion object {
         private const val TRACK_A = 1
         private const val TRACK_B = 2
+        /** Radio del imán suave sin beatmatching: a esta distancia de un downbeat detectado, la onda se engancha. */
+        private const val CAPTURE_DP = 10f
         private const val MIN_ZOOM = 0.5f
         private const val MAX_ZOOM = 6f
         private const val PULSE_MS = 520L

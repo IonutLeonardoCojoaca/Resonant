@@ -36,6 +36,8 @@ data class StudioSongDTO(
     /** BPM ajustado y primer downbeat: con [beatsPerBar] definen la rejilla de compases exacta (null sin ajuste). */
     val bpmPrecise: Double? = null,
     val firstDownbeatMs: Int? = null,
+    /** Fase ajustada del primer compás: solo en canciones de tempo estable (null = rejilla por ventana, playmix-local-tempo-grid). */
+    val downbeatPhaseMs: Int? = null,
     /** Forma de onda de 3 bandas (URL firmada; 404 si aún no existe). */
     val waveformBandsUrl: String? = null,
     val audioStartMs: Int? = null,
