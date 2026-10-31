@@ -45,6 +45,12 @@ interface AriaFeatureGateway {
     /** [liveChannelSlug] only for [AriaScreenDestination.LIVE_CHANNEL]. */
     suspend fun openScreen(destination: AriaScreenDestination, liveChannelSlug: String?): AriaFeatureResult
     fun showError(message: String)
+
+    /**
+     * Connect (aria-assistant-overhaul): brings to this device what plays on another one.
+     * [AriaFeatureResult.Failed] carries the user-facing reason (e.g. nothing plays elsewhere).
+     */
+    suspend fun transferPlaybackHere(): AriaFeatureResult = AriaFeatureResult.Failed(null)
 }
 
 /**
@@ -67,6 +73,7 @@ class AriaFeatureActionHandler(
                 TYPE_LIVE_LEAVE -> leaveLive(action)
                 TYPE_UNISOUND_CREATE -> createRoom(action)
                 TYPE_UNISOUND_SHOW_CODE -> showCode(action)
+                TYPE_CONNECT_TRANSFER -> transferHere(action)
                 else -> openScreen(action)
             }
         } catch (error: CancellationException) {
@@ -145,6 +152,17 @@ class AriaFeatureActionHandler(
         }
     }
 
+    private suspend fun transferHere(action: AriaAction): String {
+        if (!claim(action)) return record(action, OUTCOME_DUPLICATE)
+        return when (val result = gateway.transferPlaybackHere()) {
+            AriaFeatureResult.Ok -> record(action, OUTCOME_DONE)
+            is AriaFeatureResult.Failed -> {
+                gateway.showError(result.message ?: "No pude traer la música a este dispositivo")
+                record(action, OUTCOME_ERROR, REASON_CONNECT_FAILED)
+            }
+        }
+    }
+
     private fun claim(action: AriaAction): Boolean = idempotency.tryClaim(action.actionId)
 
     private fun record(action: AriaAction, outcome: String, reason: String? = null): String {
@@ -166,10 +184,12 @@ class AriaFeatureActionHandler(
         const val TYPE_UNISOUND_CREATE = "unisound_create"
         const val TYPE_UNISOUND_SHOW_CODE = "unisound_show_code"
         const val TYPE_OPEN_SCREEN = "open_screen"
+        const val TYPE_CONNECT_TRANSFER = "connect_transfer"
 
-        /** Client actions of add-aria-context-v2 executed by Android. */
+        /** Client actions of add-aria-context-v2 (and Connect, aria-assistant-overhaul) executed by Android. */
         val CLIENT_ACTION_TYPES = setOf(
-            TYPE_LIVE_TUNE_IN, TYPE_LIVE_LEAVE, TYPE_UNISOUND_CREATE, TYPE_UNISOUND_SHOW_CODE, TYPE_OPEN_SCREEN
+            TYPE_LIVE_TUNE_IN, TYPE_LIVE_LEAVE, TYPE_UNISOUND_CREATE, TYPE_UNISOUND_SHOW_CODE, TYPE_OPEN_SCREEN,
+            TYPE_CONNECT_TRANSFER
         )
 
         const val OUTCOME_DONE = "done"
@@ -186,5 +206,6 @@ class AriaFeatureActionHandler(
         const val REASON_NO_ROOM = "unisound_no_session"
         const val REASON_UNKNOWN_DESTINATION = "unknown_destination"
         const val REASON_SCREEN_FAILED = "screen_failed"
+        const val REASON_CONNECT_FAILED = "connect_failed"
     }
 }

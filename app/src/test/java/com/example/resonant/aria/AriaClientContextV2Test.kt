@@ -76,15 +76,26 @@ class AriaClientContextV2Test {
 
     @Test
     fun `capabilities list the seven V2a families plus optional screens`() {
-        val base = AriaClientContextV2.capabilities(hasListeningStats = false, hasMonthlyRecap = false)
+        val base = AriaClientContextV2.capabilities(
+            hasListeningStats = false, hasMonthlyRecap = false, hasConnect = false
+        )
         assertEquals(
-            listOf("unisound", "live", "flow", "explore", "streak", "aria_picks", "navigation"),
+            listOf("unisound", "live", "flow", "explore", "streak", "aria_picks", "navigation", "aria_collections"),
             base
         )
         val full = AriaClientContextV2.capabilities(hasListeningStats = true, hasMonthlyRecap = true)
         assertTrue(full.containsAll(base))
         assertTrue("listening_stats" in full)
         assertTrue("monthly_recap" in full)
+    }
+
+    @Test
+    fun `this build declares Aria collections and Connect here`() {
+        val capabilities = AriaClientContextV2.capabilities()
+
+        assertTrue("aria_collections" in capabilities)
+        assertTrue("connect_here" in capabilities)
+        assertFalse("connect_here" in AriaClientContextV2.capabilities(hasConnect = false))
     }
 
     @Test

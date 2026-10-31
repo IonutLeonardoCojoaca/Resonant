@@ -90,6 +90,17 @@ data class AriaActionSong(
     val selectionMode: String? = null
 )
 
+/**
+ * `play_collection` (aria-assistant-overhaul): `kind` is songs, playlist, album or favorites.
+ * `songIds` are only meaningful for `songs`; the other kinds load their songs with the user JWT.
+ */
+data class AriaCollection(
+    val kind: String,
+    val id: String? = null,
+    val title: String? = null,
+    val songIds: List<String> = emptyList()
+)
+
 data class AriaAction(
     val type: String,
     val actionId: String? = null,
@@ -161,6 +172,14 @@ data class AriaAction(
     // New fields for artist playback actions
     val clientArtistId: String? = null,
     val clientArtistName: String? = null,
+
+    // aria-assistant-overhaul: play_collection, queue_songs and connect_transfer.
+    val collection: AriaCollection? = null,
+    val collectionStartIndex: Int = 0,
+    val collectionShuffle: Boolean = false,
+    val queueSongIds: List<String>? = null,
+    /** `queue_songs`: `next` (play next) or `end` (end of the queue). */
+    val queuePosition: String? = null,
 
     // add-aria-context-v2: Live, Unisound, navigation, streak, explain_pick and Flow feedback.
     val liveChannelSlug: String? = null,
@@ -850,7 +869,7 @@ class AriaViewModel : ViewModel() {
             var songRecArtistName: String? = null
             var songRecTotalInCatalog: Int? = null
 
-            if (type == "recomendar_cancion" && content != null && entityKind == "song_recommendations") {
+            if (content != null && com.example.resonant.aria.AriaFeatureCards.hasSongList(type, entityKind)) {
                 songRecArtistId = content.optString("artist_id").takeIf { it.isNotBlank() }
                 songRecArtistName = content.optString("artist_name").takeIf { it.isNotBlank() }
                 songRecTotalInCatalog = content.optInt("total_in_catalog", 0).takeIf { it > 0 }
@@ -982,7 +1001,7 @@ class AriaViewModel : ViewModel() {
                 songDisambiguation = songDisambiguation,
                 previewSongs = previewSongs,
                 navigateTo = navigateTo,
-                suggestedFollowups = suggestedFollowups,
+                suggestedFollowups = com.example.resonant.aria.AriaFeatureCards.followupsFor(type, suggestedFollowups),
                 relatedArtists = relatedArtists,
                 seedSource = seedSource,
                 referenceArtist = referenceArtist,
@@ -1035,7 +1054,19 @@ class AriaViewModel : ViewModel() {
             clientSongTitle = title,
             clientSongArtist = artist,
             clientArtistId = clientArtistId?.takeIf { it.isNotBlank() },
-            clientArtistName = clientArtistName?.takeIf { it.isNotBlank() }
+            clientArtistName = clientArtistName?.takeIf { it.isNotBlank() },
+            collection = collection?.kind?.takeIf { it.isNotBlank() }?.let { kind ->
+                AriaCollection(
+                    kind = kind,
+                    id = collection.id?.takeIf { it.isNotBlank() },
+                    title = collection.title?.takeIf { it.isNotBlank() },
+                    songIds = collection.songIds.orEmpty().filter { it.isNotBlank() }
+                )
+            },
+            collectionStartIndex = startIndex ?: 0,
+            collectionShuffle = shuffle ?: false,
+            queueSongIds = songIds?.filter { it.isNotBlank() },
+            queuePosition = position?.takeIf { it.isNotBlank() }
         )
     }
 

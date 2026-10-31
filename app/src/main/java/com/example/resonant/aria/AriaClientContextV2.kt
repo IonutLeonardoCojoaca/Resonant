@@ -39,6 +39,14 @@ object AriaClientContextV2 {
     const val HAS_LISTENING_STATS_SCREEN = true
     const val HAS_MONTHLY_RECAP_SCREEN = true
 
+    /**
+     * Aria V3 (`aria-assistant-overhaul`): this build runs `play_collection` / `queue_songs` and
+     * `connect_transfer`. The backend only keeps `connect_here` when Connect is enabled.
+     */
+    const val CAPABILITY_ARIA_COLLECTIONS = "aria_collections"
+    const val CAPABILITY_CONNECT_HERE = "connect_here"
+    const val HAS_CONNECT = true
+
     /** `playback.source_type` values of the contract; anything else is sent as `UNKNOWN`. */
     val PLAYBACK_SOURCE_TYPES = setOf(
         "ALBUM", "PLAYLIST", "SEARCH", "HOME", "FAVORITE_SONGS", "TOP_SONGS_ARTIST",
@@ -48,11 +56,14 @@ object AriaClientContextV2 {
 
     fun capabilities(
         hasListeningStats: Boolean = HAS_LISTENING_STATS_SCREEN,
-        hasMonthlyRecap: Boolean = HAS_MONTHLY_RECAP_SCREEN
+        hasMonthlyRecap: Boolean = HAS_MONTHLY_RECAP_SCREEN,
+        hasConnect: Boolean = HAS_CONNECT
     ): List<String> = buildList {
         addAll(V2A_CAPABILITIES)
         if (hasListeningStats) add(CAPABILITY_LISTENING_STATS)
         if (hasMonthlyRecap) add(CAPABILITY_MONTHLY_RECAP)
+        add(CAPABILITY_ARIA_COLLECTIONS)
+        if (hasConnect) add(CAPABILITY_CONNECT_HERE)
     }
 
     /** What is playing now; null when nothing is (then neither `playback` nor `now_playing` go). */

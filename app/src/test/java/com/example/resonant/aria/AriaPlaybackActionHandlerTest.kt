@@ -1,6 +1,7 @@
 package com.example.resonant.aria
 
 import com.example.resonant.ui.viewmodels.AriaAction
+import com.example.resonant.ui.viewmodels.AriaCollection
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -251,6 +252,89 @@ class AriaPlaybackActionHandlerTest {
         assertEquals(1, feedback.size)
     }
 
+    @Test
+    fun `play_collection plays Aria's selection in order`() = runTest {
+        val fixture = PlaybackFixture()
+        val second = "15edf595-543b-4559-9778-0ac823824748"
+
+        fixture.handler.execute(
+            collectionAction(AriaCollection("songs", title = "Becky G, selección de Aria", songIds = listOf(validSongId, second)))
+        )
+
+        assertEquals(listOf(validSongId, second), fixture.gateway.playedCollection?.songIds)
+        assertEquals(0, fixture.gateway.playedStartIndex)
+        assertEquals("Reproduciendo Becky G, selección de Aria", fixture.feedback.single().first)
+    }
+
+    @Test
+    fun `play_collection plays a playlist by id with shuffle`() = runTest {
+        val fixture = PlaybackFixture()
+
+        fixture.handler.execute(
+            collectionAction(AriaCollection("playlist", id = validSongId, title = "Gym"), shuffle = true)
+        )
+
+        assertEquals("playlist", fixture.gateway.playedCollection?.kind)
+        assertEquals(validSongId, fixture.gateway.playedCollection?.id)
+        assertEquals(true, fixture.gateway.playedShuffle)
+    }
+
+    @Test
+    fun `play_collection without playable songs reports it and keeps the queue`() = runTest {
+        val fixture = PlaybackFixture()
+        fixture.gateway.collectionFailure = NoPlayableSongsException()
+
+        fixture.handler.execute(collectionAction(AriaCollection("favorites", title = "Tus favoritas")))
+
+        assertNull(fixture.gateway.playedCollection)
+        assertFalse(fixture.feedback.single().second)
+        assertEquals(AriaPlaybackActionHandler.REASON_NO_PLAYABLE_SONGS, fixture.lastReason())
+    }
+
+    @Test
+    fun `play_collection rejects a playlist without a valid id`() = runTest {
+        val fixture = PlaybackFixture()
+
+        fixture.handler.execute(collectionAction(AriaCollection("playlist", id = "not-a-uuid", title = "Gym")))
+
+        assertNull(fixture.gateway.playedCollection)
+        assertEquals(AriaPlaybackActionHandler.REASON_INVALID_COLLECTION, fixture.lastReason())
+    }
+
+    @Test
+    fun `play_collection runs once per action_id`() = runTest {
+        val fixture = PlaybackFixture()
+        val action = collectionAction(AriaCollection("favorites"))
+
+        fixture.handler.execute(action)
+        fixture.gateway.playedCollection = null
+        fixture.handler.execute(action)
+
+        assertNull(fixture.gateway.playedCollection)
+    }
+
+    @Test
+    fun `queue_songs next inserts without interrupting playback`() = runTest {
+        val fixture = PlaybackFixture()
+        fixture.gateway.currentSongId = "currently-playing"
+
+        fixture.handler.execute(
+            action(command = "queue_songs", actionId = "queue-next").copy(
+                queueSongIds = listOf(validSongId), queuePosition = "next"
+            )
+        )
+
+        assertEquals("currently-playing", fixture.gateway.currentSongId)
+        assertEquals(listOf(validSongId), fixture.gateway.queuedNext)
+        assertEquals("Sonará a continuación", fixture.feedback.single().first)
+    }
+
+    private fun collectionAction(collection: AriaCollection, shuffle: Boolean = false) =
+        action(command = "play_collection", actionId = "collection-${collection.kind}-${collection.id}").copy(
+            collection = collection,
+            collectionShuffle = shuffle
+        )
+
     private fun action(
         command: String,
         actionId: String,
@@ -323,6 +407,23 @@ class AriaPlaybackActionHandlerTest {
         }
 
         override suspend fun playArtistRadio(artistId: String, artistName: String?) {
+        }
+
+        var playedCollection: AriaCollection? = null
+        var playedStartIndex: Int? = null
+        var playedShuffle: Boolean? = null
+        var collectionFailure: Exception? = null
+        val queuedNext = mutableListOf<String>()
+
+        override suspend fun playCollection(collection: AriaCollection, startIndex: Int, shuffle: Boolean) {
+            collectionFailure?.let { throw it }
+            playedCollection = collection
+            playedStartIndex = startIndex
+            playedShuffle = shuffle
+        }
+
+        override suspend fun queueSongs(songIds: List<String>, playNext: Boolean) {
+            if (playNext) queuedNext += songIds else queuedSongIds += songIds
         }
     }
 

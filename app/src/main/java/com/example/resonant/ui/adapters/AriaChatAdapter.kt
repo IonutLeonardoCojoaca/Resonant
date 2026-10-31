@@ -108,6 +108,15 @@ internal object AriaAgentTraceUi {
             type == "explain_pick" -> "Explicó la recomendación" to R.drawable.ic_star_ai
             type == "live_tune_in" || type == "live_leave" -> "Controló Live" to R.drawable.ic_play
             type == "flow_feedback" || type == "flow_set_preferences" -> "Ajustó Flow" to R.drawable.ic_star_ai
+            // aria-assistant-overhaul
+            type == "confirmacion_pendiente" -> "Necesita tu confirmación" to R.drawable.ic_playlist_stack
+            type == "favorito" -> "Actualizó tus favoritos" to R.drawable.ic_star_ai
+            type == "playlist_cancion" || type == "playlist_visibilidad" ->
+                "Playlist actualizada" to R.drawable.ic_playlist_stack
+            type == "borrar_playlist" -> "Playlist borrada" to R.drawable.ic_playlist_stack
+            type == "consulta_personal" -> "Analizó tu escucha" to R.drawable.ic_trending_up
+            type == "connect_transfer" -> "Trajo la música aquí" to R.drawable.ic_play
+            type == "no_disponible" -> "No disponible aquí" to R.drawable.ic_play
             !action.playbackCommand.isNullOrBlank() -> "Controló la reproducción" to R.drawable.ic_play
             type == "consulta" -> "Consultó el catálogo" to R.drawable.ic_search_small
             type == "recomendacion" || type == "proactive_recommendation" ->
@@ -348,7 +357,9 @@ class AriaChatAdapter(
             val cardVisibleTypes = setOf(
                 "crear_playlist", "recomendacion", "recomendar_cancion",
                 "recomendar_artista", "consulta", "crear_sesion_dj",
-                "añadir_canciones", "descubrir", "usuario", "proactive_recommendation"
+                "añadir_canciones", "descubrir", "usuario", "proactive_recommendation",
+                // aria-assistant-overhaul
+                "consulta_personal", "playlist_cancion", "playlist_visibilidad"
             )
             val isConsultaUsuario = action?.type == "consulta_usuario"
             val isSongRecs = !action?.songRecommendations.isNullOrEmpty() ||

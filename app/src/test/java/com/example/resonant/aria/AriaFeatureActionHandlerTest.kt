@@ -46,6 +46,12 @@ class AriaFeatureActionHandlerTest {
         override fun showError(message: String) {
             errors += message
         }
+        var transferResult: AriaFeatureResult = AriaFeatureResult.Ok
+        var transfers = 0
+        override suspend fun transferPlaybackHere(): AriaFeatureResult {
+            transfers++
+            return transferResult
+        }
     }
 
     private val gateway = FakeGateway()
@@ -72,6 +78,23 @@ class AriaFeatureActionHandlerTest {
         destination = destination,
         unisoundSessionId = room
     )
+
+    @Test
+    fun `connect transfer brings playback here once per action id`() = runTest {
+        val transfer = action("connect_transfer", id = "T")
+
+        assertEquals(AriaFeatureActionHandler.OUTCOME_DONE, handler.handle(transfer))
+        assertEquals(AriaFeatureActionHandler.OUTCOME_DUPLICATE, handler.handle(transfer))
+        assertEquals(1, gateway.transfers)
+    }
+
+    @Test
+    fun `connect transfer with nothing playing elsewhere shows the reason`() = runTest {
+        gateway.transferResult = AriaFeatureResult.Failed("No hay música sonando en otro dispositivo")
+
+        assertEquals(AriaFeatureActionHandler.OUTCOME_ERROR, handler.handle(action("connect_transfer", id = "T2")))
+        assertEquals(listOf("No hay música sonando en otro dispositivo"), gateway.errors)
+    }
 
     @Test
     fun `tune in runs once per action id`() = runTest {

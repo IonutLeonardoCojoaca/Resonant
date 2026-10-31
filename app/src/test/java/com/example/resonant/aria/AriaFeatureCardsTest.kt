@@ -11,6 +11,20 @@ import org.junit.Test
 
 class AriaFeatureCardsTest {
 
+    @Test
+    fun `a pending confirmation always offers Si and No`() {
+        assertEquals(listOf("Sí", "No"), AriaFeatureCards.followupsFor("confirmacion_pendiente", listOf("Mézclala")))
+        assertEquals(listOf("Mézclala"), AriaFeatureCards.followupsFor("crear_playlist", listOf("Mézclala")))
+    }
+
+    @Test
+    fun `personal top songs and charts use the song list`() {
+        assertTrue(AriaFeatureCards.hasSongList("consulta_personal", "top_songs"))
+        assertTrue(AriaFeatureCards.hasSongList("consulta", "song_chart"))
+        assertTrue(AriaFeatureCards.hasSongList("recomendar_cancion", "song_recommendations"))
+        assertEquals(false, AriaFeatureCards.hasSongList("consulta_personal", "top_artists"))
+    }
+
     private fun streakContent(currentDays: Int? = 5, goalSeconds: Int? = 900, todaySeconds: Int? = 420) =
         AriaActionContentDTO(
             kind = "streak",

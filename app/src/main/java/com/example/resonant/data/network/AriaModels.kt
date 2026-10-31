@@ -126,7 +126,29 @@ data class AriaClientActionDTO(
     @SerializedName("feedback") val feedback: String? = null,
     @SerializedName("source") val source: String? = null,
     @SerializedName("reason") val reason: String? = null,
-    @SerializedName("suggested_followups") val suggestedFollowups: List<String>? = null
+    @SerializedName("suggested_followups") val suggestedFollowups: List<String>? = null,
+    // aria-assistant-overhaul: play_collection, queue_songs, connect_transfer and V3 cards.
+    @SerializedName("collection") val collection: AriaCollectionDTO? = null,
+    @SerializedName("start_index") val startIndex: Int? = null,
+    @SerializedName("shuffle") val shuffle: Boolean? = null,
+    @SerializedName("song_ids") val songIds: List<String>? = null,
+    @SerializedName("position") val position: String? = null,
+    @SerializedName("target") val target: String? = null,
+    @SerializedName("mensaje") val message: String? = null,
+    @SerializedName("nombre_playlist") val playlistName: String? = null,
+    @SerializedName("playlist_id") val playlistId: String? = null,
+    @SerializedName("nombre") val targetLabel: String? = null,
+    @SerializedName("objetivo") val objective: String? = null,
+    @SerializedName("accion") val operation: String? = null,
+    @SerializedName("publica") val isPublic: Boolean? = null,
+    @SerializedName("ya_estaba") val alreadyThere: Boolean? = null
+)
+
+data class AriaCollectionDTO(
+    @SerializedName("kind") val kind: String? = null,
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("song_ids") val songIds: List<String>? = null
 )
 
 data class AriaFeedbackStats(

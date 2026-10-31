@@ -11,6 +11,9 @@ import com.example.resonant.playback.PlaybackControllerConnection
 import com.example.resonant.playback.PlaybackStateRepository
 import com.example.resonant.playback.QueueCommands
 import com.example.resonant.ui.viewmodels.AriaAction
+import com.example.resonant.ui.viewmodels.AriaCollection
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import com.example.resonant.unisound.UnisoundControl
 import com.example.resonant.unisound.UnisoundControlOrigin
 import com.example.resonant.unisound.UnisoundManager
@@ -149,6 +152,48 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
         }
     }
 
+    override suspend fun playCollection(collection: AriaCollection, startIndex: Int, shuffle: Boolean) {
+        val songManager = com.example.resonant.managers.SongManager(appContext)
+        val (songs, source) = when (collection.kind) {
+            AriaPlaybackActionHandler.COLLECTION_PLAYLIST ->
+                songManager.getSongsFromPlaylist(collection.id.orEmpty()) to com.example.resonant.playback.QueueSource.PLAYLIST
+            AriaPlaybackActionHandler.COLLECTION_ALBUM ->
+                songManager.getSongsFromAlbum(collection.id.orEmpty()) to com.example.resonant.playback.QueueSource.ALBUM
+            AriaPlaybackActionHandler.COLLECTION_FAVORITES ->
+                songManager.getFavoriteSongs() to com.example.resonant.playback.QueueSource.FAVORITE_SONGS
+            else -> songsInOrder(songManager, collection.songIds) to com.example.resonant.playback.QueueSource.SEARCH
+        }
+        if (songs.isEmpty()) throw NoPlayableSongsException()
+        val ordered = if (shuffle) songs.shuffled() else songs
+        val sourceId = collection.id ?: "aria"
+        playSongList(ordered, sourceId, source, if (shuffle) 0 else startIndex.coerceIn(0, ordered.lastIndex))
+    }
+
+    /** Loads Aria's own selection keeping its order; songs the backend no longer knows are skipped. */
+    private suspend fun songsInOrder(
+        songManager: com.example.resonant.managers.SongManager,
+        songIds: List<String>
+    ): List<com.example.resonant.data.models.Song> = kotlinx.coroutines.coroutineScope {
+        songIds.map { id -> async { runCatching { songManager.getSongById(id) }.getOrNull() } }
+            .awaitAll()
+            .filterNotNull()
+    }
+
+    override suspend fun queueSongs(songIds: List<String>, playNext: Boolean) {
+        // PLAY_NEXT inserts right after the current song, so going backwards keeps Aria's order.
+        val ordered = if (playNext) songIds.asReversed() else songIds
+        ordered.forEach { songId ->
+            val result = PlaybackControllerConnection.sendQueueCommand(
+                context = appContext,
+                action = if (playNext) QueueCommands.PLAY_NEXT else QueueCommands.ADD,
+                arguments = Bundle().apply { putString(QueueCommands.ARG_SONG_ID, songId) }
+            )
+            check(result.resultCode == SessionResult.RESULT_SUCCESS) {
+                result.extras.getString(QueueCommands.RESULT_MESSAGE) ?: "No se pudo añadir a la cola"
+            }
+        }
+    }
+
     override suspend fun playArtistEssentials(artistId: String, artistName: String?) {
         val songs = com.example.resonant.managers.ArtistManager.getEssentials(appContext, artistId)
         if (songs.isEmpty()) error("No se encontraron canciones imprescindibles")
@@ -174,13 +219,18 @@ private class AndroidAriaPlaybackGateway(context: Context) : AriaPlaybackGateway
         }
     }
 
-    private suspend fun playSongList(songs: List<com.example.resonant.data.models.Song>, queueSourceId: String) {
+    private suspend fun playSongList(
+        songs: List<com.example.resonant.data.models.Song>,
+        queueSourceId: String,
+        queueSource: com.example.resonant.playback.QueueSource = com.example.resonant.playback.QueueSource.SEARCH,
+        startIndex: Int = 0
+    ) {
         val playIntent = android.content.Intent(appContext, com.example.resonant.services.MusicPlaybackService::class.java).apply {
             action = com.example.resonant.services.MusicPlaybackService.ACTION_PLAY
-            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_SONG, songs.first())
-            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_INDEX, 0)
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_SONG, songs[startIndex])
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_CURRENT_INDEX, startIndex)
             putParcelableArrayListExtra(com.example.resonant.services.MusicPlaybackService.SONG_LIST, ArrayList(songs))
-            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE, com.example.resonant.playback.QueueSource.SEARCH)
+            putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE, queueSource)
             putExtra(com.example.resonant.services.MusicPlaybackService.EXTRA_QUEUE_SOURCE_ID, queueSourceId)
         }
         startPlayAndAwaitQueue(playIntent)

@@ -64,6 +64,19 @@ internal class AndroidAriaFeatureGateway(
 
     override fun currentUnisoundSessionId(): String? = UnisoundManager.get(appContext).currentSessionIdOrNull()
 
+    /** Same transfer as the device picker, with this device as the target. */
+    override suspend fun transferPlaybackHere(): AriaFeatureResult {
+        val connect = com.example.resonant.playback.PlaybackConnectRepository.get(appContext)
+        connect.refresh()
+        val state = connect.uiState.value
+        val active = state.activeDeviceId
+        if (active == null || active == state.localDeviceId) {
+            return AriaFeatureResult.Failed("No hay música sonando en otro dispositivo")
+        }
+        val result = connect.transferTo(state.localDeviceId)
+        return if (result.successful) AriaFeatureResult.Ok else AriaFeatureResult.Failed(result.message)
+    }
+
     override fun currentLiveSlug(): String? = LiveManager.activeSlugOrNull()
 
     /** Same flow as the "Escuchar" button of the channel screen. */

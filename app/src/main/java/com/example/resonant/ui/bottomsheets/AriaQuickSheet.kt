@@ -761,6 +761,7 @@ class AriaQuickSheet : Fragment() {
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
                     .orEmpty()
+                    .let(com.example.resonant.aria.AriaWakeWordMatcher::stripWakePhrase)
                 stopVoiceRecognition()
                 if (prompt.isNotBlank()) {
                     input.setText(prompt)

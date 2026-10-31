@@ -1,6 +1,7 @@
 package com.example.resonant.aria
 
 import com.example.resonant.ui.viewmodels.AriaAction
+import com.example.resonant.ui.viewmodels.AriaCollection
 import kotlinx.coroutines.CancellationException
 import java.util.Locale
 import java.util.UUID
@@ -25,7 +26,18 @@ interface AriaPlaybackGateway {
     suspend fun queueSong(songId: String)
     suspend fun playArtistEssentials(artistId: String, artistName: String?)
     suspend fun playArtistRadio(artistId: String, artistName: String?)
+
+    /**
+     * Replaces the queue with the collection and starts at [startIndex]. Throws
+     * [NoPlayableSongsException] before touching the queue when nothing can be played.
+     */
+    suspend fun playCollection(collection: AriaCollection, startIndex: Int, shuffle: Boolean)
+
+    /** Inserts the songs without interrupting playback: right after the current one or at the end. */
+    suspend fun queueSongs(songIds: List<String>, playNext: Boolean)
 }
+
+class NoPlayableSongsException : IllegalStateException("No playable songs")
 
 interface AriaFavoriteGateway {
     suspend fun addFavoriteSong(songId: String): Boolean
@@ -84,8 +96,75 @@ class AriaPlaybackActionHandler(
             "repeat", "loop", "bucle" -> executeControl(action, command, AriaTransportControl.REPEAT)
             "play_song", "queue_song" -> executeSongAction(action, command)
             "play_artist_essentials", "play_artist_radio" -> executeArtistAction(action, command)
+            "play_collection" -> executeCollection(action, command)
+            "queue_songs" -> executeQueueSongs(action, command)
             else -> record(action, command, OUTCOME_IGNORED, REASON_UNSUPPORTED_COMMAND)
         }
+    }
+
+    private suspend fun executeCollection(action: AriaAction, command: String) {
+        val collection = action.collection
+        val kind = collection?.kind?.lowercase(Locale.ROOT)
+        if (collection == null || kind !in COLLECTION_KINDS) {
+            fail(action, command, REASON_INVALID_COLLECTION, "No pude identificar qué poner")
+            return
+        }
+        val validSongIds = collection.songIds.filter(::isValidUuid)
+        val needsId = kind == COLLECTION_PLAYLIST || kind == COLLECTION_ALBUM
+        if ((kind == COLLECTION_SONGS && validSongIds.isEmpty()) ||
+            (needsId && collection.id?.let(::isValidUuid) != true)
+        ) {
+            fail(action, command, REASON_INVALID_COLLECTION, "No pude identificar qué poner")
+            return
+        }
+        val title = collection.title ?: defaultCollectionTitle(kind)
+        try {
+            playbackGateway.playCollection(
+                collection.copy(kind = kind, songIds = validSongIds),
+                startIndex = action.collectionStartIndex.coerceAtLeast(0),
+                shuffle = action.collectionShuffle
+            )
+            record(action, command, OUTCOME_SUCCESS, songId = collection.id)
+            onFeedback("Reproduciendo $title", true)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: NoPlayableSongsException) {
+            fail(action, command, REASON_NO_PLAYABLE_SONGS, "No encontré canciones que poner en $title", collection.id)
+        } catch (error: Exception) {
+            fail(action, command, REASON_PLAYBACK_START_FAILED, "No pude poner $title", collection.id)
+        }
+    }
+
+    private suspend fun executeQueueSongs(action: AriaAction, command: String) {
+        val songIds = action.queueSongIds.orEmpty().filter(::isValidUuid)
+        if (songIds.isEmpty()) {
+            fail(action, command, REASON_MISSING_SONG_ID, "Falta la canción que debo encolar")
+            return
+        }
+        val playNext = action.queuePosition == QUEUE_POSITION_NEXT
+        try {
+            playbackGateway.queueSongs(songIds, playNext)
+            record(action, command, OUTCOME_SUCCESS, songId = songIds.first())
+            onFeedback(
+                when {
+                    songIds.size > 1 -> "${songIds.size} canciones añadidas a la cola"
+                    playNext -> "Sonará a continuación"
+                    else -> "Añadida a la cola"
+                },
+                true
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            fail(action, command, REASON_QUEUE_COMMAND_FAILED, "No pude añadir eso a la cola", songIds.first())
+        }
+    }
+
+    private fun defaultCollectionTitle(kind: String?): String = when (kind) {
+        COLLECTION_FAVORITES -> "tus favoritas"
+        COLLECTION_ALBUM -> "el álbum"
+        COLLECTION_PLAYLIST -> "la playlist"
+        else -> "la selección"
     }
 
     private suspend fun executeControl(
@@ -266,6 +345,15 @@ class AriaPlaybackActionHandler(
         const val REASON_QUEUE_COMMAND_FAILED = "queue_command_failed"
         const val REASON_CONTROL_FAILED = "control_failed"
         const val REASON_UNSUPPORTED_COMMAND = "unsupported_command"
+        const val REASON_INVALID_COLLECTION = "invalid_collection"
+        const val REASON_NO_PLAYABLE_SONGS = "no_playable_songs"
+
+        const val COLLECTION_SONGS = "songs"
+        const val COLLECTION_PLAYLIST = "playlist"
+        const val COLLECTION_ALBUM = "album"
+        const val COLLECTION_FAVORITES = "favorites"
+        private val COLLECTION_KINDS = setOf(COLLECTION_SONGS, COLLECTION_PLAYLIST, COLLECTION_ALBUM, COLLECTION_FAVORITES)
+        const val QUEUE_POSITION_NEXT = "next"
 
         private val UUID_PATTERN = Regex(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +

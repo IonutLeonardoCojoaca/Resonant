@@ -115,5 +115,23 @@ object AriaFeatureCards {
     fun milestoneText(card: AriaStreakCard): String? =
         card.nextMilestone?.let { "Próximo hito: ${daysText(it)}" }
 
+    /** Chips of a pending confirmation (aria-assistant-overhaul): they send exactly "Sí" or "No". */
+    val CONFIRMATION_FOLLOWUPS = listOf("Sí", "No")
+
+    /**
+     * Followups to show for an action. A pending confirmation always offers "Sí"/"No", whatever
+     * the server suggested, so a tap answers the question.
+     */
+    fun followupsFor(type: String?, serverFollowups: List<String>?): List<String>? =
+        if (type == "confirmacion_pendiente") CONFIRMATION_FOLLOWUPS else serverFollowups
+
+    /** Song lists drawn with the recommendation rows: recommendations, personal top and charts. */
+    fun hasSongList(type: String?, kind: String?): Boolean = when (type) {
+        "recomendar_cancion" -> kind == "song_recommendations"
+        "consulta_personal" -> kind == "top_songs"
+        "consulta" -> kind == "song_chart"
+        else -> false
+    }
+
     private fun String?.clean(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 }
