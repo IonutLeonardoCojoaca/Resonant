@@ -43,7 +43,7 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            android:background="@drawable/bg_gradient_bottom_navigation"/>
+            android:background="@drawable/bg_gradient_main_bottom_nav"/>
 
         <FrameLayout
             android:id="@+id/mini_player"
@@ -382,7 +382,7 @@
             android:background="@color/transparent"
             android:clipToPadding="false"
             app:itemBackground="@android:color/transparent"
-            app:itemIconTint="@color/nav_item_color_selector"
+            app:itemIconTint="@color/nav_item_icon_color_selector"
             app:itemTextColor="@color/nav_item_color_selector"
             app:labelVisibilityMode="labeled"
             android:fitsSystemWindows="false"

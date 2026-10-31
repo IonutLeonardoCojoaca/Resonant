@@ -204,7 +204,7 @@
                     android:fontFamily="@font/unageo_bold"
                     android:letterSpacing="0.16"
                     android:textAllCaps="true"
-                    android:textColor="#8C9DFF"
+                    android:textColor="@color/collab_accent_text"
                     android:textSize="10sp"
                     tools:text="Mapa de colaboraciones" />
 

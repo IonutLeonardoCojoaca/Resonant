@@ -58,6 +58,8 @@
 
     <color name="nav_text_icon_color">#7A7A7E</color>
     <color name="nav_text_icon_color_selected">#E9E9E9</color>
+    <color name="nav_icon_color_unselected">#C4C4C8</color>
+    <color name="nav_gradient_center">#8C000000</color>
 
     <color name="no_selected_color_icon">#7A7A7E</color>
     <color name="nav_aria_star_unselected">#505050</color>
@@ -105,6 +107,10 @@
     <color name="exploreSectionActionText">@color/textTheme</color>
     <color name="collabPlusBackground">#101010</color>
     <color name="collabButtonAccent">#B81414</color>
+    <!-- Collab Finder: rojo de marca (ResonantAccent.COLLAB = secondaryColorTheme). -->
+    <color name="collab_accent_text">#E21616</color>
+    <color name="collab_accent_soft">#26E21616</color>
+    <color name="collab_accent_stroke">#59E21616</color>
     <color name="genreMiniOverlay">#2C2C2C</color>
 
 

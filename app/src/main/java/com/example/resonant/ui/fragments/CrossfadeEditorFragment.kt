@@ -138,6 +138,8 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
     // ═══════════════════════════════════════════════
 
     private fun setupTopBar() {
+        // Fondo propio (mutate) y transparente hasta que se hace scroll: applyParallax le sube el alfa.
+        binding.topBar.background = binding.topBar.background?.mutate()?.apply { alpha = 0 }
         binding.arrowGoBackButton.setOnClickListener {
             if (unsavedCallback?.isEnabled == true) confirmDiscard() else findNavController().popBackStack()
         }
@@ -204,9 +206,9 @@ class CrossfadeEditorFragment : BaseFragment(R.layout.fragment_crossfade_editor)
         b.songBCoverFrame.apply { rotation = 7f * progress; scaleX = scale; scaleY = scale }
         // Barra superior: aparece con su título cuando la cabecera se va.
         val bar = ((scrollY - heroH * 0.45f) / (heroH * 0.35f)).coerceIn(0f, 1f)
-        b.topBarBackground.alpha = bar
-        // La elevación va en la barra entera: si fuese en su fondo, el fondo se dibujaría encima de sus hermanos
-        // (atrás, título y Guardar) y los taparía al hacer scroll.
+        // El fondo es el de la propia barra (no un hijo): así cubre también el padding de la barra de estado
+        // que le añade StatusBarInsets, y no se ve el contenido por detrás de ella.
+        b.topBar.background?.alpha = (255 * bar).toInt()
         b.topBar.elevation = 4.dp * bar
         b.editorTitle.alpha = bar
     }

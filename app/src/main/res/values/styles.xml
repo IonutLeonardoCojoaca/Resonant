@@ -564,4 +564,36 @@
         <item name="android:textColor">@color/secondaryColorTheme</item>
         <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
     </style>
+
+    <!-- Collab Finder · panel de estadísticas del detalle (valor + etiqueta por columna, divisor entre columnas). -->
+    <style name="CollabStatValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">28dp</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:gravity">center</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">22sp</item>
+    </style>
+
+    <style name="CollabStatLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:fontFamily">@font/unageo_bold</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:letterSpacing">0.14</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/textTheme</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <style name="CollabStatDivider">
+        <item name="android:layout_width">1dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:layout_gravity">top</item>
+        <item name="android:background">@color/dividerOnSurface</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
 </resources>

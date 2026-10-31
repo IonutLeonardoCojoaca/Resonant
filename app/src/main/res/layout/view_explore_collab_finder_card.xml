@@ -54,7 +54,7 @@
             android:maxLines="1"
             android:text="Descubre conexiones"
             android:textAllCaps="true"
-            android:textColor="#8C9DFF"
+            android:textColor="@color/collab_accent_text"
             android:textSize="9sp" />
 
         <TextView

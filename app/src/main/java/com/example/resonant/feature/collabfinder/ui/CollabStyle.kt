@@ -12,7 +12,7 @@ import com.example.resonant.R
 import com.example.resonant.ui.components.ResonantAccent
 import com.google.android.material.button.MaterialButton
 
-/** Identidad visual de Collab Finder (acento índigo) compartida por sus pantallas. */
+/** Identidad visual de Collab Finder (rojo de marca) compartida por sus pantallas. */
 object CollabStyle {
 
     val accent: Int get() = ResonantAccent.COLLAB.color
@@ -20,7 +20,7 @@ object CollabStyle {
     val accentDark: Int get() = ColorUtils.blendARGB(accent, Color.BLACK, 0.32f)
 
     fun primaryButton(button: MaterialButton) {
-        button.backgroundTintList = ColorStateList.valueOf(accentDark)
+        button.backgroundTintList = ColorStateList.valueOf(accent)
     }
 
     /** Glow radial de acento para la capa de fondo de una pantalla. */

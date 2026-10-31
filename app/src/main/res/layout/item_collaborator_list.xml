@@ -17,7 +17,7 @@
         android:layout_height="wrap_content"
         android:fontFamily="@font/unageo_bold"
         android:gravity="center"
-        android:textColor="#8C9DFF"
+        android:textColor="@color/collab_accent_text"
         android:textSize="14sp"
         tools:text="1" />
 
@@ -29,7 +29,7 @@
         android:padding="2dp"
         android:scaleType="centerCrop"
         app:shapeAppearanceOverlay="@style/CircularImageView"
-        app:strokeColor="#998C9DFF"
+        app:strokeColor="@color/collab_accent_stroke"
         app:strokeWidth="1.5dp" />
 
     <LinearLayout

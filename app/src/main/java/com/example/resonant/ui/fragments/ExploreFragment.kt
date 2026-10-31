@@ -316,9 +316,8 @@ class ExploreFragment : Fragment() {
             ), { navigateToChart("Tendencias", 0, true, "#eb3b5a", "#fa8231") })
         )
         cards.forEachIndexed { index, (card, spec, onClick) ->
-            // "Lo más top" va sin caja (solo brillo y logo); Tendencias convive con la tarjeta de Live y la conserva.
-            val boxless = card.id != R.id.btnTendencias
-            ExploreQuickCard.bind(card, spec, boxless = boxless, onClick = onClick)
+            // Todas sin caja (solo brillo y logo), Tendencias incluida: mismo diseño que las de charts.
+            ExploreQuickCard.bind(card, spec, boxless = true, onClick = onClick)
             if (!quickCardsAnimated) ExploreQuickCard.animateIn(card, index)
         }
         quickCardsAnimated = true

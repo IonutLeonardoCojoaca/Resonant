@@ -21,7 +21,8 @@
 
         <TextView
             android:id="@+id/playlistText"
-            style="@style/TopBar.Title" />
+            style="@style/TopBar.Title"
+            android:textSize="16sp" />
 
         <ImageButton
             android:id="@+id/playlistFavoriteButton"

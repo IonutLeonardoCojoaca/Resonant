@@ -84,7 +84,7 @@
                         android:letterSpacing="0.16"
                         android:text="Mapa de colaboraciones"
                         android:textAllCaps="true"
-                        android:textColor="#8C9DFF"
+                        android:textColor="@color/collab_accent_text"
                         android:textSize="10sp" />
 
                     <TextView

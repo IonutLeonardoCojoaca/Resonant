@@ -720,15 +720,8 @@
     <FrameLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp">
-
-        <View
-            android:id="@+id/topBarBackground"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:alpha="0"
-            android:background="@color/primaryColorTheme"
-            android:elevation="0dp" />
+        android:layout_height="56dp"
+        android:background="@color/primaryColorTheme">
 
         <ImageButton
             android:id="@+id/arrowGoBackButton"

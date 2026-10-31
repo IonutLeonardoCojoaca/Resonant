@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Collab Finder · detalle de una colaboración (artista A × artista B). Capas:
-    glow de fondo → banner doble (parallax interno) con nombres y "×" encima →
-    título, estadísticas y canciones. La barra superior se vuelve opaca al hacer scroll.
+    glow de fondo → hero a sangre (banner doble con parallax interno que se funde con el fondo, etiqueta
+    y título) → panel de estadísticas y canciones. La barra superior se vuelve opaca al hacer scroll.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -23,8 +23,7 @@
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:fillViewport="true"
-        android:overScrollMode="never"
-        android:paddingTop="56dp">
+        android:overScrollMode="never">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -32,148 +31,149 @@
             android:orientation="vertical"
             android:paddingBottom="@dimen/screen_bottom_inset">
 
-            <!-- Banner doble con nombres y "×" superpuestos -->
+            <!-- Hero a sangre: banner doble (se funde con el fondo por abajo) y, sobre el fundido, la etiqueta
+                 y el título. -->
             <FrameLayout
                 android:id="@+id/bannerFrame"
                 android:layout_width="match_parent"
-                android:layout_height="270dp"
-                android:layout_marginHorizontal="14dp"
-                android:layout_marginTop="4dp">
+                android:layout_height="420dp">
 
                 <com.example.resonant.feature.collabfinder.ui.views.CollabDuoBannerView
                     android:id="@+id/duoBanner"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
+                    android:layout_height="340dp"
+                    android:importantForAccessibility="no" />
 
-                <TextView
-                    android:id="@+id/tvArtistAName"
-                    android:layout_width="wrap_content"
+
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|start"
-                    android:layout_marginStart="18dp"
-                    android:layout_marginBottom="18dp"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:maxLines="1"
-                    android:maxWidth="140dp"
-                    android:shadowColor="#CC000000"
-                    android:shadowDy="1"
-                    android:shadowRadius="8"
-                    android:textColor="@android:color/white"
-                    android:textSize="16sp"
-                    tools:text="Future" />
+                    android:layout_gravity="bottom"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="24dp">
 
-                <TextView
-                    android:id="@+id/tvArtistBName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|end"
-                    android:layout_marginEnd="18dp"
-                    android:layout_marginBottom="18dp"
-                    android:ellipsize="end"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="end"
-                    android:maxLines="1"
-                    android:maxWidth="140dp"
-                    android:shadowColor="#CC000000"
-                    android:shadowDy="1"
-                    android:shadowRadius="8"
-                    android:textColor="@android:color/white"
-                    android:textSize="16sp"
-                    tools:text="Lil Uzi Vert" />
+                    <TextView
+                        android:id="@+id/tvCollabEyebrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_collab_eyebrow_pill"
+                        android:fontFamily="@font/unageo_bold"
+                        android:includeFontPadding="false"
+                        android:letterSpacing="0.16"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="COLABORACIÓN"
+                        android:textColor="@color/collab_accent_text"
+                        android:textSize="10sp" />
 
-                <TextView
-                    android:id="@+id/tvCrossBadge"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_gravity="bottom|center_horizontal"
-                    android:layout_marginBottom="12dp"
-                    android:fontFamily="@font/unageo_bold"
-                    android:gravity="center"
-                    android:importantForAccessibility="no"
-                    android:text="×"
-                    android:textColor="@android:color/white"
-                    android:textSize="20sp" />
+                    <TextView
+                        android:id="@+id/tvCollabTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:ellipsize="end"
+                        android:fontFamily="@font/unageo_bold"
+                        android:gravity="center"
+                        android:includeFontPadding="false"
+                        android:letterSpacing="-0.01"
+                        android:maxLines="2"
+                        android:textColor="@color/white"
+                        android:textSize="30sp"
+                        tools:text="The Weeknd × Future" />
+                </LinearLayout>
             </FrameLayout>
 
-            <TextView
-                android:id="@+id/tvCollabEyebrow"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="20dp"
-                android:fontFamily="@font/unageo_bold"
-                android:letterSpacing="0.16"
-                android:text="COLABORACIÓN"
-                android:textColor="#8C9DFF"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/tvCollabTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="24dp"
-                android:layout_marginTop="8dp"
-                android:ellipsize="end"
-                android:fontFamily="@font/unageo_bold"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:letterSpacing="-0.01"
-                android:maxLines="2"
-                android:textColor="@color/white"
-                android:textSize="26sp"
-                tools:text="Future × Lil Uzi Vert" />
-
-            <!-- Estadísticas -->
+            <!-- Estadísticas: un solo panel en tres columnas (valor arriba y etiqueta debajo, alineados entre
+                 columnas); la afinidad añade su medidor bajo la etiqueta. -->
             <LinearLayout
                 android:id="@+id/statsStrip"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="24dp"
+                android:background="@drawable/bg_surface_panel"
+                android:baselineAligned="false"
                 android:orientation="horizontal"
-                android:paddingHorizontal="14dp">
-
-                <include
-                    android:id="@+id/statCount"
-                    layout="@layout/view_collab_stat"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_weight="1" />
-
-                <include
-                    android:id="@+id/statYears"
-                    layout="@layout/view_collab_stat"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_weight="1" />
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="16dp"
+                android:screenReaderFocusable="true">
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="4dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_surface_panel"
-                    android:gravity="center"
-                    android:minHeight="76dp"
-                    android:orientation="vertical"
-                    android:padding="8dp">
-
-                    <com.example.resonant.feature.collabfinder.ui.views.CollabScoreGaugeView
-                        android:id="@+id/scoreGaugeView"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp" />
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvStatCount"
+                        style="@style/CollabStatValue"
+                        android:text="–"
+                        tools:text="9" />
+
+                    <TextView
+                        style="@style/CollabStatLabel"
+                        android:text="CANCIONES" />
+                </LinearLayout>
+
+                <View style="@style/CollabStatDivider" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStatYears"
+                        style="@style/CollabStatValue"
+                        android:layout_width="match_parent"
+                        android:paddingHorizontal="6dp"
+                        android:text="–"
+                        app:autoSizeMaxTextSize="22sp"
+                        app:autoSizeMinTextSize="13sp"
+                        app:autoSizeTextType="uniform"
+                        tools:text="2016 – 2024" />
+
+                    <TextView
+                        style="@style/CollabStatLabel"
+                        android:text="PERIODO" />
+                </LinearLayout>
+
+                <View style="@style/CollabStatDivider" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStatScore"
+                        style="@style/CollabStatValue"
+                        android:text="–"
+                        tools:text="56" />
+
+                    <TextView
+                        style="@style/CollabStatLabel"
+                        android:text="AFINIDAD" />
+
+                    <com.google.android.material.progressindicator.LinearProgressIndicator
+                        android:id="@+id/scoreMeter"
+                        android:layout_width="56dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:fontFamily="@font/unageo_medium"
-                        android:includeFontPadding="false"
-                        android:text="afinidad"
-                        android:textColor="@color/textTheme"
-                        android:textSize="11sp" />
+                        android:layout_marginTop="8dp"
+                        android:importantForAccessibility="no"
+                        android:max="100"
+                        app:indicatorColor="@color/collab_accent_text"
+                        app:indicatorTrackGapSize="0dp"
+                        app:trackColor="@color/dividerOnSurface"
+                        app:trackCornerRadius="2dp"
+                        app:trackStopIndicatorSize="0dp"
+                        app:trackThickness="4dp" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -245,19 +245,14 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Barra estándar (TopBar): transparente sobre el banner, opaca al hacer scroll. Los iconos usan la
+    <!-- Barra estándar (TopBar): transparente sobre el banner, opaca al hacer scroll. El fondo es el de la propia
+         barra (no un hijo) para que cubra también la franja de la barra de estado que le añade StatusBarInsets. Los iconos usan la
          variante OnImage hasta que el fondo es opaco y entonces pasan a la del tema (OnImageTopBar). -->
     <FrameLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp">
-
-        <View
-            android:id="@+id/topBarBackground"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:alpha="0"
-            android:background="@color/primaryColorTheme" />
+        android:layout_height="56dp"
+        android:background="@color/primaryColorTheme">
 
         <LinearLayout style="@style/TopBar">
 

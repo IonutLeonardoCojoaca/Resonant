@@ -13,7 +13,6 @@ import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.text.TextPaint
-import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
@@ -58,7 +57,7 @@ class BubbleOrbitView @JvmOverloads constructor(
     var onCenterTapped: (() -> Unit)? = null
 
     @ColorInt
-    var accentColor: Int = 0xFF8C9DFF.toInt()
+    var accentColor: Int = 0xFFE21616.toInt()
         set(value) {
             field = value
             shadersDirty = true
@@ -115,7 +114,11 @@ class BubbleOrbitView @JvmOverloads constructor(
     private var bubbles: List<Bubble> = emptyList()
 
     private var isLoading = false
-    private var dataShownAt = -1f
+    /**
+     * Instante (en [time]) en que se mostraron los datos; null = sin datos. No vale un centinela negativo:
+     * una vista recién creada tiene time = 0 y un resultado ya colocado queda en time - ENTRANCE_DONE_S < 0.
+     */
+    private var dataShownAt: Float? = null
     private var loadingStartedAt = 0f
     private var time = 0f
     private var parallax = 0f
@@ -132,12 +135,6 @@ class BubbleOrbitView @JvmOverloads constructor(
         color = Color.WHITE
         textAlign = Paint.Align.CENTER
         typeface = ResourcesCompat.getFont(context, R.font.unageo_bold)
-    }
-    private val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = ContextCompat.getColor(context, R.color.white)
-        textAlign = Paint.Align.CENTER
-        textSize = 10.5f * density
-        typeface = ResourcesCompat.getFont(context, R.font.unageo_medium)
     }
     private val shaderMatrix = Matrix()
     private val placeholderFill by lazy { ContextCompat.getColor(context, R.color.cardsTheme) }
@@ -185,7 +182,7 @@ class BubbleOrbitView @JvmOverloads constructor(
         val shown = collaborators.take(slots.size)
         val sameData = central?.id == centralArtist.id &&
             bubbles.map { it.node.id } == shown.map { it.id } &&
-            dataShownAt >= 0f
+            dataShownAt != null
         if (sameData) {
             // Mismo resultado (p. ej. al volver a la pantalla): no se re-anima nada.
             invalidate()
@@ -216,7 +213,7 @@ class BubbleOrbitView @JvmOverloads constructor(
             central = null
             centralBitmap = null
             centralShader = null
-            dataShownAt = -1f
+            dataShownAt = null
         }
         updateTicker()
         invalidate()
@@ -240,13 +237,12 @@ class BubbleOrbitView @JvmOverloads constructor(
     private fun layoutBubbles() {
         if (width == 0 || height == 0) return
         val side = 6 * density
-        val labelSpace = 18 * density
         bubbles.forEach { bubble ->
             val slot = slots[bubble.index]
             val radius = slot.radiusDp * density
             bubble.radius = radius
             bubble.x = (width * slot.x).coerceIn(radius + side, width - radius - side)
-            bubble.y = (height * slot.y).coerceIn(radius + side, height - radius - side - labelSpace)
+            bubble.y = (height * slot.y).coerceIn(radius + side, height - radius - side)
             // Los orbes pequeños parecen más lejanos: se quedan más atrás con el parallax.
             bubble.depth = 1f - ((slot.radiusDp - 26f) / 12f).coerceIn(0f, 1f)
         }
@@ -315,7 +311,8 @@ class BubbleOrbitView @JvmOverloads constructor(
         if (shadersDirty) rebuildShaders()
 
         val hasData = bubbles.isNotEmpty() || central != null
-        val reveal = if (hasData && dataShownAt >= 0f) ease((time - dataShownAt) / 0.7f) else 0f
+        val shownAt = dataShownAt
+        val reveal = if (hasData && shownAt != null) ease((time - shownAt) / 0.7f) else 0f
 
         drawHalo(canvas)
         // Orbes ambientales: presentes en reposo/carga, se desvanecen al llegar datos.
@@ -368,8 +365,8 @@ class BubbleOrbitView @JvmOverloads constructor(
     }
 
     private fun bubbleProgress(bubble: Bubble): Float {
-        if (dataShownAt < 0f) return 0f
-        return ((time - dataShownAt - 0.15f - bubble.index * 0.09f) / 0.75f).coerceIn(0f, 1f)
+        val shownAt = dataShownAt ?: return 0f
+        return ((time - shownAt - 0.15f - bubble.index * 0.09f) / 0.75f).coerceIn(0f, 1f)
     }
 
     private fun drawConnections(canvas: Canvas) {
@@ -424,13 +421,6 @@ class BubbleOrbitView @JvmOverloads constructor(
         canvas.drawCircle(cx, cy, r, strokePaint)
 
         drawCountBadge(canvas, cx, cy, r, bubble.node.collaborationCount)
-
-        val labelAlpha = ((bubbleProgress(bubble) - 0.5f) * 2f).coerceIn(0f, 1f)
-        if (labelAlpha > 0f) {
-            labelPaint.alpha = (215 * labelAlpha).toInt()
-            val label = TextUtils.ellipsize(bubble.node.name, labelPaint, r * 2.6f, TextUtils.TruncateAt.END)
-            canvas.drawText(label, 0, label.length, cx, cy + bubble.radius + 14 * density, labelPaint)
-        }
     }
 
     private fun drawCountBadge(canvas: Canvas, cx: Float, cy: Float, r: Float, count: Int) {

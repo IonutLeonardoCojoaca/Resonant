@@ -9,6 +9,8 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
@@ -26,9 +28,10 @@ import com.example.resonant.ui.components.ResonantMotion
 import kotlin.math.max
 
 /**
- * Banner doble de Collab Finder: las fotos de los dos artistas separadas por un corte
- * diagonal con brillo de acento. Entra deslizando cada mitad desde su lado, las fotos
- * aparecen con fundido y tiene parallax interno ([setParallax]).
+ * Banner doble de Collab Finder, a sangre: las fotos de los dos artistas separadas por un corte
+ * diagonal con brillo de acento. Por arriba lleva un velo oscuro (barra de estado y botón atrás) y por
+ * abajo se desvanece a transparente, así se funde con lo que haya detrás en cualquier tema. Entra
+ * deslizando cada mitad desde su lado, las fotos aparecen con fundido y tiene parallax interno ([setParallax]).
  */
 class CollabDuoBannerView @JvmOverloads constructor(
     context: Context,
@@ -37,7 +40,7 @@ class CollabDuoBannerView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     @ColorInt
-    var accentColor: Int = 0xFF8C9DFF.toInt()
+    var accentColor: Int = 0xFFE21616.toInt()
         set(value) {
             field = value
             if (width > 0) buildShaders(width, height)
@@ -59,9 +62,7 @@ class CollabDuoBannerView @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
     private val clipPathA = Path()
     private val clipPathB = Path()
-    private val roundedPath = Path()
     private val boundsRect = RectF()
-    private val cornerRadius = 22f * density
 
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
     private val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -74,7 +75,11 @@ class CollabDuoBannerView @JvmOverloads constructor(
         strokeWidth = 10f * density
         strokeCap = Paint.Cap.ROUND
     }
-    private val bottomGradientPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val topScrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    /** Borra (DST_OUT) el pie del banner de forma gradual: el fundido es transparencia, no un color. */
+    private val bottomFadePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+    }
     private val placeholderPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val placeholderDrawable: Drawable? by lazy {
@@ -167,8 +172,6 @@ class CollabDuoBannerView @JvmOverloads constructor(
         super.onSizeChanged(w, h, oldw, oldh)
         if (w <= 0 || h <= 0) return
         boundsRect.set(0f, 0f, w.toFloat(), h.toFloat())
-        roundedPath.reset()
-        roundedPath.addRoundRect(boundsRect, cornerRadius, cornerRadius, Path.Direction.CW)
 
         val splitTop = w * splitTopRatio
         val splitBottom = w * splitBottomRatio
@@ -206,10 +209,14 @@ class CollabDuoBannerView @JvmOverloads constructor(
             ),
             floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP
         )
-        bottomGradientPaint.shader = LinearGradient(
-            0f, h * 0.4f, 0f, h.toFloat(),
-            intArrayOf(Color.TRANSPARENT, Color.argb(100, 0, 0, 0), Color.argb(215, 0, 0, 0)),
-            floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP
+        topScrimPaint.shader = LinearGradient(
+            0f, 0f, 0f, h * 0.35f,
+            Color.argb(110, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+        )
+        bottomFadePaint.shader = LinearGradient(
+            0f, h * 0.5f, 0f, h.toFloat(),
+            intArrayOf(Color.TRANSPARENT, Color.argb(150, 0, 0, 0), Color.BLACK),
+            floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP
         )
         placeholderPaint.color = ColorUtils.blendARGB(accentColor, Color.BLACK, 0.8f)
     }
@@ -220,8 +227,8 @@ class CollabDuoBannerView @JvmOverloads constructor(
         val h = height.toFloat()
         if (w <= 0 || h <= 0) return
 
-        val save = canvas.save()
-        canvas.clipPath(roundedPath)
+        // Capa propia: el fundido inferior (DST_OUT) solo debe borrar lo que dibuja el banner.
+        val save = canvas.saveLayer(boundsRect, null)
         canvas.drawRect(boundsRect, placeholderPaint)
 
         // Cada mitad entra desde su lado; las fotos se mueven a menos velocidad que el scroll.
@@ -232,7 +239,7 @@ class CollabDuoBannerView @JvmOverloads constructor(
         drawSide(canvas, sideA, clipPathA, -slide, shift, 0f, w * splitTopRatio + 30f, h)
         drawSide(canvas, sideB, clipPathB, slide, shift, w * splitBottomRatio - 30f, w, h)
 
-        canvas.drawRect(boundsRect, bottomGradientPaint)
+        canvas.drawRect(boundsRect, topScrimPaint)
 
         // La diagonal crece desde el centro durante la entrada.
         val splitTop = w * splitTopRatio
@@ -247,6 +254,7 @@ class CollabDuoBannerView @JvmOverloads constructor(
         canvas.drawLine(x0, y0, x1, y1, dividerGlowPaint)
         canvas.drawLine(x0, y0, x1, y1, dividerPaint)
 
+        canvas.drawRect(boundsRect, bottomFadePaint)
         canvas.restoreToCount(save)
     }
 

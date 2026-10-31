@@ -61,7 +61,7 @@ class CollabOrbitMotifView @JvmOverloads constructor(
     }
 
     @ColorInt
-    var accentColor: Int = 0xFF8C9DFF.toInt()
+    var accentColor: Int = 0xFFE21616.toInt()
         set(value) {
             field = value
             shadersDirty = true

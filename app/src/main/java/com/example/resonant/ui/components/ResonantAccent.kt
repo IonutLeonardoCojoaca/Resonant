@@ -21,7 +21,8 @@ enum class ResonantAccent(@ColorInt val color: Int, @DrawableRes val icon: Int) 
     PLAYMIX(0xFFFF7A59.toInt(), R.drawable.ic_resonant_gradient_sunset),
     HISTORY(0xFFFFC94D.toInt(), R.drawable.ic_resonant_gradient_gold),
     DOWNLOADS(0xFFB8F04A.toInt(), R.drawable.ic_resonant_gradient_lime),
-    COLLAB(0xFF8C9DFF.toInt(), R.drawable.ic_resonant_gradient_indigo),
+    /** Collab Finder: el rojo de marca de la app (secondaryColorTheme). */
+    COLLAB(0xFFE21616.toInt(), R.drawable.ic_resonant_gradient_red),
     ESSENTIALS(0xFFE8E8EE.toInt(), R.drawable.ic_resonant_gradient_platinum),
     RADIO(0xFFFFD43B.toInt(), R.drawable.ic_resonant_gradient_yellow)
 }

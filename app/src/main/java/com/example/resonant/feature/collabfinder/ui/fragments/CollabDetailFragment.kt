@@ -2,8 +2,6 @@ package com.example.resonant.feature.collabfinder.ui.fragments
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -11,7 +9,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -116,13 +113,8 @@ class CollabDetailFragment : Fragment() {
         CollabStyle.primaryButton(binding.btnPlayAll)
         binding.duoBanner.accentColor = CollabStyle.accent
         binding.loadingMotif.accentColor = CollabStyle.accent
-        binding.tvCrossBadge.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(CollabStyle.accentDark)
-            setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
-        }
-        binding.statCount.root.findViewById<TextView>(R.id.statLabel).text = "canciones juntos"
-        binding.statYears.root.findViewById<TextView>(R.id.statLabel).text = "periodo"
+        // Fondo propio de la barra, transparente hasta que se hace scroll.
+        binding.topBar.background = binding.topBar.background?.mutate()?.apply { alpha = 0 }
 
         // Mientras llega el detalle: el colaborador ya se conoce por los argumentos.
         val centralArtist = viewModel.centralArtist.value
@@ -139,8 +131,6 @@ class CollabDetailFragment : Fragment() {
     private fun setTitles(artistA: String?, artistB: String) {
         collabTitle = if (artistA != null) "$artistA × $artistB" else artistB
         binding.tvToolbarTitle.text = collabTitle
-        binding.tvArtistAName.text = artistA.orEmpty()
-        binding.tvArtistBName.text = artistB
         binding.tvCollabTitle.text = if (artistA == null) {
             artistB
         } else {
@@ -159,7 +149,7 @@ class CollabDetailFragment : Fragment() {
             binding.backdropGlow.translationY = -y * 0.4f
             binding.duoBanner.setParallax(y)
             val progress = (y / binding.bannerFrame.height.coerceAtLeast(1)).coerceIn(0f, 1f)
-            binding.topBarBackground.alpha = progress
+            binding.topBar.background?.alpha = (255 * progress).toInt()
             binding.tvToolbarTitle.alpha = ((progress - 0.75f) / 0.25f).coerceIn(0f, 1f)
             OnImageTopBar.update(progress, binding.btnBack)
         }
@@ -243,9 +233,14 @@ class CollabDetailFragment : Fragment() {
         setTitles(detail.artistA.name, detail.artistB.name)
         binding.duoBanner.loadArtists(detail.artistA.imageUrl, detail.artistB.imageUrl)
 
-        binding.statCount.root.findViewById<TextView>(R.id.statValue).text = "${detail.collaborationCount}"
-        binding.statYears.root.findViewById<TextView>(R.id.statValue).text = detail.yearsSpan.ifBlank { "–" }
-        binding.scoreGaugeView.setScore(detail.collabScore)
+        binding.tvStatCount.text = "${detail.collaborationCount}"
+        // Sin años el mapper devuelve "Unknown": no se muestra en inglés.
+        binding.tvStatYears.text = detail.yearsSpan.takeUnless { it.isBlank() || it == "Unknown" } ?: "–"
+        val score = detail.collabScore.coerceIn(0, 100)
+        binding.tvStatScore.text = "$score"
+        binding.scoreMeter.setProgressCompat(score, true)
+        binding.statsStrip.contentDescription =
+            "${detail.collaborationCount} canciones, periodo ${binding.tvStatYears.text}, afinidad $score de 100"
         binding.tvSongsSubtitle.text = "${detail.totalSongs} canciones encontradas en esta colaboración"
 
         playableSongs = detail.songs.map { it.toPlayableSong() }
