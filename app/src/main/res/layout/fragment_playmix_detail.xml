@@ -14,14 +14,14 @@
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="350dp"
+        android:layout_height="wrap_content"
         android:background="@color/primaryColorTheme"
         app:liftOnScroll="false">
 
         <com.google.android.material.appbar.CollapsingToolbarLayout
             android:id="@+id/collapsingToolbar"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             app:layout_scrollFlags="scroll|exitUntilCollapsed"
             app:titleEnabled="false"
             app:toolbarId="@id/topBar"
@@ -68,12 +68,25 @@
                 app:layout_collapseMode="parallax"
                 app:layout_collapseParallaxMultiplier="0.4" />
 
-            <!-- Info panel at bottom of header -->
+            <!-- Oscurece la franja de la barra de estado y la TopBar sobre la portada (iconos legibles) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="140dp"
+                android:layout_gravity="top"
+                android:background="@drawable/bg_playmix_top_protection"
+                android:importantForAccessibility="no"
+                app:layout_collapseMode="pin" />
+
+            <!-- Info panel at bottom of header. Marca la altura de la cabecera (mín. 350dp): si el texto
+                 no cabe (fuente grande, descripción, fila social) la cabecera crece en vez de meterse bajo
+                 la barra de estado. StatusBarInsets le suma el alto de la barra de estado al paddingTop. -->
             <LinearLayout
                 android:id="@+id/playmixDataContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
+                android:gravity="bottom"
+                android:minHeight="350dp"
                 android:orientation="vertical"
                 android:paddingHorizontal="20dp"
                 android:paddingBottom="16dp"
@@ -240,11 +253,13 @@
             </LinearLayout>
 
             <!-- Barra estándar fija (TopBar): atrás + título al plegar + opciones. Sobre la portada usa las
-                 variantes OnImage; al plegar, los iconos pasan a la variante del tema (OnImageTopBar). -->
+                 variantes OnImage y fondo transparente; al plegar, iconos del tema (OnImageTopBar) y su fondo
+                 (negro / blanco puro, también tras la barra de estado) aparece con el scroll. -->
             <LinearLayout
                 android:id="@+id/topBar"
                 style="@style/TopBar"
                 android:layout_gravity="top"
+                android:background="@color/primaryColorTheme"
                 app:layout_collapseMode="pin">
 
                 <ImageButton

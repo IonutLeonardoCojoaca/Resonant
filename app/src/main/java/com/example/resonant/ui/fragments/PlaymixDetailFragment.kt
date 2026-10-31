@@ -1,6 +1,7 @@
 package com.example.resonant.ui.fragments
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Bundle
@@ -19,6 +20,7 @@ import com.example.resonant.data.network.PlaymixDetailDTO
 import com.example.resonant.data.network.PlaymixTransitionDTO
 import com.example.resonant.playback.PlaymixMixMode
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.isVisible
 import kotlin.math.roundToInt
 import com.example.resonant.databinding.FragmentPlaymixDetailBinding
@@ -171,14 +173,32 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
 
     private fun setupParallaxTitle() {
         OnImageTopBar.prepare(binding.arrowGoBackButton, binding.settingsButton)
+        // Fondo de la barra (primaryColorTheme): transparente sobre la portada, opaco al plegar.
+        val barBackground = binding.topBar.background.mutate().apply { alpha = 0 }
+        setLightStatusBarIcons(false)
         binding.appBarLayout.addOnOffsetChangedListener(AppBarLayout.OnOffsetChangedListener { appBar, offset ->
             if (appBar.totalScrollRange == 0) return@OnOffsetChangedListener
             val ratio = abs(offset).toFloat() / appBar.totalScrollRange.toFloat()
-            // Último 25 % del plegado (como ChartHero/DetailHero): título y paso a los iconos del tema.
+            // Último 25 % del plegado (como ChartHero/DetailHero): título, fondo y paso a los iconos del tema.
             val collapsed = ((ratio - 0.75f) / 0.25f).coerceIn(0f, 1f)
             binding.playmixTitle.alpha = collapsed
+            barBackground.alpha = (collapsed * 255).roundToInt()
             OnImageTopBar.update(collapsed, binding.arrowGoBackButton, binding.settingsButton)
+            // Los datos se desvanecen antes de llegar a la barra: no se amontonan bajo ella ni bajo la de estado.
+            binding.playmixDataContainer.alpha = 1f - ((ratio - 0.35f) / 0.4f).coerceIn(0f, 1f)
+            // Sobre la portada, iconos claros; con la barra opaca (primaryColorTheme), los del tema.
+            setLightStatusBarIcons(collapsed >= 0.5f && !isNightMode())
         })
+    }
+
+    private fun isNightMode(): Boolean =
+        (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+    /** [light] = iconos oscuros (fondo claro). Se restaura al valor del tema en onDestroyView. */
+    private fun setLightStatusBarIcons(light: Boolean) {
+        val window = activity?.window ?: return
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (controller.isAppearanceLightStatusBars != light) controller.isAppearanceLightStatusBars = light
     }
 
     private fun setupListeners() {
@@ -519,6 +539,8 @@ class PlaymixDetailFragment : BaseFragment(R.layout.fragment_playmix_detail) {
     }
 
     override fun onDestroyView() {
+        // Devolver los iconos de la barra de estado como los deja enableEdgeToEdge para el resto de pantallas.
+        setLightStatusBarIcons(!isNightMode())
         super.onDestroyView()
         _binding = null
     }

@@ -18,7 +18,7 @@ import com.example.resonant.R
 object StatusBarInsets {
 
     private val BAR_IDS = intArrayOf(R.id.topBar, R.id.superiorToolbar, R.id.detailToolbar, R.id.searchHeader)
-    private val CONTENT_IDS = intArrayOf(R.id.editorContent, R.id.contentScroll, R.id.ariaChatRecyclerView)
+    private val CONTENT_IDS = intArrayOf(R.id.editorContent, R.id.contentScroll, R.id.ariaChatRecyclerView, R.id.playmixDataContainer)
     private val GROW_IDS = intArrayOf(R.id.ariaChatTopFade)
     private const val OVERLAY_SPACE_MIN_DP = 48
     /** Aire extra entre la barra de estado y los elementos de la pantalla. */
