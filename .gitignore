@@ -20,5 +20,8 @@ app/release/
 .cxx
 local.properties
 
+# Documentación local (planes, handoffs, verificaciones)
+/docs/
+
 # Skill local de diseño de Claude Code
 /.claude/skills/resonant-android-design/
