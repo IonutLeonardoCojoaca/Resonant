@@ -9,8 +9,13 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
+build/
 /captures
+
+# Artefactos de release (APK/AAB firmados, .dm de baseline profiles)
+app/release/
+*.apk
+*.aab
 .externalNativeBuild
 .cxx
 local.properties
